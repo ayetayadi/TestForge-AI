@@ -1,0 +1,93 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =========================
+# Virtual environments
+# =========================
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Database
+# =========================
+*.db
+*.sqlite3
+
+# =========================
+# Cache
+# =========================
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# IDE
+# =========================
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Testing
+# =========================
+.coverage
+htmlcov/
+
+# =========================
+# Playwright
+# =========================
+playwright-report/
+test-results/
+
+# =========================
+# Node (si Playwright utilise node)
+# =========================
+node_modules/
+
+# =========================
+# Alembic migrations (optionnel)
+# =========================
+alembic/versions/*.pyc
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.swp

@@ -7,3 +7,6 @@ requests
 jira
 deepeval
 playwright
+sqlalchemy
+psycopg2-binary
+pydantic-settings

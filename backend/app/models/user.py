@@ -1,9 +1,8 @@
 import uuid
 from datetime import datetime
-from app.models.jira_connection import JiraConnection
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import String, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.database import Base
+from app.core.database import Base
 
 
 class User(Base):
@@ -18,5 +17,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     jira_connection: Mapped["JiraConnection"] = relationship(
-        back_populates="user", uselist=False, cascade="all, delete-orphan"
+        "JiraConnection",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan"
     )

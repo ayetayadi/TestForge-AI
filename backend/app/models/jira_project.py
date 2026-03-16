@@ -1,9 +1,7 @@
 import uuid
-from app.models.jira_connection import JiraConnection
-from app.models.user_story import UserStory
 from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.database import Base
+from app.core.database import Base
 
 
 class JiraProject(Base):

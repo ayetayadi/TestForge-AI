@@ -1,11 +1,8 @@
 import uuid
 from datetime import datetime
-
-from jira import User
-from app.models.jira_project import JiraProject
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.database import Base
+from app.core.database import Base
 
 
 class JiraConnection(Base):
