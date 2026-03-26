@@ -5,7 +5,7 @@ import {
 } from '@angular/core';
 import {
   provideHttpClient,
-  withInterceptorsFromDi,
+  withInterceptors,          // ← changed from withInterceptorsFromDi
 } from '@angular/common/http';
 import { routes } from './app.routes';
 import {
@@ -15,6 +15,7 @@ import {
 } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideClientHydration } from '@angular/platform-browser';
+import { authInterceptor } from './core/interceptors/auth.interceptor'; // ← add
 
 // icons
 import { TablerIconsModule } from 'angular-tabler-icons';
@@ -23,7 +24,6 @@ import * as TablerIcons from 'angular-tabler-icons/icons';
 // perfect scrollbar
 import { NgScrollbarModule } from 'ngx-scrollbar';
 
-//Import all material modules
 import { MaterialModule } from './material.module';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
@@ -38,7 +38,7 @@ export const appConfig: ApplicationConfig = {
       }),
       withComponentInputBinding()
     ),
-    provideHttpClient(withInterceptorsFromDi()),
+    provideHttpClient(withInterceptors([authInterceptor])),  // ← changed
     provideClientHydration(),
     provideAnimationsAsync(),
     importProvidersFrom(

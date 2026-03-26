@@ -1,17 +1,33 @@
 from fastapi import FastAPI
-from app.core.database import Base, engine
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.database import engine, Base
+from app.api import auth, admin, jira
 
-# import all models so SQLAlchemy knows them
-from app.models import User, JiraConnection, JiraProject, UserStory
+app = FastAPI(title="TestForge AI")
 
-app = FastAPI(title="TestForge API")
+# CORS must be added FIRST before any routers
+origins = ["http://localhost:4200"]
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
+)
 
 @app.on_event("startup")
-def startup():
-    Base.metadata.create_all(bind=engine)
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
+app.include_router(auth.router)
+app.include_router(admin.router)
+app.include_router(jira.router)
 
-@app.get("/")
-def root():
-    return {"message": "FastAPI + PostgreSQL is working"}
+# Debug route to confirm CORS is active
+@app.get("/ping")
+async def ping():
+    return {"status": "ok"}

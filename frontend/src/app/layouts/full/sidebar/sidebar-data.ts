@@ -9,112 +9,26 @@ export const navItems: NavItem[] = [
     iconName: 'solar:widget-add-line-duotone',
     route: '/dashboard',
   },
-
   {
+    navCap: 'Admin',
     divider: true,
-    navCap: 'Apps',
-  },
-
-  {
-    navCap: 'Ui Components',
-    divider: true
+    adminOnly: true,        // ← hide cap for non-admins
   },
   {
-    displayName: 'Badge',
-    iconName: 'solar:archive-minimalistic-line-duotone',
-    route: '/ui-components/badge',
+    displayName: 'Manage Users',
+    iconName: 'solar:users-group-rounded-line-duotone',
+    route: '/dashboard/admin/users',
+    adminOnly: true,        // ← admin only
   },
   {
-    displayName: 'Chips',
-    iconName: 'solar:danger-circle-line-duotone',
-    route: '/ui-components/chips',
-  },
-  {
-    displayName: 'Lists',
-    iconName: 'solar:bookmark-square-minimalistic-line-duotone',
-    route: '/ui-components/lists',
-  },
-  {
-    displayName: 'Menu',
-    iconName: 'solar:file-text-line-duotone',
-    route: '/ui-components/menu',
-  },
-  {
-    displayName: 'Tooltips',
-    iconName: 'solar:text-field-focus-line-duotone',
-    route: '/ui-components/tooltips',
-  },
-  {
-    displayName: 'Forms',
-    iconName: 'solar:file-text-line-duotone',
-    route: '/ui-components/forms',
-  },
-  {
-    displayName: 'Tables',
-    iconName: 'solar:tablet-line-duotone',
-    route: '/ui-components/tables',
-  },
-  {
+    navCap: 'Integrations',
     divider: true,
-    navCap: 'Pages',
+    userOnly: true,         // ← hide cap for admins
   },
   {
-    navCap: 'Extra',
-    divider: true
+    displayName: 'Connect Jira',
+    iconName: 'solar:link-circle-line-duotone',
+    route: '/dashboard/jira',
+    userOnly: true,         // ← regular users only
   },
-  {
-    displayName: 'Icons',
-    iconName: 'solar:sticker-smile-circle-2-line-duotone',
-    route: '/extra/icons',
-  },
-  {
-    displayName: 'Sample Page',
-    iconName: 'solar:planet-3-line-duotone',
-    route: '/extra/sample-page',
-  },
-
-  {
-    divider: true,
-    navCap: 'Forms',
-  },
-
-  {
-    divider: true,
-    navCap: 'Tables',
-  },
-  {
-    divider: true,
-    navCap: 'Chart',
-  },
-
-  {
-    divider: true,
-    navCap: 'Auth',
-  },
-  {
-    displayName: 'Login',
-    iconName: 'solar:lock-keyhole-minimalistic-line-duotone',
-    route: '/authentication',
-    children: [
-      {
-        displayName: 'Login',
-         subItemIcon: true,
-        iconName: 'solar:round-alt-arrow-right-line-duotone',
-        route: '/authentication/login',
-      }
-    ],
-  },
-  {
-    displayName: 'Register',
-    iconName: 'solar:user-plus-rounded-line-duotone',
-    route: '/authentication',
-    children: [
-      {
-        displayName: 'Register',
-         subItemIcon: true,
-        iconName: 'solar:round-alt-arrow-right-line-duotone',
-        route: '/authentication/register',
-      }
-    ],
-  },  
 ];
