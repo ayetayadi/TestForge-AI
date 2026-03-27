@@ -5,7 +5,6 @@ import { Observable } from 'rxjs';
 export interface CreateUserPayload {
   email: string;
   username: string;
-  password: string;
   is_admin: boolean;
 }
 
@@ -16,6 +15,12 @@ export interface UserRead {
   is_admin: boolean;
   is_active: boolean;
   jira_connected: boolean;
+}
+
+export interface UpdateUserPayload {
+  email: string;
+  username: string;
+  is_admin: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -32,7 +37,12 @@ export class AdminService {
     return this.http.get<UserRead[]>(`${this.apiUrl}/admin/users`);
   }
 
+  updateUser(id: string, payload: CreateUserPayload): Observable<UserRead> {
+    return this.http.put<UserRead>(`${this.apiUrl}/admin/users/${id}`, payload);
+  }
+
   deleteUser(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/admin/users/${id}`);
   }
+
 }

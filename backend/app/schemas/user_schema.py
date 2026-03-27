@@ -13,7 +13,6 @@ class UserRead(BaseModel):
     username: str
     is_admin: bool
     is_active: bool
-    must_change_password: bool = False    # ← new
     created_at: datetime
     jira_connected: bool = False
 
@@ -27,7 +26,6 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    must_change_password: bool = False    # ← new
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
@@ -36,3 +34,8 @@ class ChangePasswordRequest(BaseModel):
 class SetupPasswordRequest(BaseModel):
     token: str
     password: str
+
+class UserUpdate(BaseModel):
+    email: EmailStr
+    username: str
+    is_admin: bool

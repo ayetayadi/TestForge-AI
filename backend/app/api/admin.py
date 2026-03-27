@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.user import User
-from app.schemas.user_schema import UserCreate, UserRead
+from app.schemas.user_schema import UserCreate, UserRead, UserUpdate
 from app.api.deps import get_current_admin
 from app.services.mail_service import send_account_setup_email
 import uuid
@@ -31,11 +31,10 @@ async def create_user(
         id=str(uuid.uuid4()),
         email=payload.email,
         username=payload.username,
-        hashed_password=hash_password(secrets.token_urlsafe(16)),
+        hashed_password=hash_password(secrets.token_urlsafe(16)),  # temp random password
         is_admin=payload.is_admin,
-        is_active=False,
+        is_active=False,           # inactive until they set password
         is_verified=False,
-        must_change_password=True,
         setup_token=setup_token,
     )
     db.add(user)
@@ -85,6 +84,47 @@ async def delete_user(
     await db.delete(user)
     await db.commit()
 
+@router.put("/users/{user_id}", response_model=UserRead)
+async def update_user(
+    user_id: str,
+    payload: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check email uniqueness
+    existing_email = await db.execute(
+        select(User).where(User.email == payload.email, User.id != user_id)
+    )
+    if existing_email.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Check username uniqueness
+    existing_username = await db.execute(
+        select(User).where(User.username == payload.username, User.id != user_id)
+    )
+    if existing_username.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    user.email = payload.email
+    user.username = payload.username
+    user.is_admin = payload.is_admin
+
+    await db.commit()
+
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.jira_connection))
+        .where(User.id == user.id)
+    )
+    user = result.scalar_one()
+
+    return _to_read(user)
 
 def _to_read(user: User) -> UserRead:
     return UserRead(
@@ -93,7 +133,6 @@ def _to_read(user: User) -> UserRead:
         username=user.username,
         is_admin=user.is_admin,
         is_active=user.is_active,
-        must_change_password=user.must_change_password,
         created_at=user.created_at,
         jira_connected=user.jira_connection is not None,
     )

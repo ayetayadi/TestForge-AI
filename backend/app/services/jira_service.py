@@ -6,6 +6,7 @@ ATLASSIAN_AUTH_URL = "https://auth.atlassian.com/authorize"
 ATLASSIAN_TOKEN_URL = "https://auth.atlassian.com/oauth/token"
 ATLASSIAN_API_URL = "https://api.atlassian.com"
 
+
 def get_oauth_url(state: str) -> str:
     params = (
         f"audience=api.atlassian.com"
@@ -46,39 +47,46 @@ async def get_cloud_id(access_token: str) -> str:
         )
         response.raise_for_status()
         resources = response.json()
+
         if not resources:
             raise ValueError("No Atlassian sites found")
+
         return resources[0]["id"]
 
 
 async def fetch_jira_projects(access_token: str, cloud_id: str) -> list:
     url = f"{ATLASSIAN_API_URL}/ex/jira/{cloud_id}/rest/api/3/project"
+
     async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                url,
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=10,
-            )
-            if response.status_code == 200:
-                return [
-                    {
-                        "id": p["id"],
-                        "key": p["key"],
-                        "name": p["name"],
-                        "avatar": p.get("avatarUrls", {}).get("48x48", ""),
-                    }
-                    for p in response.json()
-                ]
-            return []
-        except Exception:
-            return []
+        response = await client.get(
+            url,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch Jira projects: {response.text}")
+
+    data = response.json()
+
+    return [
+        {
+            "id": p["id"],
+            "key": p["key"],
+            "name": p["name"],
+            "avatar": p.get("avatarUrls", {}).get("48x48", ""),
+        }
+        for p in data
+    ]
 
 
 async def fetch_user_stories(access_token: str, cloud_id: str, project_key: str) -> list:
-    """Fetch all User Stories from a specific Jira project."""
-    url = f"{ATLASSIAN_API_URL}/ex/jira/{cloud_id}/rest/api/3/search"
-    jql = f'project = "{project_key}" AND issuetype = Story ORDER BY created DESC'
+    """Fetch user stories/issues from a specific Jira project."""
+    url = f"{ATLASSIAN_API_URL}/ex/jira/{cloud_id}/rest/api/3/search/jql"
+    jql = f'project = "{project_key}" ORDER BY created DESC'
 
     async with httpx.AsyncClient() as client:
         try:
@@ -88,50 +96,60 @@ async def fetch_user_stories(access_token: str, cloud_id: str, project_key: str)
                 params={
                     "jql": jql,
                     "maxResults": 100,
-                    "fields": "summary,description,status,priority,assignee,created,updated",
+                    "fields": "summary,description,status,priority,assignee,created,updated,issuetype",
                 },
                 timeout=15,
             )
+
+
             if response.status_code != 200:
                 return []
 
-            issues = response.json().get("issues", [])
+            issues = response.json().get("issues", []) or []
             stories = []
 
             for issue in issues:
-                fields = issue.get("fields", {})
+                fields = issue.get("fields", {}) or {}
 
-                # Extract plain text from Atlassian Document Format description
                 description = _extract_text_from_adf(fields.get("description"))
 
+                status_obj = fields.get("status") or {}
+                priority_obj = fields.get("priority") or {}
+                assignee_obj = fields.get("assignee") or {}
+                issuetype_obj = fields.get("issuetype") or {}
+
                 stories.append({
-                    "id": issue["id"],
-                    "key": issue["key"],
+                    "id": issue.get("id", ""),
+                    "key": issue.get("key", ""),
                     "summary": fields.get("summary", ""),
                     "description": description,
-                    "status": fields.get("status", {}).get("name", ""),
-                    "priority": fields.get("priority", {}).get("name", ""),
-                    "assignee": (fields.get("assignee") or {}).get("displayName", "Unassigned"),
+                    "status": status_obj.get("name", ""),
+                    "priority": priority_obj.get("name", ""),
+                    "assignee": assignee_obj.get("displayName", "Unassigned"),
                     "created": fields.get("created", ""),
                     "updated": fields.get("updated", ""),
+                    "issue_type": issuetype_obj.get("name", ""),
                 })
 
             return stories
 
-        except Exception:
+        except Exception as e:
+            print("fetch_user_stories ERROR:", str(e))
             return []
-
 
 def _extract_text_from_adf(adf: dict | None) -> str:
     """Recursively extract plain text from Atlassian Document Format."""
     if not adf:
         return ""
+
     if isinstance(adf, str):
         return adf
 
     text_parts = []
+
     if adf.get("type") == "text":
         text_parts.append(adf.get("text", ""))
+
     for child in adf.get("content", []):
         text_parts.append(_extract_text_from_adf(child))
 
@@ -141,6 +159,7 @@ def _extract_text_from_adf(adf: dict | None) -> str:
 async def test_jira_connection(data: JiraConnectRequest) -> bool:
     url = f"{data.jira_url.rstrip('/')}/rest/api/3/myself"
     auth = (data.jira_email, data.jira_api_token)
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(url, auth=auth, timeout=10)

@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.testing.suite.test_reflection import users
+
 from app.core.database import engine, Base
-from app.api import auth, admin, jira
+from app.api import auth, admin, jira, users
 
 app = FastAPI(title="TestForge AI")
 
@@ -26,7 +28,7 @@ async def startup():
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(jira.router)
-
+app.include_router(users.router)
 # Debug route to confirm CORS is active
 @app.get("/ping")
 async def ping():

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import verify_password, hash_password, create_access_token
 from app.models.user import User
-from app.schemas.user_schema import LoginRequest, TokenResponse, ChangePasswordRequest, SetupPasswordRequest
+from app.schemas.user_schema import LoginRequest, TokenResponse, ChangePasswordRequest, SetupPasswordRequest, UserRead
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -30,7 +30,6 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(
         access_token=token,
         token_type="bearer",
-        must_change_password=user.must_change_password,   # ← new
     )
 
 
@@ -71,8 +70,8 @@ async def setup_password(
     user.hashed_password = hash_password(payload.password)
     user.is_active = True           # activate account
     user.is_verified = True
-    user.must_change_password = False
     user.setup_token = None         # invalidate token after use
     await db.commit()
 
     return {"message": "Password set successfully. You can now log in."}
+

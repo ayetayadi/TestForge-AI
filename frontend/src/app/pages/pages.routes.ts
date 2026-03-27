@@ -4,6 +4,7 @@ import { CreateUserComponent } from './admin/create-user/create-user.component';
 import { JiraConnectComponent } from './jira/jira-connect/jira-connect.component';
 import { adminGuard } from '../core/guards/admin.guard';
 import { authGuard } from '../core/guards/auth.guard';
+import {ProfileComponent} from "./profile/profile.component";
 
 export const PagesRoutes: Routes = [
   {
@@ -23,4 +24,6 @@ export const PagesRoutes: Routes = [
     canActivate: [authGuard],
     data: { title: 'Jira Integration' },
   },
+  { path: 'profile', component: ProfileComponent }
+
 ];
