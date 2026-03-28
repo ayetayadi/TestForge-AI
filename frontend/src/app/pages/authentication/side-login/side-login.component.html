@@ -4,16 +4,15 @@
       <mat-card class="cardWithShadow boxed-auth">
         <mat-card-content class="p-32">
 
-          <!-- Logo at top, outside card visually -->
           <div class="text-center" style="margin-top: auto; margin-bottom: 16px;">
-              <img src="./assets/images/logos/logo.png" style="
-                max-width: 300px;
-                min-width: 120px;
-                height: auto;
-                object-fit: contain;
-                display: block;
-                margin: 0 auto;
-              "/>
+            <img src="./assets/images/logos/logo.png" style="
+              max-width: 300px;
+              min-width: 120px;
+              height: auto;
+              object-fit: contain;
+              display: block;
+              margin: 0 auto;
+            "/>
           </div>
 
           <div class="or-border m-t-16">Sign in with your credentials</div>
@@ -37,6 +36,15 @@
               <input matInput type="password" formControlName="password" placeholder="••••••••" />
               <mat-error *ngIf="f['password'].hasError('required')">Password is required</mat-error>
             </mat-form-field>
+
+            <!-- ← ADD THIS -->
+            <div class="text-end m-b-16">
+              <a routerLink="/authentication/forgot-password"
+                 class="f-s-13"
+                 style="color: #5d87ff; text-decoration: none;">
+                Forgot password?
+              </a>
+            </div>
 
             <button
               mat-flat-button

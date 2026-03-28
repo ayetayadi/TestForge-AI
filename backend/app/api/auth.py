@@ -4,8 +4,12 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import verify_password, hash_password, create_access_token
 from app.models.user import User
-from app.schemas.user_schema import LoginRequest, TokenResponse, ChangePasswordRequest, SetupPasswordRequest, UserRead
+from app.schemas.user_schema import LoginRequest, TokenResponse, SetupPasswordRequest, UserRead , ForgotPasswordRequest, ResetPasswordRequest
 from app.api.deps import get_current_user
+import secrets
+from datetime import datetime, timedelta
+from app.schemas.user_schema import ForgotPasswordRequest, ResetPasswordRequest
+from app.services.mail_service import send_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -33,22 +37,65 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/change-password")
-async def change_password(
-    payload: ChangePasswordRequest,
+@router.post("/forgot-password")
+async def forgot_password(
+    payload: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
-    if not verify_password(payload.current_password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    result = await db.execute(select(User).where(User.email == payload.email))
+    user = result.scalar_one_or_none()
 
-    if len(payload.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    # Always return 200 — never reveal whether email exists
+    if not user or not user.is_active:
+        return {"message": "If that email is registered, a reset link has been sent."}
 
-    user.hashed_password = hash_password(payload.new_password)
-    user.must_change_password = False      # ← mark as done
+    token = secrets.token_urlsafe(48)
+    user.reset_token            = token
+    user.reset_token_expires_at = datetime.utcnow() + timedelta(minutes=30)
     await db.commit()
-    return {"message": "Password changed successfully"}
+
+    try:
+        await send_reset_email(user.email, user.username, token)
+    except Exception as e:
+        # Roll back token if email fails so user can retry
+        user.reset_token            = None
+        user.reset_token_expires_at = None
+        await db.commit()
+        raise HTTPException(status_code=500,
+                            detail="Failed to send email. Please try again.")
+
+    return {"message": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    payload: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    result = await db.execute(
+        select(User).where(User.reset_token == payload.token)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user or not user.reset_token_expires_at:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+
+    if datetime.utcnow() > user.reset_token_expires_at:
+        # Clean up expired token
+        user.reset_token            = None
+        user.reset_token_expires_at = None
+        await db.commit()
+        raise HTTPException(status_code=400, detail="Reset link has expired. Please request a new one.")
+
+    user.hashed_password        = hash_password(payload.new_password)
+    user.reset_token            = None
+    user.reset_token_expires_at = None
+    await db.commit()
+
+    return {"message": "Password reset successfully. You can now log in."}
 
 @router.post("/setup-password")
 async def setup_password(

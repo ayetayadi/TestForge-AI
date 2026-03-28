@@ -24,6 +24,20 @@ export interface UserRead {
   jira_connected: boolean;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private apiUrl = 'http://localhost:8000';
@@ -34,11 +48,7 @@ export class AuthService {
     return this.http.post<TokenResponse>(`${this.apiUrl}/auth/login`, payload).pipe(
       tap((res) => {
         localStorage.setItem('access_token', res.access_token);
-        if (res.must_change_password) {
-          this.router.navigate(['/authentication/change-password']);
-        } else {
-          this.router.navigate(['/dashboard']);
-        }
+        this.router.navigate(['/dashboard']);
       })
     );
   }
@@ -56,7 +66,15 @@ export class AuthService {
     return !!this.getToken();
   }
 
-  getMe(): Observable<UserRead> {
-    return this.http.get<UserRead>(`${this.apiUrl}/users/me`);
+  forgotPassword(payload: ForgotPasswordPayload): Observable<MessageResponse> {
+    return this.http.post<MessageResponse>(
+      `${this.apiUrl}/auth/forgot-password`, payload
+    );
+  }
+
+  resetPassword(payload: ResetPasswordPayload): Observable<MessageResponse> {
+    return this.http.post<MessageResponse>(
+      `${this.apiUrl}/auth/reset-password`, payload
+    );
   }
 }
