@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { tap } from 'rxjs/operators';
+import {switchMap, tap} from 'rxjs/operators';
 import { Observable } from 'rxjs';
 
 export interface LoginPayload {
@@ -44,11 +44,20 @@ export class AuthService {
 
   constructor(private http: HttpClient, private router: Router) {}
 
-  login(payload: LoginPayload): Observable<TokenResponse> {
+  login(payload: LoginPayload): Observable<any> {
     return this.http.post<TokenResponse>(`${this.apiUrl}/auth/login`, payload).pipe(
       tap((res) => {
         localStorage.setItem('access_token', res.access_token);
-        this.router.navigate(['/dashboard']);
+      }),
+      switchMap(() => this.getCurrentUser()),
+      tap((user) => {
+        localStorage.setItem('is_admin', String(user.is_admin));
+
+        if (user.is_admin) {
+          this.router.navigate(['/admin-dashboard']);
+        } else {
+          this.router.navigate(['/user-dashboard']);
+        }
       })
     );
   }
@@ -77,4 +86,8 @@ export class AuthService {
       `${this.apiUrl}/auth/reset-password`, payload
     );
   }
+  getCurrentUser(): Observable<UserRead> {
+    return this.http.get<UserRead>(`${this.apiUrl}/users/me`);
+  }
+
 }

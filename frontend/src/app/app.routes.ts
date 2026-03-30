@@ -6,7 +6,7 @@ import { authGuard } from './core/guards/auth.guard';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'authentication/login',   // ← changed from /dashboard
+    redirectTo: 'authentication/login',
     pathMatch: 'full',
   },
   {
@@ -15,7 +15,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       {
-        path: 'dashboard',
+        path: '',
         loadChildren: () =>
           import('./pages/pages.routes').then((m) => m.PagesRoutes),
       },
@@ -41,6 +41,6 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: 'authentication/login',   // ← changed from authentication/error
+    redirectTo: 'authentication/login',
   },
 ];

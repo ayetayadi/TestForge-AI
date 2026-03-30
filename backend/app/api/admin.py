@@ -114,6 +114,7 @@ async def update_user(
     user.email = payload.email
     user.username = payload.username
     user.is_admin = payload.is_admin
+    user.is_active = payload.is_active
 
     await db.commit()
 

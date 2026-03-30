@@ -5,30 +5,37 @@ export const navItems: NavItem[] = [
     navCap: 'Home',
   },
   {
-    displayName: 'Dashboard',
+    displayName: 'admin Dashboard',
     iconName: 'solar:widget-add-line-duotone',
-    route: '/dashboard',
+    route: '/admin-dashboard',
+    adminOnly: true,
+  },
+  {
+    displayName: 'user Dashboard',
+    iconName: 'solar:widget-add-line-duotone',
+    route: '/user-dashboard',
+    userOnly: true,
   },
   {
     navCap: 'Admin',
     divider: true,
-    adminOnly: true,        // ← hide cap for non-admins
+    adminOnly: true,
   },
   {
     displayName: 'Manage Users',
     iconName: 'solar:users-group-rounded-line-duotone',
-    route: '/dashboard/admin/users',
-    adminOnly: true,        // ← admin only
+    route: '/admin/users',
+    adminOnly: true,
   },
   {
     navCap: 'Integrations',
     divider: true,
-    userOnly: true,         // ← hide cap for admins
+    userOnly: true,
   },
   {
     displayName: 'Connect Jira',
     iconName: 'solar:link-circle-line-duotone',
-    route: '/dashboard/jira',
-    userOnly: true,         // ← regular users only
+    route: '/jira',
+    userOnly: true,
   },
 ];

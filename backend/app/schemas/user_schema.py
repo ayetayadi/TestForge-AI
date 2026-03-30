@@ -38,6 +38,7 @@ class UserUpdate(BaseModel):
     email: EmailStr
     username: str
     is_admin: bool
+    is_active: bool
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

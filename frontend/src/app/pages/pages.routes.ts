@@ -1,16 +1,20 @@
 import { Routes } from '@angular/router';
-import { StarterComponent } from './starter/starter.component';
 import { CreateUserComponent } from './admin/create-user/create-user.component';
 import { JiraConnectComponent } from './jira/jira-connect/jira-connect.component';
 import { adminGuard } from '../core/guards/admin.guard';
 import { authGuard } from '../core/guards/auth.guard';
-import {ProfileComponent} from "./profile/profile.component";
+import { ProfileComponent } from './profile/profile.component';
+import { UserDashboardComponent } from './user/user-dashboard/user-dashboard.component';
+import { AdminDashboardComponent } from './admin/admin-dashboard/admin-dashboard.component';
 
 export const PagesRoutes: Routes = [
   {
-    path: '',
-    component: StarterComponent,
-    data: { title: 'Starter', urls: [{ title: 'Dashboard', url: '/dashboard' }, { title: 'Starter' }] },
+    path: 'user-dashboard',
+    component: UserDashboardComponent,
+  },
+  {
+    path: 'admin-dashboard',
+    component: AdminDashboardComponent,
   },
   {
     path: 'admin/users',
@@ -24,6 +28,8 @@ export const PagesRoutes: Routes = [
     canActivate: [authGuard],
     data: { title: 'Jira Integration' },
   },
-  { path: 'profile', component: ProfileComponent }
-
+  {
+    path: 'profile',
+    component: ProfileComponent,
+  },
 ];

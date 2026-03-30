@@ -21,6 +21,7 @@ export interface UpdateUserPayload {
   email: string;
   username: string;
   is_admin: boolean;
+  is_active: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -37,7 +38,7 @@ export class AdminService {
     return this.http.get<UserRead[]>(`${this.apiUrl}/admin/users`);
   }
 
-  updateUser(id: string, payload: CreateUserPayload): Observable<UserRead> {
+  updateUser(id: string, payload: UpdateUserPayload): Observable<UserRead> {
     return this.http.put<UserRead>(`${this.apiUrl}/admin/users/${id}`, payload);
   }
 

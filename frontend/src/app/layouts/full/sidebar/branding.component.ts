@@ -1,12 +1,12 @@
 import { Component } from '@angular/core';
 import { CoreService } from 'src/app/services/core.service';
-import { RouterModule } from '@angular/router';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-branding',
-  imports: [RouterModule],
+  standalone: true,
   template: `
-    <a [routerLink]="['/dashboard']" style="display:block; text-align:center;">
+    <a (click)="goToDashboard()" style="display:block; text-align:center; cursor:pointer;">
       <img
         src="./assets/images/logos/logo.png"
         alt="TestForge"
@@ -25,5 +25,16 @@ import { RouterModule } from '@angular/router';
 })
 export class BrandingComponent {
   options = this.settings.getOptions();
-  constructor(private settings: CoreService) {}
+
+  constructor(private settings: CoreService, private router: Router) {}
+
+  goToDashboard() {
+    const isAdmin = localStorage.getItem('is_admin') === 'true';
+
+    if (isAdmin) {
+      this.router.navigate(['/admin-dashboard']);
+    } else {
+      this.router.navigate(['/user-dashboard']);
+    }
+  }
 }
