@@ -13,6 +13,15 @@ export interface ProfileRead {
   jira_connected: boolean;
 }
 
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class UserService {
   private apiUrl = 'http://localhost:8000';
@@ -21,5 +30,12 @@ export class UserService {
 
   getMyProfile(): Observable<ProfileRead> {
     return this.http.get<ProfileRead>(`${this.apiUrl}/users/me`);
+  }
+
+  changePassword(payload: ChangePasswordRequest): Observable<MessageResponse> {
+    return this.http.post<MessageResponse>(
+        `${this.apiUrl}/users/change-password`,
+        payload
+    );
   }
 }

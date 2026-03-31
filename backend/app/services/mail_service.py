@@ -1,3 +1,7 @@
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.core.config import settings
 
@@ -109,6 +113,58 @@ async def send_reset_email(email: str, username: str, reset_token: str):
 
     message = MessageSchema(
         subject="Reset your TestForge password",
+        recipients=[email],
+        body=html,
+        subtype=MessageType.html,
+    )
+
+    fm = FastMail(conf)
+    await fm.send_message(message)
+
+async def send_password_changed_email(email: str, username: str):
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1a1a2e; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="color: #4a9eff; margin: 0; font-size: 28px;">TESTFORGE</h1>
+            <p style="color: #aaa; margin: 8px 0 0 0; font-size: 13px;">
+                Intelligent Test Automation
+            </p>
+        </div>
+
+        <div style="background: #ffffff; padding: 40px; border-radius: 0 0 8px 8px;
+                    border: 1px solid #e0e0e0;">
+            <h2 style="color: #333; margin-top: 0;">Password changed successfully</h2>
+
+            <p style="color: #555; line-height: 1.6;">
+                Hi <strong>{username}</strong>, this is a confirmation that your
+                TestForge password was changed successfully.
+            </p>
+
+            <p style="color: #555; line-height: 1.6;">
+                If you made this change, no further action is needed.
+            </p>
+
+            <p style="color: #555; line-height: 1.6;">
+                If you did <strong>not</strong> make this change, please reset your password
+                immediately or contact support as soon as possible.
+            </p>
+
+            <div style="margin-top: 28px; padding: 16px; background: #f8f9fb; border-left: 4px solid #4a9eff; border-radius: 6px;">
+                <p style="margin: 0; color: #555; font-size: 14px;">
+                    Security notice: for your protection, TestForge never sends your password by email.
+                </p>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+            <p style="color: #aaa; font-size: 12px; text-align: center; margin: 0;">
+                © 2026 TestForge — Intelligent Test Automation
+            </p>
+        </div>
+    </div>
+    """
+
+    message = MessageSchema(
+        subject="Your TestForge password has been changed",
         recipients=[email],
         body=html,
         subtype=MessageType.html,

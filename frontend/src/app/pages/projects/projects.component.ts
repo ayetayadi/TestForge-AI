@@ -30,21 +30,16 @@ export class ProjectsComponent implements OnInit {
 
   @ViewChild('importModal') importModal!: ImportModalComponent;
 
-  // ─── State ──────────────────────────────────────────────────────
   projects = signal<Project[]>([]);
   loading = signal(true);
+  jiraConnected = signal(false);
+  errorMessage = signal<string | null>(null);
 
-  // Pagination
   page = signal(1);
   pageSize = signal(12);
 
-  // Search
   private searchQuery = signal('');
-
-  // Filters
   activeFilters = signal<ActiveFilters>({});
-
-  // ─── Filter config ──────────────────────────────────────────────
 
   filterGroups: FilterGroup[] = [
     {
@@ -53,19 +48,16 @@ export class ProjectsComponent implements OnInit {
       multiple: false,
       options: [
         { value: 'has_stories', label: 'Has stories' },
-        { value: 'empty',      label: 'No stories' },
+        { value: 'empty', label: 'No stories' },
       ],
     },
   ];
-
-  // ─── Computed ───────────────────────────────────────────────────
 
   filteredProjects = computed(() => {
     let result = this.projects();
     const query = this.searchQuery().toLowerCase().trim();
     const filters = this.activeFilters();
 
-    // Text search
     if (query) {
       result = result.filter(p =>
         p.name.toLowerCase().includes(query) ||
@@ -73,14 +65,14 @@ export class ProjectsComponent implements OnInit {
       );
     }
 
-    // Stories filter
     if (filters['stories']?.length) {
       const wantHas = filters['stories'].includes('has_stories');
       const wantEmpty = filters['stories'].includes('empty');
+
       if (wantHas && !wantEmpty) {
-        result = result.filter(p => p.story_count > 0);
+        result = result.filter(p => (p.story_count ?? 0) > 0);
       } else if (wantEmpty && !wantHas) {
-        result = result.filter(p => p.story_count === 0);
+        result = result.filter(p => (p.story_count ?? 0) === 0);
       }
     }
 
@@ -93,34 +85,45 @@ export class ProjectsComponent implements OnInit {
     return all.slice(start, start + this.pageSize());
   });
 
-  // ─── Lifecycle ──────────────────────────────────────────────────
-
   ngOnInit(): void {
     this.loadProjects();
+    this.checkJiraStatus();
   }
 
   loadProjects(): void {
     this.loading.set(true);
+    this.errorMessage.set(null);
+
+    console.log('[ProjectsComponent] Fetching projects...');
+
     this.projectsService.getProjects().subscribe({
       next: (projects) => {
-        this.projects.set(projects);
+        console.log('[ProjectsComponent] Projects received:', projects);
+        // ✅ Guard against null/undefined response from backend
+        this.projects.set(Array.isArray(projects) ? projects : []);
         this.loading.set(false);
       },
       error: (err) => {
-        this.toastService.error('Failed to load projects', err.message);
+        console.error('[ProjectsComponent] Failed to load projects:', err);
+        const msg = err?.error?.detail || err?.message || 'Unknown error';
+        this.errorMessage.set(`Failed to load projects: ${msg}`);
+        this.toastService.error('Failed to load projects', msg);
         this.loading.set(false);
       },
     });
   }
 
-  // ─── Search ─────────────────────────────────────────────────────
+  private checkJiraStatus(): void {
+    this.projectsService.getJiraStatus().subscribe({
+      next: (status) => this.jiraConnected.set(status.connected),
+      error: () => this.jiraConnected.set(false),
+    });
+  }
 
   onSearchChange(query: string): void {
     this.searchQuery.set(query);
     this.page.set(1);
   }
-
-  // ─── Filters ────────────────────────────────────────────────────
 
   onFiltersChange(filters: ActiveFilters): void {
     this.activeFilters.set(filters);
@@ -133,8 +136,6 @@ export class ProjectsComponent implements OnInit {
     this.page.set(1);
   }
 
-  // ─── Pagination ─────────────────────────────────────────────────
-
   onPageChange(p: number): void {
     this.page.set(p);
   }
@@ -143,8 +144,6 @@ export class ProjectsComponent implements OnInit {
     this.pageSize.set(size);
     this.page.set(1);
   }
-
-  // ─── Actions ────────────────────────────────────────────────────
 
   openImportModal(): void {
     this.importModal.open();
@@ -155,10 +154,12 @@ export class ProjectsComponent implements OnInit {
   }
 
   viewStories(project: Project): void {
-    this.router.navigate(['/user-dashboard/user-stories'], {
+    this.router.navigate(['/user-stories'], {
       queryParams: {
         projectId: project.id,
+        projectKey: project.project_key,
         projectName: project.name,
+        source: this.jiraConnected() ? 'jira' : 'local',
       },
     });
   }
