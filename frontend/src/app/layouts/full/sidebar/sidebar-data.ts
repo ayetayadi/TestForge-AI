@@ -1,20 +1,27 @@
 import { NavItem } from './nav-item/nav-item';
 
 export const navItems: NavItem[] = [
+  // ============ STORY AI ============
   {
-    navCap: 'Home',
+    navCap: 'Story AI',
   },
   {
     displayName: 'Dashboard',
     iconName: 'solar:widget-add-line-duotone',
     route: '/dashboard',
   },
-
   {
-    divider: true,
-    navCap: 'Apps',
+    displayName: 'Projects',
+    iconName: 'solar:folder-with-files-line-duotone',
+    route: '/dashboard/projects',
+  },
+  {
+    displayName: 'User Stories',
+    iconName: 'solar:document-text-line-duotone',
+    route: '/dashboard/user-stories',
   },
 
+  // ============ UI COMPONENTS ============
   {
     navCap: 'Ui Components',
     divider: true
@@ -54,10 +61,8 @@ export const navItems: NavItem[] = [
     iconName: 'solar:tablet-line-duotone',
     route: '/ui-components/tables',
   },
-  {
-    divider: true,
-    navCap: 'Pages',
-  },
+
+  // ============ EXTRA ============
   {
     navCap: 'Extra',
     divider: true
@@ -73,48 +78,19 @@ export const navItems: NavItem[] = [
     route: '/extra/sample-page',
   },
 
+  // ============ AUTH ============
   {
-    divider: true,
-    navCap: 'Forms',
-  },
-
-  {
-    divider: true,
-    navCap: 'Tables',
-  },
-  {
-    divider: true,
-    navCap: 'Chart',
-  },
-
-  {
-    divider: true,
     navCap: 'Auth',
+    divider: true,
   },
   {
     displayName: 'Login',
     iconName: 'solar:lock-keyhole-minimalistic-line-duotone',
-    route: '/authentication',
-    children: [
-      {
-        displayName: 'Login',
-         subItemIcon: true,
-        iconName: 'solar:round-alt-arrow-right-line-duotone',
-        route: '/authentication/login',
-      }
-    ],
+    route: '/authentication/login',
   },
   {
     displayName: 'Register',
     iconName: 'solar:user-plus-rounded-line-duotone',
-    route: '/authentication',
-    children: [
-      {
-        displayName: 'Register',
-         subItemIcon: true,
-        iconName: 'solar:round-alt-arrow-right-line-duotone',
-        route: '/authentication/register',
-      }
-    ],
-  },  
+    route: '/authentication/register',
+  },
 ];

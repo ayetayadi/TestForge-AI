@@ -9,7 +9,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(
     DATABASE_URL,
-    echo=True  # optional: shows SQL queries in terminal
+    echo=False  # shows SQL queries in terminal (true/ false)
 )
 
 SessionLocal = sessionmaker(
