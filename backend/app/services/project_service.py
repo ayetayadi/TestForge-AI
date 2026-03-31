@@ -1,18 +1,17 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 
 from app.repositories.project_repository import (
     get_project_by_key,
-    create_project
+    create_project,
+    get_projects_with_story_count
 )
 from app.services.story_service import import_project_stories
 from app.clients.jira_client import fetch_projects
 
 
-def get_projects(db: Session):
-    from app.repositories.project_repository import get_projects_with_story_count
-
-    projects = get_projects_with_story_count(db)
+async def get_projects(db: AsyncSession):
+    projects = await get_projects_with_story_count(db)
 
     return [
         {
@@ -25,21 +24,21 @@ def get_projects(db: Session):
     ]
 
 
-def get_jira_projects():
+async def get_jira_projects():
     try:
         return fetch_projects()
     except Exception as e:
+        print("🔥 JIRA ERROR:", str(e))   # 👈 IMPORTANT
         raise HTTPException(status_code=502, detail=str(e))
 
 
-def import_project_by_key(db: Session, project_key: str):
+async def import_project_by_key(db: AsyncSession, project_key: str):
 
-    # 1. check DB
-    project = get_project_by_key(db, project_key)
+    project = await get_project_by_key(db, project_key)
 
-    # 2. create if not exists
     if not project:
         jira_projects = fetch_projects()
+
         jira_project = next(
             (p for p in jira_projects if p.get("key") == project_key),
             None
@@ -48,14 +47,13 @@ def import_project_by_key(db: Session, project_key: str):
         if not jira_project:
             raise HTTPException(status_code=404, detail="Project not found in Jira")
 
-        project = create_project(
+        project = await create_project(
             db,
             project_key=jira_project.get("key"),
             project_name=jira_project.get("name")
         )
 
-    # 3. import stories
-    result = import_project_stories(db, project)
+    result = await import_project_stories(db, project)
 
     return {
         "message": "User stories imported successfully",

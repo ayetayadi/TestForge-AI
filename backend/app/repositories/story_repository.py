@@ -1,23 +1,35 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.models.user_story import UserStory
 
 
-def get_all_stories(db: Session):
-    return db.query(UserStory).all()
-
-def get_story_by_issue_key(db: Session, issue_key):
-    return db.query(UserStory).filter_by(issue_key=issue_key).first()
+async def get_all_stories(db: AsyncSession):
+    result = await db.execute(select(UserStory))
+    return result.scalars().all()
 
 
-def get_stories_by_project_id(db: Session, project_id):
-    return db.query(UserStory).filter_by(jira_project_id=project_id).all()
+async def get_story_by_issue_key(db: AsyncSession, issue_key):
+    result = await db.execute(
+        select(UserStory).where(UserStory.issue_key == issue_key)
+    )
+    return result.scalar_one_or_none()
 
 
-def story_exists(db: Session, issue_key):
-    return db.query(UserStory).filter_by(issue_key=issue_key).first() is not None
+async def get_stories_by_project_id(db: AsyncSession, project_id):
+    result = await db.execute(
+        select(UserStory).where(UserStory.jira_project_id == project_id)
+    )
+    return result.scalars().all()
 
 
-def create_story(db: Session, data):
+async def story_exists(db: AsyncSession, issue_key):
+    result = await db.execute(
+        select(UserStory).where(UserStory.issue_key == issue_key)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def create_story(db: AsyncSession, data):
     story = UserStory(**data)
     db.add(story)
-    return story
+    return story  # commit fait ailleurs

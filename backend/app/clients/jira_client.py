@@ -13,7 +13,7 @@ def get_headers():
     }
 
 def fetch_projects() -> list:
-    url = f"{os.getenv('JIRA_URL')}/rest/api/3/project"
+    url = f"{settings.JIRA_URL}/rest/api/3/project"
 
     response = requests.get(url, headers=get_headers())
     response.raise_for_status()
@@ -31,7 +31,7 @@ def fetch_projects() -> list:
     ]
 
 def fetch_stories(project_key: str):
-    url = f"{os.getenv('JIRA_URL')}/rest/api/3/search/jql"
+    url = f"{settings.JIRA_URL}/rest/api/3/search/jql"
 
     params = {
         "jql": f'project="{project_key}" AND issuetype="Story"',

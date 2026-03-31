@@ -1,24 +1,24 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from app.models.jira_project import JiraProject
 from app.models.user_story import UserStory
 from app.repositories.jira_connection_repository import get_default_connection
 
 
-def get_all_projects(db: Session):
-    return db.query(JiraProject).all()
+async def get_all_projects(db: AsyncSession):
+    result = await db.execute(select(JiraProject))
+    return result.scalars().all()
 
 
-def get_project_by_key(db: Session, project_key: str):
-    return db.query(JiraProject).filter(
-        JiraProject.project_key == project_key
-    ).first()
+async def get_project_by_key(db: AsyncSession, project_key: str):
+    result = await db.execute(
+        select(JiraProject).where(JiraProject.project_key == project_key)
+    )
+    return result.scalar_one_or_none()
 
 
-def create_project(db: Session, project_key: str, project_name: str):
-
-    connection = get_default_connection(db)
-    #connection = get_connection_by_user(db, user_id)
+async def create_project(db: AsyncSession, project_key: str, project_name: str):
+    connection = await get_default_connection(db)
 
     if not connection:
         raise Exception("No active Jira connection found")
@@ -26,18 +26,19 @@ def create_project(db: Session, project_key: str, project_name: str):
     project = JiraProject(
         project_key=project_key,
         project_name=project_name,
-        jira_connection_id=connection.id 
+        jira_connection_id=connection.id
     )
 
     db.add(project)
-    db.commit()
-    db.refresh(project)
+    await db.commit()
+    await db.refresh(project)
+
     return project
 
 
-def get_projects_with_story_count(db: Session):
-    return (
-        db.query(
+async def get_projects_with_story_count(db: AsyncSession):
+    result = await db.execute(
+        select(
             JiraProject.id,
             JiraProject.project_key,
             JiraProject.project_name,
@@ -45,5 +46,5 @@ def get_projects_with_story_count(db: Session):
         )
         .outerjoin(UserStory, UserStory.jira_project_id == JiraProject.id)
         .group_by(JiraProject.id)
-        .all()
     )
+    return result.all()
