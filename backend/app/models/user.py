@@ -12,9 +12,13 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)   # ← False until setup
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)  # ← new
+    setup_token: Mapped[str] = mapped_column(String(512), nullable=True)  # ← new
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    reset_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     jira_connection: Mapped[List["JiraConnection"]] = relationship(
         "JiraConnection",

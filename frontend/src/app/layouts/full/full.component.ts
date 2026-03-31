@@ -3,23 +3,22 @@ import { Component, OnInit, ViewChild, ViewEncapsulation } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { MatSidenav, MatSidenavContent } from '@angular/material/sidenav';
 import { CoreService } from 'src/app/services/core.service';
-
 import { filter } from 'rxjs/operators';
 import { NavigationEnd, Router } from '@angular/router';
 import { RouterModule } from '@angular/router';
 import { MaterialModule } from 'src/app/material.module';
-
 import { NgScrollbarModule } from 'ngx-scrollbar';
 import { TablerIconsModule } from 'angular-tabler-icons';
 import { HeaderComponent } from './header/header.component';
 import { SidebarComponent } from './sidebar/sidebar.component';
 import { AppNavItemComponent } from './sidebar/nav-item/nav-item.component';
 import { navItems } from './sidebar/sidebar-data';
-import { AppTopstripComponent } from './top-strip/topstrip.component';
+import { NavItem } from './sidebar/nav-item/nav-item';
+import { AuthService } from 'src/app/services/auth.service';
+import { jwtDecode } from 'jwt-decode';
 
 const MOBILE_VIEW = 'screen and (max-width: 768px)';
 const TABLET_VIEW = 'screen and (min-width: 769px) and (max-width: 1024px)';
-
 
 @Component({
   selector: 'app-full',
@@ -31,20 +30,19 @@ const TABLET_VIEW = 'screen and (min-width: 769px) and (max-width: 1024px)';
     NgScrollbarModule,
     TablerIconsModule,
     HeaderComponent,
-],
+  ],
   templateUrl: './full.component.html',
   styleUrls: [],
   encapsulation: ViewEncapsulation.None,
 })
 export class FullComponent implements OnInit {
-  navItems = navItems;
+  navItems: NavItem[] = [];
 
   @ViewChild('leftsidenav')
   public sidenav: MatSidenav;
   resView = false;
 
   @ViewChild('content', { static: true }) content!: MatSidenavContent;
-  //get options from service
   options = this.settings.getOptions();
   private layoutChangesSubscription = Subscription.EMPTY;
   private isMobileScreen = false;
@@ -60,12 +58,12 @@ export class FullComponent implements OnInit {
     private settings: CoreService,
     private router: Router,
     private breakpointObserver: BreakpointObserver,
+    private authService: AuthService,         // ← inject AuthService
   ) {
     this.htmlElement = document.querySelector('html')!;
     this.layoutChangesSubscription = this.breakpointObserver
       .observe([MOBILE_VIEW, TABLET_VIEW])
       .subscribe((state) => {
-        // SidenavOpened must be reset true when layout changes
         this.options.sidenavOpened = true;
         this.isMobileScreen = state.breakpoints[MOBILE_VIEW];
         if (this.options.sidenavCollapsed == false) {
@@ -73,10 +71,6 @@ export class FullComponent implements OnInit {
         }
       });
 
-    // Initialize project theme with options
-
-
-    // This is for scroll to top
     this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe((e) => {
@@ -84,7 +78,28 @@ export class FullComponent implements OnInit {
       });
   }
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    this.buildNav();
+  }
+
+  buildNav(): void {
+    const token = this.authService.getToken();
+    let isAdmin = false;
+
+    if (token) {
+      try {
+        const decoded: any = jwtDecode(token);
+        isAdmin = decoded.is_admin === true;
+      } catch {}
+    }
+
+    // Filter items based on role
+    this.navItems = navItems.filter(item => {
+      if (item.adminOnly && !isAdmin) return false;
+      if (item.userOnly && isAdmin) return false;
+      return true;
+    });
+  }
 
   ngOnDestroy() {
     this.layoutChangesSubscription.unsubscribe();

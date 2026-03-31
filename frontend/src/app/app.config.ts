@@ -5,7 +5,7 @@ import {
 } from '@angular/core';
 import {
   provideHttpClient,
-  withInterceptorsFromDi,
+  withInterceptors,          // ← changed from withInterceptorsFromDi
 } from '@angular/common/http';
 import { routes } from './app.routes';
 import {
@@ -26,6 +26,7 @@ import { NgScrollbarModule } from 'ngx-scrollbar';
 //Import all material modules
 import { MaterialModule } from './material.module';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import {authInterceptor} from "./core/interceptors/auth.interceptor";
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -38,8 +39,7 @@ export const appConfig: ApplicationConfig = {
       }),
       withComponentInputBinding()
     ),
-    provideHttpClient(withInterceptorsFromDi()),
-    provideHttpClient(),
+    provideHttpClient(withInterceptors([authInterceptor])),  // ← changed
     provideClientHydration(),
     provideAnimationsAsync(),
     importProvidersFrom(

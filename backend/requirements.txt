@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-google-genai
+google-generativeai
 python-dotenv
 pydantic
 requests
@@ -26,3 +26,11 @@ langchain_huggingface
 beautifulsoup4
 unstructured[pdf]
 redis
+
+asyncpg
+bcrypt==4.0.1
+passlib[bcrypt]
+python-jose[cryptography]
+cryptography
+httpx
+fastapi-mail
