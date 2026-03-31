@@ -1,9 +1,33 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
+    # =========================
+    # GENERAL CONFIG
+    # =========================
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
 
     # =========================
-    # ENCRYPTION KEY JIRA API
+    # DATABASE / AUTH
+    # =========================
+    DATABASE_URL: str
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+
+    # =========================
+    # JIRA / FRONTEND
+    # =========================
+    JIRA_CLIENT_ID: str
+    JIRA_CLIENT_SECRET: str
+    JIRA_REDIRECT_URI: str = "http://localhost:8000/jira/callback"
+    FRONTEND_URL: str = "http://localhost:4200"
+
+    # =========================
+    # ENCRYPTION
     # =========================
     ENCRYPTION_KEY: str
 
@@ -11,7 +35,6 @@ class Settings(BaseSettings):
     # LLM CONFIG
     # =========================
     LLM_PROVIDER: str = "smart"
-
     GEMINI_API_KEY: str | None = None
     OPENROUTER_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
@@ -23,23 +46,22 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = ""
     REDIS_DB: int = 0
-    REDIS_CACHE_TTL: int = 604800         # 7 days in seconds
-    REDIS_MAX_MEMORY: str = "100mb"       # Max Redis memory for embeddings
+    REDIS_CACHE_TTL: int = 604800
+    REDIS_MAX_MEMORY: str = "100mb"
 
     # =========================
     # IN-MEMORY CACHE
     # =========================
     MEMORY_CACHE_SIZE: int = 500
 
-
     # =========================
-    # RAG
+    # RAG / EMBEDDINGS
     # =========================
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
-    EMBEDDING_DIM: int = 384              # Dimension of embeddings
+    EMBEDDING_DIM: int = 384
 
     # =========================
-    # TEMPERATURE
+    # TEMPERATURES
     # =========================
     ANALYSIS_TEMP: float = 0.0
     REFINEMENT_TEMP: float = 0.2
@@ -49,35 +71,14 @@ class Settings(BaseSettings):
     # WORKER CONFIG
     # =========================
     MAX_WORKERS: int = 3
-from pydantic_settings import BaseSettings
 
-class Settings(BaseSettings):
-    DATABASE_URL: str
-    SECRET_KEY: str
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
-    JIRA_CLIENT_ID: str
-    JIRA_CLIENT_SECRET: str
-    JIRA_REDIRECT_URI: str = "http://localhost:8000/jira/callback"
-    FRONTEND_URL: str = "http://localhost:4200"
-
-    # Mail
+    # =========================
+    # MAIL CONFIG
+    # =========================
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
     MAIL_FROM: str
     MAIL_FROM_NAME: str = "TestForge"
-
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
-    # =========================
-    # CONFIG
-    # =========================
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore"
-    )
 
 
 settings = Settings()

@@ -49,17 +49,33 @@ export class JiraConnectComponent implements OnInit {
   checkStatus() {
     this.jiraService.getStatus().subscribe({
       next: (s) => {
+        console.log('Jira status:', s);
         this.status = s;
         if (s.connected) this.loadProjects();
+      },
+      error: (err) => {
+        console.error('checkStatus error:', err);
+        this.errorMessage = 'Failed to check Jira status.';
       }
     });
   }
 
   loadProjects() {
     this.loadingProjects = true;
+    this.errorMessage = '';
+
     this.jiraService.getProjects().subscribe({
-      next: (p) => { this.projects = p; this.loadingProjects = false; },
-      error: () => { this.loadingProjects = false; }
+      next: (p) => {
+        console.log('Projects loaded:', p);
+        this.projects = Array.isArray(p) ? p : [];
+        this.loadingProjects = false;
+      },
+      error: (err) => {
+        console.error('loadProjects error:', err);
+        this.errorMessage = 'Failed to load Jira projects.';
+        this.loadingProjects = false;
+        this.projects = [];
+      }
     });
   }
 

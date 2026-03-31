@@ -155,7 +155,7 @@ export class ProjectsComponent implements OnInit {
   }
 
   viewStories(project: Project): void {
-    this.router.navigate(['/dashboard/user-stories'], {
+    this.router.navigate(['/user-dashboard/user-stories'], {
       queryParams: {
         projectId: project.id,
         projectName: project.name,
