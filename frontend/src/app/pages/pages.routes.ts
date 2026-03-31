@@ -1,16 +1,32 @@
 import { Routes } from '@angular/router';
-import { StarterComponent } from './starter/starter.component';
 
 export const PagesRoutes: Routes = [
   {
     path: '',
-    component: StarterComponent,
-    data: {
-      title: 'Starter',
-      urls: [
-        { title: 'Dashboard', url: '/dashboard' },
-        { title: 'Starter' },
-      ],
-    },
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./starter/starter.component').then(m => m.StarterComponent),
+        data: {
+          title: 'Dashboard',
+        },
+      },
+
+      {
+        path: 'projects',
+        loadComponent: () => import('./projects/projects.component').then(m => m.ProjectsComponent),
+        data: { title: 'Projects' },
+      },
+      {
+        path: 'user-stories',
+        loadComponent: () => import('./user-stories/user-stories.component').then(m => m.UserStoriesComponent),
+        data: { title: 'User Stories' },
+      },
+      {
+        path: 'review/:jobId',
+        loadComponent: () => import('./review/review.component').then(m => m.ReviewComponent),
+        data: { title: 'Review' },
+      }
+    ],
   },
 ];

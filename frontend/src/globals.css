@@ -10,9 +10,7 @@
     --lightsuccess-color: #36c76c26;
     --lightinfo-color: #8754ec26;
     --lightwarning-color: #f8c20a26;
-}
 
-@theme {
     /* Color */
     --color-primary: var(--mat-sys-primary);
     --color-secondary: var(--mat-sys-secondary);
@@ -22,6 +20,9 @@
     --color-success: var(--success-color);
     --color-dark: var(--mat-sys-on-background);
     --color-light: var(--mat-sys-surface-bright);
+    --color-text-primary: var(--mat-sys-on-surface);
+    --color-text-secondary: var(--mat-sys-on-surface-variant);
+    --color-text-tertiary: var(--mat-sys-outline);
 
     /* Light Color */
     --color-lightprimary: var(--mat-sys-primary-fixed-dim);
@@ -33,37 +34,74 @@
 
     /* Border */
     --color-border: var(--mat-sys-outline-variant);
+    --color-border-hover: var(--mat-sys-outline);
 
     /* Border Radius */
     --radius-sm: var(--mat-sys-corner-small);
     --radius-md: var(--mat-sys-corner-medium);
+    --radius-lg: calc(var(--mat-sys-corner-medium) * 1.5);
+    --radius-xl: calc(var(--mat-sys-corner-medium) * 2);
 
     /* Shadow */
     --shadow-sm: 0px 2px 4px -1px rgba(175, 182, 201, 0.2);
     --shadow-md: 0 15px 30px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
+    --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.2);
+
+    /* Transitions */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Spacing */
+    --spacing-1: 4px;
+    --spacing-2: 8px;
+    --spacing-3: 12px;
+    --spacing-4: 16px;
+    --spacing-5: 20px;
+    --spacing-6: 24px;
+    --spacing-8: 32px;
 }
 
 @layer base {
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: var(--font-body);
+        background: var(--mat-sys-surface);
+        color: var(--color-text-primary);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
 
     img,
     video {
-        max-width: inherit;
-        height: revert-layer;
-    }
-
-    *,
-    ::after,
-    ::before,
-    ::backdrop,
-    ::file-selector-button {
-        margin: revert-layer;
-
+        max-width: 100%;
+        height: auto;
     }
 
     ol,
     ul,
     menu {
-        list-style-type: disc;
-        padding-inline-start: 40px;
+        list-style-type: none;
+        padding-inline-start: 0;
+    }
+
+    button {
+        font-family: inherit;
+        cursor: pointer;
+        background: none;
+        border: none;
+    }
+
+    /* Focus styles for accessibility */
+    :focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
     }
 }

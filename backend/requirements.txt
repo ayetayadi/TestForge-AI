@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-google-generativeai
+google-genai
 python-dotenv
 pydantic
 requests
@@ -10,3 +10,19 @@ playwright
 sqlalchemy
 psycopg2-binary
 pydantic-settings
+alembic
+langchain
+langchain-community
+langchain-openai
+faiss-cpu
+pypdf
+langchain-text-splitters
+google-generativeai
+langchain-google-genai
+langchain-huggingface
+sentence-transformers
+pydantic-settings
+langchain_huggingface
+beautifulsoup4
+unstructured[pdf]
+redis
