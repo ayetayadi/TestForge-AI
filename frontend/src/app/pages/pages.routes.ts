@@ -11,27 +11,33 @@ export const PagesRoutes: Routes = [
   {
     path: 'user-dashboard',
     component: UserDashboardComponent,
+    canActivate: [authGuard],
+  },
+  {
+    path: 'projects',
+    loadComponent: () =>
+      import('./projects/projects.component').then(m => m.ProjectsComponent),
+    canActivate: [authGuard],
+    data: { title: 'Projects' },
+  },
+  {
+    path: 'user-stories',
+    loadComponent: () =>
+      import('./user-stories/user-stories.component').then(m => m.UserStoriesComponent),
+    canActivate: [authGuard],
+    data: { title: 'User Stories' },
+  },
+  {
+    path: 'review/:jobId',
+    loadComponent: () =>
+      import('./review/review.component').then(m => m.ReviewComponent),
+    canActivate: [authGuard],
+    data: { title: 'Review' },
   },
   {
     path: 'admin-dashboard',
     component: AdminDashboardComponent,
-    children: [
-      {
-        path: 'projects',
-        loadComponent: () => import('./projects/projects.component').then(m => m.ProjectsComponent),
-        data: { title: 'Projects' },
-      },
-      {
-        path: 'user-stories',
-        loadComponent: () => import('./user-stories/user-stories.component').then(m => m.UserStoriesComponent),
-        data: { title: 'User Stories' },
-      },
-      {
-        path: 'review/:jobId',
-        loadComponent: () => import('./review/review.component').then(m => m.ReviewComponent),
-        data: { title: 'Review' },
-      }
-    ],
+    canActivate: [adminGuard],
   },
   {
     path: 'admin/users',
@@ -48,5 +54,7 @@ export const PagesRoutes: Routes = [
   {
     path: 'profile',
     component: ProfileComponent,
+    canActivate: [authGuard],
+    data: { title: 'Profile' },
   },
 ];

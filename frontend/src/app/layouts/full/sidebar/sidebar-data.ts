@@ -5,48 +5,33 @@ export const navItems: NavItem[] = [
     navCap: 'Home',
   },
   {
-    displayName: 'admin Dashboard',
-    iconName: 'solar:widget-add-line-duotone',
-    route: '/dashboard',
-  },
-  {
-    displayName: 'Projects',
-    iconName: 'solar:folder-with-files-line-duotone',
-    route: '/dashboard/projects',
-  },
-  {
-    displayName: 'User Stories',
-    iconName: 'solar:document-text-line-duotone',
-    route: '/dashboard/user-stories',
-  },
-
-
-  {
-    displayName: 'admin Dashboard',
+    displayName: 'Admin Dashboard',
     iconName: 'solar:widget-add-line-duotone',
     route: '/admin-dashboard',
     adminOnly: true,
   },
   {
-    displayName: 'user Dashboard',
+    displayName: 'User Dashboard',
     iconName: 'solar:widget-add-line-duotone',
     route: '/user-dashboard',
+    userOnly: true,
+  },
+  {
+    displayName: 'Projects',
+    iconName: 'solar:folder-with-files-line-duotone',
+    route: '/projects',
+    userOnly: true,
+  },
+  {
+    displayName: 'User Stories',
+    iconName: 'solar:document-text-line-duotone',
+    route: '/user-stories',
     userOnly: true,
   },
   {
     navCap: 'Admin',
     divider: true,
     adminOnly: true,
-  },
-  // ============ EXTRA ============
-  {
-    navCap: 'Extra',
-    divider: true
-  },
-  {
-    displayName: 'Icons',
-    iconName: 'solar:sticker-smile-circle-2-line-duotone',
-    route: '/extra/icons',
   },
   {
     displayName: 'Manage Users',
