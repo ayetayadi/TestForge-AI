@@ -1,0 +1,224 @@
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-groups {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Dropdown wrapper ── */
+
+.filter-dropdown {
+  position: relative;
+}
+
+/* ── Trigger ── */
+
+.filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  background: var(--surface-primary, #fff);
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+
+  .filter-icon {
+    width: 14px;
+    height: 14px;
+    opacity: 0.5;
+  }
+
+  .chevron {
+    width: 14px;
+    height: 14px;
+    opacity: 0.4;
+    transition: transform 0.2s;
+  }
+
+  &:hover {
+    border-color: var(--border-hover, #d1d5db);
+    color: var(--text-primary, #111827);
+  }
+}
+
+/* Active state */
+.filter-dropdown.has-active .filter-trigger {
+  background: var(--color-primary-subtle, #eef2ff);
+  border-color: var(--color-primary-border, #c7d2fe);
+  color: var(--color-primary, #4f46e5);
+
+  .filter-icon {
+    opacity: 1;
+  }
+}
+
+.filter-dropdown.open .filter-trigger .chevron {
+  transform: rotate(180deg);
+}
+
+/* ── Clear group × ── */
+
+.clear-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-primary, #4f46e5);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  &:hover {
+    background: var(--color-primary-dark, #4338ca);
+  }
+}
+
+/* ── Dropdown panel ── */
+
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  min-width: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--surface-primary, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.07),
+    0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  padding: 4px;
+  animation: dropdownIn 0.15s ease-out;
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+}
+
+/* ── Options ── */
+
+.option-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.option-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary, #111827);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+
+  &:hover {
+    background: var(--surface-secondary, #f3f4f6);
+  }
+
+  &.selected {
+    background: var(--color-primary-subtle, #eef2ff);
+    color: var(--color-primary, #4f46e5);
+    font-weight: 500;
+  }
+}
+
+/* Checkbox indicator */
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border-color, #d1d5db);
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: all 0.15s;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  &.checked {
+    background: var(--color-primary, #4f46e5);
+    border-color: var(--color-primary, #4f46e5);
+    color: #fff;
+  }
+}
+
+.option-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.option-count {
+  font-size: 0.7rem;
+  color: var(--text-tertiary, #9ca3af);
+  font-weight: 500;
+  background: var(--surface-secondary, #f3f4f6);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* ── Clear all ── */
+
+.clear-all-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    background: var(--surface-secondary, #f3f4f6);
+    color: var(--color-danger, #ef4444);
+  }
+}
