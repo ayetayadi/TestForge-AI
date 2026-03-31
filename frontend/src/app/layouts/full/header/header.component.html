@@ -24,12 +24,16 @@
   <!-- --------------------------------------------------------------- -->
   <!-- profile Dropdown -->
   <!-- --------------------------------------------------------------- -->
+  <div class="p-x-16 p-y-8">
+    <div class="f-s-14 f-w-600">{{ username }}</div>
+    <div class="f-s-12 text-muted">{{ role }}</div>
+  </div>
   <button mat-icon-button extended [matMenuTriggerFor]="profilemenu" aria-label="Notifications"
     class="d-flex align-items-center justify-content-center profile-btn-dd">
     <img src="/assets/images/profile/user-1.jpg" class="rounded-circle object-cover icon-35 profile-dd" width="35" />
   </button>
   <mat-menu #profilemenu="matMenu" class="topbar-dd cardWithShadow">
-    <button mat-menu-item>
+    <button mat-menu-item routerLink="/profile">
       <mat-icon class="d-flex align-items-center"><i data-icon="solar:shield-user-line-duotone"
           class="iconify icon-22"></i></mat-icon>My Profile
     </button>
@@ -43,7 +47,7 @@
     </button>
 
     <div class="p-x-12 m-t-12">
-      <a [routerLink]="['/authentication/login']" mat-stroked-button class="w-100">Logout</a>
+      <button mat-stroked-button class="w-100" (click)="logout()">Logout</button>
     </div>
   </mat-menu>
 </mat-toolbar>

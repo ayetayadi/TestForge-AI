@@ -1,0 +1,118 @@
+<div class="admin-dashboard">
+  <div class="page-header">
+    <div>
+      <h1>Admin Dashboard</h1>
+      <p>Gestion des utilisateurs de la plateforme TestForge</p>
+    </div>
+
+    <button class="create-btn" (click)="createUser()">
+      + Créer un utilisateur
+    </button>
+  </div>
+
+  <div *ngIf="loading" class="info-box">
+    Chargement des utilisateurs...
+  </div>
+
+  <div *ngIf="errorMessage" class="error-box">
+    {{ errorMessage }}
+  </div>
+
+  <ng-container *ngIf="!loading && !errorMessage">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h3>Total Utilisateurs</h3>
+        <h2>{{ totalUsers }}</h2>
+        <span>Tous les comptes</span>
+      </div>
+
+      <div class="stat-card">
+        <h3>Utilisateurs Actifs</h3>
+        <h2>{{ activeUsers }}</h2>
+        <span>Comptes activés</span>
+      </div>
+
+      <div class="stat-card">
+        <h3>Admins</h3>
+        <h2>{{ adminUsers }}</h2>
+        <span>Comptes administrateurs</span>
+      </div>
+
+      <div class="stat-card">
+        <h3>Jira Connecté</h3>
+        <h2>{{ jiraConnectedUsers }}</h2>
+        <span>Comptes liés à Jira</span>
+      </div>
+    </div>
+
+    <div class="filters-card">
+      <div class="filters-row">
+        <input
+          type="text"
+          placeholder="Rechercher par username ou email"
+          [(ngModel)]="searchTerm"
+        />
+
+        <select [(ngModel)]="roleFilter">
+          <option value="all">Tous les rôles</option>
+          <option value="admin">Admins</option>
+          <option value="user">Utilisateurs</option>
+        </select>
+
+        <select [(ngModel)]="statusFilter">
+          <option value="all">Tous les statuts</option>
+          <option value="active">Actifs</option>
+          <option value="inactive">Inactifs</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <h2>Liste des utilisateurs</h2>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+          <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Rôle</th>
+            <th>Statut</th>
+            <th>Jira</th>
+          </tr>
+          </thead>
+
+          <tbody>
+          <tr *ngFor="let user of filteredUsers">
+            <td>{{ user.username }}</td>
+            <td>{{ user.email }}</td>
+            <td>
+                <span class="badge" [ngClass]="user.is_admin ? 'admin' : 'user'">
+                  {{ user.is_admin ? 'Admin' : 'User' }}
+                </span>
+            </td>
+            <td>
+                <span class="badge" [ngClass]="user.is_active ? 'active' : 'inactive'">
+                  {{ user.is_active ? 'Actif' : 'Inactif' }}
+                </span>
+            </td>
+            <td>
+                <span class="badge" [ngClass]="user.jira_connected ? 'jira-on' : 'jira-off'">
+                  {{ user.jira_connected ? 'Connecté' : 'Non connecté' }}
+                </span>
+            </td>
+          </tr>
+
+          <tr *ngIf="filteredUsers.length === 0">
+            <td colspan="6" class="empty-state">
+              Aucun utilisateur trouvé
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </ng-container>
+</div>

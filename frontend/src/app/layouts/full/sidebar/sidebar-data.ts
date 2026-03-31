@@ -1,12 +1,11 @@
 import { NavItem } from './nav-item/nav-item';
 
 export const navItems: NavItem[] = [
-  // ============ STORY AI ============
   {
-    navCap: 'Story AI',
+    navCap: 'Home',
   },
   {
-    displayName: 'Dashboard',
+    displayName: 'admin Dashboard',
     iconName: 'solar:widget-add-line-duotone',
     route: '/dashboard',
   },
@@ -21,47 +20,24 @@ export const navItems: NavItem[] = [
     route: '/dashboard/user-stories',
   },
 
-  // ============ UI COMPONENTS ============
-  {
-    navCap: 'Ui Components',
-    divider: true
-  },
-  {
-    displayName: 'Badge',
-    iconName: 'solar:archive-minimalistic-line-duotone',
-    route: '/ui-components/badge',
-  },
-  {
-    displayName: 'Chips',
-    iconName: 'solar:danger-circle-line-duotone',
-    route: '/ui-components/chips',
-  },
-  {
-    displayName: 'Lists',
-    iconName: 'solar:bookmark-square-minimalistic-line-duotone',
-    route: '/ui-components/lists',
-  },
-  {
-    displayName: 'Menu',
-    iconName: 'solar:file-text-line-duotone',
-    route: '/ui-components/menu',
-  },
-  {
-    displayName: 'Tooltips',
-    iconName: 'solar:text-field-focus-line-duotone',
-    route: '/ui-components/tooltips',
-  },
-  {
-    displayName: 'Forms',
-    iconName: 'solar:file-text-line-duotone',
-    route: '/ui-components/forms',
-  },
-  {
-    displayName: 'Tables',
-    iconName: 'solar:tablet-line-duotone',
-    route: '/ui-components/tables',
-  },
 
+  {
+    displayName: 'admin Dashboard',
+    iconName: 'solar:widget-add-line-duotone',
+    route: '/admin-dashboard',
+    adminOnly: true,
+  },
+  {
+    displayName: 'user Dashboard',
+    iconName: 'solar:widget-add-line-duotone',
+    route: '/user-dashboard',
+    userOnly: true,
+  },
+  {
+    navCap: 'Admin',
+    divider: true,
+    adminOnly: true,
+  },
   // ============ EXTRA ============
   {
     navCap: 'Extra',
@@ -73,24 +49,20 @@ export const navItems: NavItem[] = [
     route: '/extra/icons',
   },
   {
-    displayName: 'Sample Page',
-    iconName: 'solar:planet-3-line-duotone',
-    route: '/extra/sample-page',
+    displayName: 'Manage Users',
+    iconName: 'solar:users-group-rounded-line-duotone',
+    route: '/admin/users',
+    adminOnly: true,
   },
-
-  // ============ AUTH ============
   {
-    navCap: 'Auth',
+    navCap: 'Integrations',
     divider: true,
+    userOnly: true,
   },
   {
-    displayName: 'Login',
-    iconName: 'solar:lock-keyhole-minimalistic-line-duotone',
-    route: '/authentication/login',
-  },
-  {
-    displayName: 'Register',
-    iconName: 'solar:user-plus-rounded-line-duotone',
-    route: '/authentication/register',
+    displayName: 'Connect Jira',
+    iconName: 'solar:link-circle-line-duotone',
+    route: '/jira',
+    userOnly: true,
   },
 ];

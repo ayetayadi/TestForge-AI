@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.testing.suite.test_reflection import users
 from contextlib import asynccontextmanager
 import asyncio
 
@@ -24,15 +26,35 @@ def preload_llms():
     except Exception as e:
         print(f"[LLM ERROR] {e}")
 
+from app.core.database import engine, Base
+from app.api import auth, admin, jira, users
+from app.utils.common.embedding import preload_embedding_model
 
+app = FastAPI(title="TestForge AI")
 def preload_models():
     print("[STARTUP] Preloading models...")
 
+# CORS must be added FIRST before any routers
+origins = ["http://localhost:4200"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
+)
     try:
         preload_embedding_model()
     except Exception as e:
         print(f"[STARTUP] Embedding model error: {e}")
 
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     try:
         preload_llms()
     except Exception as e:
@@ -87,16 +109,11 @@ app.include_router(job_router)
 def health():
     return {"status": "ok"}
 
-
-@app.get("/")
-def root():
-    return {"message": "TestForge AI Backend is running"}
-
-
-@app.get("/debug/cache")
-def debug_cache():
-    try:
-        from app.utils.common.embedding import get_cache_stats
-        return get_cache_stats()
-    except Exception as e:
-        return {"error": str(e)}
+app.include_router(auth.router)
+app.include_router(admin.router)
+app.include_router(jira.router)
+app.include_router(users.router)
+# Debug route to confirm CORS is active
+@app.get("/ping")
+async def ping():
+    return {"status": "ok"}
