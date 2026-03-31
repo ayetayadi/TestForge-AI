@@ -1,18 +1,13 @@
 import { Component, inject, signal, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ProjectsService, ToastService } from '../../services';
-
-export interface JiraProject {
-  key: string;
-  name: string;
-  lead?: string;
-  type?: string;
-}
+import { JiraProject } from '../../services/projects.service';
+import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 
 @Component({
   selector: 'app-import-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule,SpinnerComponent],
   templateUrl: './import-modal.component.html',
   styleUrl: './import-modal.component.scss',
 })
@@ -21,18 +16,23 @@ export class ImportModalComponent {
   private toastService = inject(ToastService);
 
   closed = output<void>();
-  imported = output<{ imported: number; skipped: number }>();
+  imported = output<void>();
 
   visible = signal(false);
   loading = signal(false);
   importing = signal(false);
+  jiraConnected = signal(false);
+
   jiraProjects = signal<JiraProject[]>([]);
   selectedProject = signal<JiraProject | null>(null);
 
   open(): void {
     this.visible.set(true);
+    this.loading.set(false);
+    this.importing.set(false);
     this.selectedProject.set(null);
-    this.fetchJiraProjects();
+    this.jiraProjects.set([]);
+    this.checkJiraAndFetchProjects();
   }
 
   close(): void {
@@ -48,36 +48,72 @@ export class ImportModalComponent {
   }
 
   selectProject(project: JiraProject): void {
+    if (this.importing()) return;
     this.selectedProject.set(project);
   }
 
-  fetchJiraProjects(): void {
+  private checkJiraAndFetchProjects(): void {
     this.loading.set(true);
-    this.projectsService.getJiraProjects().subscribe({
-      next: (projects) => {
-        this.jiraProjects.set(projects);
-        this.loading.set(false);
+
+    this.projectsService.getJiraStatus().subscribe({
+      next: (status) => {
+        this.jiraConnected.set(!!status?.connected);
+
+        if (!status?.connected) {
+          this.loading.set(false);
+          this.toastService.info(
+            'Jira not connected',
+            'Please connect your Jira account first'
+          );
+          return;
+        }
+
+        this.fetchJiraProjects();
       },
       error: (err) => {
+        this.loading.set(false);
+        this.toastService.error(
+          'Failed to check Jira connection',
+          err?.error?.detail || err?.message || 'Could not verify Jira status'
+        );
+      },
+    });
+  }
+
+  private fetchJiraProjects(): void {
+    this.projectsService.getJiraProjects().subscribe({
+      next: (projects) => {
+        this.jiraProjects.set(projects ?? []);
+        this.loading.set(false);
+
+        if (!projects || projects.length === 0) {
+          this.toastService.info(
+            'No Jira projects found',
+            'No accessible Jira projects were returned for this account'
+          );
+        }
+      },
+      error: (err) => {
+        this.loading.set(false);
         this.toastService.error(
           'Failed to fetch Jira projects',
-          err?.error?.detail || err.message || 'Could not connect to Jira'
+          err?.error?.detail || err?.message || 'Could not connect to Jira'
         );
-        this.loading.set(false);
       },
     });
   }
 
   confirmImport(): void {
     const project = this.selectedProject();
-    if (!project) return;
+    if (!project || this.importing()) return;
 
     this.importing.set(true);
 
     this.projectsService.importStories(project.key).subscribe({
       next: (result) => {
-        const imported = result.result.imported;
-        const skipped = result.result.skipped;
+        // ✅ Correctly unwrap result.result per ImportStoriesResponse shape
+        const imported = result?.result?.imported ?? 0;
+        const skipped = result?.result?.skipped ?? 0;
 
         if (imported > 0) {
           this.toastService.success(
@@ -98,15 +134,16 @@ export class ImportModalComponent {
 
         this.importing.set(false);
         this.visible.set(false);
-        this.imported.emit({ imported, skipped });
+        this.imported.emit();
       },
       error: (err) => {
+        this.importing.set(false);
         this.toastService.error(
           'Import failed',
-          err?.error?.detail || err.message || 'Something went wrong'
+          err?.error?.detail || err?.message || 'Something went wrong'
         );
-        this.importing.set(false);
       },
     });
   }
+
 }

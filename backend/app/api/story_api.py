@@ -1,40 +1,39 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.schemas.run_pipeline_request import RunPipelineRequest
+from app.services.pipeline_service import start_pipeline
 from app.services.story_service import (
     list_stories,
-    list_stories_by_project
+    list_stories_by_project,
 )
-from app.services.pipeline_service import start_pipeline
-
-from app.schemas.run_pipeline_request import RunPipelineRequest
 
 router = APIRouter(prefix="/stories", tags=["User Stories"])
 
 
 @router.get("/")
-def get_all(db: Session = Depends(get_db)):
-    return list_stories(db)
+async def get_all(db: AsyncSession = Depends(get_db)):
+    return await list_stories(db)
 
 
 @router.get("/project/{project_id}")
-def get_by_project(project_id: str, db: Session = Depends(get_db)):
-    return list_stories_by_project(db, project_id)
+async def get_by_project(project_id: str, db: AsyncSession = Depends(get_db)):
+    return await list_stories_by_project(db, project_id)
 
 
 @router.post("/pipeline")
-def run_pipeline(data: RunPipelineRequest, db: Session = Depends(get_db)):
+async def run_pipeline(data: RunPipelineRequest, db: AsyncSession = Depends(get_db)):
     if data.type == "keys":
-        jobs = start_pipeline(db, issue_keys=data.issue_keys)
+        jobs = await start_pipeline(db, issue_keys=data.issue_keys)
 
     elif data.type == "project":
-        jobs = start_pipeline(db, project_id=data.project_id)
+        jobs = await start_pipeline(db, project_id=data.project_id)
 
     else:
-        raise HTTPException(400, "Invalid type")
+        raise HTTPException(status_code=400, detail="Invalid type")
 
     return {
         "status": "started",
-        "jobs": jobs
+        "jobs": jobs,
     }

@@ -1,0 +1,87 @@
+@if (visible()) {
+  <div class="modal-backdrop" (click)="onBackdropClick($event)">
+    <div class="modal">
+
+      <div class="modal-header">
+        <h2>Import from Jira</h2>
+        <button class="modal-close" (click)="close()" [disabled]="importing()">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Loading Jira projects -->
+        @if (loading()) {
+          <div class="modal-loading">
+            <app-spinner text="Connecting to Jira..." />
+          </div>
+        }
+
+        <!-- Jira not connected -->
+        @else if (!jiraConnected()) {
+          <div class="modal-empty">
+            <p>Your Jira account is not connected.</p>
+            <p>Go to <strong>Settings → Jira</strong> to connect your account first.</p>
+          </div>
+        }
+
+        <!-- No projects found -->
+        @else if (jiraProjects().length === 0) {
+          <div class="modal-empty">
+            <p>No Jira projects found for your account.</p>
+          </div>
+        }
+
+        <!-- Project list -->
+        @else {
+          <p class="modal-subtitle">Select a Jira project to import its user stories:</p>
+
+          <div class="project-list">
+            @for (project of jiraProjects(); track project.key) {
+              <div
+                class="project-item"
+                [class.selected]="selectedProject()?.key === project.key"
+                (click)="selectProject(project)"
+              >
+                <div class="project-item-info">
+                  <span class="project-item-name">{{ project.name }}</span>
+                  <span class="project-item-key">{{ project.key }}</span>
+                </div>
+                @if (selectedProject()?.key === project.key) {
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="check-icon">
+                    <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
+                  </svg>
+                }
+              </div>
+            }
+          </div>
+        }
+
+      </div>
+
+      <!-- Footer -->
+      @if (!loading() && jiraConnected() && jiraProjects().length > 0) {
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="close()" [disabled]="importing()">
+            Cancel
+          </button>
+          <button
+            class="btn btn-primary"
+            [disabled]="!selectedProject() || importing()"
+            (click)="confirmImport()"
+          >
+            @if (importing()) {
+              <span>Importing...</span>
+            } @else {
+              <span>Import Stories</span>
+            }
+          </button>
+        </div>
+      }
+
+    </div>
+  </div>
+}

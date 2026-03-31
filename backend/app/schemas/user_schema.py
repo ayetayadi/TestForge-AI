@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from pydantic import BaseModel, EmailStr, StringConstraints
+from pydantic import BaseModel, EmailStr, StringConstraints, Field
 from datetime import datetime
 
 class UserCreate(BaseModel):
@@ -49,3 +49,11 @@ class ResetPasswordRequest(BaseModel):
     confirm_password: str
 
     model_config = {"from_attributes": True}
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
+
+
+class MessageResponse(BaseModel):
+    message: str

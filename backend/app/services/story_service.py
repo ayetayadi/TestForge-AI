@@ -1,20 +1,16 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.user_story import UserStory
+from app.repositories.story_final_repository import get_finals_by_story_ids
 from app.repositories.story_repository import (
     create_story,
     get_all_stories,
-    get_stories_by_project_id
+    get_stories_by_project_id,
 )
-from app.repositories.story_final_repository import get_finals_by_story_ids
-from app.clients.jira_client import fetch_stories
-from app.models.user_story import UserStory
 from app.utils.common.mapper_utils import map_jira_issue
 
 
-# ─────────────────────────────
-# MAPPERS
-# ─────────────────────────────
 def _story_to_dict(story):
     return {
         "id": story.id,
@@ -58,7 +54,6 @@ async def _enrich_with_finals(db: AsyncSession, stories):
 
     story_ids = [s.id for s in stories]
     finals = await get_finals_by_story_ids(db, story_ids)
-
     finals_map = {f.user_story_id: f for f in finals}
 
     result = []
@@ -71,9 +66,6 @@ async def _enrich_with_finals(db: AsyncSession, stories):
     return result
 
 
-# ─────────────────────────────
-# PUBLIC API
-# ─────────────────────────────
 async def list_stories(db: AsyncSession):
     stories = await get_all_stories(db)
     return await _enrich_with_finals(db, stories)
@@ -84,26 +76,14 @@ async def list_stories_by_project(db: AsyncSession, project_id: str):
     return await _enrich_with_finals(db, stories)
 
 
-def list_stories_from_jira(project_key: str):
-    return fetch_stories(project_key)  # externe → sync
-
-
-# ─────────────────────────────
-# IMPORT
-# ─────────────────────────────
-async def import_project_stories(db: AsyncSession, project):
-
-    response = fetch_stories(project.project_key)
-    issues = response.get("issues", [])
-
+async def import_project_stories(db: AsyncSession, project, jira_issues: list):
     count = 0
     skipped = 0
 
-    # ⚠️ async select
     result = await db.execute(select(UserStory.issue_key))
     existing_keys = {row[0] for row in result.all()}
 
-    for issue in issues:
+    for issue in jira_issues:
         try:
             mapped = map_jira_issue(issue)
 
@@ -128,5 +108,5 @@ async def import_project_stories(db: AsyncSession, project):
 
     return {
         "imported": count,
-        "skipped": skipped
+        "skipped": skipped,
     }

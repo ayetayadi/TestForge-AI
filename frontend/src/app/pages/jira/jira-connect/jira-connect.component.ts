@@ -1,44 +1,97 @@
-import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { MaterialModule } from 'src/app/material.module';
-import { JiraService, JiraStatus, JiraProject, UserStory } from '../../../services/jira.service';
+import { Component, OnInit } from '@angular/core';
+import {
+  AbstractControl,
+  FormBuilder,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+
+import { ToastService } from 'src/app/services/toast.service';
+import { UserService } from 'src/app/services/user.service';
+import {
+  JiraProject,
+  JiraService,
+  JiraStatus,
+  UserStory,
+} from '../../../services/jira.service';
+
+function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
+  const newPassword = control.get('new_password')?.value;
+  const confirmPassword = control.get('confirm_password')?.value;
+
+  if (newPassword && confirmPassword && newPassword !== confirmPassword) {
+    return { passwordMismatch: true };
+  }
+  return null;
+}
 
 @Component({
   selector: 'app-jira-connect',
   standalone: true,
-  imports: [CommonModule, MaterialModule, FormsModule],
   templateUrl: './jira-connect.component.html',
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatCardModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatIconModule,
+    MatButtonModule,
+    MatChipsModule,
+  ],
 })
 export class JiraConnectComponent implements OnInit {
   status: JiraStatus = { connected: false };
 
-  // Projects
   projects: JiraProject[] = [];
   loadingProjects = false;
   selectedProject: JiraProject | null = null;
 
-  // Stories
   stories: UserStory[] = [];
   loadingStories = false;
   selectedStories: UserStory[] = [];
 
-  // UI state
   connecting = false;
   disconnecting = false;
   errorMessage = '';
 
-  // Table columns
-  displayedColumns = ['select', 'key', 'summary', 'status', 'priority', 'assignee'];
+  changePasswordForm!: FormGroup;
+  changingPassword = false;
+
+  hideCurrentPassword = true;
+  hideNewPassword = true;
+  hideConfirmPassword = true;
 
   constructor(
+    private fb: FormBuilder,
     private jiraService: JiraService,
-    private route: ActivatedRoute,
+    private userService: UserService,
+    private toastService: ToastService,
+    private route: ActivatedRoute
   ) {}
 
-  ngOnInit() {
-    this.route.queryParams.subscribe(params => {
+  ngOnInit(): void {
+    this.changePasswordForm = this.fb.group(
+      {
+        current_password: ['', Validators.required],
+        new_password: ['', [Validators.required, Validators.minLength(8)]],
+        confirm_password: ['', Validators.required],
+      },
+      { validators: passwordMatchValidator }
+    );
+
+    this.route.queryParams.subscribe((params) => {
       if (params['error']) {
         this.errorMessage = 'Failed to connect to Jira. Please try again.';
       }
@@ -46,27 +99,27 @@ export class JiraConnectComponent implements OnInit {
     });
   }
 
-  checkStatus() {
+  checkStatus(): void {
     this.jiraService.getStatus().subscribe({
       next: (s) => {
-        console.log('Jira status:', s);
         this.status = s;
-        if (s.connected) this.loadProjects();
+        if (s.connected) {
+          this.loadProjects();
+        }
       },
       error: (err) => {
         console.error('checkStatus error:', err);
         this.errorMessage = 'Failed to check Jira status.';
-      }
+      },
     });
   }
 
-  loadProjects() {
+  loadProjects(): void {
     this.loadingProjects = true;
     this.errorMessage = '';
 
     this.jiraService.getProjects().subscribe({
       next: (p) => {
-        console.log('Projects loaded:', p);
         this.projects = Array.isArray(p) ? p : [];
         this.loadingProjects = false;
       },
@@ -75,25 +128,25 @@ export class JiraConnectComponent implements OnInit {
         this.errorMessage = 'Failed to load Jira projects.';
         this.loadingProjects = false;
         this.projects = [];
-      }
+      },
     });
   }
 
-  onProjectChange(project: JiraProject) {
+  onProjectChange(project: JiraProject): void {
     this.selectedProject = project;
     this.stories = [];
     this.selectedStories = [];
     this.loadStories(project.key);
   }
 
-  loadStories(projectKey: string) {
+  loadStories(projectKey: string): void {
     this.loadingStories = true;
     this.errorMessage = '';
 
     this.jiraService.getUserStories(projectKey).subscribe({
       next: (s) => {
         const storiesArray = Array.isArray(s) ? s : [];
-        this.stories = storiesArray.map(story => ({ ...story, selected: false }));
+        this.stories = storiesArray.map((story) => ({ ...story, selected: false }));
         this.loadingStories = false;
       },
       error: (err) => {
@@ -101,33 +154,21 @@ export class JiraConnectComponent implements OnInit {
         this.errorMessage = 'Failed to fetch user stories.';
         this.loadingStories = false;
         this.stories = [];
-      }
+      },
     });
   }
 
-  toggleStory(story: UserStory) {
-    story.selected = !story.selected;
-    this.selectedStories = this.stories.filter(s => s.selected);
-  }
-
-  toggleAll(checked: boolean) {
-    this.stories.forEach(s => s.selected = checked);
-    this.selectedStories = checked ? [...this.stories] : [];
-  }
-
-  get allSelected(): boolean {
-    return this.stories.length > 0 && this.stories.every(s => s.selected);
-  }
-
-  get someSelected(): boolean {
-    return this.stories.some(s => s.selected) && !this.allSelected;
-  }
-
-  connectJira() {
+  connectJira(): void {
     this.connecting = true;
+
     this.jiraService.getAuthUrl().subscribe({
       next: (res) => {
-        const popup = window.open(res.url, 'Connect Jira', 'width=600,height=700,scrollbars=yes');
+        const popup = window.open(
+          res.url,
+          'Connect Jira',
+          'width=600,height=700,scrollbars=yes'
+        );
+
         const timer = setInterval(() => {
           if (popup?.closed) {
             clearInterval(timer);
@@ -136,13 +177,19 @@ export class JiraConnectComponent implements OnInit {
           }
         }, 500);
       },
-      error: () => { this.connecting = false; }
+      error: (err) => {
+        console.error('connectJira error:', err);
+        this.connecting = false;
+        this.errorMessage = 'Failed to start Jira connection.';
+      },
     });
   }
 
-  disconnect() {
+  disconnect(): void {
     if (!confirm('Disconnect Jira?')) return;
+
     this.disconnecting = true;
+
     this.jiraService.disconnect().subscribe({
       next: () => {
         this.disconnecting = false;
@@ -150,34 +197,44 @@ export class JiraConnectComponent implements OnInit {
         this.projects = [];
         this.stories = [];
         this.selectedProject = null;
-      }
+      },
+      error: (err) => {
+        console.error('disconnect error:', err);
+        this.disconnecting = false;
+        this.errorMessage = 'Failed to disconnect Jira.';
+      },
     });
   }
 
-  generateTests() {
-    // Will be implemented in next step
-    console.log('Selected stories for generation:', this.selectedStories);
-  }
-  getStatusColor(status: string): string {
-    const map: Record<string, string> = {
-      'To Do': '#6b778c',
-      'In Progress': '#0052cc',
-      'Done': '#00875a',
-      'In Review': '#ff8b00',
-    };
-    return map[status] || '#6b778c';
-  }
+  changePassword(): void {
+    if (this.changePasswordForm.invalid) {
+      this.changePasswordForm.markAllAsTouched();
+      return;
+    }
 
-  getPriorityColor(priority: string): string {
-    const map: Record<string, string> = {
-      'Highest': '#d04437',
-      'High': '#e05a00',
-      'Medium': '#f79232',
-      'Low': '#2d8738',
-      'Lowest': '#57a55a',
+    const payload = {
+      current_password: this.changePasswordForm.value.current_password,
+      new_password: this.changePasswordForm.value.new_password,
     };
-    return map[priority] || '#6b778c';
-  }
 
+    this.changingPassword = true;
+
+    this.userService.changePassword(payload).subscribe({
+      next: (res) => {
+        this.changingPassword = false;
+        this.toastService.success(
+          'Password changed',
+          res?.message || 'Your password has been updated successfully'
+        );
+        this.changePasswordForm.reset();
+      },
+      error: (err) => {
+        this.changingPassword = false;
+        this.toastService.error(
+          'Change password failed',
+          err?.error?.detail || err?.message || 'Something went wrong'
+        );
+      },
+    });
+  }
 }
-
