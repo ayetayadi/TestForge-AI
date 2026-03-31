@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.services.project_service import (
@@ -12,15 +12,15 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
 @router.get("/")
-def list_projects(db: Session = Depends(get_db)):
-    return get_projects(db)
+async def list_projects(db: AsyncSession = Depends(get_db)):
+    return await get_projects(db)
 
 
 @router.get("/jira")
-def list_jira_projects():
-    return get_jira_projects()
+async def list_jira_projects():
+    return await get_jira_projects()
 
 
 @router.post("/{project_key}/import")
-def import_stories(project_key: str, db: Session = Depends(get_db)):
-    return import_project_by_key(db, project_key)
+async def import_stories(project_key: str, db: AsyncSession = Depends(get_db)):
+    return await import_project_by_key(db, project_key)

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # =========================
     # JIRA / FRONTEND
     # =========================
+    JIRA_URL: str
     JIRA_CLIENT_ID: str
     JIRA_CLIENT_SECRET: str
     JIRA_REDIRECT_URI: str = "http://localhost:8000/jira/callback"
