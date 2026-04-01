@@ -9,7 +9,6 @@ _main_loop: asyncio.AbstractEventLoop | None = None
  
  
 def set_main_loop(loop: asyncio.AbstractEventLoop):
-    """Appeler au demarrage de FastAPI : set_main_loop(asyncio.get_event_loop())"""
     global _main_loop
     _main_loop = loop
  

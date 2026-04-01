@@ -1,27 +1,29 @@
-import threading
+import asyncio
 
 from app.core.database import SessionLocal
 from app.repositories.story_final_repository import save_final_story
 
-# In-memory store for completed job results
 _job_results = {}
-_lock = threading.Lock()
-
-# Track which issue_keys have active/completed jobs awaiting decision
-# Maps issue_key -> job_id
 _pending_jobs = {}
+_lock = asyncio.Lock()
 
 
-def store_job_result(job_id: str, result: dict) -> None:
-    with _lock:
+# =========================
+# STORE RESULT
+# =========================
+async def store_job_result(job_id: str, result: dict) -> None:
+    async with _lock:
         _job_results[job_id] = result
         jira_id = result.get("jira_id")
         if jira_id:
             _pending_jobs[jira_id] = job_id
 
 
-def get_job_state(job_id: str) -> dict:
-    with _lock:
+# =========================
+# GET JOB STATE
+# =========================
+async def get_job_state(job_id: str) -> dict:
+    async with _lock:
         result = _job_results.get(job_id)
 
     if not result:
@@ -54,18 +56,18 @@ def get_job_state(job_id: str) -> dict:
     }
 
 
-def get_pending_jobs() -> dict:
-    """
-    Return all pending jobs (pipeline completed, awaiting decision).
-    Returns: { issue_key: { job_id, score, ... } }
-    """
-    with _lock:
+# =========================
+# GET PENDING JOBS
+# =========================
+async def get_pending_jobs() -> dict:
+    async with _lock:
         result = {}
         for issue_key, job_id in _pending_jobs.items():
             job_data = _job_results.get(job_id)
             if job_data:
                 initial = job_data.get("initial_score") or 0
                 final = job_data.get("final_score") or 0
+
                 result[issue_key] = {
                     "job_id": job_id,
                     "issue_key": issue_key,
@@ -78,8 +80,11 @@ def get_pending_jobs() -> dict:
         return result
 
 
+# =========================
+# APPLY DECISION
+# =========================
 async def apply_decision(job_id: str, choice: str) -> dict:
-    with _lock:
+    async with _lock:
         result = _job_results.get(job_id)
 
     if not result:
@@ -90,8 +95,11 @@ async def apply_decision(job_id: str, choice: str) -> dict:
 
     jira_id = result.get("jira_id")
 
+    # =========================
+    # REJECT RELAUNCH
+    # =========================
     if choice == "reject_relaunch":
-        with _lock:
+        async with _lock:
             _job_results.pop(job_id, None)
             if jira_id and _pending_jobs.get(jira_id) == job_id:
                 _pending_jobs.pop(jira_id, None)
@@ -102,6 +110,9 @@ async def apply_decision(job_id: str, choice: str) -> dict:
             "issue_key": jira_id,
         }
 
+    # =========================
+    # APPROVE / REJECT KEEP
+    # =========================
     if choice == "approve":
         final_story = result.get("improved_story")
         outcome = "approved"
@@ -130,7 +141,8 @@ async def apply_decision(job_id: str, choice: str) -> dict:
         if not success:
             return {"status": "error", "message": "Failed to save"}
 
-    with _lock:
+    # cleanup memory
+    async with _lock:
         _job_results.pop(job_id, None)
         if jira_id and _pending_jobs.get(jira_id) == job_id:
             _pending_jobs.pop(jira_id, None)

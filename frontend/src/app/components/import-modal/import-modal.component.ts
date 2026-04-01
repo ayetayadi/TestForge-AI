@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ProjectsService, ToastService } from '../../services';
 import { JiraProject } from '../../services/projects.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
+import { JiraService } from 'src/app/services/jira.service';
 
 @Component({
   selector: 'app-import-modal',
@@ -14,6 +15,7 @@ import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 export class ImportModalComponent {
   private projectsService = inject(ProjectsService);
   private toastService = inject(ToastService);
+  private jiraService = inject(JiraService);
 
   closed = output<void>();
   imported = output<void>();
@@ -55,7 +57,7 @@ export class ImportModalComponent {
   private checkJiraAndFetchProjects(): void {
     this.loading.set(true);
 
-    this.projectsService.getJiraStatus().subscribe({
+    this.jiraService.getStatus().subscribe({
       next: (status) => {
         this.jiraConnected.set(!!status?.connected);
 
@@ -81,7 +83,7 @@ export class ImportModalComponent {
   }
 
   private fetchJiraProjects(): void {
-    this.projectsService.getJiraProjects().subscribe({
+    this.jiraService.getProjects().subscribe({
       next: (projects) => {
         this.jiraProjects.set(projects ?? []);
         this.loading.set(false);
@@ -111,7 +113,6 @@ export class ImportModalComponent {
 
     this.projectsService.importStories(project.key).subscribe({
       next: (result) => {
-        // ✅ Correctly unwrap result.result per ImportStoriesResponse shape
         const imported = result?.result?.imported ?? 0;
         const skipped = result?.result?.skipped ?? 0;
 

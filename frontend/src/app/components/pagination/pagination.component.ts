@@ -130,7 +130,6 @@ export class PaginationComponent implements OnInit {
   onPageSizeChange(event: Event): void {
     const value = +(event.target as HTMLSelectElement).value;
 
-    // IMPORTANT: reset page to 1
     this.pageSizeChange.emit(value);
     this.pageChange.emit(1);
   }

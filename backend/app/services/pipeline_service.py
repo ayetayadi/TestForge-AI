@@ -1,36 +1,34 @@
 import uuid
 import traceback
+import asyncio
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.repositories.story_repository import (
     get_story_by_issue_key,
-    get_stories_by_project_id
+    get_stories_by_project_id,
 )
-
 from app.utils.common.ac_utils import normalize_ac
-from app.utils.common.story_utils import parse_story
-
+from app.utils.common.story_utils import parse_story, ensure_string
 from app.core.job_queue import job_queue
 
-
-def ensure_string(value):
-    if isinstance(value, list):
-        return " ".join(str(v) for v in value)
-    return str(value or "")
-
-
-async def start_pipeline(db: AsyncSession, jira_project_id=None, issue_keys=None):
-
+# =========================
+# PIPELINE START
+# =========================
+async def start_pipeline(
+    db: AsyncSession,
+    jira_project_id: str | None = None,
+    issue_keys: list[str] | None = None,
+):
     try:
-        stories = []
-
-        # FETCH
+        # =========================
+        # FETCH STORIES
+        # =========================
         if issue_keys:
-            for key in issue_keys:
-                us = await get_story_by_issue_key(db, key)
-                if us:
-                    stories.append(us)
+            tasks = [
+                get_story_by_issue_key(db, key)
+                for key in issue_keys
+            ]
+            stories = [s for s in await asyncio.gather(*tasks) if s]
 
         elif jira_project_id:
             stories = await get_stories_by_project_id(db, jira_project_id)
@@ -41,6 +39,9 @@ async def start_pipeline(db: AsyncSession, jira_project_id=None, issue_keys=None
         if not stories:
             return []
 
+        # =========================
+        # PROCESS STORIES
+        # =========================
         results = []
 
         for us in stories:
@@ -58,6 +59,7 @@ async def start_pipeline(db: AsyncSession, jira_project_id=None, issue_keys=None
                 if isinstance(raw_ac, str):
                     raw_ac = [raw_ac]
 
+                # flatten AC
                 normalized_ac = []
                 for a in raw_ac:
                     if isinstance(a, list):
@@ -81,13 +83,18 @@ async def start_pipeline(db: AsyncSession, jira_project_id=None, issue_keys=None
                     "skip_reanalysis": False,
                 }
 
-                job_queue.put(state)
+                # =========================
+                # NON-BLOCKING QUEUE
+                # =========================
+                await job_queue.put(state)
 
-                results.append({
-                    "issue_key": us.issue_key,
-                    "job_id": job_id,
-                    "story_source": parsed.source,
-                })
+                results.append(
+                    {
+                        "issue_key": us.issue_key,
+                        "job_id": job_id,
+                        "story_source": parsed.source,
+                    }
+                )
 
             except Exception as e:
                 print(f"[PIPELINE ERROR] {e}")
@@ -96,5 +103,6 @@ async def start_pipeline(db: AsyncSession, jira_project_id=None, issue_keys=None
 
         return results
 
-    finally:
-        await db.close()
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

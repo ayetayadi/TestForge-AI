@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from 'src/environments/environment';
 
 export interface CreateUserPayload {
   email: string;
@@ -26,24 +27,24 @@ export interface UpdateUserPayload {
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
-  private apiUrl = 'http://localhost:8000';
+  private apiUrl = `${environment.apiUrl}/admin`;
 
   constructor(private http: HttpClient) {}
 
   createUser(payload: CreateUserPayload): Observable<UserRead> {
-    return this.http.post<UserRead>(`${this.apiUrl}/admin/users`, payload);
+    return this.http.post<UserRead>(`${this.apiUrl}/users`, payload);
   }
 
   getUsers(): Observable<UserRead[]> {
-    return this.http.get<UserRead[]>(`${this.apiUrl}/admin/users`);
+    return this.http.get<UserRead[]>(`${this.apiUrl}/users`);
   }
 
   updateUser(id: string, payload: UpdateUserPayload): Observable<UserRead> {
-    return this.http.put<UserRead>(`${this.apiUrl}/admin/users/${id}`, payload);
+    return this.http.put<UserRead>(`${this.apiUrl}/users/${id}`, payload);
   }
 
   deleteUser(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/admin/users/${id}`);
+    return this.http.delete<void>(`${this.apiUrl}/users/${id}`);
   }
 
 }
