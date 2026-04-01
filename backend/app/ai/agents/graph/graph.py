@@ -15,14 +15,14 @@ def build_graph():
     # =========================
     g.add_node("analysis", analysis_node)
 
-    def refinement_with_flag(state: dict) -> dict:
+    async def refinement_with_flag(state: dict) -> dict:
         jira_id = state.get("jira_id", "?")
     
         state["is_reanalysis"] = False
         state["llm_issues"] = []
         state["llm_suggestions"] = []
     
-        state = refinement_node(state)
+        state = await refinement_node(state)
     
         if state.get("llm_failed"):
             state["consecutive_llm_failures"] = state.get("consecutive_llm_failures", 0) + 1
@@ -36,8 +36,8 @@ def build_graph():
     
     g.add_node("refinement", refinement_with_flag)
 
-    def reanalysis_with_tracking(state: dict) -> dict:
-        state = analysis_node(state)
+    async def reanalysis_with_tracking(state: dict) -> dict:
+        state = await analysis_node(state)
 
         jira_id = state.get("jira_id", "?")
 

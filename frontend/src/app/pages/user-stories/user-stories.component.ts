@@ -298,7 +298,7 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   // ─── Navigation ─────────────────────────────────────────────────
 
   goBack(): void {
-    this.router.navigate(['/dashboard/projects']);
+    this.router.navigate(['/dashboard']);
   }
 
   // ─── Import ─────────────────────────────────────────────────────
@@ -379,7 +379,7 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
 
   viewResults(story: StoryWithJob): void {
     if (story.job && !story.final) {
-      this.router.navigate(['/dashboard/review', story.job.job_id]);
+      this.router.navigate(['/review', story.job.job_id]);
     } else if (story.final) {
       this.openStoryDetail(story);
     }

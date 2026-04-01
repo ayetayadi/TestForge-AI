@@ -16,6 +16,6 @@ export class StoriesService {
   }
 
   getStoriesByProject(projectId: string): Observable<UserStory[]> {
-    return this.http.get<UserStory[]>(`${this.apiUrl}/project/${projectId}`);
+    return this.http.get<UserStory[]>(`${this.apiUrl}/by-project/${projectId}`);
   }
 }

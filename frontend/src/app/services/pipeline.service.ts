@@ -12,7 +12,7 @@ export class PipelineService {
   private apiUrl = `${environment.apiUrl}/stories`;
 
   runPipeline(payload: RunPipelineRequest): Observable<PipelineResponse> {
-    return this.http.post<PipelineResponse>(`${this.apiUrl}/pipeline`, payload);
+    return this.http.post<PipelineResponse>(`${this.apiUrl}/pipeline/run`, payload);
   }
 
   runPipelineByProject(projectId: string): Observable<PipelineResponse> {
