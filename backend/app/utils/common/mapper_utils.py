@@ -1,84 +1,56 @@
-from datetime import datetime
+import datetime
 from app.utils.common.ac_utils import normalize_ac
 import re
 
+def parse_date(date_str):
+    try:
+        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+    except:
+        return None
 
-def map_jira_issue(issue):
-    fields = issue.get("fields", {})
-
-    description_adf = fields.get("description")
-    description = extract_text_from_adf(description_adf)
+def map_jira_issue(issue: dict) -> dict:    
+    description = issue.get("description", "")
 
     # AC extraction
     ac_list = extract_acceptance_criteria(description)
     if not ac_list:
         ac_list = extract_implicit_ac(description)
 
-    # Sprint (nested object)
-    sprint_field = fields.get("sprint")
-    sprint_name = None
-    if isinstance(sprint_field, dict):
-        sprint_name = sprint_field.get("name")
-    elif isinstance(sprint_field, list) and sprint_field:
-        sprint_name = sprint_field[-1].get("name") if isinstance(sprint_field[-1], dict) else str(sprint_field[-1])
-
-    # Fix version
-    fix_versions = fields.get("fixVersions") or []
-    fix_version = fix_versions[0].get("name") if fix_versions else None
-
-    # Epic
-    epic_key = fields.get("epic", {}).get("key") if isinstance(fields.get("epic"), dict) else fields.get("customfield_10014")
-    epic_name = fields.get("epic", {}).get("name") if isinstance(fields.get("epic"), dict) else fields.get("customfield_10015")
-
-    # Components
-    components = [c.get("name") for c in (fields.get("components") or []) if c.get("name")]
-
-    # Labels
-    labels = fields.get("labels") or []
-
-    # Dates
-    jira_created = _parse_jira_date(fields.get("created"))
-    jira_updated = _parse_jira_date(fields.get("updated"))
-
     return {
         "issue_key": issue.get("key"),
-        "title": fields.get("summary", ""),
+
+        # contenu
+        "title": issue.get("summary", ""),
         "description": description,
         "acceptance_criteria": normalize_ac(ac_list),
 
-        # Metadata
-        "issue_type": (fields.get("issuetype") or {}).get("name"),
-        "priority": (fields.get("priority") or {}).get("name"),
-        "status": (fields.get("status") or {}).get("name"),
-        "story_points": fields.get("story_points") or fields.get("customfield_10028"),
+        # metadata
+        "issue_type": issue.get("issue_type"),
+        "priority": issue.get("priority"),
+        "status": issue.get("status"),
+        "story_points": issue.get("story_points"),
 
-        # People
-        "assignee": (fields.get("assignee") or {}).get("displayName"),
-        "reporter": (fields.get("reporter") or {}).get("displayName"),
+        # people
+        "assignee": issue.get("assignee"),
+        "reporter": issue.get("reporter"),
 
-        # Agile
-        "epic_key": epic_key,
-        "epic_name": epic_name,
-        "sprint": sprint_name,
-        "labels": labels,
-        "components": components,
+        # agile
+        "epic_key": issue.get("epic"),
+        "epic_name": issue.get("epic"),
+        "sprint": issue.get("sprint"),
+        "labels": issue.get("labels", []),
+        "components": issue.get("components", []),
 
-        # Versioning
-        "fix_version": fix_version,
+        # versioning
+        "fix_version": (
+            issue.get("fix_versions")[0]
+            if issue.get("fix_versions") else None
+        ),
 
-        # Dates
-        "jira_created_at": jira_created,
-        "jira_updated_at": jira_updated,
+        # dates
+        "jira_created_at": parse_date(issue.get("created")),
+        "jira_updated_at": parse_date(issue.get("updated")),
     }
-
-
-def _parse_jira_date(date_str):
-    if not date_str:
-        return None
-    try:
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-    except (ValueError, AttributeError):
-        return None
     
 # ─────────────────────────────────────────
 # ADF → TEXT

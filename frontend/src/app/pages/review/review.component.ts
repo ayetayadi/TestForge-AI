@@ -104,13 +104,6 @@ export class ReviewComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * Don't show decision buttons if:
-   * - No state loaded
-   * - Job not found (already decided and cleaned up)
-   * - Decision was already made in this session
-   * - Currently relaunching
-   */
   isAlreadyDecided(): boolean {
     const s = this.state();
     if (!s || s.status === 'not_found') return true;
@@ -340,7 +333,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
             // Navigate to the new review page
             this.jobId = newJobId;
             this.decisionMade.set(false);
-            this.router.navigate(['/dashboard/review', newJobId], {
+            this.router.navigate(['/review', newJobId], {
               queryParams: {
                 projectId: this.navProjectId,
                 projectName: this.navProjectName,
@@ -372,7 +365,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
         this.toastService.error('Lost connection during relaunch');
 
         // Fallback: try to navigate to the new review anyway
-        this.router.navigate(['/dashboard/review', newJobId], {
+        this.router.navigate(['/review', newJobId], {
           queryParams: {
             projectId: this.navProjectId,
             projectName: this.navProjectName,
@@ -389,7 +382,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
     if (this.navProjectId) queryParams['projectId'] = this.navProjectId;
     if (this.navProjectName) queryParams['projectName'] = this.navProjectName;
 
-    this.router.navigate(['/dashboard/user-stories'], { queryParams });
+    this.router.navigate(['/user-stories'], { queryParams });
   }
 
   goBack(): void {

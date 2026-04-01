@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,12 +17,15 @@ from app.core.database import Base, engine
 from app.core.worker import start_workers
 from app.llm.factory import get_llm
 from app.streaming.sse_manager import set_main_loop
-from app.utils.common.embedding import preload_embedding_model
+from app.core.embedding import preload_embedding_model
+from app.core.config import settings
 
 
-def preload_llms() -> None:
+# =========================
+# LLM
+# =========================
+def preload_llms():
     print("[LLM] Preloading...")
-
     try:
         get_llm("analysis")
         get_llm("refinement")
@@ -31,62 +35,80 @@ def preload_llms() -> None:
         print(f"[LLM ERROR] {e}")
 
 
-def preload_models() -> None:
+# =========================
+# MODELS
+# =========================
+def preload_models():
     print("[STARTUP] Preloading models...")
 
-    try:
-        preload_embedding_model()
-        print("[EMBEDDING] Ready")
-    except Exception as e:
-        print(f"[EMBEDDING ERROR] {e}")
-
-    try:
-        preload_llms()
-    except Exception as e:
-        print(f"[STARTUP] LLM preload skipped: {e}")
+    preload_embedding_model()
+    preload_llms()
 
     print("[STARTUP] Models ready!")
 
 
+# =========================
+# LIFESPAN
+# =========================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[STARTUP] Initializing application...")
 
-    print("[DB] Creating tables...")
+    # HF TOKEN
+    if settings.HF_TOKEN:
+        os.environ["HF_TOKEN"] = settings.HF_TOKEN
+        print("[HF] Token loaded")
+
+    # DB
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("[DB] Tables ready!")
-    print("TABLES:", Base.metadata.tables.keys())
 
+    # SSE loop
     loop = asyncio.get_running_loop()
     set_main_loop(loop)
 
-    preload_models()
-    start_workers()
+    # Models (non-blocking)
+    await asyncio.to_thread(preload_models)
+
+    # Workers
+    workers = await start_workers()
 
     print("[STARTUP] Application ready!")
+
     yield
+
     print("[SHUTDOWN] Cleaning up...")
 
+    # Stop workers
+    for task in workers:
+        task.cancel()
 
+    await asyncio.gather(*workers, return_exceptions=True)
+
+    print("[SHUTDOWN] Workers stopped")
+
+
+# =========================
+# APP
+# =========================
 app = FastAPI(
     title="TestForge AI Backend",
     lifespan=lifespan,
 )
 
-origins = [
-    "http://localhost:4200",
-]
 
+# =========================
+# CORS
+# =========================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,   # use ["*"] only if you do NOT use credentials
+    allow_origins=["http://localhost:4200"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=600,
 )
+
 
 # =========================
 # ROUTERS
@@ -100,6 +122,9 @@ app.include_router(story_router)
 app.include_router(job_router)
 
 
+# =========================
+# HEALTH
+# =========================
 @app.get("/health")
 async def health():
     return {"status": "ok"}

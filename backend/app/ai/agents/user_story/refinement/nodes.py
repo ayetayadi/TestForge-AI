@@ -2,7 +2,7 @@ import asyncio
 import html
 import re
 import time
-from app.utils.common.embedding import embed, cosine_similarity
+from app.core.embedding import embed, cosine_similarity
 from app.llm.factory import get_llm
 from app.utils.common.pipeline_utils import safe_publish, add_trace
 from app.utils.common.llm_safety_utils import is_llm_failed
@@ -16,7 +16,6 @@ from .tools.ac_generator import ac_generator
 from .tools.constraint_guard import constraint_guard
 from .prompts import REFINEMENT_PROMPT, AC_REPAIR_PROMPT
 from app.core.config import settings
-import copy
 
 # =========================
 # HELPERS

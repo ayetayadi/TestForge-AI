@@ -44,6 +44,7 @@ export class JiraService {
   }
 
   getProjects(): Observable<JiraProject[]> {
+
     return this.http.get<JiraProject[]>(`${this.apiUrl}/projects`);
   }
 

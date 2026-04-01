@@ -1,5 +1,4 @@
-import threading
-import copy
+import asyncio
 from app.core.job_queue import job_queue
 from app.ai.agents.graph.graph import build_graph
 from app.core.config import settings
@@ -7,13 +6,12 @@ from app.streaming.sse_manager import publish_event
 from app.services.jobs_service import store_job_result
 
 MAX_WORKERS = settings.MAX_WORKERS
-
 graph = build_graph()
 
 
-def worker():
+async def worker():
     while True:
-        state = job_queue.get()
+        state = await job_queue.get()
 
         if state is None:
             break
@@ -22,7 +20,7 @@ def worker():
         jira_id = state.get("jira_id")
 
         try:
-            safe_state = copy.deepcopy(state)
+            safe_state = state.copy()
             print(f"[WORKER] Processing {jira_id}")
 
             publish_event(job_id, "job_started", {
@@ -30,20 +28,16 @@ def worker():
                 "issue_key": jira_id,
             })
 
-            result = graph.invoke(safe_state, config={"recursion_limit": 15})
+            result = await graph.ainvoke(safe_state, config={"recursion_limit": 15})
 
-            store_job_result(job_id, result)
-
-            final_score = result.get("final_score", 0)
-            initial_score = result.get("initial_score", 0)
-            iteration = result.get("iteration", 0)
+            await store_job_result(job_id, result)
 
             publish_event(job_id, "job_completed", {
                 "type": "job_completed",
                 "issue_key": jira_id,
-                "score": final_score,
-                "initial_score": initial_score,
-                "iteration": iteration,
+                "score": result.get("final_score", 0),
+                "initial_score": result.get("initial_score", 0),
+                "iteration": result.get("iteration", 0),
             })
 
         except Exception as e:
@@ -58,11 +52,17 @@ def worker():
                     "error": str(e),
                 })
 
-        job_queue.task_done()
+        finally:
+            job_queue.task_done()
 
 
-def start_workers():
+async def start_workers():
+    tasks = []
+
     for _ in range(MAX_WORKERS):
-        t = threading.Thread(target=worker, daemon=True)
-        t.start()
+        task = asyncio.create_task(worker())
+        tasks.append(task)
+
     print(f"[WORKERS] Started {MAX_WORKERS} workers")
+
+    return tasks
