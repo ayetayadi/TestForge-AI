@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str | None = None
 
     # =========================
+    # Hugging Face CONFIG
+    # =========================
+    HF_TOKEN: str | None = None
+
+    # =========================
     # REDIS CONFIG
     # =========================
     REDIS_HOST: str = "localhost"

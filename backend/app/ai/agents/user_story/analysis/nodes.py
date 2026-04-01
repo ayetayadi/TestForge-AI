@@ -1,3 +1,4 @@
+import asyncio
 import html
 import re
 import time
@@ -14,6 +15,7 @@ from app.utils.common.ac_utils import compute_ac_score, normalize_ac
 from .tools.rule_engine import rule_engine
 from .tools.nlp_checker import nlp_checker
 from .prompts import ANALYSIS_PROMPT
+from app.core.config import settings
 
 # =========================
 # CLEAN INPUT
@@ -36,8 +38,8 @@ def _sanitize_story(raw: str) -> str:
 # =========================
 # MAIN NODE
 # =========================
-def analysis_node(state: dict) -> dict:
-    state = copy.deepcopy(state)
+async def analysis_node(state: dict) -> dict:
+    state = state.copy()
     print("\n[ANALYSIS INPUT]", state)
     is_reanalysis = state.get("is_reanalysis", False)
     label = "RE-ANALYSIS" if is_reanalysis else "ANALYSIS"
@@ -90,7 +92,7 @@ def analysis_node(state: dict) -> dict:
     # RULE ENGINE
     # =========================
     try:
-        rule_result = rule_engine.evaluate(story)
+        rule_result = await asyncio.to_thread(rule_engine.evaluate, story)
     except Exception:
         rule_result = {
             "rule_score": 0.0,
@@ -102,7 +104,7 @@ def analysis_node(state: dict) -> dict:
     # NLP CHECK
     # =========================
     try:
-        nlp_result = nlp_checker.analyze(story)
+        nlp_result = await asyncio.to_thread(nlp_checker.analyze, story)
     except Exception:
         nlp_result = {
             "nlp_score": 0.0,
@@ -133,16 +135,14 @@ def analysis_node(state: dict) -> dict:
             context=""
         )
         print(f"[{jira_id}] [DEBUG] Prompt formatted, length={len(prompt)}")
-        response = llm.generate(prompt, temperature=0.0)
+        response = await asyncio.to_thread(
+            llm.generate,
+            prompt,
+            temperature=settings.ANALYSIS_TEMP,
+        )
         print(f"[{jira_id}] [DEBUG] LLM response type={type(response)}")
         print(f"[{jira_id}] [DEBUG] LLM response={response}")
 
-        # FIX: Check both the string pattern AND the dict key.
-        # When the LLM HTTP call fails (429, timeout), the factory returns
-        # a fallback dict like {'llm_failed': True, 'llm_score': 0.3}.
-        # is_llm_failed(str(response)) doesn't catch this because it
-        # looks for text patterns, not dict keys. So we also check the
-        # response dict directly.
         if isinstance(response, dict) and response.get("llm_failed") is True:
             llm_failed = True
             print(f"[{jira_id}] [DEBUG] llm_failed=True (from response dict)")

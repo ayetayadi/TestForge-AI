@@ -1,3 +1,4 @@
+import asyncio
 import html
 import re
 import time
@@ -125,7 +126,7 @@ def _filter_drifted_ac(ac_list: list, story: str, jira_id: str = "?") -> list:
     return filtered
 
 
-def repair_ac_with_llm(story: str, ac_list: list, jira_id: str = "?") -> list:
+async def repair_ac_with_llm(story: str, ac_list: list, jira_id: str = "?") -> list:
     if not ac_list:
         return []
     try:
@@ -136,7 +137,12 @@ def repair_ac_with_llm(story: str, ac_list: list, jira_id: str = "?") -> list:
             ac=str(ac_list),
             language=language
         )
-        response = llm.generate(prompt, temperature=settings.AC_REPAIR_TEMP)
+         
+        response = await asyncio.to_thread(
+            llm.generate,
+            prompt,
+            temperature=settings.AC_REPAIR_TEMP,
+        )
         repaired = response.get("acceptance_criteria") or []
         repaired = normalize_ac(repaired)
         if not repaired:
@@ -180,8 +186,8 @@ def _format_existing_ac(existing_ac: list) -> str:
 # =========================
 # MAIN NODE
 # =========================
-def refinement_node(state: dict) -> dict:
-    state = copy.deepcopy(state)
+async def refinement_node(state: dict) -> dict:
+    state = state.copy()
     jira_id = state.get("jira_id", "?")
     print(f"\n[{jira_id}] >>> [REFINEMENT START]")
     start_time = time.time()
@@ -237,7 +243,7 @@ def refinement_node(state: dict) -> dict:
     try:
         if state.get("refine_ac_only"):
             print(f"[{jira_id}] [AC ONLY MODE] Skipping story refinement LLM")
-            repaired = repair_ac_with_llm(original_story, existing_ac, jira_id)
+            repaired = await repair_ac_with_llm(original_story, existing_ac, jira_id)
             raw_llm_ac = normalize_ac(repaired)
             candidate_story = original_story
         else:
@@ -263,8 +269,9 @@ def refinement_node(state: dict) -> dict:
                 f"Do NOT write acceptance criteria in any other language."
             )
 
-            response = llm.generate(
-                prompt=base_prompt + language_suffix,
+            response = await asyncio.to_thread(
+                llm.generate,
+                base_prompt + language_suffix,
                 temperature=settings.REFINEMENT_TEMP,
             )
 
@@ -332,8 +339,8 @@ def refinement_node(state: dict) -> dict:
             if not original_story or not candidate_story:
                 sim = 0.0
             else:
-                emb_a = embed(original_story)
-                emb_b = embed(candidate_story)
+                emb_a = await asyncio.to_thread(embed, original_story)
+                emb_b = await asyncio.to_thread(embed, candidate_story)
                 sim = cosine_similarity(emb_a, emb_b)
         except Exception as e:
             print(f"[{jira_id}] [SIM ERROR] {e}")
@@ -435,7 +442,7 @@ def refinement_node(state: dict) -> dict:
             ac = quality_existing
         else:
             print(f"[{jira_id}] [AC GENERATE] Existing AC not testable-grade → trying generator")
-            generated = ac_generator.generate(original_story, [])
+            generated = await asyncio.to_thread(ac_generator.generate, original_story, [])
             generated = normalize_ac(generated or [])
             generated = [a for a in generated if is_testable_ac(a)]
 
@@ -446,7 +453,7 @@ def refinement_node(state: dict) -> dict:
                 ac = existing_ac
     else:
         print(f"[{jira_id}] [AC GENERATE] No AC → generating")
-        ac = ac_generator.generate(original_story, [])
+        ac = await asyncio.to_thread(ac_generator.generate, original_story, [])
 
     # =========================
     # FINAL GUARD
@@ -466,7 +473,7 @@ def refinement_node(state: dict) -> dict:
 
     if len(ac) == 0:
         print(f"[{jira_id}] [FORCE GENERATE] AC empty → regenerate")
-        ac = ac_generator.generate(original_story, [])
+        ac = await asyncio.to_thread(ac_generator.generate, original_story, [])
         ac = normalize_ac(ac or [])
         testable_ac = [a for a in ac if is_testable_ac(a)]
         ac = testable_ac if testable_ac else ac

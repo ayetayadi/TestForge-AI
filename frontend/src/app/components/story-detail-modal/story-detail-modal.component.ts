@@ -6,7 +6,7 @@ import { UserStory } from '../../models';
 @Component({
   selector: 'app-story-detail-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ScoreBadgeComponent],
   templateUrl: './story-detail-modal.component.html',
   styleUrl: './story-detail-modal.component.scss',
 })

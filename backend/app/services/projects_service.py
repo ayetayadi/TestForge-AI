@@ -4,18 +4,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.jira_connection import JiraConnection
 from app.models.user import User
+
 from app.repositories.project_repository import (
     create_project,
     get_project_by_key,
     get_projects_with_story_count,
 )
+
 from app.services.jira_service import (
     fetch_jira_projects,
     fetch_user_stories,
 )
-from app.services.story_service import import_project_stories
+
+from app.services.stories_service import import_project_stories
 
 
+# =========================
+# GET PROJECTS
+# =========================
 async def get_projects(db: AsyncSession):
     projects = await get_projects_with_story_count(db)
 
@@ -30,41 +36,45 @@ async def get_projects(db: AsyncSession):
     ]
 
 
-async def import_project_by_key(db: AsyncSession, project_key: str, current_user: User):
+# =========================
+# IMPORT PROJECT
+# =========================
+async def import_project_by_key(
+    db: AsyncSession,
+    project_key: str,
+    current_user: User,
+):
     result = await db.execute(
         select(JiraConnection).where(JiraConnection.user_id == current_user.id)
     )
     jira_connection = result.scalar_one_or_none()
 
     if not jira_connection or not jira_connection.is_active:
-        raise HTTPException(status_code=400, detail="Jira account not connected")
+        raise HTTPException(status_code=400, detail="Jira not connected")
 
     if not jira_connection.access_token:
-        raise HTTPException(status_code=400, detail="Missing Jira access token")
+        raise HTTPException(status_code=400, detail="Missing token")
 
     if not jira_connection.cloud_id:
-        raise HTTPException(status_code=400, detail="Missing Jira cloud_id")
+        raise HTTPException(status_code=400, detail="Missing cloud_id")
 
     jira_projects = await fetch_jira_projects(
         jira_connection.access_token,
         jira_connection.cloud_id,
     )
 
-    jira_project = next(
-        (p for p in jira_projects if p.get("key") == project_key),
-        None,
-    )
+    jira_project = {p["key"]: p for p in jira_projects}.get(project_key)
 
     if not jira_project:
-        raise HTTPException(status_code=404, detail="Project not found in Jira")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     project = await get_project_by_key(db, project_key)
 
     if not project:
         project = await create_project(
             db,
-            project_key=jira_project.get("key"),
-            project_name=jira_project.get("name"),
+            project_key=jira_project["key"],
+            project_name=jira_project["name"],
         )
 
     jira_issues = await fetch_user_stories(
@@ -73,13 +83,13 @@ async def import_project_by_key(db: AsyncSession, project_key: str, current_user
         project_key,
     )
 
-    result = await import_project_stories(db, project, jira_issues=jira_issues)
+    result = await import_project_stories(db, project, jira_issues)
 
     return {
-        "message": "User stories imported successfully",
+        "message": "Import successful",
         "project": {
             "key": project.project_key,
             "name": project.project_name,
         },
-        "result": result,
+        "imported": result,
     }

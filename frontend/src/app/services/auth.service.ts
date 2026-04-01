@@ -3,6 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import {switchMap, tap} from 'rxjs/operators';
 import { Observable } from 'rxjs';
+import { environment } from 'src/environments/environment';
+import { UserService } from './user.service';
 
 export interface LoginPayload {
   email: string;
@@ -40,16 +42,16 @@ export interface MessageResponse {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private apiUrl = 'http://localhost:8000';
+    private apiUrl = `${environment.apiUrl}/auth`;
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(private http: HttpClient, private router: Router, private userService: UserService) {}
 
   login(payload: LoginPayload): Observable<any> {
-    return this.http.post<TokenResponse>(`${this.apiUrl}/auth/login`, payload).pipe(
+    return this.http.post<TokenResponse>(`${this.apiUrl}/login`, payload).pipe(
       tap((res) => {
         localStorage.setItem('access_token', res.access_token);
       }),
-      switchMap(() => this.getCurrentUser()),
+      switchMap(() => this.userService.getMyProfile()),
       tap((user) => {
         localStorage.setItem('is_admin', String(user.is_admin));
 
@@ -77,17 +79,14 @@ export class AuthService {
 
   forgotPassword(payload: ForgotPasswordPayload): Observable<MessageResponse> {
     return this.http.post<MessageResponse>(
-      `${this.apiUrl}/auth/forgot-password`, payload
+      `${this.apiUrl}/forgot-password`, payload
     );
   }
 
   resetPassword(payload: ResetPasswordPayload): Observable<MessageResponse> {
     return this.http.post<MessageResponse>(
-      `${this.apiUrl}/auth/reset-password`, payload
+      `${this.apiUrl}/reset-password`, payload
     );
-  }
-  getCurrentUser(): Observable<UserRead> {
-    return this.http.get<UserRead>(`${this.apiUrl}/users/me`);
   }
 
 }

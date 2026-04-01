@@ -4,7 +4,7 @@ from app.core.job_queue import job_queue
 from app.ai.agents.graph.graph import build_graph
 from app.core.config import settings
 from app.streaming.sse_manager import publish_event
-from app.services.job_service import store_job_result
+from app.services.jobs_service import store_job_result
 
 MAX_WORKERS = settings.MAX_WORKERS
 

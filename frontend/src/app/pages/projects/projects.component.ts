@@ -8,6 +8,7 @@ import { PaginationComponent } from '../../components/pagination/pagination.comp
 import { ImportModalComponent } from '../../components/import-modal/import-modal.component';
 import { ProjectsService, ToastService } from '../../services';
 import { Project } from '../../models';
+import { JiraService } from 'src/app/services/jira.service';
 
 @Component({
   selector: 'app-projects',
@@ -27,6 +28,7 @@ export class ProjectsComponent implements OnInit {
   private projectsService = inject(ProjectsService);
   private toastService = inject(ToastService);
   private router = inject(Router);
+  private jiraService = inject(JiraService);
 
   @ViewChild('importModal') importModal!: ImportModalComponent;
 
@@ -114,7 +116,7 @@ export class ProjectsComponent implements OnInit {
   }
 
   private checkJiraStatus(): void {
-    this.projectsService.getJiraStatus().subscribe({
+    this.jiraService.getStatus().subscribe({
       next: (status) => this.jiraConnected.set(status.connected),
       error: () => this.jiraConnected.set(false),
     });

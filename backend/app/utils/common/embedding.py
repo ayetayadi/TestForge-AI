@@ -14,10 +14,6 @@ _model_loading = False
 
 
 def preload_embedding_model():
-    """
-    Précharge le modèle d'embedding.
-    À appeler au démarrage de l'application.
-    """
     global _model, _model_loading
     
     if _model is not None:
