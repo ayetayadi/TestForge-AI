@@ -1,28 +1,15 @@
-import asyncio
-
+import threading
 from app.core.database import SessionLocal
 from app.repositories.story_final_repository import save_final_story
+import asyncio
 
+# In-memory store for completed job results
 _job_results = {}
-_pending_jobs = {}
 _lock = asyncio.Lock()
 
+_pending_jobs = {}
 
-# =========================
-# STORE RESULT
-# =========================
-async def store_job_result(job_id: str, result: dict) -> None:
-    async with _lock:
-        _job_results[job_id] = result
-        jira_id = result.get("jira_id")
-        if jira_id:
-            _pending_jobs[jira_id] = job_id
-
-
-# =========================
-# GET JOB STATE
-# =========================
-async def get_job_state(job_id: str) -> dict:
+async def get_job_state(job_id: str):
     async with _lock:
         result = _job_results.get(job_id)
 
@@ -53,12 +40,10 @@ async def get_job_state(job_id: str) -> dict:
         "llm_issues": result.get("llm_issues", []),
         "llm_suggestions": result.get("llm_suggestions", []),
         "timing": result.get("timing", {}),
+        "current_step": result.get("current_step"),
+        "events": result.get("events", []),
     }
 
-
-# =========================
-# GET PENDING JOBS
-# =========================
 async def get_pending_jobs() -> dict:
     async with _lock:
         result = {}
@@ -67,7 +52,6 @@ async def get_pending_jobs() -> dict:
             if job_data:
                 initial = job_data.get("initial_score") or 0
                 final = job_data.get("final_score") or 0
-
                 result[issue_key] = {
                     "job_id": job_id,
                     "issue_key": issue_key,
@@ -79,11 +63,7 @@ async def get_pending_jobs() -> dict:
                 }
         return result
 
-
-# =========================
-# APPLY DECISION
-# =========================
-async def apply_decision(job_id: str, choice: str) -> dict:
+async def apply_decision(job_id: str, choice: str):
     async with _lock:
         result = _job_results.get(job_id)
 
@@ -95,9 +75,6 @@ async def apply_decision(job_id: str, choice: str) -> dict:
 
     jira_id = result.get("jira_id")
 
-    # =========================
-    # REJECT RELAUNCH
-    # =========================
     if choice == "reject_relaunch":
         async with _lock:
             _job_results.pop(job_id, None)
@@ -110,38 +87,36 @@ async def apply_decision(job_id: str, choice: str) -> dict:
             "issue_key": jira_id,
         }
 
-    # =========================
-    # APPROVE / REJECT KEEP
-    # =========================
-    if choice == "approve":
-        final_story = result.get("improved_story")
-        outcome = "approved"
-        acceptance_criteria = result.get("acceptance_criteria", [])
-    else:
-        final_story = result.get("raw_story")
-        outcome = "reject_keep"
-        acceptance_criteria = result.get("existing_ac", [])
+    # ===== build state =====
+    final_story = (
+        result.get("improved_story")
+        if choice == "approve"
+        else result.get("raw_story")
+    )
+
+    outcome = "approved" if choice == "approve" else "reject_keep"
 
     state = {
-        "acceptance_criteria": acceptance_criteria,
+        "acceptance_criteria": result.get("acceptance_criteria", []) if choice == "approve" else result.get("existing_ac", []),
         "initial_score": result.get("initial_score", 0),
         "best_score": result.get("best_score") or result.get("final_score", 0),
         "score_after": result.get("final_score", 0),
-        "delta": round(
-            (result.get("final_score") or 0) - (result.get("initial_score") or 0),
-            2,
-        ),
+        "delta": round((result.get("final_score") or 0) - (result.get("initial_score") or 0), 2),
         "iteration": result.get("iteration", 0),
         "human_choice": choice,
         "job_id": job_id,
     }
 
+    # ===== FIX ICI =====
     async with SessionLocal() as db:
-        success = await save_final_story(db, jira_id, final_story, outcome, state)
+        success = await save_final_story(
+            db, jira_id, final_story, outcome, state
+        )
+
         if not success:
             return {"status": "error", "message": "Failed to save"}
 
-    # cleanup memory
+    # ===== cleanup =====
     async with _lock:
         _job_results.pop(job_id, None)
         if jira_id and _pending_jobs.get(jira_id) == job_id:
@@ -152,3 +127,30 @@ async def apply_decision(job_id: str, choice: str) -> dict:
         "choice": choice,
         "issue_key": jira_id,
     }
+
+async def store_job_result(job_id: str, result: dict):
+
+    async with _lock:
+        _job_results[job_id] = result
+        jira_id = result.get("jira_id")
+        if jira_id:
+            _pending_jobs[jira_id] = job_id
+
+    if result.get("current_step") == "job_completed":
+    
+        outcome = result.get("outcome")
+    
+        if not outcome:
+            if result.get("consecutive_llm_failures", 0) >= 2:
+                outcome = "no_improvement"
+            else:
+                outcome = "processing"
+    
+        async with SessionLocal() as db:
+            await save_final_story(
+                db,
+                result.get("jira_id"),
+                result.get("improved_story") or result.get("raw_story"),
+                outcome,
+                result
+            )

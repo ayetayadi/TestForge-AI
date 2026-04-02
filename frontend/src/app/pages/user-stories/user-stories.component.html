@@ -165,59 +165,78 @@
 
                 <!-- Pipeline -->
                 <td class="col-pipeline">
-                  @if (story.final) {
 
-                      @if (story.final.outcome === 'reject_keep') {
-                        <span class="kept-badge">
-                          Kept Original
-                        </span>
-                      }
-                    
-                      @else {
-                        <div class="pipeline-result">
-                          <app-score-badge
-                            [score]="story.final!.score_after!"
-                            [delta]="story.final!.score_after! - story.final!.score_before!">
-                          </app-score-badge>
-                    
-                          <span class="outcome-pill"
-                                [class.approved]="story.final.outcome === 'approved'">
-                            {{ story.final.outcome === 'approved' ? '✓' : '—' }}
-                          </span>
-                        </div>
-                      }
-                    
-                    } @else if (story.job) {
-                    @switch (story.jobPhase) {
-                      @case ('analyzing') {
-                        <span class="phase-badge analyzing"><span class="phase-dot"></span> Analyzing</span>
-                      }
-                      @case ('refining') {
-                        <span class="phase-badge refining">
-                          <span class="phase-dot"></span> Refining
-                          @if (story.jobIteration && story.jobIteration > 0) {
-                            <span class="iter">#{{ story.jobIteration }}</span>
-                          }
-                        </span>
-                      }
-                      @case ('reanalyzing') {
-                        <span class="phase-badge reanalyzing">
-                          <span class="phase-dot"></span> Re-analyzing
-                          @if (story.jobIteration && story.jobIteration > 0) {
-                            <span class="iter">#{{ story.jobIteration }}</span>
-                          }
-                        </span>
-                      }
-                      @case ('completed') {
-                        <span class="phase-badge completed">✓ Ready</span>
-                      }
-                      @case ('failed') {
-                        <span class="phase-badge failed">✕ Failed</span>
-                      }
-                    }
-                  } @else {
-                    <span class="phase-badge idle"><span class="idle-dot"></span> Not processed</span>
-                  }
+  @if (story.final && story.final.status === 'completed') {
+
+    @if (story.final.outcome === 'reject_keep') {
+      <span class="kept-badge">Kept Original</span>
+    }
+
+    @else if (story.final.outcome === 'no_improvement') {
+      <span class="kept-badge neutral">No Improvement</span>
+    }
+
+    @else {
+      <div class="pipeline-result">
+        <app-score-badge
+          [score]="story.final!.score_after!"
+          [delta]="story.final!.score_after! - story.final!.score_before!">
+        </app-score-badge>
+
+        <span class="outcome-pill"
+              [class.approved]="story.final.outcome === 'approved'">
+          {{ story.final.outcome === 'approved' ? '✓' : '—' }}
+        </span>
+      </div>
+    }
+
+  } @else if (story.job) {
+
+    @switch (story.jobPhase) {
+
+      @case ('analyzing') {
+        <span class="phase-badge analyzing">
+          <span class="phase-dot"></span> Analyzing
+        </span>
+      }
+
+      @case ('refining') {
+        <span class="phase-badge refining">
+          <span class="phase-dot"></span> Refining
+          @if (story.jobIteration && story.jobIteration > 0) {
+            <span class="iter">#{{ story.jobIteration }}</span>
+          }
+        </span>
+      }
+
+      @case ('reanalyzing') {
+        <span class="phase-badge reanalyzing">
+          <span class="phase-dot"></span> Re-analyzing
+          @if (story.jobIteration && story.jobIteration > 0) {
+            <span class="iter">#{{ story.jobIteration }}</span>
+          }
+        </span>
+      }
+
+      @case ('completed') {
+        <span class="phase-badge completed">✓ Ready</span>
+      }
+
+      @case ('failed') {
+        <span class="phase-badge failed">✕ Failed</span>
+      }
+
+      @default {
+        <span class="phase-badge analyzing">Processing...</span>
+      }
+    }
+
+  } @else {
+    <span class="phase-badge idle">
+      <span class="idle-dot"></span> Not processed
+    </span>
+  }
+
                 </td>
 
                 <!-- Actions -->

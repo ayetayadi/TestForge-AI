@@ -228,69 +228,6 @@ def contains_new_constraints(ac):
     ]
     return any(k in ac.lower() for k in keywords)
 
-def build_justification(
-    original_story,
-    improved_story,
-    existing_ac,
-    generated_ac,
-    final_ac,
-    score_before,
-    score_after,
-    drift_detected,
-    llm_failed
-):
-    kept = []
-    added = []
-    removed = []
-
-    existing_set = set(existing_ac or [])
-    final_set = set(final_ac or [])
-
-    for ac in existing_set:
-        if ac in final_set:
-            kept.append(ac)
-        else:
-            removed.append(ac)
-
-    for ac in final_set:
-        if ac not in existing_set:
-            added.append(ac)
-
-    # décision globale
-    if drift_detected:
-        decision = "Refinement rejected due to semantic drift"
-    elif llm_failed:
-        decision = "LLM failed → fallback applied"
-    elif score_after > score_before:
-        decision = "Refinement improved the story and acceptance criteria"
-    else:
-        decision = "No significant improvement"
-
-    # story change
-    if original_story != improved_story:
-        story_changes = "Story rewritten for clarity and correctness"
-    else:
-        story_changes = "Story unchanged"
-
-    return {
-        "decision": decision,
-        "story_changes": story_changes,
-        "ac_analysis": {
-            "kept": kept,
-            "added": added,
-            "removed": removed
-        },
-        "guards": {
-            "drift_detected": drift_detected,
-            "llm_failed": llm_failed
-        },
-        "scores": {
-            "before": score_before,
-            "after": score_after,
-            "delta": round(score_after - score_before, 2)
-        }
-    }
-
 def normalize(s: str) -> str:
     return " ".join((s or "").lower().split())
 

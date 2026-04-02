@@ -60,6 +60,7 @@ export interface UserStoryFinal {
   outcome: string;
   human_choice: string;
   job_id: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
 }
  
 // Job & Pipeline
@@ -76,13 +77,23 @@ export interface Job {
   status: JobStatus;
 }
 
+export interface ActiveJob {
+  job_id: string;
+  jira_id: string;
+  issue_key: string;
+  status: string;
+  current_score?: number;
+  final_score?: number;
+  iteration: number;
+}
+
 export interface JobState {
   job_id: string;
   jira_id: string;
   iteration: number;
   
   status: JobStatus;
-
+  current_step?: 'analysis_started' | 'refinement_started' | 'job_completed';
   // Scores
   initial_score: number;
   final_score: number;
@@ -138,6 +149,7 @@ export interface PipelineResponse {
 
 // SSE Events
 export type SSEEventType =
+  | 'ui_phase'
   | 'job_started'
   | 'analysis_started'
   | 'analysis_completed'

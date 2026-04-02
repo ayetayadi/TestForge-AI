@@ -1,3 +1,5 @@
+import threading
+import copy
 import asyncio
 from app.core.job_queue import job_queue
 from app.ai.agents.graph.graph import build_graph
@@ -9,7 +11,8 @@ MAX_WORKERS = settings.MAX_WORKERS
 graph = build_graph()
 
 
-async def worker():
+async def async_worker():
+
     while True:
         state = await job_queue.get()
 
@@ -20,7 +23,8 @@ async def worker():
         jira_id = state.get("jira_id")
 
         try:
-            safe_state = state.copy()
+            safe_state = copy.deepcopy(state)
+            safe_state.setdefault("events", [])
             print(f"[WORKER] Processing {jira_id}")
 
             publish_event(job_id, "job_started", {
@@ -28,9 +32,14 @@ async def worker():
                 "issue_key": jira_id,
             })
 
-            result = await graph.ainvoke(safe_state, config={"recursion_limit": 15})
+            result = await graph.ainvoke(
+                safe_state,
+                config={"recursion_limit": 15}
+            )
 
             await store_job_result(job_id, result)
+
+            result["current_step"] = "job_completed"
 
             publish_event(job_id, "job_completed", {
                 "type": "job_completed",
@@ -38,6 +47,11 @@ async def worker():
                 "score": result.get("final_score", 0),
                 "initial_score": result.get("initial_score", 0),
                 "iteration": result.get("iteration", 0),
+                "status": "failed" if result.get("consecutive_ll_failures", 0) > 0 else "completed"
+            })
+
+            safe_state["events"].append({
+                "step": "job_completed"
             })
 
         except Exception as e:
@@ -55,14 +69,24 @@ async def worker():
         finally:
             job_queue.task_done()
 
+workers = []
 
 async def start_workers():
-    tasks = []
-
     for _ in range(MAX_WORKERS):
-        task = asyncio.create_task(worker())
-        tasks.append(task)
+        task = asyncio.create_task(async_worker())
+        workers.append(task)
 
     print(f"[WORKERS] Started {MAX_WORKERS} workers")
 
-    return tasks
+
+async def stop_workers():
+    from app.core.job_queue import job_queue
+
+    # send stop signal
+    for _ in range(len(workers)):
+        await job_queue.put(None)
+
+    # wait workers to finish
+    await asyncio.gather(*workers, return_exceptions=True)
+
+    print("[WORKERS] All workers stopped")

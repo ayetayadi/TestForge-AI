@@ -1,3 +1,4 @@
+// app/shared/toast-container/toast-container.component.ts
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ToastService } from '../../services/toast.service';
@@ -7,8 +8,12 @@ import { ToastService } from '../../services/toast.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './toast-container.component.html',
-  styleUrl: './toast-container.component.scss',
+  styleUrls: ['./toast-container.component.scss']
 })
 export class ToastContainerComponent {
   toastService = inject(ToastService);
+  
+  dismiss(id: string): void {
+    this.toastService.dismiss(id);
+  }
 }

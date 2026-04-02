@@ -1,10 +1,8 @@
 import re
 import json
-from time import time
 
 from app.llm.groq_provider import GroqProvider
 from app.utils.common.llm_safety_utils import safe_json_parse
-from app.llm.shared_rate_limiter import get_rate_limiter
 
 FALLBACKS = {
     "analysis": {
@@ -40,18 +38,8 @@ class SmartLLM:
             model = "openai/gpt-oss-120b"
 
         self.provider = GroqProvider(model=model)
-        self.rate_limiter = get_rate_limiter()
 
     def generate(self, prompt: str, temperature: float, retries: int = 3) -> dict:
-
-        """Génère une réponse avec rate limiting."""
-        
-        # Vérifie le rate limit AVANT d'essayer
-        can_make, wait_time = self.rate_limiter.can_make_request()
-        if not can_make:
-            print(f"[RATE LIMIT] Attente globale de {wait_time:.1f}s avant de commencer")
-            time.sleep(wait_time)
-            
         last_raw = None
         last_error = None
 

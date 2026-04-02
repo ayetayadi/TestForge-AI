@@ -223,6 +223,11 @@ $transition: 0.15s ease;
   font-weight: 500;
 }
 
+.kept-badge.neutral {
+  background: #f3f4f6;
+  color: #374151;
+}
+
 /* No results after filtering */
 .no-results {
   display: flex;

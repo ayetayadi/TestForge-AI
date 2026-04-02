@@ -36,6 +36,9 @@ export class ReviewComponent implements OnInit, OnDestroy {
   // Track if a decision has been made in this session
   decisionMade = signal(false);
 
+
+  step = signal<'analysis' | 'refinement' | 'done' | 'idle'>('idle');
+
   // Store navigation context from query params
   private navProjectId: string | null = null;
   private navProjectName: string | null = null;
@@ -56,7 +59,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
         this.decisionMade.set(false);
         this.relaunching.set(false);
         this.relaunchPhase.set('');
-        this.loadJob();
+        this.loadJob(this.jobId);
       }
     });
   }
@@ -75,34 +78,68 @@ export class ReviewComponent implements OnInit, OnDestroy {
     }
   }
 
-  loadJob(): void {
-    this.loading.set(true);
-    this.error.set(null);
 
-    this.jobsService.getJob(this.jobId).subscribe({
-      next: (jobState) => {
-        if (jobState.status === 'not_found') {
-          this.error.set('Job result no longer available.');
-          this.loading.set(false);
-          return;
-        }
-        this.state.set(jobState);
-        this.loading.set(false);
+loadJob(jobId?: string): void {
+  const id = jobId || this.jobId;
 
-        // Extract navigation context from job state if not already set
-        if (!this.navProjectId && jobState.project_id) {
-          this.navProjectId = jobState.project_id;
-        }
-        if (!this.navProjectName && jobState.project_name) {
-          this.navProjectName = jobState.project_name;
-        }
-      },
-      error: (err) => {
-        this.error.set(err.message || 'Failed to load job');
+  this.loading.set(true);
+  this.error.set(null);
+
+  this.jobsService.getJob(id).subscribe({
+    next: (jobState) => {
+      if (jobState.status === 'not_found') {
+        this.error.set('Job result no longer available.');
         this.loading.set(false);
-      },
-    });
-  }
+        return;
+      }
+
+      this.state.set(jobState);
+      this.loading.set(false);
+
+      // Restore UI step
+      const step = jobState.current_step;
+
+      if (step === "analysis_started") this.step.set("analysis");
+      if (step === "refinement_started") this.step.set("refinement");
+      if (step === "job_completed") this.step.set("done");
+
+      // reconnect SSE
+      this.listenToStream(id);
+
+      // navigation context
+      if (!this.navProjectId && jobState.project_id) {
+        this.navProjectId = jobState.project_id;
+      }
+      if (!this.navProjectName && jobState.project_name) {
+        this.navProjectName = jobState.project_name;
+      }
+    },
+    error: (err) => {
+      this.error.set(err.message || 'Failed to load job');
+      this.loading.set(false);
+    },
+  });
+}
+
+private listenToStream(jobId: string): void {
+  this.cleanupSSE();
+
+  const url = `${environment.apiUrl}/jobs/${jobId}/stream`;
+
+  this.sseSubscription = this.sseService.connect(url, jobId).subscribe({
+    next: (event: SSEEvent) => {
+      console.log('SSE event:', event);
+      const data = event.data || {};
+
+      if (event.type === 'job_completed') {
+        this.loadJob(jobId); // refresh state
+      }
+    },
+    error: (err) => {
+      console.error('SSE error:', err);
+    }
+  });
+}
 
   isAlreadyDecided(): boolean {
     const s = this.state();
@@ -341,7 +378,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
               replaceUrl: true,
             });
             // Load the new job data
-            this.loadJob();
+            this.loadJob(this.jobId);
             break;
 
           case 'job_failed':
