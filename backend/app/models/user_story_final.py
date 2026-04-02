@@ -1,11 +1,11 @@
+# app/models/user_story_final.py
 import uuid
-import json
 from datetime import datetime
-from sqlalchemy import String, Text, Float, Integer, DateTime, ForeignKey
+from sqlalchemy import String, Text, Float, Integer, DateTime, ForeignKey, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from app.core.database import Base
-from app.models.enums import OutcomeEnum, HumanChoiceEnum, SourceEnum
+from app.models.enums import OutcomeEnum, HumanChoiceEnum, SourceEnum, StatusEnum
 
 
 class UserStoryFinal(Base):
@@ -30,7 +30,6 @@ class UserStoryFinal(Base):
     improved_story: Mapped[str] = mapped_column(Text, nullable=True)
 
     acceptance_criteria: Mapped[list] = mapped_column(JSONB, nullable=True)
-    # JSON array
 
     # ── SCORES ──────────────────────────────
     score_before: Mapped[float] = mapped_column(Float, nullable=True)
@@ -40,11 +39,31 @@ class UserStoryFinal(Base):
     # ── PIPELINE ────────────────────────────
     iteration: Mapped[int] = mapped_column(Integer, default=0)
 
-    outcome: Mapped[str] = mapped_column(OutcomeEnum, nullable=False)
+    outcome: Mapped[str] = mapped_column(
+        OutcomeEnum,
+        nullable=False
+    )
 
-    human_choice: Mapped[str] = mapped_column(HumanChoiceEnum, nullable=True)
+    human_choice: Mapped[str] = mapped_column(
+        HumanChoiceEnum,
+        nullable=True
+    )
 
-    source: Mapped[str] = mapped_column(SourceEnum, default="ai")
+    source: Mapped[str] = mapped_column(
+        SourceEnum,
+        default="ai"
+    )
+
+    # ── STATUT ──────────────────────────────
+    status: Mapped[str] = mapped_column(
+        StatusEnum,
+        default="completed",
+        nullable=False
+    )
+
+    current_step: Mapped[str] = mapped_column(String(50), nullable=True)
+
+    events: Mapped[list] = mapped_column(JSONB, default=list)
 
     # ── SSE / ASYNC ─────────────────────────
     job_id: Mapped[str] = mapped_column(String(36), nullable=True)
@@ -54,6 +73,12 @@ class UserStoryFinal(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow
+    )
+    
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
     )
 
     # ── RELATION ────────────────────────────

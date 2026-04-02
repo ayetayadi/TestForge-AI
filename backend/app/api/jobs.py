@@ -18,7 +18,6 @@ router = APIRouter(prefix="/jobs", tags=["Jobs"])
 async def get_pending():
     return await get_pending_jobs()
 
-
 # =========================
 # GET JOB BY ID
 # =========================

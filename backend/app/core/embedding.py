@@ -1,11 +1,10 @@
-# app/core/embedding.py
-
 import hashlib
 import numpy as np
+from typing import Optional
+from collections import OrderedDict
 from sentence_transformers import SentenceTransformer
 from app.core.config import settings
-from app.core.redis_client import get_redis
-from app.core.cache_memory import get_embedding_cache 
+
 
 # =========================
 # MODEL SINGLETON
@@ -15,6 +14,10 @@ _model_loading = False
 
 
 def preload_embedding_model():
+    """
+    Précharge le modèle d'embedding.
+    À appeler au démarrage de l'application.
+    """
     global _model, _model_loading
     
     if _model is not None:
@@ -45,6 +48,104 @@ def _get_model():
 
 
 # =========================
+# LAYER 1: IN-MEMORY CACHE (per worker)
+# =========================
+class LRUCache:
+    """
+    LRU (Least Recently Used) cache.
+    """
+    
+    def __init__(self, max_size: int):
+        self.cache = OrderedDict()
+        self.max_size = max_size
+        self.hits = 0
+        self.misses = 0
+    
+    def get(self, key: str) -> Optional[np.ndarray]:
+        if key in self.cache:
+            self.cache.move_to_end(key)
+            self.hits += 1
+            return self.cache[key]
+        self.misses += 1
+        return None
+    
+    def set(self, key: str, value: np.ndarray):
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        else:
+            if len(self.cache) >= self.max_size:
+                self.cache.popitem(last=False)
+        self.cache[key] = value
+    
+    def clear(self):
+        self.cache.clear()
+        self.hits = 0
+        self.misses = 0
+    
+    def stats(self) -> dict:
+        total = self.hits + self.misses
+        hit_rate = (self.hits / total * 100) if total > 0 else 0
+        return {
+            "size": len(self.cache),
+            "max_size": self.max_size,
+            "hits": self.hits,
+            "misses": self.misses,
+            "hit_rate": f"{hit_rate:.1f}%",
+            "memory_kb": len(self.cache) * settings.EMBEDDING_DIM * 4 / 1024,
+        }
+
+
+_memory_cache = LRUCache(max_size=settings.MEMORY_CACHE_SIZE)
+
+
+# =========================
+# LAYER 2: REDIS CACHE (shared across workers)
+# =========================
+_redis_client = None
+_redis_available = None
+
+
+def _get_redis():
+    """Redis connection avec retry logic."""
+    global _redis_client, _redis_available
+    
+    # Si déjà marqué comme non disponible, ne pas réessayer à chaque appel
+    if _redis_available is False:
+        return None
+    
+    if _redis_client is None:
+        try:
+            import redis
+            _redis_client = redis.Redis(
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                password=settings.REDIS_PASSWORD or None,
+                db=settings.REDIS_DB,
+                decode_responses=False,
+                socket_timeout=1,           # Réduire le timeout
+                socket_connect_timeout=1,   # Réduire le timeout
+                retry_on_timeout=False,     # Ne pas retry automatiquement
+            )
+            _redis_client.ping()
+            _redis_available = True
+            print(f"[REDIS] Connected to {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+        except Exception as e:
+            print(f"[REDIS] Not available: {e}")
+            _redis_available = False
+            _redis_client = None
+    
+    return _redis_client
+
+
+def reset_redis_connection():
+    """Reset la connexion Redis (utile si Redis redémarre)."""
+    global _redis_client, _redis_available
+    _redis_client = None
+    _redis_available = None
+    print("[REDIS] Connection reset, will retry on next call")
+
+
+# =========================
 # CACHE KEY HELPERS
 # =========================
 def _cache_key(text: str) -> str:
@@ -66,7 +167,7 @@ def _deserialize(data: bytes) -> np.ndarray:
 def embed(text: str) -> np.ndarray:
     """
     Generate embedding with two-layer caching.
-    Utilise le cache mémoire centralisé.
+    Optimisé pour la performance.
     """
     if not text or not text.strip():
         return np.zeros(settings.EMBEDDING_DIM, dtype=np.float32)
@@ -74,45 +175,38 @@ def embed(text: str) -> np.ndarray:
     text = text.strip()
     key = _cache_key(text)
     
-    # Layer 1: In-Memory (centralized)
-    memory_cache = get_embedding_cache()
-    cached = memory_cache.get(key)
+    # Layer 1: In-Memory (fastest)
+    cached = _memory_cache.get(key)
     if cached is not None:
         return cached
     
-    # Layer 2: Redis (shared, if available)
-    try:
-        redis = get_redis()
-        if redis is not None:
-            try:
-                data = redis.get(key)
-                if data:
-                    embedding = _deserialize(data)
-                    memory_cache.set(key, embedding)
-                    return embedding
-            except Exception as e:
-                print(f"[EMBED] Redis error: {e}")
-    except Exception as e:
-        print(f"[EMBED] Redis connection error: {e}")
+    # Layer 2: Redis (fast, shared) - avec timeout court
+    redis = _get_redis()
+    if redis is not None:
+        try:
+            data = redis.get(key)
+            if data:
+                embedding = _deserialize(data)
+                _memory_cache.set(key, embedding)
+                return embedding
+        except Exception as e:
+            # Ne pas bloquer si Redis échoue
+            pass
     
     # Layer 3: Compute (slow)
     model = _get_model()
     embedding = model.encode(text, normalize_embeddings=True)
     embedding = np.array(embedding, dtype=np.float32)
     
-    # Store in memory cache (always)
-    memory_cache.set(key, embedding)
+    # Store in memory cache (toujours)
+    _memory_cache.set(key, embedding)
     
-    # Store in Redis (if available)
-    try:
-        redis = get_redis()
-        if redis is not None:
-            try:
-                redis.setex(key, settings.REDIS_CACHE_TTL, _serialize(embedding))
-            except Exception:
-                pass
-    except Exception:
-        pass
+    # Store in Redis (si disponible, en background)
+    if redis is not None:
+        try:
+            redis.setex(key, settings.REDIS_CACHE_TTL, _serialize(embedding))
+        except Exception:
+            pass  # Ignore silently
     
     return embedding
 
@@ -144,45 +238,39 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 def get_cache_stats() -> dict:
     """Get statistics for both cache layers."""
     stats = {
-        "memory": get_embedding_cache().stats(),
+        "memory": _memory_cache.stats(),
         "redis": {"available": False},
         "model_loaded": _model is not None,
     }
     
-    try:
-        redis = get_redis()
-        if redis is not None:
-            try:
-                keys = redis.keys("embed:*")
-                info = redis.info("memory")
-                stats["redis"] = {
-                    "available": True,
-                    "items": len(keys) if keys else 0,
-                    "memory_used": info.get("used_memory_human", "N/A"),
-                    "ttl_seconds": settings.REDIS_CACHE_TTL,
-                }
-            except Exception as e:
-                stats["redis"] = {"available": False, "error": str(e)}
-    except Exception as e:
-        stats["redis"] = {"available": False, "error": str(e)}
+    redis = _get_redis()
+    if redis is not None:
+        try:
+            keys = redis.keys("embed:*")
+            info = redis.info("memory")
+            stats["redis"] = {
+                "available": True,
+                "items": len(keys) if keys else 0,
+                "memory_used": info.get("used_memory_human", "N/A"),
+                "ttl_seconds": settings.REDIS_CACHE_TTL,
+            }
+        except Exception as e:
+            stats["redis"] = {"available": False, "error": str(e)}
     
     return stats
 
 
 def clear_all_cache():
     """Clear both cache layers."""
-    get_embedding_cache().clear()
-    print("[CACHE] Cleared embedding memory cache")
+    _memory_cache.clear()
+    print("[CACHE] Cleared in-memory cache")
     
-    try:
-        redis = get_redis()
-        if redis is not None:
-            try:
-                keys = redis.keys("embed:*")
-                if keys:
-                    redis.delete(*keys)
-                    print(f"[CACHE] Cleared {len(keys)} Redis entries")
-            except Exception as e:
-                print(f"[CACHE] Redis clear error: {e}")
-    except Exception as e:
-        print(f"[CACHE] Redis connection error: {e}")
+    redis = _get_redis()
+    if redis is not None:
+        try:
+            keys = redis.keys("embed:*")
+            if keys:
+                redis.delete(*keys)
+                print(f"[CACHE] Cleared {len(keys)} Redis entries")
+        except Exception as e:
+            print(f"[CACHE] Redis clear error: {e}")

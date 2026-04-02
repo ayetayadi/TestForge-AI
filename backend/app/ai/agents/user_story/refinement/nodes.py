@@ -11,6 +11,8 @@ from app.utils.common.text_quality_utils import (
     deduplicate_ac, normalize_list
 )
 from app.utils.common.ac_utils import normalize_ac
+from app.services.jobs_service import store_job_result
+from app.streaming.ui_events import publish_ui_phase
 from .tools.template_engine import template_engine
 from .tools.ac_generator import ac_generator
 from .tools.constraint_guard import constraint_guard
@@ -63,15 +65,7 @@ def _is_incomplete_sentence(ac: str) -> bool:
 
 
 def _filter_drifted_ac(ac_list: list, story: str, jira_id: str = "?") -> list:
-    """
-    Detect and remove AC that describe the OPPOSITE action of the story.
-
-    Root cause: LLMs pattern-match "déconnexion" → auth domain → generate
-    login AC. This explicitly catches opposite-action drift.
-    """
     story_lower = story.lower()
-
-    # Map: if story contains key → AC must NOT contain any of the values
     opposite_actions = {
         # French logout
         "déconnexion": ["connexion avec", "se connecter", "identifiants", "mot de passe",
@@ -136,12 +130,13 @@ async def repair_ac_with_llm(story: str, ac_list: list, jira_id: str = "?") -> l
             ac=str(ac_list),
             language=language
         )
-         
+
         response = await asyncio.to_thread(
             llm.generate,
             prompt,
-            temperature=settings.AC_REPAIR_TEMP,
+            temperature=settings.AC_REPAIR_TEMP
         )
+
         repaired = response.get("acceptance_criteria") or []
         repaired = normalize_ac(repaired)
         if not repaired:
@@ -187,13 +182,23 @@ def _format_existing_ac(existing_ac: list) -> str:
 # =========================
 async def refinement_node(state: dict) -> dict:
     state = state.copy()
+    state.setdefault("events", [])  
     jira_id = state.get("jira_id", "?")
     print(f"\n[{jira_id}] >>> [REFINEMENT START]")
     start_time = time.time()
 
+    state["current_step"] = "refinement_started"
+
+    publish_ui_phase(state, "refining")
+
+
     safe_publish(state, "refinement_started", {
         "story_id": jira_id,
         "iteration": state.get("iteration", 0)
+    })
+
+    state["events"].append({
+        "step": "refinement_started"
     })
 
     raw_story = state.get("raw_story", "")
@@ -271,14 +276,17 @@ async def refinement_node(state: dict) -> dict:
             response = await asyncio.to_thread(
                 llm.generate,
                 base_prompt + language_suffix,
-                temperature=settings.REFINEMENT_TEMP,
-            )
-
+                temperature=settings.REFINEMENT_TEMP
+)
             # Check for LLM failure
-            if isinstance(response, dict) and response.get("llm_failed") is True:
+            llm_failed = False
+            
+            if isinstance(response, dict):
+                llm_failed = bool(response.get("llm_failed", False))
+            
+            # 🔥 fallback safety
+            if response.get("llm_score") == 0.3 and not response.get("acceptance_criteria"):
                 llm_failed = True
-            else:
-                llm_failed = is_llm_failed(str(response))
 
             if not llm_failed:
                 candidate_story = response.get("improved_story") or normalized_story
@@ -292,6 +300,8 @@ async def refinement_node(state: dict) -> dict:
         llm_failed = True
 
     if llm_failed:
+        print(f"[{jira_id}] [LLM FAILED → SAFE EXIT]")
+        publish_ui_phase(state, "failed")
         return {
             **state,
             "improved_story": original_story,
@@ -362,7 +372,7 @@ async def refinement_node(state: dict) -> dict:
                 "skip_reanalysis": True,
             }
 
-        if sim < 0.85:
+        if sim < 0.75:
             print(f"[{jira_id}] [REJECT] drift (low similarity)")
             return {
                 **state,
@@ -552,5 +562,7 @@ async def refinement_node(state: dict) -> dict:
             "refinement": duration,
         },
     })
+
+    await store_job_result(state["job_id"], state)
 
     return state

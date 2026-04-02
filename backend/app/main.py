@@ -1,3 +1,4 @@
+# app/main.py
 from contextlib import asynccontextmanager
 import asyncio
 import os
@@ -14,12 +15,11 @@ from app.api.stories import router as story_router
 from app.api.jobs import router as job_router
 
 from app.core.database import Base, engine
-from app.core.worker import start_workers
 from app.llm.factory import get_llm
 from app.streaming.sse_manager import set_main_loop
 from app.core.embedding import preload_embedding_model
 from app.core.config import settings
-
+from app.core.worker import start_workers , stop_workers
 
 # =========================
 # LLM
@@ -68,24 +68,16 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     set_main_loop(loop)
 
-    # Models (non-blocking)
     await asyncio.to_thread(preload_models)
-
-    # Workers
-    workers = await start_workers()
-
+    
+    await start_workers()
     print("[STARTUP] Application ready!")
 
     yield
 
-    print("[SHUTDOWN] Cleaning up...")
-
-    # Stop workers
-    for task in workers:
-        task.cancel()
-
-    await asyncio.gather(*workers, return_exceptions=True)
-
+    # Arrêt
+    print("[SHUTDOWN] Stopping workers...")
+    await stop_workers()
     print("[SHUTDOWN] Workers stopped")
 
 

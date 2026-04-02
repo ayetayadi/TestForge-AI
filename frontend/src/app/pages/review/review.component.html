@@ -57,7 +57,7 @@
         </svg>
         <h3>Failed to load</h3>
         <p>{{ error() }}</p>
-        <button class="btn btn-primary" (click)="loadJob()">Retry</button>
+        <button class="btn btn-primary" [disabled]="!jobId" (click)="loadJob()">Retry</button>
       </div>
     </div>
   }

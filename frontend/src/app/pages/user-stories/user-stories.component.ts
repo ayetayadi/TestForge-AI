@@ -298,7 +298,7 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   // ─── Navigation ─────────────────────────────────────────────────
 
   goBack(): void {
-    this.router.navigate(['/dashboard']);
+    this.router.navigate(['/projects']);
   }
 
   // ─── Import ─────────────────────────────────────────────────────
@@ -573,40 +573,31 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
     const data = event.data || {};
 
     switch (event.type) {
-      case 'job_started':
-      case 'analysis_started':
-        if (!data.reanalysis) {
-          this.updateStoryJob(issueKey, job, 'analyzing', undefined, data.iteration ?? 0);
-        } else {
-          this.updateStoryJob(issueKey, job, 'reanalyzing', undefined, data.iteration);
-        }
-        break;
+  case 'ui_phase':
+    this.updateStoryJob(
+      issueKey,
+      job,
+      data.phase,
+      undefined,
+      data.iteration
+    );
+    break;
 
-      case 'analysis_completed':
-        break;
+  case 'job_completed':
+    const finalPhase = data.status === 'failed' ? 'failed' : 'completed';
+    this.updateStoryJob(
+      issueKey,
+      job,
+      finalPhase,
+      this.normalizeScore(data.score_after ?? data.score),
+      data.iteration
+    );
+    break;
 
-      case 'refinement_started':
-        this.updateStoryJob(issueKey, job, 'refining', undefined, data.iteration + 1);
-        break;
-
-      case 'refinement_completed':
-        break;
-
-      case 'rescoring':
-        this.updateStoryJob(issueKey, job, 'reanalyzing', this.normalizeScore(data.score_after), data.iteration);
-        break;
-
-      case 'job_completed':
-        this.updateStoryJob(issueKey, job, 'completed', this.normalizeScore(data.score_after ?? data.score), data.iteration);
-        break;
-
-      case 'job_failed':
-        this.updateStoryJob(issueKey, job, 'failed');
-        break;
-
-      case 'ping':
-        break;
-    }
+  case 'job_failed':
+    this.updateStoryJob(issueKey, job, 'failed');
+    break;
+}
   }
 
   private disconnectJob(jobId: string): void {

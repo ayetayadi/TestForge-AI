@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { JobState, DecisionChoice } from '../models';
+import { JobState, DecisionChoice, ActiveJob } from '../models';
 
 export interface PendingJob {
   job_id: string;
@@ -36,4 +36,5 @@ export class JobsService {
   getPendingJobs(): Observable<Record<string, PendingJob>> {
     return this.http.get<Record<string, PendingJob>>(`${this.apiUrl}/pending`);
   }
+
 }

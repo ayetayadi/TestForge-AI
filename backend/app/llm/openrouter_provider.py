@@ -4,19 +4,19 @@ from app.core.config import settings
 from app.llm.base import LLMProvider
 
 
-class GroqProvider(LLMProvider):
+class OpenRouterProvider(LLMProvider):
 
-    def __init__(self, model: str = "openai/gpt-oss-120b"):
-        self.api_key = settings.GROQ_API_KEY
+    def __init__(self, model: str):
+        self.api_key = settings.OPENROUTER_API_KEY
         self.model = model
 
         if not self.api_key:
-            raise ValueError("GROQ_API_KEY is missing")
+            raise ValueError("OPENROUTER_API_KEY is missing")
 
-    def generate(self, prompt: str, temperature: float = 0.0) -> dict:
+    def generate(self, prompt: str, temperature: float) -> dict:
         try:
             response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
@@ -39,7 +39,7 @@ class GroqProvider(LLMProvider):
                     "max_tokens": 4096,
                     "response_format": {"type": "json_object"},
                 },
-                timeout=120,
+                timeout=60,
             )
 
             response.raise_for_status()
@@ -48,25 +48,22 @@ class GroqProvider(LLMProvider):
             content = data["choices"][0]["message"]["content"]
 
             if not content:
-                print(f"[Groq] Empty content returned for model={self.model}")
-                raise ValueError("Groq returned empty content")
+                print(f"[OpenRouter] Empty content returned for model={self.model}")
+                raise ValueError("OpenRouter returned empty content")
 
+            # Parse JSON here so callers get a dict directly
             parsed = json.loads(content)
             return parsed
 
         except json.JSONDecodeError as e:
-            print(f"[Groq JSON ERROR] model={self.model} error={e}")
-            print(f"[Groq RAW] {content[:500] if content else 'None'}")
+            print(f"[OpenRouter JSON ERROR] model={self.model} error={e}")
+            print(f"[OpenRouter RAW] {content[:500] if content else 'None'}")
             raise
 
         except requests.exceptions.Timeout:
-            print(f"[Groq TIMEOUT] model={self.model}")
-            raise
-
-        except requests.exceptions.HTTPError as e:
-            print(f"[Groq HTTP ERROR] {e.response.status_code}: {e.response.text[:300]}")
+            print(f"[OpenRouter TIMEOUT] model={self.model}")
             raise
 
         except Exception as e:
-            print(f"[Groq ERROR] {e}")
+            print(f"[OpenRouter ERROR] {e}")
             raise
