@@ -9,7 +9,7 @@ import { UserStory } from '../models';
 })
 export class StoriesService {
   private http = inject(HttpClient);
-  private apiUrl = `${environment.apiUrl}/stories`;
+  private apiUrl = `${environment.apiUrl}/user-stories`;
 
   getAllStories(): Observable<UserStory[]> {
     return this.http.get<UserStory[]>(this.apiUrl);
@@ -17,5 +17,9 @@ export class StoriesService {
 
   getStoriesByProject(projectId: string): Observable<UserStory[]> {
     return this.http.get<UserStory[]>(`${this.apiUrl}/by-project/${projectId}`);
+  }
+
+  getStoryByIssueKey(issueKey: string): Observable<UserStory> {
+    return this.http.get<UserStory>(`${this.apiUrl}/by-issue-key/${issueKey}`);
   }
 }

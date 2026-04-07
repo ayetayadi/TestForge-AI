@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
-import { UserStory, SSEEvent, PipelineResponse } from '../../models';
+import { UserStory, UserStoryVersion, SSEEvent, PipelineResponse, StoryWithJob, StoryJob } from '../../models';
 import { StoriesService, PipelineService, SseService, ToastService, JobsService } from '../../services';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
@@ -15,18 +15,6 @@ import { PaginationComponent } from '../../components/pagination/pagination.comp
 import { StoryDetailModalComponent } from '../../components/story-detail-modal/story-detail-modal.component';
 import { ImportModalComponent } from '../../components/import-modal/import-modal.component';
 import { environment } from '../../../environments/environment';
-
-interface StoryJob {
-  job_id: string;
-  issue_key: string;
-}
-
-interface StoryWithJob extends UserStory {
-  job?: StoryJob;
-  jobPhase?: 'analyzing' | 'refining' | 'reanalyzing' | 'completed' | 'failed';
-  jobScore?: number;
-  jobIteration?: number;
-}
 
 @Component({
   selector: 'app-user-stories',
@@ -201,13 +189,30 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
     this.route.queryParams.subscribe(params => {
       this.projectId.set(params['projectId'] || null);
       this.projectName.set(params['projectName'] || null);
+      const highlightKey = params['highlight'];
       this.loadStories();
+      if (highlightKey) {
+    setTimeout(() => {
+      this.scrollToStory(highlightKey);
+    }, 500); // petit délai pour attendre le render
+  }
     });
+    
   }
 
+  private scrollToStory(issueKey: string): void {
+  const element = document.getElementById(`story-${issueKey}`);
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
   ngOnDestroy(): void {
-    this.sseService.disconnectAll();
-    this.sseSubscriptions.forEach(sub => sub.unsubscribe());
+    console.log("[COMPONENT DESTROYED] cleaning up subscriptions");
+    this.sseSubscriptions.forEach((sub) => {
+      sub.unsubscribe();
+    });
+    this.sseSubscriptions.clear();
   }
 
   // ─── Load stories ───────────────────────────────────────────────
@@ -222,9 +227,20 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
 
     request$.subscribe({
       next: (stories) => {
-        this.stories.set(stories.map(s => ({ ...s })));
+        const storiesWithJob: StoryWithJob[] = stories.map(s => ({
+          ...s,
+          job: undefined,
+          jobPhase: undefined,
+          jobScore: undefined,
+          jobIteration: undefined,
+          selected_version: undefined,
+          latest_version: undefined,
+        }));
+        
+        this.stories.set(storiesWithJob);
         this.loading.set(false);
-        this.restorePendingJobs();
+
+        this.recoverJobStates();
       },
       error: (err) => {
         console.error('Failed to load stories:', err);
@@ -234,36 +250,158 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
     });
   }
 
-  private restorePendingJobs(): void {
-    this.jobsService.getPendingJobs().subscribe({
-      next: (pendingJobs) => {
-        if (!pendingJobs || Object.keys(pendingJobs).length === 0) return;
+  // ─── Recover job states after page load/navigation ──────────────
+private recoverJobStates(): void {
+  const stories = this.stories();
+  if (stories.length === 0) return;
 
-        this.stories.update(stories =>
-          stories.map(s => {
-            const pending = pendingJobs[s.issue_key];
-            if (pending && !s.final) {
-              return {
+  const issueKeys = stories.map(s => s.issue_key);
+
+  this.jobsService.getJobsByIssues(issueKeys).subscribe({
+    next: (jobsMap) => {
+
+      this.stories.update(currentStories => {
+        const updatedStories = currentStories.map((s: StoryWithJob) => {
+          const jobData = jobsMap[s.issue_key];
+
+          if (!jobData) return s;
+
+          const updated: StoryWithJob = {
+            ...s,
+            job: {
+              job_id: jobData.job_id,
+              issue_key: s.issue_key,
+            },
+            jobPhase: jobData.phase,
+            jobScore: jobData.final_score,
+            jobIteration: jobData.iteration,
+            decision_status: jobData.decision_status,
+          };
+
+          if (jobData.status === 'completed') {
+            updated.latest_version = jobData.improved_story
+              ? {
+                  id: jobData.version_id,
+                  story_id: s.id,
+                  job_id: jobData.job_id,
+                  improved_story: jobData.improved_story,
+                  acceptance_criteria: jobData.acceptance_criteria || [],
+                  initial_score: jobData.initial_score || 0,
+                  final_score: jobData.final_score || 0,
+                  score_delta: jobData.score_delta || 0,
+                  iteration: jobData.iteration || 1,
+                  is_selected: false,
+                }
+              : undefined;
+          }
+
+          if (jobData.status === 'processing') {
+            this.reconnectSSE(s.issue_key, jobData.job_id);
+          }
+
+          return updated;
+        });
+
+        setTimeout(() => {
+          updatedStories.forEach((story: StoryWithJob) => {
+            this.loadVersionsForStory(story.issue_key);
+          });
+        });
+
+        return updatedStories;
+      });
+
+    },
+    error: (err) => console.error('[RECOVER] Error:', err),
+  });
+}
+
+private loadVersionsForStory(issueKey: string): void {
+  this.storiesService.getStoryByIssueKey(issueKey).subscribe({
+    next: (updated: any) => {
+
+      console.log('[VERSIONS]', updated);
+
+      let selectedVersion = updated.selected_version ?? null;
+
+      if (!selectedVersion && updated.selected_version_id && updated.latest_version) {
+        if (updated.latest_version.id === updated.selected_version_id) {
+          selectedVersion = updated.latest_version;
+        }
+      }
+
+      this.stories.update(stories =>
+        stories.map((s: StoryWithJob) =>
+          s.issue_key === issueKey
+            ? {
                 ...s,
-                job: {
-                  job_id: pending.job_id,
-                  issue_key: pending.issue_key,
-                },
-                jobPhase: 'completed' as const,
-                jobScore: pending.score_after,
-                jobIteration: pending.iteration,
-              };
-            }
-            return s;
-          })
-        );
-      },
-      error: (err) => {
-        console.error('Failed to load pending jobs:', err);
-      },
-    });
-  }
+                selected_version: selectedVersion,
+                latest_version: updated.latest_version ?? s.latest_version
+              }
+            : s
+        )
+      );
+    },
+    error: (err) => console.error('[VERSIONS LOAD ERROR]', err)
+  });
+}
 
+private reconnectSSE(issueKey: string, jobId: string): void {
+  if (!this.sseService.isConnected(jobId) && !this.sseSubscriptions.has(jobId)) {
+    console.log("[SSE RECONNECT]", issueKey, jobId);
+    this.connectSSE(jobId, issueKey);
+  }
+}
+
+
+// Ajouter ces méthodes dans la section Utils
+
+/**
+ * Vérifie si une story est en cours de processing
+ */
+isProcessing(story: StoryWithJob): boolean {
+  if (!story.job || !story.jobPhase) return false;
+  return !['completed', 'failed'].includes(story.jobPhase);
+}
+
+/**
+ * Retourne le label de la phase actuelle
+ */
+getPhaseLabel(story: StoryWithJob): string {
+  const phase = story.jobPhase;
+  const iteration = story.jobIteration;
+
+  switch (phase) {
+    case 'analyzing':
+      return 'Analyzing...';
+    case 'refining':
+      return iteration && iteration > 0 
+        ? `Refining #${iteration}` 
+        : 'Refining...';
+    case 'evaluating':
+      return iteration && iteration > 0 
+        ? `Evaluating #${iteration}` 
+        : 'Evaluating...';
+    default:
+      return 'Processing...';
+  }
+}
+
+/**
+ * Retourne le statut de décision effectif
+ * - rejected_relaunch → devient pending car nouvelle version créée
+ */
+getDecisionStatus(story: StoryWithJob): string {
+  const status = story.decision_status;
+  
+  // rejected_relaunch n'est pas un état final
+  // Après relaunch, une nouvelle version existe = pending
+  if (status === 'rejected_relaunch') {
+    return 'pending';
+  }
+  
+  return status || 'pending';
+}
   // ─── Search handler ─────────────────────────────────────────────
 
   onSearchChange(query: string): void {
@@ -346,6 +484,17 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ─── Version Helper ─────────────────────────────────────────────
+  
+  /**
+   * Retourne la version à afficher:
+   * - selected_version si l'utilisateur a fait un choix
+   * - sinon latest_version (dernière du pipeline)
+   */
+  getDisplayVersion(story: StoryWithJob): UserStoryVersion | null {
+    return story.selected_version ?? story.latest_version ?? null;
+  }
+
   // ─── Utils ──────────────────────────────────────────────────────
 
   getAcList(story: UserStory): string[] {
@@ -364,11 +513,54 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
     return this.getAcList(story).length;
   }
 
+  /**
+   * Détermine le statut pipeline pour les filtres
+   */
   private getPipelineStatus(story: StoryWithJob): string {
-    if (story.final) return 'completed';
     if (story.jobPhase === 'failed') return 'failed';
-    if (story.job) return 'processing';
+    if (story.jobPhase === 'completed') return 'completed';
+    if (story.jobPhase && story.job) return 'processing';
+    
+    // Vérifie s'il y a une version (selected ou latest)
+    if (story.job) return 'completed';
+    
     return 'idle';
+  }
+
+
+isCompleted(story: StoryWithJob): boolean {
+  // ✅ Si un pipeline est en cours, ce n'est PAS completed
+  if (story.job && story.jobPhase && !['completed', 'failed'].includes(story.jobPhase)) {
+    return false;
+  }
+
+  // Kept original = completed (seulement si pas de pipeline en cours)
+  if (story.decision_status === 'rejected_keep') {
+    return true;
+  }
+
+  const hasVersion = this.getDisplayVersion(story) !== null;
+  if (!hasVersion) return false;
+
+  return true;
+}
+
+  /**
+   * Vérifie si on peut lancer un nouveau pipeline
+   * - Pas de job en cours
+   * - Ou job terminé (completed/failed)
+   */
+  canRunPipeline(story: StoryWithJob): boolean {
+    if (!story.job) return true;
+    if (!story.jobPhase) return true;
+    return ['completed', 'failed'].includes(story.jobPhase);
+  }
+
+  /**
+   * Vérifie si on peut re-lancer le pipeline (a déjà des résultats)
+   */
+  canRerunPipeline(story: StoryWithJob): boolean {
+    return this.getDisplayVersion(story) !== null && this.canRunPipeline(story);
   }
 
   // ─── Pipeline ───────────────────────────────────────────────────
@@ -378,11 +570,18 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   }
 
   viewResults(story: StoryWithJob): void {
-    if (story.job && !story.final) {
-      this.router.navigate(['/review', story.job.job_id]);
-    } else if (story.final) {
-      this.openStoryDetail(story);
+    const version = this.getDisplayVersion(story);
+    const jobId = story.job?.job_id || version?.job_id;
+    
+    if (!jobId) {
+      console.error("❌ No job_id for review");
+      this.toastService.error("No results available");
+      return;
     }
+
+    this.router.navigate(['/review', jobId], {
+      queryParams: { issueKey: story.issue_key }
+    });
   }
 
   runSinglePipeline(story: StoryWithJob): void {
@@ -402,56 +601,76 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
     this.runPipeline(keys);
   }
 
-  private runPipeline(issueKeys: string[]): void {
-    this.pipelineLoading.set(true);
+private runPipeline(issueKeys: string[]): void {
+  this.pipelineLoading.set(true);
 
-    this.pipelineService.runPipelineByKeys(issueKeys).subscribe({
-      next: (response: PipelineResponse) => {
-        this.pipelineLoading.set(false);
+  const storiesBeingRelaunched = this.stories().filter(s => 
+    issueKeys.includes(s.issue_key) && s.decision_status === 'rejected_keep'
+  );
 
-        if (response.jobs && response.jobs.length > 0) {
-          response.jobs.forEach(job => {
-            this.disconnectJob(job.job_id);
-            this.phaseQueues.delete(job.issue_key);
-            this.phaseProcessing.delete(job.issue_key);
-            this.phaseTimers.delete(job.issue_key);
+  this.pipelineService.runPipelineByKeys(issueKeys).subscribe({
+    next: (response: PipelineResponse) => {
+      this.pipelineLoading.set(false);
 
-            this.stories.update(stories =>
-              stories.map(s =>
-                s.issue_key === job.issue_key
-                  ? {
-                      ...s,
-                      final: null,
-                      job: {
-                        job_id: job.job_id,
-                        issue_key: job.issue_key,
-                      },
-                      jobPhase: 'analyzing' as const,
-                      jobScore: undefined,
-                      jobIteration: 0,
-                    }
-                  : s
-              )
-            );
+      if (response.jobs && response.jobs.length > 0) {
+        response.jobs.forEach(job => {
+          // Cleanup previous state
+          this.disconnectJob(job.job_id);
+          this.phaseQueues.delete(job.issue_key);
+          this.phaseProcessing.delete(job.issue_key);
+          this.phaseTimers.delete(job.issue_key);
 
-            this.phaseTimers.set(job.issue_key, { phase: 'analyzing', startTime: Date.now() });
-            this.connectSSE(job.job_id, job.issue_key);
+          this.stories.update(stories =>
+            stories.map(s =>
+              s.issue_key === job.issue_key
+                ? {
+                    ...s,
+                    latest_version: undefined,
+                    job: {
+                      job_id: job.job_id,
+                      issue_key: job.issue_key,
+                    },
+                    jobPhase: 'analyzing',
+                    jobIteration: 0,
+                    jobScore: undefined,
+                    decision_status: 'pending',
+                  }
+                : s
+            )
+          );
+
+          this.phaseTimers.set(job.issue_key, { 
+            phase: 'analyzing', 
+            startTime: Date.now() 
           });
+          
+          this.connectSSE(job.job_id, job.issue_key);
+        });
 
-          this.toastService.success(
-            `Pipeline started for ${response.jobs.length} stories`
+        // ✅ Message différent selon le contexte
+        if (storiesBeingRelaunched.length > 0) {
+          this.toastService.info(
+            `${storiesBeingRelaunched.length} story(ies) previously rejected (kept original) — reusing cached results`
           );
         } else {
-          this.toastService.warning('No stories to process');
+          const count = response.jobs.length;
+          const label = count === 1 ? 'user story' : 'user stories';
+          this.toastService.success(
+            `Pipeline started for ${count} ${label}`
+          );
         }
-      },
-      error: (err) => {
-        console.error('Pipeline error:', err);
-        this.toastService.error('Failed to start pipeline');
-        this.pipelineLoading.set(false);
-      },
-    });
-  }
+
+      } else {
+        this.toastService.warning('No stories to process');
+      }
+    },
+    error: (err) => {
+      console.error('Pipeline error:', err);
+      this.toastService.error('Failed to start pipeline');
+      this.pipelineLoading.set(false);
+    },
+  });
+}
 
   // ─── Phase queue system ─────────────────────────────────────────
 
@@ -548,57 +767,93 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   // ─── SSE ────────────────────────────────────────────────────────
 
   private connectSSE(jobId: string, issueKey: string): void {
+    if (this.sseSubscriptions.has(jobId)) {
+      console.log("[SSE] Already subscribed to", jobId);
+      return;
+    }
+
     const url = `${environment.apiUrl}/jobs/${jobId}/stream`;
+    console.log("[CONNECT SSE]", jobId);
 
     const subscription = this.sseService.connect(url, jobId).subscribe({
       next: (event) => this.handleSSEEvent(issueKey, event),
       error: (err) => {
         console.error(`[SSE] Error for ${issueKey}:`, err);
-        this.disconnectJob(jobId);
+        this.sseSubscriptions.delete(jobId);
+        
+        setTimeout(() => {
+          this.loadJobState(jobId, issueKey);
+        }, 1000);
       },
+      complete: () => {
+        console.log(`[SSE] Stream completed for ${issueKey}`);
+        this.sseSubscriptions.delete(jobId);
+      }
     });
 
     this.sseSubscriptions.set(jobId, subscription);
   }
 
-  private normalizeScore(score: number): number {
-    return score <= 1 ? score * 10 : score;
+private handleSSEEvent(issueKey: string, event: SSEEvent): void {
+  const story = this.stories().find(s => s.issue_key === issueKey);
+  if (!story?.job) {
+    console.warn("[SSE] No story/job found for", issueKey);
+    return;
   }
 
-  private handleSSEEvent(issueKey: string, event: SSEEvent): void {
-    const story = this.stories().find(s => s.issue_key === issueKey);
-    if (!story || !story.job) return;
+  const job = story.job;
+  const data = event.data || {};
 
-    const job = story.job;
-    const data = event.data || {};
+  console.log("[EVENT]", issueKey, event.type, data);
 
-    switch (event.type) {
-  case 'ui_phase':
-    this.updateStoryJob(
-      issueKey,
-      job,
-      data.phase,
-      undefined,
-      data.iteration
-    );
-    break;
+  switch (event.type) {
+    case 'analyzing':
+    case 'refining':
+    case 'evaluating':
+      this.updateStoryJob(
+        issueKey,
+        job,
+        event.type as StoryWithJob['jobPhase'],
+        undefined,
+        data.iteration
+      );
+      break;
 
-  case 'job_completed':
-    const finalPhase = data.status === 'failed' ? 'failed' : 'completed';
-    this.updateStoryJob(
-      issueKey,
-      job,
-      finalPhase,
-      this.normalizeScore(data.score_after ?? data.score),
-      data.iteration
-    );
-    break;
+case 'completed':
+  this.updateStoryJob(issueKey, job, 'completed', data.final_score, data.iteration);
 
-  case 'job_failed':
-    this.updateStoryJob(issueKey, job, 'failed');
-    break;
+  this.stories.update(stories =>
+    stories.map(s => {
+      if (s.issue_key !== issueKey) return s;
+
+      if (!data.version_id) {
+        console.error("❌ Missing version_id", data);
+        return s;
+      }
+
+      return {
+        ...s,
+        latest_version: {
+          id: data.version_id,
+          story_id: s.id,
+          improved_story: data.improved_story ?? '',
+          acceptance_criteria: data.acceptance_criteria ?? [],
+          initial_score: data.initial_score ?? 0,
+          final_score: data.final_score ?? 0,
+          score_delta: (data.final_score ?? 0) - (data.initial_score ?? 0),
+          iteration: data.iteration ?? 1,
+          job_id: job.job_id,
+          is_selected: false,
+        },
+      };
+    })
+  );
+  break;
+    case 'failed':
+      this.updateStoryJob(issueKey, job, 'failed', undefined, data.iteration);
+      break;
+  }
 }
-  }
 
   private disconnectJob(jobId: string): void {
     this.sseService.disconnect(jobId);
@@ -608,4 +863,77 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
       this.sseSubscriptions.delete(jobId);
     }
   }
+
+private loadJobState(jobId: string, issueKey: string): Promise<void> {
+  return fetch(`${environment.apiUrl}/jobs/${jobId}`)
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(state => {
+      console.log("[JOB STATE]", issueKey, state);
+
+      if (state.status === "completed" || state.status === "failed") {
+        this.stories.update(stories =>
+          stories.map(s => {
+            if (s.issue_key !== issueKey) return s;
+
+            // 🔴 GUARD CRITIQUE
+            if (state.status === "completed" && !state.version_id) {
+              console.error("❌ Missing version_id in job state", state);
+              return s; // skip update
+            }
+
+            return {
+              ...s,
+              job: { job_id: jobId, issue_key: issueKey },
+              jobPhase: state.status as 'completed' | 'failed',
+              jobIteration: state.iteration ?? 0,
+              latest_version: state.status === 'completed'
+                ? {
+                    id: state.version_id, // ✅ FIX
+                    story_id: s.id,
+                    improved_story: state.improved_story ?? '',
+                    acceptance_criteria: state.acceptance_criteria ?? [],
+                    initial_score: state.initial_score ?? 0,
+                    final_score: state.final_score ?? 0,
+                    score_delta: (state.final_score ?? 0) - (state.initial_score ?? 0),
+                    iteration: state.iteration ?? 1,
+                    job_id: jobId,
+                    is_selected: false,
+                  }
+                : s.latest_version,
+            };
+          })
+        );
+
+        this.disconnectJob(jobId);
+        return;
+      }
+
+      if (state.status === "processing") {
+        this.stories.update(stories =>
+          stories.map(s =>
+            s.issue_key === issueKey
+              ? {
+                  ...s,
+                  job: { job_id: jobId, issue_key: issueKey },
+                  jobPhase: (state.phase as StoryWithJob['jobPhase']) ?? 'analyzing',
+                  jobIteration: state.iteration ?? 0,
+                  latest_version: undefined,
+                }
+              : s
+          )
+        );
+
+        if (!this.sseService.isConnected(jobId) && !this.sseSubscriptions.has(jobId)) {
+          console.log("[SSE RECONNECT]", jobId);
+          this.connectSSE(jobId, issueKey);
+        }
+      }
+    })
+    .catch(err => {
+      console.error("[JOB STATE ERROR]", err);
+    });
+}
 }

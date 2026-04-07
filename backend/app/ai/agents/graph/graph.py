@@ -20,6 +20,7 @@ def build_graph():
     g.add_node("analysis", analysis_node)
 
     async def refinement_with_flag(state: dict) -> dict:
+        publish_ui_phase(state, "refining")
         if state.get("current_step") == "job_completed":
             return state
         jira_id = state.get("jira_id", "?")

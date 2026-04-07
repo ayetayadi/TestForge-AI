@@ -28,6 +28,7 @@ export interface ImportStoriesResponse {
   result: {
     imported: number;
     skipped: number;
+    total: number;
   };
 }
 
@@ -46,4 +47,8 @@ export class ProjectsService {
       {}
     );
   }
+
+  deleteProject(projectId: string) {
+  return this.http.delete<void>(`${this.apiUrl}/${projectId}`);
+}
 }

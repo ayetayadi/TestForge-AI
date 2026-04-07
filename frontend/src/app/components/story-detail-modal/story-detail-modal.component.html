@@ -17,39 +17,49 @@
 
       <div class="modal-body">
 
-        <!-- Score summary for finalized stories -->
-        @if (story()!.final && story()!.final!.score_after != null) {
-        <div class="modal-score-summary">
+        <!-- Score summary si version disponible -->
+        @if (getDisplayVersion(); as version) {
         
-          <!-- BEFORE -->
-          <div class="score-pair">
-            <span class="score-label">Before</span>
+          <div class="modal-score-summary">
+            
+            <!-- BEFORE -->
+            <div class="score-pair">
+              <span class="score-label">Before</span>
+              <app-score-badge [score]="version.initial_score" />
+            </div>
         
-            <app-score-badge
-              [score]="story()!.final!.score_before">
-            </app-score-badge>
+            <!-- ARROW -->
+            <span class="score-arrow-icon">→</span>
+        
+            <!-- AFTER / AI -->
+            <div class="score-pair">
+              <span class="score-label">
+                @if (isKeptOriginal()) {
+                  AI Suggestion
+                } @else {
+                  After
+                }
+              </span>
+        
+              <app-score-badge
+                [score]="version.final_score"
+                [delta]="version.score_delta"
+              />
+            </div>
+        
+            <!-- OUTCOME -->
+            @if (isApproved()) {
+              <span class="outcome-badge approved">Approved</span>
+        
+            } @else if (isKeptOriginal()) {
+              <span class="outcome-badge kept">Kept Original</span>
+        
+            } @else {
+              <span class="outcome-badge pending">Pending Review</span>
+            }
+        
           </div>
         
-          <!-- ARROW -->
-          <span class="score-arrow-icon">→</span>
-        
-          <!-- AFTER -->
-          <div class="score-pair">
-            <span class="score-label">After</span>
-        
-            <app-score-badge
-              [score]="story()!.final!.score_after"
-              [delta]="story()!.final!.score_after - story()!.final!.score_before">
-            </app-score-badge>
-          </div>
-        
-          <!-- OUTCOME -->
-          <span class="outcome-badge"
-                [class.approved]="story()!.final!.outcome === 'approved'">
-            {{ story()!.final!.outcome === 'approved' ? 'Approved' : 'Kept Original' }}
-          </span>
-        
-        </div>
         }
 
         <!-- Metadata -->
@@ -111,8 +121,8 @@
           </div>
         </div>
 
-        <!-- Improved Story -->
-        @if (story()!.final?.outcome === 'approved' && story()!.final?.improved_story) {
+        <!-- Improved Story (si approuvé) -->
+        @if (isApproved() && getDisplayVersion(); as version) {
           <div class="detail-section improved-section">
             <div class="section-header">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -121,7 +131,7 @@
               <h3>Improved Story</h3>
             </div>
             <div class="story-content improved">
-              <p>{{ story()!.final!.improved_story }}</p>
+              <p>{{ version.improved_story }}</p>
             </div>
           </div>
         }
@@ -132,7 +142,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
             </svg>
-            <h3>{{ story()!.final ? 'Original Acceptance Criteria' : 'Acceptance Criteria' }}</h3>
+            <h3>{{ hasVersion() ? 'Original Acceptance Criteria' : 'Acceptance Criteria' }}</h3>
             <span class="ac-count-badge">{{ getAcList(story()!).length }}</span>
           </div>
 
@@ -152,8 +162,8 @@
           }
         </div>
 
-        <!-- Improved AC -->
-        @if (story()!.final?.outcome === 'approved' && getImprovedAC().length > 0) {
+        <!-- Improved AC (si approuvé) -->
+        @if (isApproved() && getImprovedAC().length > 0) {
           <div class="detail-section improved-section">
             <div class="section-header">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -178,7 +188,7 @@
       <!-- Footer -->
       <div class="modal-footer">
         <button class="btn btn-secondary" (click)="closeModal()">Close</button>
-        @if (!story()!.final) {
+        @if (!hasVersion()) {
           <button class="btn btn-primary" (click)="onRunPipeline()">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
               <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>

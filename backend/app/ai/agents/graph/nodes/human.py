@@ -2,6 +2,7 @@ from app.core.database import SessionLocal
 from app.repositories.story_final_repository import save_final_story
 from app.utils.common.pipeline_utils import safe_publish
 from app.services.jobs_service import store_job_result
+from app.services.frontend_state_service import FrontendStateService
 
 async def _persist(db, state, story, outcome):
     ok = await save_final_story(
@@ -69,7 +70,7 @@ async def human_decision_node(state):
         "delta": state.get("delta", 0),
         "ac": state.get("acceptance_criteria") or state.get("existing_ac") or []
     })
-    await store_job_result(state["job_id"], state)
+    await FrontendStateService.update(state["job_id"], state)
 
     return state
 

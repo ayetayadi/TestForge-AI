@@ -1,7 +1,6 @@
-# app/models/user_story_final.py
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, Float, Integer, DateTime, ForeignKey, Enum as SQLAlchemyEnum
+from sqlalchemy import Column, String, Text, Float, Integer, DateTime, ForeignKey, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from app.core.database import Base
@@ -25,6 +24,8 @@ class UserStoryFinal(Base):
     )
 
     # ── CONTENU ─────────────────────────────
+    issue_key = Column(String, index=True) 
+    
     raw_story: Mapped[str] = mapped_column(Text, nullable=False)
 
     improved_story: Mapped[str] = mapped_column(Text, nullable=True)
@@ -69,6 +70,8 @@ class UserStoryFinal(Base):
     job_id: Mapped[str] = mapped_column(String(36), nullable=True)
 
     alert_message: Mapped[str] = mapped_column(Text, nullable=True)
+
+    
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

@@ -15,6 +15,7 @@ import { AuthService } from 'src/app/services/auth.service';
 export class AppSideLoginComponent {
   loading = false;
   errorMessage = '';
+  hidePassword = true;
 
   form = new FormGroup({
     email: new FormControl('', [Validators.required, Validators.email]),

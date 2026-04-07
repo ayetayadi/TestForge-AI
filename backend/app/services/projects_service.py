@@ -43,7 +43,7 @@ async def import_project_by_key(
     db: AsyncSession,
     project_key: str,
     current_user: User,
-):
+) -> dict:
     result = await db.execute(
         select(JiraConnection).where(JiraConnection.user_id == current_user.id)
     )
@@ -58,8 +58,10 @@ async def import_project_by_key(
     if not jira_connection.cloud_id:
         raise HTTPException(status_code=400, detail="Missing cloud_id")
 
+    access_token = await _ensure_valid_token(jira_connection)
+
     jira_projects = await fetch_jira_projects(
-        jira_connection.access_token,
+        access_token,
         jira_connection.cloud_id,
     )
 
@@ -78,7 +80,7 @@ async def import_project_by_key(
         )
 
     jira_issues = await fetch_user_stories(
-        jira_connection.access_token,
+        access_token,
         jira_connection.cloud_id,
         project_key,
     )
@@ -91,5 +93,35 @@ async def import_project_by_key(
             "key": project.project_key,
             "name": project.project_name,
         },
-        "imported": result,
+        "result": {
+            "imported": result.get("imported", 0),
+            "skipped": result.get("skipped", 0),
+            "total": len(jira_issues),
+        },
     }
+
+
+async def _ensure_valid_token(jira_connection):
+    """Vérifie et rafraîchit le token si nécessaire"""
+    from datetime import datetime
+    
+    # Si le token expire dans moins de 5 minutes, on le rafraîchit
+    if jira_connection.token_expires_at and jira_connection.refresh_token:
+        if datetime.utcnow() >= jira_connection.token_expires_at:
+            from app.services.jira_service import refresh_access_token
+            
+            try:
+                new_tokens = await refresh_access_token(jira_connection.refresh_token)
+                
+                # Mettre à jour la connexion
+                jira_connection.access_token = new_tokens["access_token"]
+                jira_connection.refresh_token = new_tokens.get("refresh_token", jira_connection.refresh_token)
+                
+                from datetime import timedelta
+                jira_connection.token_expires_at = datetime.utcnow() + timedelta(seconds=new_tokens["expires_in"])
+                
+                return new_tokens["access_token"]
+            except Exception as e:
+                raise HTTPException(status_code=401, detail=f"Token refresh failed: {str(e)}")
+    
+    return jira_connection.access_token

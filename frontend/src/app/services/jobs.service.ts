@@ -2,39 +2,56 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { JobState, DecisionChoice, ActiveJob } from '../models';
-
-export interface PendingJob {
-  job_id: string;
-  issue_key: string;
-  status: string;
-  score_before: number;
-  score_after: number;
-  delta: number;
-  iteration: number;
-}
+import { JobState, DecisionChoice, ActiveJob, PendingJob, RunningJob } from '../models';
 
 @Injectable({
   providedIn: 'root'
 })
 export class JobsService {
   private http = inject(HttpClient);
-  private apiUrl = `${environment.apiUrl}/jobs`;
+  private apiUrl = `${environment.apiUrl}`;
 
+  // =========================
+  // GET JOB STATE
+  // =========================
   getJob(jobId: string): Observable<JobState> {
-    return this.http.get<JobState>(`${this.apiUrl}/${jobId}`);
+    return this.http.get<JobState>(`${this.apiUrl}/jobs/${jobId}`);
   }
 
-  getStreamUrl(jobId: string): string {
-    return `${this.apiUrl}/${jobId}/stream`;
+  // =========================
+  // GET JOBS BY ISSUE KEYS
+  // =========================
+  getJobsByIssues(issueKeys: string[]): Observable<Record<string, any>> {
+    return this.http.post<Record<string, any>>(
+      `${this.apiUrl}/jobs/by-issues`,
+      issueKeys
+    );
   }
 
-  sendDecision(jobId: string, choice: DecisionChoice): Observable<any> {
-    return this.http.post(`${this.apiUrl}/${jobId}/decision`, null, { params: { choice } });
-  }
+  // =========================
+  // DECISION
+  // =========================
+  sendDecision(
+    jobId: string,
+    decision: DecisionChoice,
+    versionId?: string
+  ): Observable<any> {
 
-  getPendingJobs(): Observable<Record<string, PendingJob>> {
-    return this.http.get<Record<string, PendingJob>>(`${this.apiUrl}/pending`);
-  }
+    const body: any = {
+      decision
+    };
 
+    // ✔ version_id seulement pour approve
+    if (decision === 'approve') {
+      if (!versionId) {
+        throw new Error('versionId is required for approve');
+      }
+      body.version_id = versionId;
+    }
+
+    return this.http.post(
+      `${this.apiUrl}/jobs/${jobId}/decision`,
+      body
+    );
+  }
 }
