@@ -1,8 +1,13 @@
-from app.llm.smart_llm import SmartLLM
+from app.llm.groq_provider import GroqProvider
 
-_llm_cache = {}
+def get_llm(task: str):
+    if task == "analysis":
+        return GroqProvider(model="openai/gpt-oss-20b")  # rapide
 
-def get_llm(task: str = "default"):
-    if task not in _llm_cache:
-        _llm_cache[task] = SmartLLM(task=task)
-    return _llm_cache[task]
+    if task == "evaluation":
+        return GroqProvider(model="openai/gpt-oss-120b")  # précis
+
+    if task == "refinement":
+        return GroqProvider(model="openai/gpt-oss-120b")  # puissant
+
+    return GroqProvider(model="openai/gpt-oss-20b")  # par défaut

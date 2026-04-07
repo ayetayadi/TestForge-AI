@@ -2,9 +2,10 @@ import urllib.parse
 
 import httpx
 from fastapi import HTTPException
-
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
-from app.utils.common.mapper_utils import extract_text_from_adf
+from app.utils.mapper_utils import extract_text_from_adf
+from datetime import datetime, timedelta
 
 ATLASSIAN_AUTH_URL = "https://auth.atlassian.com/authorize"
 ATLASSIAN_TOKEN_URL = "https://auth.atlassian.com/oauth/token"
@@ -247,3 +248,36 @@ async def fetch_user_stories(
             status_code=500,
             detail=f"Unexpected error: {str(e)}"
         )
+
+async def ensure_valid_token(db: AsyncSession, jira_connection):
+
+    if (
+        jira_connection.token_expires_at
+        and jira_connection.refresh_token
+    ):
+        if datetime.utcnow() >= jira_connection.token_expires_at - timedelta(minutes=5):
+
+            try:
+                new_tokens = await refresh_access_token(
+                    jira_connection.refresh_token
+                )
+
+                jira_connection.access_token = new_tokens["access_token"]
+                jira_connection.refresh_token = new_tokens.get(
+                    "refresh_token",
+                    jira_connection.refresh_token
+                )
+
+                jira_connection.token_expires_at = datetime.utcnow() + timedelta(
+                    seconds=new_tokens["expires_in"]
+                )
+
+                await db.commit()
+
+                return jira_connection.access_token
+
+            except Exception as e:
+                await db.rollback()
+                raise HTTPException(401, f"Token refresh failed: {str(e)}")
+
+    return jira_connection.access_token

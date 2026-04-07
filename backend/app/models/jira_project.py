@@ -15,7 +15,7 @@ class JiraProject(Base):
 
     jira_connection_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("jira_connections.id"),
+        ForeignKey("jira_connections.id", ondelete="CASCADE"),
         nullable=False
     )
 

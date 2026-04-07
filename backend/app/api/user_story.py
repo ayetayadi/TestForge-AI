@@ -1,0 +1,66 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.repositories.user_story_version_repository import get_versions_by_story_id
+from app.services.user_story_service import (
+    get_all_user_stories,
+    get_user_story_details,
+    get_user_stories_by_project_id,
+    get_story_by_issue_key
+)
+
+router = APIRouter(prefix="/user-stories", tags=["user-stories"])
+@router.get("/")
+async def get_user_stories(db: AsyncSession = Depends(get_db)):
+    return await get_all_user_stories(db)
+
+
+@router.get("/{user_story_id}")
+async def get_user_story(user_story_id: str, db: AsyncSession = Depends(get_db)):
+    try:
+        return await get_user_story_details(db, user_story_id)
+    except ValueError:
+        raise HTTPException(404, "User story not found")
+
+
+@router.get("/by-project/{project_id}")
+async def get_user_stories_by_project(project_id: str, db: AsyncSession = Depends(get_db)):
+    return await get_user_stories_by_project_id(db, project_id)
+
+@router.get("/by-issue-key/{issue_key}")
+async def get_user_story_by_issue_key(issue_key: str, db: AsyncSession = Depends(get_db)):
+    try:
+        return await get_story_by_issue_key(db, issue_key)
+    except ValueError:
+        raise HTTPException(404, "User story not found")
+    
+
+@router.get("/{story_id}/versions")
+async def get_story_versions(
+    story_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Retourne toutes les versions d'une story"""
+    versions = await get_versions_by_story_id(db, story_id)
+    
+    return [
+        {
+            "id": v.id,
+            "story_id": v.user_story_id,
+            "job_id": v.job_id,
+            "improved_story": v.improved_story,
+            "acceptance_criteria": v.acceptance_criteria,
+            "initial_score": v.initial_score,
+            "final_score": v.final_score,
+            "score_delta": (
+                (v.final_score - v.initial_score)
+                if v.initial_score is not None and v.final_score is not None
+                else 0
+            ),
+            "iteration": v.iteration,
+            "created_at": v.created_at,
+            "is_selected": v.is_selected,
+        }
+        for v in versions
+    ]
