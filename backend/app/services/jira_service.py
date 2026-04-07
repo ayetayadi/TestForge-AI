@@ -4,6 +4,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.utils.common.mapper_utils import extract_text_from_adf
 
 ATLASSIAN_AUTH_URL = "https://auth.atlassian.com/authorize"
 ATLASSIAN_TOKEN_URL = "https://auth.atlassian.com/oauth/token"
@@ -118,84 +119,131 @@ async def fetch_jira_projects(access_token: str, cloud_id: str) -> list:
             "id": p.get("id", ""),
             "key": p.get("key", ""),
             "name": p.get("name", ""),
+            "lead": (p.get("lead") or {}).get("displayName"),
+            "type": p.get("projectTypeKey"),
             "avatar": (p.get("avatarUrls") or {}).get("48x48", ""),
         }
         for p in projects
     ]
 
 
-async def fetch_user_stories(access_token: str, cloud_id: str, project_key: str) -> list:
+async def fetch_user_stories(
+    access_token: str,
+    cloud_id: str,
+    project_key: str,
+) -> list:
+
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Missing access_token")
+
+    if not cloud_id:
+        raise HTTPException(status_code=400, detail="Missing cloud_id")
+
     url = f"{ATLASSIAN_API_URL}/ex/jira/{cloud_id}/rest/api/3/search/jql"
     jql = f'project = "{project_key}" AND issuetype = "Story" ORDER BY created DESC'
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.get(
-            url,
-            headers=_jira_headers(access_token),
-            params={
-                "jql": jql,
-                "maxResults": 100,
-                "fields": ",".join([
-                    "summary",
-                    "description",
-                    "status",
-                    "priority",
-                    "assignee",
-                    "created",
-                    "updated",
-                    "issuetype",
-                ]),
-            },
-        )
+    fields_list = [
+        "summary", "description", "priority", "status",
+        "issuetype", "story_points", "customfield_10028",
+        "assignee", "reporter",
+        "epic", "customfield_10014", "customfield_10015",
+        "sprint", "labels", "components",
+        "fixVersions", "created", "updated"
+    ]
 
-    if response.status_code != 200:
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(
+                url,
+                headers=_jira_headers(access_token),
+                params={
+                    "jql": jql,
+                    "maxResults": 100,
+                    "fields": ",".join(fields_list),
+                },
+            )
+
+        # 🔴 Token expiré
+        if response.status_code == 401:
+            raise HTTPException(status_code=401, detail="Jira token expired")
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Jira API error: {response.text}",
+            )
+
+        issues = response.json().get("issues", []) or []
+        stories = []
+
+        for issue in issues:
+            fields = issue.get("fields") or {}
+
+            # 🔹 description ADF safe
+            try:
+                description = extract_text_from_adf(fields.get("description"))
+            except Exception:
+                description = ""
+
+            # 🔹 objets simples
+            status = (fields.get("status") or {}).get("name", "")
+            priority = (fields.get("priority") or {}).get("name", "")
+            issuetype = (fields.get("issuetype") or {}).get("name", "")
+
+            assignee = (fields.get("assignee") or {}).get("displayName", "Unassigned")
+            reporter = (fields.get("reporter") or {}).get("displayName", "")
+
+            story_points = fields.get("story_points") or fields.get("customfield_10028")
+
+            epic = fields.get("epic") or fields.get("customfield_10014")
+
+            sprint = fields.get("sprint") or fields.get("customfield_10015")
+
+            labels = fields.get("labels") or []
+            components = [c.get("name") for c in (fields.get("components") or [])]
+
+            fix_versions = [v.get("name") for v in (fields.get("fixVersions") or [])]
+
+            stories.append({
+                "id": issue.get("id", ""),
+                "key": issue.get("key", ""),
+
+                # contenu
+                "summary": fields.get("summary", ""),
+                "description": description,
+
+                # metadata
+                "status": status,
+                "priority": priority,
+                "issue_type": issuetype,
+                "story_points": story_points,
+
+                # personnes
+                "assignee": assignee,
+                "reporter": reporter,
+
+                # agile
+                "epic": epic,
+                "sprint": sprint,
+                "labels": labels,
+                "components": components,
+                "fix_versions": fix_versions,
+
+                # dates
+                "created": fields.get("created", ""),
+                "updated": fields.get("updated", ""),
+            })
+
+        return stories
+
+    except httpx.RequestError as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch user stories: {response.text}",
+            detail=f"Network error: {str(e)}"
         )
 
-    issues = response.json().get("issues", []) or []
-    stories = []
-
-    for issue in issues:
-        fields = issue.get("fields", {}) or {}
-
-        description = _extract_text_from_adf(fields.get("description"))
-
-        status_obj = fields.get("status") or {}
-        priority_obj = fields.get("priority") or {}
-        assignee_obj = fields.get("assignee") or {}
-        issuetype_obj = fields.get("issuetype") or {}
-
-        stories.append({
-            "id": issue.get("id", ""),
-            "key": issue.get("key", ""),
-            "summary": fields.get("summary", ""),
-            "description": description,
-            "status": status_obj.get("name", ""),
-            "priority": priority_obj.get("name", ""),
-            "assignee": assignee_obj.get("displayName", "Unassigned"),
-            "created": fields.get("created", ""),
-            "updated": fields.get("updated", ""),
-            "issue_type": issuetype_obj.get("name", ""),
-        })
-
-    return stories
-
-
-def _extract_text_from_adf(adf: dict | None) -> str:
-    if not adf:
-        return ""
-
-    if isinstance(adf, str):
-        return adf
-
-    text_parts = []
-
-    if adf.get("type") == "text":
-        text_parts.append(adf.get("text", ""))
-
-    for child in adf.get("content", []):
-        text_parts.append(_extract_text_from_adf(child))
-
-    return " ".join(filter(None, text_parts)).strip()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error: {str(e)}"
+        )

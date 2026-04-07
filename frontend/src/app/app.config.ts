@@ -8,6 +8,7 @@ import {
   withInterceptors,          // ← changed from withInterceptorsFromDi
 } from '@angular/common/http';
 import { routes } from './app.routes';
+import { ToastService } from './services/toast.service';
 import {
   provideRouter,
   withComponentInputBinding,
@@ -30,6 +31,7 @@ import {authInterceptor} from "./core/interceptors/auth.interceptor";
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    ToastService,
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(
       routes,

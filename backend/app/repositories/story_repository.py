@@ -32,4 +32,4 @@ async def story_exists(db: AsyncSession, issue_key):
 async def create_story(db: AsyncSession, data):
     story = UserStory(**data)
     db.add(story)
-    return story  # commit fait ailleurs
+    return story

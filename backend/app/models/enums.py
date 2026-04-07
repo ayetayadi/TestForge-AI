@@ -3,6 +3,7 @@ from sqlalchemy import Enum
 OutcomeEnum = Enum(
     "approved",
     "reject_keep",
+    "no_improvement",
     "max_iter",
     "failed",
     name="us_outcome"
@@ -19,4 +20,13 @@ SourceEnum = Enum(
     "jira",
     "ai",
     name="us_source"
+)
+
+
+StatusEnum = Enum(
+    "queued",
+    "processing",
+    "completed",
+    "failed",
+    name="us_status"
 )

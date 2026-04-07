@@ -1,8 +1,13 @@
 import time
 from app.utils.common.pipeline_utils import safe_publish, add_trace
+from app.services.jobs_service import store_job_result
+from app.streaming.ui_events import publish_ui_phase
+from app.services.frontend_state_service import FrontendStateService
 
-
-def rescore_node(state: dict) -> dict:
+async def rescore_node(state: dict) -> dict:
+    if state.get("current_step") == "job_completed":    
+        return state
+    state.setdefault("events", [])
     start_time = time.time()
 
     jira_id = state.get("jira_id", "?")
@@ -37,6 +42,8 @@ def rescore_node(state: dict) -> dict:
 
     print(f"[{jira_id}] [RESCORE] prev={previous_score} current={current_score} delta={delta}")
 
+    state["current_step"] = "rescoring"
+
     safe_publish(state, "rescoring", {
         "story_id": jira_id,
         "iteration": state.get("iteration", 0),
@@ -45,6 +52,9 @@ def rescore_node(state: dict) -> dict:
         "delta": delta,
     })
 
+    state.setdefault("events", []).append({
+        "step": "rescoring"
+    })
     state = add_trace(state, "rescore", {
         "previous_score": previous_score,
         "current_score": current_score,
@@ -64,5 +74,5 @@ def rescore_node(state: dict) -> dict:
     state["timing"]["rescore"] = duration
 
     print(f"[{jira_id}] [RESCORE DONE] score={current_score} delta={delta} duration={duration}s")
-
+    await FrontendStateService.update(state["job_id"], state)
     return state

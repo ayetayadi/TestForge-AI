@@ -1,6 +1,6 @@
 import re
 import json
-
+import asyncio
 from app.llm.groq_provider import GroqProvider
 from app.utils.common.llm_safety_utils import safe_json_parse
 
@@ -39,49 +39,49 @@ class SmartLLM:
 
         self.provider = GroqProvider(model=model)
 
-    def generate(self, prompt: str, temperature: float, retries: int = 3) -> dict:
-        last_raw = None
-        last_error = None
+    def generate(self, prompt: str, temperature: float, retries: int = 5) -> dict:
+        """
+        Version synchrone avec retries améliorés.
+        """
+        response = self.provider.generate(prompt, temperature, retries=retries)
+        
+        # Si le provider a retourné une erreur
+        if isinstance(response, dict) and response.get("llm_failed"):
+            print("[LLM FAILED] Provider returned error")
+            fallback = FALLBACKS.get(self.task, FALLBACKS["analysis"]).copy()
+            return fallback
+        
+        # Si le provider a retourné un dict valide
+        if isinstance(response, dict):
+            response["llm_failed"] = False
+            return response
+        
+        # Sinon, essayer de parser
+        if isinstance(response, str):
+            parsed = safe_json_parse(response, None)
+            if parsed:
+                parsed["llm_failed"] = False
+                return parsed
+        
+        # Fallback final
+        print("[LLM FAILED] No valid response")
+        fallback = FALLBACKS.get(self.task, FALLBACKS["analysis"]).copy()
+        return fallback
 
-        for attempt in range(retries):
-            try:
-                print(f"[LLM] Groq attempt {attempt + 1}")
-                response = self.provider.generate(prompt, temperature)
-
-                # Guard against None/empty responses from provider
-                if response is None or response == "":
-                    last_error = "Empty response from provider"
-                    continue
-
-                last_raw = response
-                print(f"\n[LLM RAW TEXT] {str(response)[:500]}")
-
-                # If provider already returned a dict (after your fix), use it directly
-                if isinstance(response, dict):
-                    response["llm_failed"] = False
-                    print("[LLM SUCCESS] Groq")
-                    return response
-
-                # Otherwise parse string to dict
-                parsed = safe_json_parse(response, None)
-
-                if parsed is not None:
-                    print("[LLM SUCCESS] Groq")
-                    parsed["llm_failed"] = False
-                    return parsed
-
-                print("[LLM INVALID JSON] retrying...")
-                print(f"[LLM RAW RESPONSE] {str(response)[:500]}")
-
-            except Exception as e:
-                last_error = str(e)
-                print(f"[LLM ERROR] attempt {attempt + 1}: {e}")
-
-        print("[LLM FAILED]")
-        if last_raw:
-            print(f"[LLM LAST RAW] {str(last_raw)[:300]}")
-        if last_error:
-            print(f"[LLM LAST ERROR] {last_error}")
-
+    async def generate_async(self, prompt: str, temperature: float, retries: int = 5) -> dict:
+        """
+        Version asynchrone pour les nodes asyncio.
+        """
+        response = await self.provider.generate_async(prompt, temperature, retries=retries)
+        
+        if isinstance(response, dict) and response.get("llm_failed"):
+            print("[LLM FAILED] Provider returned error")
+            fallback = FALLBACKS.get(self.task, FALLBACKS["analysis"]).copy()
+            return fallback
+        
+        if isinstance(response, dict):
+            response["llm_failed"] = False
+            return response
+        
         fallback = FALLBACKS.get(self.task, FALLBACKS["analysis"]).copy()
         return fallback

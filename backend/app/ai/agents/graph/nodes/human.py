@@ -1,9 +1,11 @@
 from app.core.database import SessionLocal
 from app.repositories.story_final_repository import save_final_story
 from app.utils.common.pipeline_utils import safe_publish
+from app.services.jobs_service import store_job_result
+from app.services.frontend_state_service import FrontendStateService
 
-def _persist(db, state, story, outcome):
-    ok = save_final_story(
+async def _persist(db, state, story, outcome):
+    ok = await save_final_story(
         db=db,
         jira_id=state.get("jira_id"),
         final_story=story,
@@ -14,42 +16,33 @@ def _persist(db, state, story, outcome):
     if not ok:
         print("[PERSIST ERROR]", state.get("jira_id"))
 
-def persist_improved_node(state):
-    db = SessionLocal()
+async def persist_improved_node(state):
 
-    try:
+    async with SessionLocal() as db:
         story = state.get("improved_story") or state.get("raw_story")
 
-        _persist(db, state, story, "approved")
+        await _persist(db, state, story, "approved")
 
         safe_publish(state, "approved", {"story": story})
 
         state["final_story"] = story
         return state
 
-    finally:
-        db.close()
+async def persist_original_node(state):
 
-def persist_original_node(state):
-    db = SessionLocal()
-
-    try:
+    async with SessionLocal() as db:
         story = state.get("raw_story")
 
-        _persist(db, state, story, "reject_keep")
+        await _persist(db, state, story, "reject_keep")
 
         safe_publish(state, "rejected", {})
 
         state["final_story"] = story
         return state
 
-    finally:
-        db.close()
+async def alert_user_node(state):
 
-def alert_user_node(state):
-    db = SessionLocal()
-
-    try:
+    async with SessionLocal() as db:
         story = state.get("raw_story")
 
         msg = (
@@ -57,7 +50,7 @@ def alert_user_node(state):
             f"Delta max: {state.get('delta', 0):.2f}"
         )
 
-        _persist(db, state, story, "max_iter")
+        await _persist(db, state, story, "max_iter")
 
         safe_publish(state, "max_iter_reached", {"message": msg})
 
@@ -65,11 +58,9 @@ def alert_user_node(state):
         state["alert_message"] = msg
 
         return state
-
-    finally:
-        db.close()
-        
-def human_decision_node(state):
+          
+async def human_decision_node(state):
+    state.setdefault("events", [])
 
     safe_publish(state, "awaiting_human", {
         "original_story": state.get("raw_story"),
@@ -79,5 +70,18 @@ def human_decision_node(state):
         "delta": state.get("delta", 0),
         "ac": state.get("acceptance_criteria") or state.get("existing_ac") or []
     })
+    await FrontendStateService.update(state["job_id"], state)
 
     return state
+
+async def persist_no_improvement_node(state):
+
+    async with SessionLocal() as db:
+        story = state.get("raw_story")
+
+        await _persist(db, state, story, "no_improvement")
+
+        safe_publish(state, "no_improvement", {})
+
+        state["final_story"] = story
+        return state

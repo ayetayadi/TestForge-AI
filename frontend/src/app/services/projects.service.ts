@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { Project } from '../models';
+import { environment } from 'src/environments/environment';
 
 export interface JiraStatusResponse {
   connected: boolean;
@@ -27,30 +28,27 @@ export interface ImportStoriesResponse {
   result: {
     imported: number;
     skipped: number;
+    total: number;
   };
 }
 
 @Injectable({ providedIn: 'root' })
 export class ProjectsService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://127.0.0.1:8000';
+  private apiUrl = `${environment.apiUrl}/projects`;
 
   getProjects(): Observable<Project[]> {
-    return this.http.get<Project[]>(`${this.apiUrl}/projects/`);
-  }
-
-  getJiraStatus(): Observable<JiraStatusResponse> {
-    return this.http.get<JiraStatusResponse>(`${this.apiUrl}/jira/status`);
-  }
-
-  getJiraProjects(): Observable<JiraProject[]> {
-    return this.http.get<JiraProject[]>(`${this.apiUrl}/jira/projects`);
+    return this.http.get<Project[]>(`${this.apiUrl}`);
   }
 
   importStories(projectKey: string): Observable<ImportStoriesResponse> {
     return this.http.post<ImportStoriesResponse>(
-      `${this.apiUrl}/projects/${projectKey}/import`,
+      `${this.apiUrl}/${projectKey}/import`,
       {}
     );
   }
+
+  deleteProject(projectId: string) {
+  return this.http.delete<void>(`${this.apiUrl}/${projectId}`);
+}
 }

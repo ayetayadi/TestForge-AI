@@ -2,13 +2,18 @@ from datetime import datetime
 import uuid
 from sqlalchemy import DateTime, String, Text, Float, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.core.database import Base
 from sqlalchemy.dialects.postgresql import JSONB
+from app.core.database import Base
+
 
 class UserStory(Base):
     __tablename__ = "user_stories"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String(36), 
+        primary_key=True, 
+        default=lambda: str(uuid.uuid4())
+    )
 
     jira_project_id: Mapped[str] = mapped_column(
         String(36),
@@ -16,7 +21,7 @@ class UserStory(Base):
         nullable=False
     )
 
-    issue_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    issue_key: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
 
     # ── Contenu principal ──
     title: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -37,8 +42,8 @@ class UserStory(Base):
     epic_key: Mapped[str] = mapped_column(String(100), nullable=True)
     epic_name: Mapped[str] = mapped_column(String(300), nullable=True)
     sprint: Mapped[str] = mapped_column(String(200), nullable=True)
-    labels: Mapped[list] = mapped_column(JSONB, nullable=True)       # JSON array
-    components: Mapped[list] = mapped_column(JSONB, nullable=True)   # JSON array
+    labels: Mapped[list] = mapped_column(JSONB, nullable=True)
+    components: Mapped[list] = mapped_column(JSONB, nullable=True)
 
     # ── Versioning ──
     fix_version: Mapped[str] = mapped_column(String(100), nullable=True)
@@ -50,8 +55,13 @@ class UserStory(Base):
     jira_created_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     jira_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, 
+        default=datetime.utcnow, 
+        onupdate=datetime.utcnow
+    )
 
-    # ── Relations ──
+    # ── Relations (strings pour éviter l'import circulaire) ──
     jira_project: Mapped["JiraProject"] = relationship(
         "JiraProject",
         back_populates="user_stories"

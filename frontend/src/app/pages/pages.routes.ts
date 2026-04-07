@@ -1,3 +1,4 @@
+// pages.routes.ts
 import { Routes } from '@angular/router';
 import { CreateUserComponent } from './admin/create-user/create-user.component';
 import { JiraConnectComponent } from './jira/jira-connect/jira-connect.component';
