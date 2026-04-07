@@ -77,22 +77,21 @@ class UserStory(Base):
         nullable=False
     )
 
-    jira_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    jira_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    jira_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    jira_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         server_default=func.now(),
         nullable=False
     )
 
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False
     )
-
     # =========================
     # RELATIONS
     # =========================
