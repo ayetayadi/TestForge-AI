@@ -1,7 +1,7 @@
 import { Component, input, output, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
-import { UserStory } from '../../models';
+import { StoryWithJob, UserStory, UserStoryVersion } from '../../models';
 
 @Component({
   selector: 'app-story-detail-modal',
@@ -11,13 +11,37 @@ import { UserStory } from '../../models';
   styleUrl: './story-detail-modal.component.scss',
 })
 export class StoryDetailModalComponent {
-  story = input<UserStory | null>(null);
+  story = input<StoryWithJob | null>(null);
 
   closed = output<void>();
-  runPipeline = output<UserStory>();
-  rerunPipeline = output<UserStory>();
+  runPipeline = output<StoryWithJob>();
+  rerunPipeline = output<StoryWithJob>();
 
   visible = computed(() => this.story() !== null);
+
+  /**
+   * Retourne la version à afficher (selected > latest)
+   */
+  getDisplayVersion(): UserStoryVersion | null {
+    const s = this.story();
+    if (!s) return null;
+    return s.selected_version ?? s.latest_version ?? null;
+  }
+
+  /**
+   * Vérifie si une version existe
+   */
+  hasVersion(): boolean {
+    return this.getDisplayVersion() !== null;
+  }
+
+  /**
+   * Vérifie si la story est approuvée
+   */
+  isApproved(): boolean {
+    const s = this.story();
+    return s?.decision_status === 'approved';
+  }
 
   closeModal(): void {
     this.closed.emit();
@@ -56,19 +80,9 @@ export class StoryDetailModalComponent {
   }
 
   getImprovedAC(): string[] {
-    const story = this.story();
-    if (!story?.final?.acceptance_criteria) return [];
-    const ac = story.final.acceptance_criteria;
-    if (Array.isArray(ac)) return ac;
-    if (typeof ac === 'string') {
-      try {
-        const parsed = JSON.parse(ac);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return (ac as string).split('\n').filter(l => l.trim());
-      }
-    }
-    return [];
+    const version = this.getDisplayVersion();
+    if (!version?.acceptance_criteria) return [];
+    return version.acceptance_criteria.filter(item => item && String(item).trim());
   }
 
   formatScore(score: number | null | undefined): string {
@@ -95,4 +109,9 @@ export class StoryDetailModalComponent {
 
     return meta;
   }
+
+  isKeptOriginal(): boolean {
+  const s = this.story();
+  return s?.decision_status === 'rejected_keep';
+}
 }

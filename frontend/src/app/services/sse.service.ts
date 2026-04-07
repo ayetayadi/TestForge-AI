@@ -38,9 +38,11 @@ export class SseService {
 
       // Types d'événements à écouter
       const eventTypes: string[] = [
-        'ui_phase',
-        'job_completed',
-        'job_failed',
+        'analyzing',
+        'refining',
+        'evaluating',
+        'completed',
+        'failed',
         'ping'
       ];
 
@@ -50,9 +52,11 @@ export class SseService {
           this.zone.run(() => {
             try {
               const data = event.data ? JSON.parse(event.data) : {};
+
+              console.log("[SSE RECEIVED]", eventType, data);
               
               // Si c'est un événement terminal, on peut fermer la connexion
-              if (eventType === 'job_completed' || eventType === 'job_failed') {
+              if (eventType === 'completed' || eventType === 'failed') {
                 console.log(`[SSE] Terminal event ${eventType} for job ${jobId}`);
                 observer.next({
                   type: eventType,
@@ -199,4 +203,5 @@ export class SseService {
       details
     };
   }
+
 }

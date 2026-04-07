@@ -13,6 +13,7 @@ from app.utils.common.text_quality_utils import (
 from app.utils.common.ac_utils import normalize_ac
 from app.services.jobs_service import store_job_result
 from app.streaming.ui_events import publish_ui_phase
+from app.services.frontend_state_service import FrontendStateService
 from .tools.template_engine import template_engine
 from .tools.ac_generator import ac_generator
 from .tools.constraint_guard import constraint_guard
@@ -130,12 +131,8 @@ async def repair_ac_with_llm(story: str, ac_list: list, jira_id: str = "?") -> l
             ac=str(ac_list),
             language=language
         )
+        response = await llm.generate_async(prompt, temperature=settings.AC_REPAIR_TEMP)
 
-        response = await asyncio.to_thread(
-            llm.generate,
-            prompt,
-            temperature=settings.AC_REPAIR_TEMP
-        )
 
         repaired = response.get("acceptance_criteria") or []
         repaired = normalize_ac(repaired)
@@ -189,8 +186,6 @@ async def refinement_node(state: dict) -> dict:
 
     state["current_step"] = "refinement_started"
 
-    publish_ui_phase(state, "refining")
-
 
     safe_publish(state, "refinement_started", {
         "story_id": jira_id,
@@ -207,6 +202,8 @@ async def refinement_node(state: dict) -> dict:
     existing_ac = normalize_ac(state.get("existing_ac") or [])
 
     state["iteration"] = state.get("iteration", 0) + 1
+
+    publish_ui_phase(state, "refining")
 
     # =========================
     # EARLY EXIT
@@ -273,11 +270,8 @@ async def refinement_node(state: dict) -> dict:
                 f"Do NOT write acceptance criteria in any other language."
             )
 
-            response = await asyncio.to_thread(
-                llm.generate,
-                base_prompt + language_suffix,
-                temperature=settings.REFINEMENT_TEMP
-)
+            response = await llm.generate_async(base_prompt + language_suffix, temperature=settings.REFINEMENT_TEMP)
+
             # Check for LLM failure
             llm_failed = False
             
@@ -562,7 +556,6 @@ async def refinement_node(state: dict) -> dict:
             "refinement": duration,
         },
     })
-
-    await store_job_result(state["job_id"], state)
+    await FrontendStateService.update(state["job_id"], state)
 
     return state

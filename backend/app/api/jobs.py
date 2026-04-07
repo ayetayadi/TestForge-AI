@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-
+from app.services.jobs_service import get_running_jobs
 from app.services.jobs_service import (
     get_job_state,
     apply_decision,
@@ -41,6 +41,12 @@ async def stream_job(job_id: str, request: Request):
         },
     )
 
+# =========================
+# GET RUNNING JOBS
+# =========================
+@router.get("/running")
+async def running_jobs():
+    return await get_running_jobs()
 
 # =========================
 # APPLY DECISION
@@ -48,3 +54,4 @@ async def stream_job(job_id: str, request: Request):
 @router.post("/{job_id}/decision")
 async def apply_job_decision(job_id: str, choice: str):
     return await apply_decision(job_id, choice)
+

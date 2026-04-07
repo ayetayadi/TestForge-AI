@@ -11,6 +11,7 @@ from app.utils.common.text_quality_utils import is_garbage_story
 from app.utils.common.ac_utils import compute_ac_score, normalize_ac
 from app.services.jobs_service import store_job_result
 from app.streaming.ui_events import publish_ui_phase
+from app.services.frontend_state_service import FrontendStateService
 from .tools.rule_engine import rule_engine
 from .tools.nlp_checker import nlp_checker
 from .prompts import ANALYSIS_PROMPT
@@ -70,7 +71,10 @@ async def analysis_node(state: dict) -> dict:
     
     state["current_step"] = "analysis_started"
 
-    publish_ui_phase(state, "analyzing")
+    if state.get("is_reanalysis"):
+        publish_ui_phase(state, "reanalyzing")
+    else:
+        publish_ui_phase(state, "analyzing")
 
     safe_publish(state, "analysis_started", {
         "story_id": jira_id,
@@ -82,8 +86,7 @@ async def analysis_node(state: dict) -> dict:
         "step": "analysis_started",
         "timestamp": time.time()
     })
-
-    await store_job_result(state["job_id"], state) 
+    await FrontendStateService.update(state["job_id"], state)
 
     # =========================
     # NORMALIZE EXISTING ACs EARLY
@@ -149,11 +152,7 @@ async def analysis_node(state: dict) -> dict:
             context=""
         )
         print(f"[{jira_id}] [DEBUG] Prompt formatted, length={len(prompt)}")
-        response = await asyncio.to_thread(
-            llm.generate,
-            prompt,
-            temperature=settings.ANALYSIS_TEMP
-        )
+        response = await llm.generate_async(prompt, temperature=settings.ANALYSIS_TEMP)
         print(f"[{jira_id}] [DEBUG] LLM response type={type(response)}")
         print(f"[{jira_id}] [DEBUG] LLM response={response}")
 

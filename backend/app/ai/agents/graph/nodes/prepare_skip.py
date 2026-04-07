@@ -2,6 +2,7 @@ import time
 from app.utils.common.pipeline_utils import safe_publish
 from app.utils.common.text_quality_utils import is_testable_ac
 from app.services.jobs_service import store_job_result
+from app.services.frontend_state_service import FrontendStateService
 
 async def prepare_skip_node(state: dict) -> dict:
     state.setdefault("events", [])
@@ -27,7 +28,7 @@ async def prepare_skip_node(state: dict) -> dict:
         state.setdefault("timing", {})
         state["timing"]["prepare_skip"] = round(time.time() - start_time, 3)
 
-        await store_job_result(state["job_id"], state)
+        await FrontendStateService.update(state["job_id"], state)
         return state
 
     print(f"[{jira_id}] [PREPARE SKIP] AC OK → end pipeline")
@@ -56,7 +57,6 @@ async def prepare_skip_node(state: dict) -> dict:
 
     state.setdefault("timing", {})
     state["timing"]["prepare_skip"] = round(time.time() - start_time, 3)
-
-    await store_job_result(state["job_id"], state)
+    await FrontendStateService.update(state["job_id"], state)
 
     return state
