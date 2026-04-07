@@ -5,7 +5,7 @@ from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.utils.security.encryption import encrypt, decrypt
+from app.utils.encryption_utils import encrypt, decrypt
 
 
 class JiraConnection(Base):

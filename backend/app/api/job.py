@@ -1,0 +1,142 @@
+from typing import Optional, List, Dict, Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Body
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.repositories.job_repository import get_job_by_id, get_active_jobs
+from app.services.job_service import apply_decision, get_jobs_by_issue_keys_service
+from app.streaming.sse_manager import event_generator
+
+
+class DecisionRequest(BaseModel):
+    decision: str
+    version_id: Optional[str] = None
+
+
+router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def _get_latest_version(job):
+    """Retourne la dernière version d'un job"""
+    if not job.versions:
+        return None
+    return max(job.versions, key=lambda v: v.iteration)
+
+
+@router.get("/{job_id}/stream")
+async def stream_job(request: Request, job_id: str):
+    return StreamingResponse(
+        event_generator(job_id, request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/{job_id}")
+async def get_job_state(job_id: str, db: AsyncSession = Depends(get_db)):
+    job = await get_job_by_id(db, job_id)
+
+    if not job:
+        raise HTTPException(404, "Job not found")
+
+    # Récupérer la dernière version
+    latest = _get_latest_version(job)
+    
+    # Récupérer la story originale
+    story = job.user_story
+
+    return {
+        # Job info
+        "job_id": job.id,
+        "status": job.status.value if job.status else None,
+        "phase": job.phase.value if job.phase else None,
+        "iteration": job.iteration,
+        "started_at": job.started_at,
+        "completed_at": job.completed_at,
+        
+        # Story info
+        "story_id": story.id if story else None,
+        "issue_key": story.issue_key if story else None,
+        "project_id": story.project_id if story else None,  # <-- Utiliser project_id (FK)
+        
+        # Original content
+        "initial_story": story.description if story else None,
+        "raw_story": story.description if story else None,
+        "existing_ac": story.acceptance_criteria if story else [],
+        
+        # Improved content (from latest version)
+        "version_id": latest.id if latest else None,
+        "improved_story": latest.improved_story if latest else None,
+        "acceptance_criteria": latest.acceptance_criteria if latest else [],
+        "initial_score": latest.initial_score if latest else 0,
+        "final_score": latest.final_score if latest else 0,
+        "score_delta": (
+            (latest.final_score - latest.initial_score)
+            if latest and latest.initial_score is not None and latest.final_score is not None
+            else 0
+        ),
+    }
+
+@router.get("/active/list")
+async def get_active_jobs_route(db: AsyncSession = Depends(get_db)):
+    jobs = await get_active_jobs(db)
+
+    return [
+        {
+            "job_id": j.id,
+            "status": j.status,
+            "phase": j.phase,
+            "iteration": j.iteration,
+        }
+        for j in jobs
+    ]
+
+
+@router.post("/{job_id}/decision")
+async def apply_job_decision(
+    job_id: str,
+    request: DecisionRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    job = await get_job_by_id(db, job_id)
+
+    if not job:
+        raise HTTPException(404, "Job not found")
+
+    if request.decision not in ("approve", "reject_relaunch", "reject_keep"):
+        raise HTTPException(400, "Invalid decision")
+
+    if request.decision == "approve" and not request.version_id:
+        raise HTTPException(400, "version_id is required for approval")
+
+    result = await apply_decision(
+        db=db,
+        user_story_id=job.user_story_id,
+        decision=request.decision,
+        version_id=request.version_id
+    )
+    
+    # Ajouter issue_key pour le frontend (relaunch)
+    if job.user_story:
+        result["issue_key"] = job.user_story.issue_key
+    
+    return result
+
+
+@router.post("/by-issues")
+async def get_jobs_by_issues(
+    issue_keys: List[str] = Body(...),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+
+    if not issue_keys:
+        return {}
+
+    return await get_jobs_by_issue_keys_service(db, issue_keys)
