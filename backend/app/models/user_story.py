@@ -1,75 +1,112 @@
 from datetime import datetime
 import uuid
-from sqlalchemy import DateTime, String, Text, Float, ForeignKey
+from typing import List, Optional
+
+from sqlalchemy import DateTime, String, Text, Float, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql import func
+
 from app.core.database import Base
+from app.models.enums import StoryDecision
 
 
 class UserStory(Base):
     __tablename__ = "user_stories"
 
     id: Mapped[str] = mapped_column(
-        String(36), 
-        primary_key=True, 
+        String(36),
+        primary_key=True,
         default=lambda: str(uuid.uuid4())
     )
 
-    jira_project_id: Mapped[str] = mapped_column(
+    project_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("jira_projects.id"),
+        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    issue_key: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True
+    )
+
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+
+    acceptance_criteria: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]"
+    )
+
+    issue_type: Mapped[Optional[str]] = mapped_column(String(50))
+    priority: Mapped[Optional[str]] = mapped_column(String(50))
+    status: Mapped[Optional[str]] = mapped_column(String(50))
+    story_points: Mapped[Optional[float]] = mapped_column(Float)
+
+    assignee: Mapped[Optional[str]] = mapped_column(String(200))
+    reporter: Mapped[Optional[str]] = mapped_column(String(200))
+
+    epic_key: Mapped[Optional[str]] = mapped_column(String(100))
+    sprint: Mapped[Optional[str]] = mapped_column(String(200))
+
+    labels: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]"
+    )
+
+    components: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]"
+    )
+
+    fix_version: Mapped[Optional[str]] = mapped_column(String(100))
+
+    # =========================
+    # DECISION
+    # =========================
+
+    decision_status: Mapped[StoryDecision] = mapped_column(
+        SqlEnum(StoryDecision),
+        default=StoryDecision.PENDING,
         nullable=False
     )
 
-    issue_key: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    jira_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    jira_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
-    # ── Contenu principal ──
-    title: Mapped[str] = mapped_column(String(500), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=True)
-    acceptance_criteria: Mapped[list] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False
+    )
 
-    # ── Métadonnées Jira ──
-    issue_type: Mapped[str] = mapped_column(String(50), nullable=True)
-    priority: Mapped[str] = mapped_column(String(50), nullable=True)
-    status: Mapped[str] = mapped_column(String(50), nullable=True)
-    story_points: Mapped[float] = mapped_column(Float, nullable=True)
-
-    # ── Personnes ──
-    assignee: Mapped[str] = mapped_column(String(200), nullable=True)
-    reporter: Mapped[str] = mapped_column(String(200), nullable=True)
-
-    # ── Organisation Agile ──
-    epic_key: Mapped[str] = mapped_column(String(100), nullable=True)
-    epic_name: Mapped[str] = mapped_column(String(300), nullable=True)
-    sprint: Mapped[str] = mapped_column(String(200), nullable=True)
-    labels: Mapped[list] = mapped_column(JSONB, nullable=True)
-    components: Mapped[list] = mapped_column(JSONB, nullable=True)
-
-    # ── Versioning ──
-    fix_version: Mapped[str] = mapped_column(String(100), nullable=True)
-
-    # ── Pipeline ──
-    job_id: Mapped[str] = mapped_column(String(36), nullable=True)
-
-    # ── Timestamps ──
-    jira_created_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    jira_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, 
-        default=datetime.utcnow, 
-        onupdate=datetime.utcnow
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
     )
 
-    # ── Relations (strings pour éviter l'import circulaire) ──
-    jira_project: Mapped["JiraProject"] = relationship(
-        "JiraProject",
-        back_populates="user_stories"
-    )
+    # =========================
+    # RELATIONS
+    # =========================
+    jira_project = relationship("JiraProject", back_populates="user_stories")
 
-    final_version: Mapped["UserStoryFinal"] = relationship(
-        "UserStoryFinal",
+    versions = relationship(
+        "UserStoryVersion",
         back_populates="user_story",
-        uselist=False,
+        cascade="all, delete-orphan",
+        foreign_keys="UserStoryVersion.user_story_id"
+    )
+
+    jobs = relationship(
+        "Job",
+        back_populates="user_story",
         cascade="all, delete-orphan"
     )

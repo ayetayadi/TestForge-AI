@@ -1,32 +1,18 @@
-from sqlalchemy import Enum
+from enum import Enum
 
-OutcomeEnum = Enum(
-    "approved",
-    "reject_keep",
-    "no_improvement",
-    "max_iter",
-    "failed",
-    name="us_outcome"
-)
+class StoryDecision(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED_KEEP = "rejected_keep"
+    REJECTED_RELAUNCH = "rejected_relaunch"
 
-HumanChoiceEnum = Enum(
-    "approve",
-    "reject_keep",
-    "reject_relaunch",
-    name="us_human_choice"
-)
+class JobStatus(str, Enum):
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
-SourceEnum = Enum(
-    "jira",
-    "ai",
-    name="us_source"
-)
-
-
-StatusEnum = Enum(
-    "queued",
-    "processing",
-    "completed",
-    "failed",
-    name="us_status"
-)
+class JobPhase(str, Enum):
+    ANALYZING = "analyzing"
+    REFINING = "refining"
+    EVALUATING = "evaluating"
+    COMPLETED = "completed"
