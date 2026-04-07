@@ -1,8 +1,11 @@
 import time
 from app.utils.common.pipeline_utils import safe_publish
 from app.utils.common.text_quality_utils import is_testable_ac
+from app.services.jobs_service import store_job_result
+from app.services.frontend_state_service import FrontendStateService
 
-def prepare_skip_node(state: dict) -> dict:
+async def prepare_skip_node(state: dict) -> dict:
+    state.setdefault("events", [])
     start_time = time.time()
 
     jira_id = state.get("jira_id", "?")
@@ -14,19 +17,23 @@ def prepare_skip_node(state: dict) -> dict:
 
     existing_ac_valid = [a for a in existing_ac if is_testable_ac(a)]
 
-    # Need at least 2 valid AC AND 60% ratio
-    ac_ok = len(existing_ac_valid) >= 2 and (len(existing_ac_valid) / len(existing_ac)) >= 0.6
+    ac_ok = len(existing_ac_valid) >= 2 and (len(existing_ac_valid) / max(len(existing_ac), 1)) >= 0.6
 
     if not ac_ok:
-        print(f"[{jira_id}] [PREPARE SKIP] AC insufficient ({len(existing_ac_valid)}/{len(existing_ac)}) → refinement")
+        print(f"[{jira_id}] [PREPARE SKIP] AC insufficient → refinement")
         state["skip_reanalysis"] = False
 
-        duration = round(time.time() - start_time, 3)
+        state["current_step"] = "prepare_skip_failed"
+
         state.setdefault("timing", {})
-        state["timing"]["prepare_skip"] = duration
+        state["timing"]["prepare_skip"] = round(time.time() - start_time, 3)
+
+        await FrontendStateService.update(state["job_id"], state)
         return state
 
     print(f"[{jira_id}] [PREPARE SKIP] AC OK → end pipeline")
+
+    state["current_step"] = "prepare_skip_done"
 
     safe_publish(state, "skipped", {
         "story_id": jira_id,
@@ -44,9 +51,12 @@ def prepare_skip_node(state: dict) -> dict:
         "skip_reanalysis": True,
     })
 
-    duration = round(time.time() - start_time, 3)
-    state.setdefault("timing", {})
-    state["timing"]["prepare_skip"] = duration
+    state.setdefault("events", []).append({
+        "step": "prepare_skip_done"
+    })
 
-    print(f"[{jira_id}] [PREPARE SKIP DONE] duration={duration}s")
+    state.setdefault("timing", {})
+    state["timing"]["prepare_skip"] = round(time.time() - start_time, 3)
+    await FrontendStateService.update(state["job_id"], state)
+
     return state

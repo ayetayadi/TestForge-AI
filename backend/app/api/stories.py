@@ -4,26 +4,41 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.run_pipeline_request import RunPipelineRequest
 from app.services.pipeline_service import start_pipeline
-from app.services.story_service import (
+from app.services.stories_service import (
     list_stories,
     list_stories_by_project,
 )
 
-router = APIRouter(prefix="/stories", tags=["User Stories"])
+router = APIRouter(prefix="/stories", tags=["Stories"])
 
 
-@router.get("/")
-async def get_all(db: AsyncSession = Depends(get_db)):
+# =========================
+# GET ALL STORIES
+# =========================
+@router.get("")
+async def get_stories(db: AsyncSession = Depends(get_db)):
     return await list_stories(db)
 
 
-@router.get("/project/{project_id}")
-async def get_by_project(project_id: str, db: AsyncSession = Depends(get_db)):
+# =========================
+# GET STORIES BY PROJECT
+# =========================
+@router.get("/by-project/{project_id}")
+async def get_stories_by_project_id(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+):
     return await list_stories_by_project(db, project_id)
 
 
-@router.post("/pipeline")
-async def run_pipeline(data: RunPipelineRequest, db: AsyncSession = Depends(get_db)):
+# =========================
+# RUN PIPELINE
+# =========================
+@router.post("/pipeline/run")
+async def run_pipeline_endpoint(
+    data: RunPipelineRequest,
+    db: AsyncSession = Depends(get_db),
+):
     if data.type == "keys":
         jobs = await start_pipeline(db, issue_keys=data.issue_keys)
 

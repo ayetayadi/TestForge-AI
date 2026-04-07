@@ -1,19 +1,21 @@
+import asyncio
 import html
 import re
 import time
-import copy
-
 from langgraph.graph import END
-
 from app.llm.factory import get_llm
 from app.utils.common.pipeline_utils import add_trace, safe_publish
 from app.utils.common.llm_safety_utils import is_llm_failed, safe_float, safe_json_parse
 from app.utils.common.text_quality_utils import detect_language, escape_braces, is_testable_ac
 from app.utils.common.text_quality_utils import is_garbage_story
 from app.utils.common.ac_utils import compute_ac_score, normalize_ac
+from app.services.jobs_service import store_job_result
+from app.streaming.ui_events import publish_ui_phase
+from app.services.frontend_state_service import FrontendStateService
 from .tools.rule_engine import rule_engine
 from .tools.nlp_checker import nlp_checker
 from .prompts import ANALYSIS_PROMPT
+from app.core.config import settings
 
 # =========================
 # CLEAN INPUT
@@ -36,8 +38,9 @@ def _sanitize_story(raw: str) -> str:
 # =========================
 # MAIN NODE
 # =========================
-def analysis_node(state: dict) -> dict:
-    state = copy.deepcopy(state)
+async def analysis_node(state: dict) -> dict:
+    state = state.copy()
+    state.setdefault("events", [])
     print("\n[ANALYSIS INPUT]", state)
     is_reanalysis = state.get("is_reanalysis", False)
     label = "RE-ANALYSIS" if is_reanalysis else "ANALYSIS"
@@ -65,12 +68,25 @@ def analysis_node(state: dict) -> dict:
 
     if not story:
         return {**state, **_empty_analysis_result(state)}
+    
+    state["current_step"] = "analysis_started"
+
+    if state.get("is_reanalysis"):
+        publish_ui_phase(state, "reanalyzing")
+    else:
+        publish_ui_phase(state, "analyzing")
 
     safe_publish(state, "analysis_started", {
         "story_id": jira_id,
         "iteration": state.get("iteration", 0),
         "reanalysis": state.get("is_reanalysis", False)
     })
+
+    state.setdefault("events", []).append({
+        "step": "analysis_started",
+        "timestamp": time.time()
+    })
+    await FrontendStateService.update(state["job_id"], state)
 
     # =========================
     # NORMALIZE EXISTING ACs EARLY
@@ -86,11 +102,14 @@ def analysis_node(state: dict) -> dict:
     # Update state with normalized ACs so downstream nodes get clean data
     state["existing_ac"] = normalized_existing_ac
 
+    if not state.get("acceptance_criteria"):
+        state["acceptance_criteria"] = normalized_existing_ac
+
     # =========================
     # RULE ENGINE
     # =========================
     try:
-        rule_result = rule_engine.evaluate(story)
+        rule_result = await asyncio.to_thread(rule_engine.evaluate, story)
     except Exception:
         rule_result = {
             "rule_score": 0.0,
@@ -102,7 +121,7 @@ def analysis_node(state: dict) -> dict:
     # NLP CHECK
     # =========================
     try:
-        nlp_result = nlp_checker.analyze(story)
+        nlp_result = await asyncio.to_thread(nlp_checker.analyze, story)
     except Exception:
         nlp_result = {
             "nlp_score": 0.0,
@@ -133,16 +152,10 @@ def analysis_node(state: dict) -> dict:
             context=""
         )
         print(f"[{jira_id}] [DEBUG] Prompt formatted, length={len(prompt)}")
-        response = llm.generate(prompt, temperature=0.0)
+        response = await llm.generate_async(prompt, temperature=settings.ANALYSIS_TEMP)
         print(f"[{jira_id}] [DEBUG] LLM response type={type(response)}")
         print(f"[{jira_id}] [DEBUG] LLM response={response}")
 
-        # FIX: Check both the string pattern AND the dict key.
-        # When the LLM HTTP call fails (429, timeout), the factory returns
-        # a fallback dict like {'llm_failed': True, 'llm_score': 0.3}.
-        # is_llm_failed(str(response)) doesn't catch this because it
-        # looks for text patterns, not dict keys. So we also check the
-        # response dict directly.
         if isinstance(response, dict) and response.get("llm_failed") is True:
             llm_failed = True
             print(f"[{jira_id}] [DEBUG] llm_failed=True (from response dict)")
@@ -167,6 +180,7 @@ def analysis_node(state: dict) -> dict:
 
     if llm_failed:
         print(f"[{jira_id}] [LLM FAILED] using fallback score={fallback_llm_score}")
+        publish_ui_phase(state, "failed")
 
     # =========================
     # AC SCORING
@@ -250,6 +264,13 @@ def analysis_node(state: dict) -> dict:
             **state.get("timing", {}),
             label.lower(): duration,
         },
+    })
+
+    state["current_step"] = "analysis_completed"
+    
+    state.setdefault("events", []).append({
+        "step": "analysis_completed",
+        "timestamp": time.time()
     })
 
     safe_publish(state, "analysis_completed", {

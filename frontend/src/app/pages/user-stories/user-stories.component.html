@@ -112,18 +112,19 @@
                 />
               </th>
               <th class="col-key">Key</th>
-              <th class="col-title">Title</th>
+              <th class="col-title">User Story</th>
               <th class="col-priority">Priority</th>
               <th class="col-ac">AC</th>
               <th class="col-pipeline">Pipeline</th>
-              <th class="col-actions"></th>
+              <th class="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
             @for (story of paginatedStories(); track story.issue_key) {
               <tr
-                [class.processing]="story.job && story.jobPhase !== 'completed' && story.jobPhase !== 'failed'"
-                [class.row-completed]="story.final || story.jobPhase === 'completed'"
+                [id]="'story-' + story.issue_key"
+                [class.processing]="story.job && story.jobPhase && !['completed', 'failed'].includes(story.jobPhase)"
+                [class.row-completed]="isCompleted(story)"
                 (click)="openStoryDetail(story)"
               >
                 <!-- Checkbox -->
@@ -142,7 +143,15 @@
 
                 <!-- Title -->
                 <td class="col-title">
-                  <span class="title">{{ story.title || 'No title' }}</span>
+                  <div class="story-main">                
+                    <span class="title">
+                      {{ story.title || 'No title' }}
+                    </span>
+                
+                    <span class="description">
+                      {{ story.description || 'No description' }}
+                    </span>
+                  </div>
                 </td>
 
                 <!-- Priority -->
@@ -162,83 +171,68 @@
                     {{ getAcCount(story) }}
                   </span>
                 </td>
-
-                <!-- Pipeline -->
-                <td class="col-pipeline">
-                  @if (story.final) {
-
-                      @if (story.final.outcome === 'reject_keep') {
-                        <span class="kept-badge">
-                          Kept Original
-                        </span>
-                      }
-                    
-                      @else {
-                        <div class="pipeline-result">
-                          <app-score-badge
-                            [score]="story.final!.score_after!"
-                            [delta]="story.final!.score_after! - story.final!.score_before!">
-                          </app-score-badge>
-                    
-                          <span class="outcome-pill"
-                                [class.approved]="story.final.outcome === 'approved'">
-                            {{ story.final.outcome === 'approved' ? '✓' : '—' }}
-                          </span>
-                        </div>
-                      }
-                    
-                    } @else if (story.job) {
-                    @switch (story.jobPhase) {
-                      @case ('analyzing') {
-                        <span class="phase-badge analyzing"><span class="phase-dot"></span> Analyzing</span>
-                      }
-                      @case ('refining') {
-                        <span class="phase-badge refining">
-                          <span class="phase-dot"></span> Refining
-                          @if (story.jobIteration && story.jobIteration > 0) {
-                            <span class="iter">#{{ story.jobIteration }}</span>
-                          }
-                        </span>
-                      }
-                      @case ('reanalyzing') {
-                        <span class="phase-badge reanalyzing">
-                          <span class="phase-dot"></span> Re-analyzing
-                          @if (story.jobIteration && story.jobIteration > 0) {
-                            <span class="iter">#{{ story.jobIteration }}</span>
-                          }
-                        </span>
-                      }
-                      @case ('completed') {
-                        <span class="phase-badge completed">✓ Ready</span>
-                      }
-                      @case ('failed') {
-                        <span class="phase-badge failed">✕ Failed</span>
-                      }
-                    }
-                  } @else {
-                    <span class="phase-badge idle"><span class="idle-dot"></span> Not processed</span>
-                  }
-                </td>
-
+<!-- Pipeline Status Column -->
+<td class="col-pipeline" (click)="$event.stopPropagation()">
+  @if (isProcessing(story)) {
+    <!-- Processing state -->
+    <div class="pipeline-status processing">
+      <app-spinner [size]="14" />
+      <span>{{ getPhaseLabel(story) }}</span>
+    </div>
+  } @else if (isCompleted(story)) {
+    @let version = getDisplayVersion(story);
+    @let status = getDecisionStatus(story);
+    
+    @switch (status) {
+      @case ('approved') {
+        <!-- Approved: show score + version number -->
+        <div class="pipeline-status approved clickable" (click)="viewResults(story)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="status-icon">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+          </svg>
+          <span>Approved</span>
+          <app-score-badge [score]="version?.final_score ?? 0" size="small" />
+        </div>
+      }
+      @case ('rejected_keep') {
+        <!-- Kept original -->
+        <div class="pipeline-status rejected clickable" (click)="viewResults(story)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="status-icon">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
+          </svg>
+          <span>Kept original</span>
+        </div>
+      }
+      @default {
+<button class="review-chip" (click)="viewResults(story)">
+  <span class="status-dot"></span>
+  <span>Review</span>
+  <svg class="arrow-icon" viewBox="0 0 20 20" fill="currentColor">
+    <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"/>
+  </svg>
+</button>
+      }
+    }
+  } @else {
+    <!-- Idle state -->
+    <span class="pipeline-idle">Not processed</span>
+  }
+</td>
                 <!-- Actions -->
                 <td class="col-actions" (click)="$event.stopPropagation()">
                   <div class="action-buttons">
-                    @if (!story.job && !story.final) {
+                    <!-- Run Pipeline: When can run and no version yet -->
+                    @if (canRunPipeline(story) && !getDisplayVersion(story)) {
                       <button class="btn-icon run" title="Run Pipeline" (click)="runSinglePipeline(story)">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
                         </svg>
                       </button>
                     }
-                    @if (story.jobPhase === 'completed' && !story.final) {
-                      <button class="btn-icon primary" title="Review" (click)="viewResults(story)">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                    }
-                    @if (story.final) {
-                      <button class="btn-icon" title="Re-run" (click)="rerunPipeline(story)">
+
+                    <!-- Re-run: When has version and can run -->
+                    @if (canRerunPipeline(story)) {
+                      <button class="btn-icon" title="Re-run Pipeline" (click)="rerunPipeline(story)">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
                         </svg>

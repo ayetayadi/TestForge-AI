@@ -125,3 +125,9 @@ def extract_ac_lines(text: str) -> List[str]:
             content.append(l)
 
     return content
+
+
+def ensure_string(value: object) -> str:
+    if isinstance(value, list):
+        return " ".join(map(str, value))
+    return str(value or "")

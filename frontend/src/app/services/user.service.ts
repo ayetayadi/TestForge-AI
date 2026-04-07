@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from 'src/environments/environment';
 
 export interface ProfileRead {
   id: string;
@@ -24,17 +25,17 @@ export interface MessageResponse {
 
 @Injectable({ providedIn: 'root' })
 export class UserService {
-  private apiUrl = 'http://localhost:8000';
+    private apiUrl = `${environment.apiUrl}/users`;
 
   constructor(private http: HttpClient) {}
 
   getMyProfile(): Observable<ProfileRead> {
-    return this.http.get<ProfileRead>(`${this.apiUrl}/users/me`);
+    return this.http.get<ProfileRead>(`${this.apiUrl}/me`);
   }
 
   changePassword(payload: ChangePasswordRequest): Observable<MessageResponse> {
     return this.http.post<MessageResponse>(
-        `${this.apiUrl}/users/change-password`,
+        `${this.apiUrl}/change-password`,
         payload
     );
   }

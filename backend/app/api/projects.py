@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.user import User
-from app.services.project_service import (
+from app.services.projects_service import (
     get_projects,
     import_project_by_key,
 )
@@ -12,11 +12,17 @@ from app.services.project_service import (
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
-@router.get("/")
+# =========================
+# LIST PROJECTS
+# =========================
+@router.get("")
 async def list_projects(db: AsyncSession = Depends(get_db)):
     return await get_projects(db)
 
 
+# =========================
+# IMPORT PROJECT
+# =========================
 @router.post("/{project_key}/import")
 async def import_project(
     project_key: str,

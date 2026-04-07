@@ -6,8 +6,8 @@ from app.utils.common.pipeline_utils import add_trace
 from app.utils.common.text_quality_utils import clean_raw_story
 
 
-def run_user_story_pipeline(state: dict) -> dict:
-    state = copy.deepcopy(state)
+async def run_user_story_pipeline(state: dict) -> dict:
+    state = state.copy()
 
     graph_pipeline = build_graph()
 
@@ -34,7 +34,7 @@ def run_user_story_pipeline(state: dict) -> dict:
     state = add_trace(state, "start", {"story": state["raw_story"]})
 
     try:
-        result = graph_pipeline.invoke(state, config={"recursion_limit": 15})
+        result = await graph_pipeline.ainvoke(state, config={"recursion_limit": 15})
 
     except Exception as e:
         print(f"[PIPELINE ERROR] {jira_id}: {type(e).__name__}: {e}")

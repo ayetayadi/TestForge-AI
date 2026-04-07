@@ -1,4 +1,3 @@
-from queue import Queue
+import asyncio
 
-# Queue globale
-job_queue = Queue()
+job_queue = asyncio.Queue()

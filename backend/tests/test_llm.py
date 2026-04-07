@@ -1,9 +1,9 @@
 import requests
 from app.core.config import settings
 
-API_KEY = settings.OPENROUTER_API_KEY
+API_KEY = settings.GROQ_API_KEY
 
-url = "https://openrouter.ai/api/v1/chat/completions"
+url = "https://api.groq.com/openai/v1/chat/completions"
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
@@ -11,7 +11,7 @@ headers = {
 }
 
 data = {
-    "model": "openai/gpt-4o-mini",
+    "model": "openai/gpt-oss-120b",
     "messages": [
         {"role": "user", "content": "Say hello"}
     ],

@@ -1,22 +1,25 @@
 import { Component, inject, signal, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ProjectsService, ToastService } from '../../services';
-import { JiraProject } from '../../services/projects.service';
+import { JiraProject, ImportStoriesResponse } from '../../services/projects.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
+import { JiraService } from '../../services/jira.service';
 
 @Component({
   selector: 'app-import-modal',
   standalone: true,
-  imports: [CommonModule,SpinnerComponent],
+  imports: [CommonModule, SpinnerComponent],
   templateUrl: './import-modal.component.html',
   styleUrl: './import-modal.component.scss',
 })
 export class ImportModalComponent {
   private projectsService = inject(ProjectsService);
   private toastService = inject(ToastService);
+  private jiraService = inject(JiraService);
 
   closed = output<void>();
-  imported = output<void>();
+  
+  imported = output<{ imported: number; skipped: number; total: number } | null>();
 
   visible = signal(false);
   loading = signal(false);
@@ -55,7 +58,7 @@ export class ImportModalComponent {
   private checkJiraAndFetchProjects(): void {
     this.loading.set(true);
 
-    this.projectsService.getJiraStatus().subscribe({
+    this.jiraService.getStatus().subscribe({
       next: (status) => {
         this.jiraConnected.set(!!status?.connected);
 
@@ -81,7 +84,7 @@ export class ImportModalComponent {
   }
 
   private fetchJiraProjects(): void {
-    this.projectsService.getJiraProjects().subscribe({
+    this.jiraService.getProjects().subscribe({
       next: (projects) => {
         this.jiraProjects.set(projects ?? []);
         this.loading.set(false);
@@ -110,40 +113,48 @@ export class ImportModalComponent {
     this.importing.set(true);
 
     this.projectsService.importStories(project.key).subscribe({
-      next: (result) => {
-        // ✅ Correctly unwrap result.result per ImportStoriesResponse shape
-        const imported = result?.result?.imported ?? 0;
-        const skipped = result?.result?.skipped ?? 0;
-
+      next: (response: ImportStoriesResponse) => {
+        console.log('[IMPORT] Full response:', response);
+        
+        const imported = response?.result?.imported ?? 0;
+        const skipped = response?.result?.skipped ?? 0;
+        const total = response?.result?.total ?? 0;
+        
         if (imported > 0) {
           this.toastService.success(
             'Import completed',
-            `${imported} stories imported, ${skipped} skipped`
+            `${imported} new stories imported, ${skipped} already existed`
           );
-        } else if (skipped > 0) {
+        } else if (skipped > 0 && total > 0) {
           this.toastService.info(
-            'Nothing new to import',
-            `All ${skipped} stories already exist`
+            'Already up to date',
+            `All ${skipped} stories from "${project.name}" are already in your library`
+          );
+        } else if (total === 0) {
+          this.toastService.info(
+            'No user stories found',
+            `The project "${project.name}" has no user stories in Jira`
           );
         } else {
           this.toastService.info(
-            'No stories found',
-            'This project has no user stories in Jira'
+            'Nothing to import',
+            `No new stories found in "${project.name}"`
           );
         }
 
         this.importing.set(false);
         this.visible.set(false);
-        this.imported.emit();
+        this.imported.emit(response?.result ?? null);
       },
       error: (err) => {
         this.importing.set(false);
+        console.error('[IMPORT] Error:', err);
         this.toastService.error(
           'Import failed',
           err?.error?.detail || err?.message || 'Something went wrong'
         );
+        this.imported.emit(null);
       },
     });
   }
-
 }

@@ -1,18 +1,40 @@
 import { Component, OnInit } from '@angular/core';
-import { FormGroup, FormControl, Validators, ReactiveFormsModule, AbstractControl } from '@angular/forms';
+import {
+  FormGroup,
+  FormControl,
+  Validators,
+  ReactiveFormsModule,
+  AbstractControl,
+  ValidationErrors
+} from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from 'src/app/material.module';
 import { HttpClient } from '@angular/common/http';
 
-function passwordMatchValidator(control: AbstractControl) {
-  const pw = control.get('password');
-  const confirm = control.get('confirm_password');
-  if (pw && confirm && pw.value !== confirm.value) {
-    confirm.setErrors({ mismatch: true });
+/**
+ * ✅ Validator propre (ne casse pas les autres erreurs)
+ */
+function passwordMatchValidator(group: AbstractControl): ValidationErrors | null {
+  const password = group.get('password')?.value;
+  const confirm = group.get('confirm_password');
+
+  if (!confirm) return null;
+
+  if (password !== confirm.value) {
+    confirm.setErrors({
+      ...confirm.errors,
+      mismatch: true
+    });
   } else {
-    confirm?.setErrors(null);
+    if (confirm.errors) {
+      delete confirm.errors['mismatch'];
+      if (Object.keys(confirm.errors).length === 0) {
+        confirm.setErrors(null);
+      }
+    }
   }
+
   return null;
 }
 
@@ -23,18 +45,27 @@ function passwordMatchValidator(control: AbstractControl) {
   templateUrl: './setup-password.component.html',
 })
 export class SetupPasswordComponent implements OnInit {
+
   token = '';
   loading = false;
   errorMessage = '';
   successMessage = '';
   invalidToken = false;
 
-  form = new FormGroup({
-    password: new FormControl('', [Validators.required, Validators.minLength(6)]),
-    confirm_password: new FormControl('', [Validators.required]),
-  }, { validators: passwordMatchValidator });
+  // 👁 toggle
+  hidePassword = true;
+  hideConfirmPassword = true;
 
-  get f() { return this.form.controls; }
+  form = new FormGroup({
+    password: new FormControl<string>('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.minLength(6)]
+    }),
+    confirm_password: new FormControl<string>('', {
+      nonNullable: true,
+      validators: [Validators.required]
+    }),
+  }, { validators: passwordMatchValidator });
 
   constructor(
     private http: HttpClient,
@@ -42,30 +73,40 @@ export class SetupPasswordComponent implements OnInit {
     private route: ActivatedRoute,
   ) {}
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.token = this.route.snapshot.queryParams['token'] || '';
+
     if (!this.token) {
       this.invalidToken = true;
     }
   }
 
-  submit() {
+  get f() {
+    return this.form.controls;
+  }
+
+  submit(): void {
     if (this.form.invalid || !this.token) return;
+
     this.loading = true;
     this.errorMessage = '';
 
     this.http.post('http://localhost:8000/auth/setup-password', {
       token: this.token,
-      password: this.f['password'].value,
+      password: this.f.password.value,
     }).subscribe({
       next: () => {
         this.loading = false;
         this.successMessage = 'Password set! Redirecting to login...';
-        setTimeout(() => this.router.navigate(['/authentication/login']), 2000);
+
+        setTimeout(() => {
+          this.router.navigate(['/authentication/login']);
+        }, 2000);
       },
       error: (err) => {
         this.loading = false;
-        this.errorMessage = err.error?.detail || 'Invalid or expired link';
+        this.errorMessage =
+          err?.error?.detail || 'Invalid or expired link';
       }
     });
   }

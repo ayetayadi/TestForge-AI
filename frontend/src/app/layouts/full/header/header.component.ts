@@ -13,6 +13,7 @@ import { RouterModule } from '@angular/router';
 import { NgScrollbarModule } from 'ngx-scrollbar';
 import { MatBadgeModule } from '@angular/material/badge';
 import { AuthService, UserRead } from 'src/app/services/auth.service';
+import { UserService } from 'src/app/services/user.service';
 
 @Component({
   selector: 'app-header',
@@ -37,7 +38,7 @@ export class HeaderComponent implements OnInit {
   role = '';
   loadingProfile = false;
 
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService, private userService: UserService) {}
 
   ngOnInit(): void {
     this.loadCurrentUser();
@@ -46,7 +47,7 @@ export class HeaderComponent implements OnInit {
   loadCurrentUser(): void {
     this.loadingProfile = true;
 
-    this.authService.getCurrentUser().subscribe({
+    this.userService.getMyProfile().subscribe({
       next: (user: UserRead) => {
         this.username = user.username;
         this.role = user.is_admin ? 'Admin' : 'User';

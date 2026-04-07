@@ -6,6 +6,7 @@ from app.utils.common.ac_utils import (
     compute_ac_score,
 )
 from app.utils.common.pipeline_utils import safe_publish
+from app.services.jobs_service import store_job_result
 
 MAX_ITER = 2
 
@@ -16,42 +17,49 @@ MAX_ITER = 2
 def should_refine(state: dict) -> str:
     jira_id = state.get("jira_id", "?")
     iteration = state.get("iteration", 0)
-    delta = state.get("delta", 0.0)
-    final_score = state.get("final_score", 0.0)
+    delta = float(state.get("delta", 0.0) or 0.0)
+    final_score = float(state.get("final_score", 0.0) or 0.0)
 
-    if state.get("llm_failed"):
-        print(f"[{jira_id}] [SKIP] LLM failed → end")
+    # reset flag propre
+    state["refine_ac_only"] = False
+
+    # safe AC
+    ac = state.get("acceptance_criteria") or state.get("existing_ac") or []
+    valid_ac = [a for a in ac if is_testable_ac(a)]
+    ac_len = len(ac)
+    ratio = len(valid_ac) / max(ac_len, 1)
+
+    # 🔴 LLM FAIL → seulement skip si répété
+    if state.get("llm_failed") and state.get("consecutive_llm_failures", 0) >= 2:
+        print(f"[{jira_id}] [SKIP] Repeated LLM failure")
         return "skip_to_human"
 
-    if iteration > 0 and delta <= 0.01 and final_score >= 0.85:
+    # ✔ stabilité delta
+    if iteration > 0 and abs(delta) <= 0.01 and final_score >= 0.85:
         print(f"[{jira_id}] [SKIP] No improvement + good quality")
         return "skip_to_human"
 
+    # critical issues
     if state.get("critical_issues"):
         print(f"[{jira_id}] [REFINE] Critical issues")
         return "refine"
 
-    if final_score >= 0.95:
-        ac = state.get("acceptance_criteria") or state.get("existing_ac") or []
-        valid_ac = [a for a in ac if is_testable_ac(a)]
-        if len(valid_ac) >= 2:
-            print(f"[{jira_id}] [SKIP] Excellent quality")
-            return "skip_to_human"
+    # excellent
+    if final_score >= 0.95 and len(valid_ac) >= 2:
+        print(f"[{jira_id}] [SKIP] Excellent quality")
+        return "skip_to_human"
 
+    # high score
     if final_score >= 0.9:
-        ac = state.get("acceptance_criteria") or state.get("existing_ac") or []
-        valid_ac = [a for a in ac if is_testable_ac(a)]
-        ratio = len(valid_ac) / max(len(ac), 1)
-
         if ratio >= 0.7 and len(valid_ac) >= 2:
             print(f"[{jira_id}] [SKIP] High quality story + AC")
             return "skip_to_human"
-        else:
-            print(f"[{jira_id}] [REFINE] High score but weak AC (ratio={ratio:.2f})")
-            state["refine_ac_only"] = True
-            return "refine"
 
-    ac = state.get("acceptance_criteria") or state.get("existing_ac") or []
+        print(f"[{jira_id}] [REFINE] High score but weak AC (ratio={ratio:.2f})")
+        state["refine_ac_only"] = True
+        return "refine"
+
+    # AC evaluation
     story = (
         state.get("improved_story")
         if state.get("is_reanalysis")
@@ -71,35 +79,45 @@ def should_refine(state: dict) -> str:
     print(f"[{jira_id}] [SKIP] Acceptable quality")
     return "skip_to_human"
 
-
 # =========================
 # RETRY DECISION
 # =========================
 def should_retry(state: dict) -> str:
+    if state.get("current_step") == "job_completed":    
+        return state
     jira_id = state.get("jira_id", "?")
 
-    score = state.get("final_score", 0.0)
-    delta = state.get("delta", 0.0)
+    score = float(state.get("final_score", 0.0) or 0.0)
+    delta = float(state.get("delta", 0.0) or 0.0)
     iteration = state.get("iteration", 0)
     llm_failures = state.get("consecutive_llm_failures", 0)
 
     print(f"[{jira_id}] [RETRY CHECK] score={score} delta={delta} iter={iteration} llm_fail={llm_failures}")
 
-    # helper pour éviter duplication
     def complete_job():
+        state["current_step"] = "job_completed"
+
         safe_publish(state, "job_completed", {
             "story_id": jira_id,
-            "score": state.get("final_score"),
-            "iteration": state.get("iteration")
+            "score": score,
+            "iteration": iteration
         })
 
-    # 1. STOP — HIGH QUALITY + good AC
+        state.setdefault("events", []).append({
+            "step": "job_completed"
+        })
+
+    if llm_failures >= 2:
+        print(f"[{jira_id}] [STOP] Too many LLM failures")
+        complete_job()
+        return "alert"
+
     if score >= 0.9:
         ac = state.get("acceptance_criteria") or []
         valid = [a for a in ac if is_testable_ac(a)]
 
         if len(valid) < 2 and iteration < MAX_ITER:
-            print(f"[{jira_id}] [RETRY] High score but no valid AC")
+            print(f"[{jira_id}] [RETRY] High score but weak AC")
             state["refine_ac_only"] = True
             return "retry"
 
@@ -107,7 +125,6 @@ def should_retry(state: dict) -> str:
         complete_job()
         return "end"
 
-    # 2. STOP — NO IMPROVEMENT
     if iteration > 0 and abs(delta) <= 0.01:
         if score < 0.8 and iteration < MAX_ITER:
             print(f"[{jira_id}] [RETRY] Low score + no improvement → retry")
@@ -117,18 +134,10 @@ def should_retry(state: dict) -> str:
         complete_job()
         return "end"
 
-    # 3. STOP — MAX ITER
     if iteration >= MAX_ITER:
         print(f"[{jira_id}] [STOP] Max iterations reached")
         complete_job()
         return "end"
 
-    # 4. STOP — LLM FAIL LOOP
-    if llm_failures >= 2:
-        print(f"[{jira_id}] [STOP] Too many LLM failures")
-        complete_job()
-        return "alert"
-
-    # 5. CONTINUE
     print(f"[{jira_id}] [RETRY] Continue refinement")
     return "retry"
