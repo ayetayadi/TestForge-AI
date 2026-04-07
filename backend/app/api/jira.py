@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.jira_connection import JiraConnection
 from app.models.user import User
-from app.schemas.jira import JiraProject, JiraStatusResponse
+from app.schemas.jira_schema import JiraProject, JiraStatusResponse
 from app.services.jira_service import (
     exchange_code_for_token,
     fetch_jira_projects,

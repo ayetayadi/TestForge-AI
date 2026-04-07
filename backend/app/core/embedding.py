@@ -1,3 +1,4 @@
+import redis
 import hashlib
 import numpy as np
 from typing import Optional
@@ -115,7 +116,6 @@ def _get_redis():
     
     if _redis_client is None:
         try:
-            import redis
             _redis_client = redis.Redis(
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
@@ -246,6 +246,7 @@ def get_cache_stats() -> dict:
     redis = _get_redis()
     if redis is not None:
         try:
+            #redis.scan_iter("embed:*")  # Test de disponibilité plus léger que keys()
             keys = redis.keys("embed:*")
             info = redis.info("memory")
             stats["redis"] = {
