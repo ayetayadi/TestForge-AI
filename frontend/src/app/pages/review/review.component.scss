@@ -106,23 +106,6 @@ $transition: 0.15s ease;
     padding: 4px 10px;
     border-radius: 20px;
   }
-  
-  .viewing-old {
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: #d97706;
-    background: #fffbeb;
-    padding: 4px 10px;
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    
-    &::before {
-      content: "⚠️";
-      font-size: 0.65rem;
-    }
-  }
 }
 
 // ============================================
@@ -191,9 +174,9 @@ $transition: 0.15s ease;
     border-color: #10b981;
   }
   
-  &.latest {
-    border-color: #6366f1;
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  &.best {
+    border-color: #fbbf24;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
   }
 }
 
@@ -212,60 +195,13 @@ $transition: 0.15s ease;
   color: #1f2937;
 }
 
-.selected-badge, .latest-badge .best-badge {
+.selected-badge {
   font-size: 0.6rem;
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 10px;
-}
-
-.selected-badge {
   background: #d1fae5;
   color: #059669;
-}
-
-.latest-badge {
-  background: #e0e7ff;
-  color: #4f46e5;
-}
-
-.best-badge {
-  background: #e0e7ff;
-  color: #ffbd08;
-}
-
-// ============================================
-// VERSION CARD ENHANCEMENTS
-// ============================================
-
-.select-hint {
-  font-size: 0.65rem;
-  font-weight: normal;
-  color: #6366f1;
-  margin-left: 8px;
-  
-  &::before {
-    content: "💡";
-    margin-right: 4px;
-    font-size: 0.6rem;
-  }
-}
-
-.version-card {
-  position: relative;
-  
-  // Version avec le meilleur score
-  &.best {
-    border-color: #fbbf24;
-    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-  }
-  
-  // Version sélectionnée
-  &.selected {
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    border-color: #10b981;
-    position: relative;
-  }
 }
 
 .best-badge {
@@ -278,6 +214,19 @@ $transition: 0.15s ease;
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+
+.select-hint {
+  font-size: 0.65rem;
+  font-weight: normal;
+  color: #6366f1;
+  margin-left: 8px;
+  
+  &::before {
+    content: "💡";
+    margin-right: 4px;
+    font-size: 0.6rem;
+  }
 }
 
 .version-selection-notice {
@@ -307,22 +256,6 @@ $transition: 0.15s ease;
     font-weight: 700;
   }
 }
-
-.version-score {
-  margin: 10px 0;
-}
-
-.version-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.6rem;
-  color: #9ca3af;
-  margin-top: 8px;
-}
-
-// ============================================
-// NOTICES
-// ============================================
 
 .old-version-notice {
   display: flex;
@@ -378,14 +311,6 @@ $transition: 0.15s ease;
     span { color: #065f46; }
   }
   
-  &.rejected {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    
-    svg { color: #6b7280; }
-    span { color: #374151; }
-  }
-  
   svg {
     width: 20px;
     height: 20px;
@@ -399,9 +324,6 @@ $transition: 0.15s ease;
   }
 }
 
-// ============================================
-// SCORE SUMMARY CARD
-// ============================================
 // ============================================
 // SCORE SUMMARY CARD
 // ============================================
@@ -431,7 +353,7 @@ $transition: 0.15s ease;
 
 .score-label {
   display: block;
-  font-size: 0.7rem;      // Taille: 11.2px
+  font-size: 0.7rem;
   font-weight: 600;
   color: #6b7280;
   margin-bottom: 8px;
@@ -457,14 +379,14 @@ $transition: 0.15s ease;
 }
 
 .score-value {
-  font-size: 2rem;        // Taille: 32px
+  font-size: 2rem;
   font-weight: 800;
   color: #111827;
   line-height: 1;
 }
 
 .score-max {
-  font-size: 0.8rem;      // Taille: 12.8px
+  font-size: 0.8rem;
   color: #9ca3af;
   font-weight: 500;
 }
@@ -495,9 +417,7 @@ $transition: 0.15s ease;
   text-align: center;
   padding: 12px 18px;
   border-radius: $radius;
-  min-width: 90px;        // Largeur fixe pour alignement
-  
-  // Structure verticale alignée avec score-item
+  min-width: 90px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -520,7 +440,7 @@ $transition: 0.15s ease;
 
 .delta-value {
   display: block;
-  font-size: 1.75rem;     // Taille: 28px (légèrement plus petit que score-value 32px)
+  font-size: 1.75rem;
   font-weight: 800;
   line-height: 1.2;
   margin-bottom: 4px;
@@ -528,7 +448,7 @@ $transition: 0.15s ease;
 
 .delta-label {
   display: block;
-  font-size: 0.7rem;      // Taille: 11.2px (IDENTIQUE à score-label)
+  font-size: 0.7rem;
   font-weight: 600;
   color: #6b7280;
   text-transform: uppercase;
@@ -542,7 +462,7 @@ $transition: 0.15s ease;
   padding: 8px 16px;
   background: #f3f4f6;
   border-radius: 40px;
-  font-size: 0.7rem;      // Taille: 11.2px
+  font-size: 0.7rem;
   font-weight: 500;
   color: #4b5563;
   white-space: nowrap;
@@ -551,6 +471,168 @@ $transition: 0.15s ease;
     width: 14px;
     height: 14px;
     color: #6366f1;
+  }
+}
+
+// ============================================
+// TESTABILITY CARD
+// ============================================
+
+.testability-card {
+  padding: 20px;
+  background: white;
+  border-radius: $radius;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 24px;
+  
+  @media (max-width: 768px) {
+    padding: 16px;
+  }
+}
+
+.testability-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.testability-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1f2937;
+  
+  svg {
+    width: 18px;
+    height: 18px;
+    color: #6366f1;
+  }
+}
+
+.testability-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  
+  &.good {
+    background: #d1fae5;
+    color: #059669;
+    
+    &::before {
+      content: "✓";
+      margin-right: 4px;
+      font-weight: 700;
+    }
+  }
+  
+  &.bad {
+    background: #fee2e2;
+    color: #dc2626;
+    
+    &::before {
+      content: "⚠";
+      margin-right: 4px;
+      font-weight: 700;
+    }
+  }
+}
+
+.testability-score {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: $radius;
+  
+  .score-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1;
+  }
+  
+  .score-max {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    font-weight: 500;
+  }
+}
+
+.testability-issues {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #fef2f2;
+  border-radius: $radius;
+  border-left: 3px solid #dc2626;
+  
+  h4 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #991b1b;
+    margin: 0 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    
+    li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: #7f1d1d;
+      line-height: 1.5;
+      padding: 6px 0;
+      
+      svg {
+        width: 14px;
+        height: 14px;
+        color: #dc2626;
+        flex-shrink: 0;
+      }
+      
+      &:not(:last-child) {
+        border-bottom: 1px solid #fecaca;
+      }
+    }
+  }
+}
+
+.testability-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #ecfdf5;
+  border-radius: $radius;
+  border-left: 3px solid #10b981;
+  
+  svg {
+    width: 18px;
+    height: 18px;
+    color: #10b981;
+    flex-shrink: 0;
+  }
+  
+  span {
+    font-size: 0.75rem;
+    color: #065f46;
+    line-height: 1.4;
   }
 }
 
@@ -1012,8 +1094,11 @@ $transition: 0.15s ease;
 // ============================================
 // LOADING & STATES
 // ============================================
+// ============================================
+// LOADING & STATES
+// ============================================
 
-.loading-container, .error-container, .processing-container {
+.loading-container, .error-container, .processing-container, .relaunch-container {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1021,7 +1106,7 @@ $transition: 0.15s ease;
   padding: 48px 24px;
 }
 
-.error-card, .processing-card {
+.error-card, .processing-card, .relaunch-card {
   text-align: center;
   padding: 40px 32px;
   background: white;
@@ -1034,6 +1119,7 @@ $transition: 0.15s ease;
     width: 40px;
     height: 40px;
     margin-bottom: 16px;
+    color: #ef4444;
   }
   
   h3 {
@@ -1050,83 +1136,23 @@ $transition: 0.15s ease;
   }
 }
 
-.processing-steps {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #f3f4f6;
-}
-
-.step {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: #d1d5db;
-  
-  &.active {
-    color: #6366f1;
-    
-    &::before {
-      background: #6366f1;
-      animation: blink 1.2s ease-in-out infinite;
-    }
-  }
-  
-  &.done {
-    color: #10b981;
-    
-    &::before {
-      background: #10b981;
-    }
-  }
-  
-  &::before {
-    content: '';
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    background: #d1d5db;
-    border-radius: 50%;
-    margin-right: 6px;
-  }
-}
-
-.step-arrow {
-  color: #e5e7eb;
-  font-size: 0.7rem;
-}
-
-// ============================================
-// RELAUNCH STATE
-// ============================================
-
-.relaunch-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  padding: 48px 24px;
-}
-
 .relaunch-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: $radius;
-  padding: 40px 32px;
-  max-width: 420px;
-  width: 100%;
+  svg {
+    color: #6366f1;
+  }
   
-  h3 {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #1f2937;
-    margin: 16px 0 8px;
+  .relaunch-phase {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6366f1;
+    margin: 0 0 8px;
+    min-height: 1.3em;
+  }
+  
+  .relaunch-hint {
+    font-size: 0.7rem;
+    color: #6b7280;
+    margin: 0 0 24px;
   }
 }
 
@@ -1134,23 +1160,10 @@ $transition: 0.15s ease;
   margin-bottom: 4px;
 }
 
-.relaunch-phase {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #6366f1;
-  margin: 0 0 8px;
-  min-height: 1.3em;
-}
-
-.relaunch-hint {
-  font-size: 0.7rem;
-  color: #6b7280;
-  margin: 0 0 24px;
-}
-
 .relaunch-steps {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   padding-top: 20px;
   border-top: 1px solid #f3f4f6;
@@ -1184,6 +1197,91 @@ $transition: 0.15s ease;
 .relaunch-step-arrow {
   color: #e5e7eb;
   font-size: 0.7rem;
+}
+
+// ============================================
+// PROCESSING STEPS - CENTRÉ
+// ============================================
+
+.processing-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.step-item {
+  display: inline-flex;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #d1d5db;
+  white-space: nowrap;
+  
+  &.active {
+    color: #6366f1;
+    
+    &::before {
+      background: #6366f1;
+      animation: blink 1.2s ease-in-out infinite;
+    }
+  }
+  
+  &.done {
+    color: #10b981;
+    
+    &::before {
+      background: #10b981;
+    }
+  }
+  
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: #d1d5db;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+}
+
+.step-arrow {
+  color: #e5e7eb;
+  font-size: 0.7rem;
+  margin: 0 4px;
+}
+
+// ============================================
+// RESPONSIVE
+// ============================================
+
+@media (max-width: 480px) {
+  .processing-steps {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .step-arrow {
+    display: none;
+  }
+  
+  .step-item {
+    flex: 1;
+    min-width: 80px;
+  }
+  
+  .step {
+    justify-content: center;
+    width: 100%;
+  }
 }
 
 // ============================================
@@ -1291,5 +1389,9 @@ $transition: 0.15s ease;
   
   .decision-btn {
     padding: 16px 12px;
+  }
+  
+  .testability-score .score-value {
+    font-size: 1.5rem;
   }
 }

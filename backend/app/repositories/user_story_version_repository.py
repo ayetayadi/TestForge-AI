@@ -78,7 +78,10 @@ async def create_version(
     duration,
     model_used,
     prompt_tokens,
-    completion_tokens
+    completion_tokens,
+    testability_score,
+    is_testable,
+    testability_issues,
 ):
 
 
@@ -96,6 +99,9 @@ async def create_version(
         model_used=model_used,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
+        testability_score=testability_score,
+        is_testable=is_testable,
+        testability_issues=testability_issues,
 
     )
 
