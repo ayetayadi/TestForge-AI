@@ -9,12 +9,6 @@ fake_users = [
         "username": "admin",
         "hashed_password": hash_password("change-me-123"),
         "is_admin": True,
-    },
-    {
-        "id": "user-1",
-        "email": "test@test.com",
-        "username": "test",
-        "hashed_password": hash_password("test123"),
-        "is_admin": False,
+        "is_active" : True
     }
 ]

@@ -1,15 +1,11 @@
 from datetime import datetime
 import uuid
 from typing import List, Optional
-
-from sqlalchemy import DateTime, String, Text, Float, ForeignKey, Enum as SqlEnum
+from sqlalchemy import DateTime, String, Text, Float, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
-
 from app.core.database import Base
-from app.models.enums import StoryDecision
-
 
 class UserStory(Base):
     __tablename__ = "user_stories"
@@ -27,11 +23,7 @@ class UserStory(Base):
         index=True
     )
 
-    issue_key: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-        index=True
-    )
+    issue_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
@@ -42,9 +34,12 @@ class UserStory(Base):
         server_default="[]"
     )
 
+    # =========================
+    # JIRA DATA
+    # =========================
     issue_type: Mapped[Optional[str]] = mapped_column(String(50))
     priority: Mapped[Optional[str]] = mapped_column(String(50))
-    status: Mapped[Optional[str]] = mapped_column(String(50))
+    jira_status: Mapped[Optional[str]] = mapped_column(String(50))
     story_points: Mapped[Optional[float]] = mapped_column(Float)
 
     assignee: Mapped[Optional[str]] = mapped_column(String(200))
@@ -53,29 +48,15 @@ class UserStory(Base):
     epic_key: Mapped[Optional[str]] = mapped_column(String(100))
     sprint: Mapped[Optional[str]] = mapped_column(String(200))
 
-    labels: Mapped[List[str]] = mapped_column(
-        JSONB,
-        default=lambda: [],
-        server_default="[]"
-    )
-
-    components: Mapped[List[str]] = mapped_column(
-        JSONB,
-        default=lambda: [],
-        server_default="[]"
-    )
+    labels: Mapped[List[str]] = mapped_column(JSONB, default=lambda: [], server_default="[]")
+    components: Mapped[List[str]] = mapped_column(JSONB, default=lambda: [], server_default="[]")
 
     fix_version: Mapped[Optional[str]] = mapped_column(String(100))
 
     # =========================
-    # DECISION
+    # PIPELINE STATE
     # =========================
-
-    decision_status: Mapped[StoryDecision] = mapped_column(
-        SqlEnum(StoryDecision),
-        default=StoryDecision.PENDING,
-        nullable=False
-    )
+    current_score: Mapped[Optional[float]] = mapped_column(Float)
 
     jira_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     jira_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -92,6 +73,7 @@ class UserStory(Base):
         onupdate=func.now(),
         nullable=False
     )
+
     # =========================
     # RELATIONS
     # =========================

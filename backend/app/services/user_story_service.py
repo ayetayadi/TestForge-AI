@@ -10,6 +10,7 @@ from app.repositories.user_story_repository import (
 )
 from app.repositories.user_story_version_repository import get_latest_version, get_selected_version, get_versions_by_story_id, get_versions_by_story_ids
 from app.utils.mapper_utils import map_jira_issue
+from app.models.enums import StoryDecision
 
 
 # =========================
@@ -24,7 +25,7 @@ def _story_to_dict(story):
         "description": story.description,
         "acceptance_criteria": story.acceptance_criteria or [],
         "issue_type": story.issue_type,
-        "status": story.status,
+        "status": story.jira_status,
         "priority": story.priority,
         "story_points": story.story_points,
         "assignee": story.assignee,
@@ -36,19 +37,25 @@ def _story_to_dict(story):
         "fix_version": story.fix_version,
     }
 
+
 def _version_to_dict(version):
+    if not version:
+        return None
     return {
         "id": version.id,
+        "user_story_id": version.user_story_id,
+        "job_id": version.job_id,
         "improved_story": version.improved_story,
-        "acceptance_criteria": version.acceptance_criteria or [],
+        "generated_acceptance_criteria": version.generated_acceptance_criteria or [],
         "initial_score": version.initial_score,
         "final_score": version.final_score,
         "iteration": version.iteration,
         "llm_calls": version.llm_calls,
         "duration": version.duration,
-        "job_id": version.job_id,
-        "is_selected": version.is_selected,
+        "created_at": version.created_at.isoformat() if version.created_at else None,
+        "decision_status": version.decision_status.value if version.decision_status else "pending",
     }
+
 
 async def _enrich_with_versions(db: AsyncSession, stories):
     if not stories:
@@ -68,16 +75,19 @@ async def _enrich_with_versions(db: AsyncSession, stories):
         story_versions = versions_map.get(story.id, [])
 
         # =========================
-        # SELECTED (is_selected)
+        # SELECTED (approved)
         # =========================
-        selected = next((v for v in story_versions if v.is_selected), None)
+        selected = next(
+            (v for v in story_versions if v.decision_status == StoryDecision.APPROVED),
+            None
+        )
 
         # =========================
         # LATEST
         # =========================
         latest = None
         if story_versions:
-            latest = max(story_versions, key=lambda v: v.iteration)
+            latest = max(story_versions, key=lambda v: (v.iteration or 0, v.created_at.timestamp() if v.created_at else 0))
 
         # =========================
         # DISPLAY
@@ -86,16 +96,14 @@ async def _enrich_with_versions(db: AsyncSession, stories):
 
         result.append({
             **_story_to_dict(story),
-            "decision_status": story.decision_status,
-
-            "selected_version": _version_to_dict(selected) if selected else None,
-            "latest_version": _version_to_dict(latest) if latest else None,
-            "display_version": _version_to_dict(display) if display else None,
-
-            "versions": [_version_to_dict(v) for v in story_versions]
+            "selected_version": _version_to_dict(selected),
+            "latest_version": _version_to_dict(latest),
+            "display_version": _version_to_dict(display),
+            "versions": [_version_to_dict(v) for v in story_versions],
         })
 
     return result
+
 
 # =========================
 # LIST
@@ -108,6 +116,7 @@ async def list_stories(db: AsyncSession):
 async def list_stories_by_project(db: AsyncSession, project_id: str):
     stories = await get_user_stories_by_project_id(db, project_id)
     return await _enrich_with_versions(db, stories)
+
 
 # =========================
 # DETAILS
@@ -160,7 +169,6 @@ async def import_project_stories(
             count += 1
 
         except Exception as e:
-            await db.rollback()
             print(f"[CREATE STORY ERROR] {issue.get('key')}: {e}")
             skipped += 1
 
@@ -182,46 +190,6 @@ async def get_story_by_issue_key(db: AsyncSession, issue_key: str):
     if not user_story:
         raise ValueError("User story not found")
 
-    # =========================
-    # FETCH DATA (repo)
-    # =========================
-    versions = await get_versions_by_story_id(db, user_story.id)
-    selected = await get_selected_version(db, user_story.id)
-    latest = await get_latest_version(db, user_story.id)
-
-    # =========================
-    # DISPLAY VERSION
-    # =========================
-    display = selected or latest
-
-    return {
-        "id": user_story.id,
-        "issue_key": user_story.issue_key,
-        "project_id": user_story.project_id,
-
-        # RAW
-        "title": user_story.title,
-        "description": user_story.description,
-        "acceptance_criteria": user_story.acceptance_criteria or [],
-
-        # META
-        "issue_type": user_story.issue_type,
-        "status": user_story.status,
-        "priority": user_story.priority,
-        "story_points": user_story.story_points,
-        "assignee": user_story.assignee,
-        "reporter": user_story.reporter,
-        "epic_key": user_story.epic_key,
-        "sprint": user_story.sprint,
-        "labels": user_story.labels or [],
-        "components": user_story.components or [],
-        "fix_version": user_story.fix_version,
-
-        # VERSIONS
-        "versions": [_version_to_dict(v) for v in versions],
-
-        # VERSIONS LOGIC
-        "selected_version": _version_to_dict(selected) if selected else None,
-        "latest_version": _version_to_dict(latest) if latest else None,
-        "display_version": _version_to_dict(display) if display else None,
-    }
+    # Réutiliser _enrich_with_versions pour la cohérence
+    enriched = await _enrich_with_versions(db, [user_story])
+    return enriched[0]

@@ -35,23 +35,15 @@ class Job(Base):
         nullable=False
     )
 
-    phase: Mapped[Optional[JobPhase]] = mapped_column(
-        SqlEnum(JobPhase),
-        nullable=True
-    )
-
+    phase: Mapped[Optional[JobPhase]] = mapped_column(SqlEnum(JobPhase))
     iteration: Mapped[int] = mapped_column(default=0)
-
+    
     initial_score: Mapped[Optional[float]] = mapped_column(Float)
     final_score: Mapped[Optional[float]] = mapped_column(Float)
 
     error: Mapped[Optional[str]] = mapped_column(Text)
 
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        server_default=func.now()
-    )
-
+    started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # =========================

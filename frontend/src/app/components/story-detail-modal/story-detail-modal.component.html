@@ -34,16 +34,18 @@
             <!-- AFTER / AI -->
             <div class="score-pair">
               <span class="score-label">
-                @if (isKeptOriginal()) {
-                  AI Suggestion
-                } @else {
+                @if (isApproved()) {
                   After
+                } @else if (isRejected()) {
+                  Kept Original
+                } @else {
+                  AI Suggestion
                 }
               </span>
         
               <app-score-badge
                 [score]="version.final_score"
-                [delta]="version.score_delta"
+                [delta]="(version.final_score) - (version.initial_score)"
               />
             </div>
         
@@ -51,8 +53,8 @@
             @if (isApproved()) {
               <span class="outcome-badge approved">Approved</span>
         
-            } @else if (isKeptOriginal()) {
-              <span class="outcome-badge kept">Kept Original</span>
+            } @else if (isRejected()) {
+              <span class="outcome-badge rejected">Kept Original</span>
         
             } @else {
               <span class="outcome-badge pending">Pending Review</span>
@@ -189,22 +191,24 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" (click)="closeModal()">Close</button>
         @if (!hasVersion()) {
-          <button class="btn btn-primary" (click)="onRunPipeline()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
-            </svg>
-            Run AI Pipeline
-          </button>
-        } @else {
-          <button class="btn btn-secondary" (click)="onRerunPipeline()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
-            </svg>
-            Re-run Pipeline
-          </button>
-        }
+            <button class="btn btn-primary" (click)="onRunPipeline()">
+              Run AI Pipeline
+            </button>
+          
+          } @else if (isRejected()) {
+          
+            <button class="btn btn-warning" (click)="onRerunPipeline()">
+              Improve Again
+            </button>
+          
+          } @else {
+          
+            <button class="btn btn-secondary" (click)="onRerunPipeline()">
+              Re-run Pipeline
+            </button>
+          
+          }
       </div>
-
     </div>
   </div>
 }

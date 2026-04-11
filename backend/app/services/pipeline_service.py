@@ -1,10 +1,11 @@
 from typing import List, Dict, Optional
 from sqlalchemy import select
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user_story import UserStory
 from app.repositories.user_story_repository import (
-    get_user_stories_by_project,
+    get_user_stories_by_project_id,
     count_user_stories_by_project,
 )
 from app.repositories.project_repository import get_project_by_id
@@ -40,6 +41,9 @@ async def run_pipeline(
 
     validate_input(issue_keys, project_id)
 
+    # normalize
+    issue_keys = list(dict.fromkeys(issue_keys)) if issue_keys else None
+
     # LOAD STORIES
     if issue_keys:
         result = await db.execute(
@@ -54,7 +58,7 @@ async def run_pipeline(
         await validate_project_exists(db, project_id)
         await validate_project_has_stories(db, project_id)
 
-        user_stories = await get_user_stories_by_project(db, project_id)
+        user_stories = await get_user_stories_by_project_id(db, project_id)
 
     if not user_stories:
         raise ValueError("No stories found")
@@ -64,15 +68,17 @@ async def run_pipeline(
 
     jobs = []
     skipped = []
+    states = []
 
     try:
-        states = []
-
         for us in user_stories:
             try:
                 job_id, state = await start_job(db, us)
-            except ValueError:
-                skipped.append(us.issue_key)
+            except ValueError as e:
+                skipped.append({
+                    "issue_key": us.issue_key,
+                    "reason": str(e)
+                })
                 continue
 
             states.append(state)
@@ -84,14 +90,17 @@ async def run_pipeline(
 
         await db.commit()
 
-        for state in states:
-            await submit_job(state)
-
     except Exception:
         await db.rollback()
         raise
 
+    # async execution (hors transaction)
+    await asyncio.gather(*[
+        submit_job(state) for state in states
+    ], return_exceptions=True)
+
     return {
+        "total_requests": len(user_stories),
         "total_jobs": len(jobs),
         "skipped": skipped,
         "jobs": jobs,

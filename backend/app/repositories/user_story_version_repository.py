@@ -1,7 +1,7 @@
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user_story_version import UserStoryVersion
-
+from app.models.enums import StoryDecision
 
 async def get_version_by_id(
     db: AsyncSession,
@@ -14,11 +14,11 @@ async def get_version_by_id(
     )
     return result.scalar_one_or_none()
 
-async def get_versions_by_story_id(db, story_id: str):
+async def get_versions_by_story_id(db: AsyncSession, story_id: str):
     result = await db.execute(
-        select(UserStoryVersion).where(
-            UserStoryVersion.user_story_id == story_id
-        )
+        select(UserStoryVersion)
+        .where(UserStoryVersion.user_story_id == story_id)
+        .order_by(UserStoryVersion.created_at.asc())
     )
     return result.scalars().all()
 
@@ -35,37 +35,36 @@ async def get_versions_by_story_ids(db: AsyncSession, story_ids: list[str]):
 
 async def get_selected_version(db: AsyncSession, story_id: str):
     result = await db.execute(
-        select(UserStoryVersion).where(
-            UserStoryVersion.user_story_id == story_id,
-            UserStoryVersion.is_selected == True
-        )
-    )
-    return result.scalar_one_or_none()
-
-
-async def get_latest_version(db: AsyncSession, story_id: str):
-    result = await db.execute(
         select(UserStoryVersion)
-        .where(UserStoryVersion.user_story_id == story_id)
+        .where(
+            UserStoryVersion.user_story_id == story_id,
+            UserStoryVersion.decision_status == StoryDecision.APPROVED
+        )
         .order_by(desc(UserStoryVersion.created_at))
         .limit(1)
     )
     return result.scalar_one_or_none()
 
-
-async def reset_selected_versions(db: AsyncSession, story_id: str):
+async def get_latest_version(db: AsyncSession, story_id: str):
     result = await db.execute(
-        select(UserStoryVersion).where(
-            UserStoryVersion.user_story_id == story_id
+        select(UserStoryVersion)
+        .where(UserStoryVersion.user_story_id == story_id)
+        .order_by(
+            desc(UserStoryVersion.iteration),
+            desc(UserStoryVersion.created_at)
         )
+        .limit(1)
     )
-    versions = result.scalars().all()
+    return result.scalar_one_or_none()
 
-    for v in versions:
-        v.is_selected = False
+async def get_best_version(db, user_story_id: str):
+    result = await db.execute(
+        select(UserStoryVersion)
+        .where(UserStoryVersion.user_story_id == user_story_id)
+        .order_by(desc(UserStoryVersion.final_score))
+    )
+    return result.scalars().first()
 
-
-# CRITICAL FIX
 async def create_version(
     db: AsyncSession,
     user_story_id: str,
@@ -76,47 +75,32 @@ async def create_version(
     final_score,
     iteration,
     llm_calls,
-    duration
+    duration,
+    model_used,
+    prompt_tokens,
+    completion_tokens
 ):
-    # 1️⃣ éviter doublon par job
-    existing = await db.execute(
-        select(UserStoryVersion).where(
-            UserStoryVersion.job_id == job_id
-        )
-    )
-    existing_version = existing.scalar_one_or_none()
 
-    if existing_version:
-        return existing_version
 
-    # 2️⃣ éviter duplication réelle (même contenu)
-    duplicate = await db.execute(
-        select(UserStoryVersion).where(
-            UserStoryVersion.user_story_id == user_story_id,
-            UserStoryVersion.improved_story == improved_story
-        )
-    )
-    duplicate_version = duplicate.scalar_one_or_none()
-
-    if duplicate_version:
-        return duplicate_version
-
-    # 3️⃣ créer version
+    # 2 créer version
     version = UserStoryVersion(
         user_story_id=user_story_id,
         job_id=job_id,
         improved_story=improved_story,
-        acceptance_criteria=acceptance_criteria,
+        generated_acceptance_criteria=acceptance_criteria,
         initial_score=initial_score,
         final_score=final_score,
         iteration=iteration,
         llm_calls=llm_calls,
         duration=duration,
+        model_used=model_used,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+
     )
 
     db.add(version)
 
-    # ⚠️ flush pour récupérer ID sans commit global
     await db.flush()
 
     return version
