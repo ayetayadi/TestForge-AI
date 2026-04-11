@@ -9,7 +9,7 @@ from app.ai_agents.user_stories.graph import build_graph
 from app.utils.pipeline_utils import add_trace
 from app.ai_agents.user_stories.utils.text_quality_utils import clean_raw_story
 from app.ai_agents.user_stories.services.publishing_service import publishing_service
-
+from app.ai_agents.user_stories.utils.testability_utils import compute_testability
 
 graph_pipeline = build_graph()
 
@@ -126,6 +126,21 @@ async def run_user_story_pipeline(state: dict) -> dict:
         "final": final,
         "duration": duration
     })
+
+    # =========================
+    # TESTABILITY COMPUTATION
+    # =========================
+    story = result.get("raw_story")
+    ac = result.get("acceptance_criteria", [])
+    
+    testability = compute_testability(
+        story=story,
+        acceptance_criteria=ac
+    )
+    
+    result["testability_score"] = testability["score"]
+    result["is_testable"] = testability["is_testable"]
+    result["testability_issues"] = testability["issues"]
 
     # ============================================================
     # LANGSMITH — METADATA FINALE

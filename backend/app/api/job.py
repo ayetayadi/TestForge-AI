@@ -45,11 +45,7 @@ async def get_job_state(job_id: str, db: AsyncSession = Depends(get_db)):
 
     if not job:
         raise HTTPException(404, "Job not found")
-
-    # 1️⃣ version du job (run courant)
     latest = _get_latest_version(job)
-
-    # 2️⃣ 🔥 fallback vers version globale (cas REUSED)
     if not latest:
         latest = await get_latest_version(db, job.user_story_id)
 
@@ -76,6 +72,9 @@ async def get_job_state(job_id: str, db: AsyncSession = Depends(get_db)):
         "generated_acceptance_criteria": latest.generated_acceptance_criteria if latest else [],
         "initial_score": latest.initial_score if latest else 0,
         "final_score": latest.final_score if latest else 0,
+        "testability_score": latest.testability_score if latest else None,
+        "is_testable": latest.is_testable if latest else None,
+        "testability_issues": latest.testability_issues if latest else [],
         "score_delta": (
             (latest.final_score - latest.initial_score)
             if latest and latest.initial_score is not None and latest.final_score is not None

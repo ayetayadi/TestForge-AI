@@ -7,7 +7,6 @@ import { Subscription } from 'rxjs';
 import { UserStory, UserStoryVersion, SSEEvent, PipelineResponse, StoryWithJob, StoryJob } from '../../models';
 import { StoriesService, PipelineService, SseService, ToastService, JobsService } from '../../services';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
-import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
 import { SearchBarComponent } from '../../components/search-bar/search-bar.component';
 import { FilterBarComponent, FilterGroup, ActiveFilters } from '../../components/filter-bar/filter-bar.component';
@@ -23,7 +22,6 @@ import { environment } from '../../../environments/environment';
     CommonModule,
     FormsModule,
     SpinnerComponent,
-    EmptyStateComponent,
     ScoreBadgeComponent,
     SearchBarComponent,
     FilterBarComponent,
