@@ -2,6 +2,7 @@ import time
 import copy
 import asyncio
 import logging
+import traceback
 from typing import Dict, Any
 from langsmith import get_current_run_tree, traceable
 
@@ -98,7 +99,8 @@ async def evaluate_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # ============================================================
     # SCORING
     # ============================================================
-    scores = await compute_all_scores(
+    try:
+        scores = await compute_all_scores(
         story=story,
         ac=ac,
         prompt=prompt,
@@ -110,8 +112,12 @@ async def evaluate_node(state: Dict[str, Any]) -> Dict[str, Any]:
         },
         state=state
     )
-
-    current_score = scores["final_score"]
+    except Exception as e:
+        print(f"[SCORING ERROR] {str(e)}")
+        traceback.print_exc()
+        raise e
+    
+    current_score = scores.get("final_score", 0.0)
 
     # ============================================================
     # PENALTY (SMART)
@@ -144,7 +150,7 @@ async def evaluate_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state["best_ac"] = ac
 
     print(f"\n[{jira_id}] ===== EVALUATE OUTPUT =====")
-    print(f"[{jira_id}] LLM SCORE: {scores['llm_score']}")
+    print(f"[{jira_id}] LLM SCORE: {scores.get('llm_score', 0.0)}")
     print(f"[{jira_id}] FINAL SCORE: {current_score}")
     print(f"[{jira_id}] DELTA: {improvement['delta']}")
     print(f"[{jira_id}] ============================\n")

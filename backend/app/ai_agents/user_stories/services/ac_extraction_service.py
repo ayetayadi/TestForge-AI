@@ -115,6 +115,12 @@ class ACExtractionService:
             original_story=original,
         )
 
+    @staticmethod
+    def safe_filter(original: List[str], filtered: List[str]) -> List[str]:
+        if len(filtered) < max(1, len(original) // 2):
+            return original
+        return filtered
+    
     # ============================================================
     # NORMALISATION + FILTRAGE (CRITIQUE)
     # ============================================================
@@ -124,6 +130,7 @@ class ACExtractionService:
     
         ac_list = ac_service.normalize(ac_list)
         ac_list = ac_service.deduplicate(ac_list)
+        original_ac = list(ac_list)
     
         cleaned = []
     
@@ -131,10 +138,10 @@ class ACExtractionService:
             if not ac:
                 continue
     
-            # 🔥 1. remove emojis
+            # 1. remove emojis
             ac = remove_emojis(ac).strip()
     
-            # 🔥 2. supprimer header inline (CRITIQUE)
+            # 2. supprimer header inline
             ac = re.sub(
                 r"^(crit[èe]res?\s+d['’]acceptation\s*[-:]*\s*)",
                 "",
@@ -149,10 +156,10 @@ class ACExtractionService:
                 flags=re.IGNORECASE
             )
     
-            # 🔥 3. nettoyer bullets
+            # 3. nettoyer bullets
             ac = ac.lstrip("-*• ").strip()
 
-            # 🔥 nettoyage structurel
+            # 4. nettoyage structurel
             ac = re.sub(r"\s*-\s*", " ", ac)  # supprime " - "
             ac = re.sub(r"\s+", " ", ac)     # normalise espaces
             ac = ac.strip()
@@ -168,17 +175,14 @@ class ACExtractionService:
                 continue
     
             # ❌ trop court
-            if len(lower.split()) < 2:
-                continue
+            #if len(lower.split()) < 2:
+            #    continue
         
-
-            if (
-                "en tant que" in lower
-                or "as a " in lower
-                or ("je veux" in lower and "afin de" in lower)
-                or ("i want" in lower and "so that" in lower)
-            ):
-                continue
+            # juste ignorer si c’est EXACTEMENT une user story
+            if lower.startswith("en tant que") or lower.startswith("as a "):
+                # skip uniquement si c’est une vraie user story complète
+                if "afin de" in lower or "so that" in lower:
+                    continue
     
             # ❌ bruit simple
             if lower in {"ok", "done", "validé"}:
@@ -189,7 +193,12 @@ class ACExtractionService:
                 continue
     
             cleaned.append(ac)
-    
+
+        cleaned = self.safe_filter(original_ac, cleaned)
+        print("---- AC DEBUG ----")
+        print("Original:", len(original_ac))
+        print("After clean:", len(cleaned))
+
         return cleaned
    
     # ============================================================

@@ -32,26 +32,23 @@ export class JobsService {
   // DECISION
   // =========================
   sendDecision(
-    jobId: string,
-    decision: DecisionChoice,
-    versionId?: string
-  ): Observable<any> {
+  jobId: string,
+  decision: DecisionChoice,
+  versionId?: string
+): Observable<any> {
 
-    const body: any = {
-      decision
-    };
-
-    // ✔ version_id seulement pour approve
-    if (decision === 'approve') {
-      if (!versionId) {
-        throw new Error('versionId is required for approve');
-      }
-      body.version_id = versionId;
-    }
-
-    return this.http.post(
-      `${this.apiUrl}/jobs/${jobId}/decision`,
-      body
-    );
+  if (!versionId) {
+    throw new Error('versionId is required');
   }
+
+  const body = {
+    decision,
+    version_id: versionId
+  };
+
+  return this.http.post(
+    `${this.apiUrl}/jobs/${jobId}/decision`,
+    body
+  );
+}
 }

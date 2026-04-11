@@ -83,22 +83,20 @@ export class ReviewComponent implements OnInit, OnDestroy {
     
     // Dernière version disponible
     if (versions.length > 0) {
-      return versions[versions.length - 1];
+      return [...versions].sort((a,b) => (a.iteration ?? 0) - (b.iteration ?? 0)).at(-1);
     }
     
-    // Fallback: créer une version virtuelle depuis le state
-    if (state && state.improved_story) {
+    if (state && state.improved_story && state.version_id) {
       return {
-        id: state.version_id || 'virtual-' + state.job_id,
-        story_id: state.story_id || '',
+        id: state.version_id,
+        user_story_id: state.user_story_id || '',
         job_id: state.job_id,
         improved_story: state.improved_story,
-        acceptance_criteria: state.acceptance_criteria || [],
+        generated_acceptance_criteria: state.generated_acceptance_criteria || [],
         initial_score: state.initial_score || 0,
         final_score: state.final_score || 0,
-        score_delta: (state.final_score || 0) - (state.initial_score || 0),
         iteration: state.iteration || 0,
-        is_selected: false,
+        decision_status: 'pending',
       } as UserStoryVersion;
     }
     
@@ -142,7 +140,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
   hasFinalDecision = computed(() => {
     const s = this.state();
     const decision = s?.decision_status;
-    return decision === 'approved' || decision === 'rejected_keep';
+    return decision === 'approved';
   });
 
   /**
@@ -153,26 +151,17 @@ export class ReviewComponent implements OnInit, OnDestroy {
    * - Pas en train de relancer
    * - Pas déjà décidé dans cette session
    */
-  canMakeDecision = computed(() => {
-    const s = this.state();
-    
-    // Pas de state ou job pas terminé
-    if (!s || s.status !== 'completed') return false;
-    
-    // En train de relancer
-    if (this.relaunching()) return false;
-    
-    // Décision prise dans cette session
-    if (this.decisionMade()) return false;
-    
-    // Doit être sur la dernière version
-    // if (!this.isViewingLatestVersion()) return false;
-    
-    // Si décision finale déjà prise (approved ou rejected_keep)
-    if (this.hasFinalDecision()) return false;
-    
-    return true;
-  });
+canMakeDecision = computed(() => {
+  const s = this.state();
+  
+  if (!s || s.status !== 'completed') return false;
+  if (this.relaunching()) return false;
+  if (this.decisionMade()) return false;
+
+  const versionId = this.currentVersion()?.id;
+  if (!versionId) return false;  
+  return true;
+});
 
   bestVersion = computed(() => {
   const versions = this.allVersions();
@@ -192,7 +181,7 @@ isBest(version: UserStoryVersion): boolean {
    */
   selectedVersion = computed(() => {
     const versions = this.allVersions();
-    return versions.find(v => v.is_selected) ?? null;
+    return versions.find(v => v.decision_status === 'approved') ?? null;
   });
 
   /**
@@ -316,8 +305,8 @@ isBest(version: UserStoryVersion): boolean {
         }
 
         // Load all versions for this story
-        if (jobState.story_id) {
-          this.loadVersions(jobState.story_id);
+        if (jobState.user_story_id) {
+          this.loadVersions(jobState.user_story_id);
         } else {
           this.loading.set(false);
         }
@@ -359,14 +348,19 @@ isBest(version: UserStoryVersion): boolean {
     fetch(`${environment.apiUrl}/user-stories/${storyId}/versions`)
       .then(res => {
         if (!res.ok) {
+
           console.warn(`[VERSIONS] HTTP ${res.status}`);
           return [];
         }
         return res.json();
       })
-      .then((versions: UserStoryVersion[]) => {
-        console.log("[VERSIONS]", versions);
-        this.allVersions.set(versions || []);
+      .then((versions: any) => {
+        console.log("[VERSIONS RAW]", versions);
+        const data = Array.isArray(versions)
+          ? versions
+          : versions?.data || versions?.versions || [];
+        console.log("[VERSIONS FIXED]", data);
+        this.allVersions.set(data);
         this.loading.set(false);
       })
       .catch(err => {
@@ -431,7 +425,9 @@ isBest(version: UserStoryVersion): boolean {
   }
 
   getDelta(): number {
-    return this.currentVersion()?.score_delta ?? (this.getFinalScore() - this.getOriginalScore());
+    const v = this.currentVersion();
+    if (!v) return 0;
+    return (v.final_score ?? 0) - (v.initial_score ?? 0);
   }
 
   getIteration(): number {
@@ -451,32 +447,35 @@ isBest(version: UserStoryVersion): boolean {
     return this.parseAc(this.state()?.existing_ac);
   }
 
-  getImprovedAC(): string[] {
-    const version = this.currentVersion();
-    if (version?.acceptance_criteria) {
-      return version.acceptance_criteria;
-    }
-    return this.parseAc(this.state()?.acceptance_criteria);
+getImprovedAC(): string[] {
+  const version = this.currentVersion();
+  if (version?.generated_acceptance_criteria) {
+    return version.generated_acceptance_criteria;
+  }
+  return this.parseAc(this.state()?.generated_acceptance_criteria);
+}
+
+private parseAc(ac: string[] | string | undefined | null): string[] {
+  if (!ac) return [];
+
+  if (Array.isArray(ac)) {
+    return ac.filter(item => item && String(item).trim());
   }
 
-  private parseAc(ac: string[] | string | undefined | null): string[] {
-    if (!ac) return [];
+  if (typeof ac === 'string') {
+    try {
+      const parsed = JSON.parse(ac);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
 
-    if (Array.isArray(ac)) {
-      return ac.filter(item => item && String(item).trim());
-    }
-
-    if (typeof ac === 'string') {
-      try {
-        const parsed = JSON.parse(ac);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {}
-
-      return ac.split('\n').map(x => x.trim()).filter(Boolean);
-    }
-
-    return [];
+    return ac
+      .split('\n')
+      .map((x: string) => x.trim())
+      .filter(Boolean);
   }
+
+  return [];
+}
 
   // ─────────────────────────────────────────────
   // TRACE & HISTORY
@@ -511,11 +510,16 @@ isBest(version: UserStoryVersion): boolean {
   submitDecision(choice: DecisionChoice): void {
     if (!this.jobId || this.submitting() || !this.canMakeDecision()) return;
 
-    // On approuve/rejette la version actuellement affichée (doit être la dernière)
-    const versionId = this.currentVersion()?.id;
+    const versionId =  this.currentVersion()?.id;
+    console.log("🚨 VERSION SENT:", versionId);
+
+
+    if (!versionId) {
+      this.toastService.error("No valid version found. Please wait.");
+      return;
+    }
 
     this.submitting.set(true);
-
     this.jobsService.sendDecision(this.jobId, choice, versionId).subscribe({
       next: (res) => {
         this.submitting.set(false);
@@ -534,7 +538,7 @@ isBest(version: UserStoryVersion): boolean {
             break;
 
           case 'reject_keep':
-            this.toastService.info('Keeping original version');
+            this.toastService.info('Original version kept (AI suggestion rejected)');
             this.navigateToStories();
             break;
 
@@ -601,26 +605,30 @@ private handleRelaunch(res: any): void {
           case 'completed':
             this.cleanupSSE();
             this.relaunching.set(false);
-            this.jobsService.getJob(newJobId).subscribe(job => {
           
-              if (!job.has_new_version) {
-                this.toastService.info('Already optimal — no new version created');
-              } else {
-                this.toastService.success('New version created');
+            const hasNewVersion = event.data?.has_new_version;
+          
+            if (hasNewVersion) {
+              this.toastService.success('New version created');
+            } else {
+              this.toastService.info('Already optimal (no better version)');
+            }
+          
+            this.decisionMade.set(false);
+            this.viewingVersionId.set(null);
+          
+            this.loadJob(newJobId);
+          
+            setTimeout(() => {
+              const newState = this.state();
+              const storyId = newState?.user_story_id;
+          
+              if (storyId) {
+                this.loadVersions(storyId);
               }
-
-              this.viewingVersionId.set(null);
+            }, 600);
           
-              this.router.navigate(['/review', newJobId], {
-                queryParams: {
-                  projectId: this.navProjectId,
-                  projectName: this.navProjectName,
-                  issueKey: this.issueKey,
-                },
-                replaceUrl: true
-              });          
-            });
-            break;
+            break; 
           case 'failed':
             this.cleanupSSE();
             this.relaunching.set(false);

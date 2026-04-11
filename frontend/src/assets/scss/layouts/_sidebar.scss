@@ -5,6 +5,7 @@
   flex-shrink: 0;
   transition: width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: absolute;
+  z-index: 1 !important;
   overflow-x: hidden;
   border-right-width: 0;
 }

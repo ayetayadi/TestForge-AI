@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.repositories.job_repository import get_job_by_id, get_active_jobs
-from app.services.job_service import apply_decision, get_jobs_by_issue_keys_service
+from app.services.job_service import apply_decision, get_jobs_by_issue_keys
 from app.streaming.sse_manager import event_generator
+from app.repositories.user_story_version_repository import get_latest_version
 
 
 class DecisionRequest(BaseModel):
@@ -38,7 +39,6 @@ async def stream_job(request: Request, job_id: str):
         },
     )
 
-
 @router.get("/{job_id}")
 async def get_job_state(job_id: str, db: AsyncSession = Depends(get_db)):
     job = await get_job_by_id(db, job_id)
@@ -46,35 +46,34 @@ async def get_job_state(job_id: str, db: AsyncSession = Depends(get_db)):
     if not job:
         raise HTTPException(404, "Job not found")
 
-    # Récupérer la dernière version
+    # 1️⃣ version du job (run courant)
     latest = _get_latest_version(job)
-    
-    # Récupérer la story originale
+
+    # 2️⃣ 🔥 fallback vers version globale (cas REUSED)
+    if not latest:
+        latest = await get_latest_version(db, job.user_story_id)
+
     story = job.user_story
 
     return {
-        # Job info
         "job_id": job.id,
         "status": job.status.value if job.status else None,
         "phase": job.phase.value if job.phase else None,
         "iteration": job.iteration,
         "started_at": job.started_at,
         "completed_at": job.completed_at,
-        
-        # Story info
-        "story_id": story.id if story else None,
+
+        "user_story_id": job.user_story_id if job.user_story_id else None,
         "issue_key": story.issue_key if story else None,
-        "project_id": story.project_id if story else None,  # <-- Utiliser project_id (FK)
-        
-        # Original content
+        "project_id": story.project_id if story else None,
+
         "initial_story": story.description if story else None,
         "raw_story": story.description if story else None,
         "existing_ac": story.acceptance_criteria if story else [],
-        
-        # Improved content (from latest version)
+
         "version_id": latest.id if latest else None,
         "improved_story": latest.improved_story if latest else None,
-        "acceptance_criteria": latest.acceptance_criteria if latest else [],
+        "generated_acceptance_criteria": latest.generated_acceptance_criteria if latest else [],
         "initial_score": latest.initial_score if latest else 0,
         "final_score": latest.final_score if latest else 0,
         "score_delta": (
@@ -82,6 +81,8 @@ async def get_job_state(job_id: str, db: AsyncSession = Depends(get_db)):
             if latest and latest.initial_score is not None and latest.final_score is not None
             else 0
         ),
+
+        "is_reused": latest is not None and not job.versions
     }
 
 @router.get("/active/list")
@@ -139,4 +140,4 @@ async def get_jobs_by_issues(
     if not issue_keys:
         return {}
 
-    return await get_jobs_by_issue_keys_service(db, issue_keys)
+    return await get_jobs_by_issue_keys(db, issue_keys)

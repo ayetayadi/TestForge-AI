@@ -7,7 +7,7 @@ from app.ai_agents.user_stories.pipeline.runner import run_user_story_pipeline
 
 from app.models.enums import JobPhase, JobStatus
 from app.repositories.job_repository import get_job_by_id
-from app.repositories.user_story_version_repository import create_version
+from app.repositories.user_story_version_repository import create_version, get_best_version
 from app.core.database import async_session_maker
 from app.streaming.sse_manager import push_event
 
@@ -28,6 +28,12 @@ def _validate_state(state: Dict[str, Any]):
         if key not in state:
             raise ValueError(f"Missing required field: {key}")
 
+def normalize_ac(ac_list):
+    return sorted([
+        ac.strip().lower()
+        for ac in (ac_list or [])
+        if ac and ac.strip()
+    ])
 
 # =========================
 # WORKER LOOP
@@ -45,7 +51,7 @@ async def async_worker(worker_id: int):
 
         async with async_session_maker() as db:
             job_id = state.get("job_id")
-            
+
             try:
                 _validate_state(state)
 
@@ -55,62 +61,140 @@ async def async_worker(worker_id: int):
                     job_queue.task_done()
                     continue
 
-                # SET START
+                # =========================
+                # START → ANALYZING
+                # =========================
                 job.status = JobStatus.PROCESSING
                 job.phase = JobPhase.ANALYZING
                 job.iteration = 0
 
+                await push_event(job_id, "analyzing")
+
+                # =========================
                 # RUN PIPELINE
+                # =========================
                 result = await asyncio.wait_for(
                     run_user_story_pipeline(state),
                     timeout=120
                 )
 
-                # SAVE VERSION
-                print(f"[VERSION CREATE] best_story: {result.get('best_story')[:50] if result.get('best_story') else None}...")
-                print(f"[VERSION CREATE] best_ac: {result.get('best_ac')}")
-                print(f"[VERSION CREATE] acceptance_criteria: {result.get('acceptance_criteria')}")
+                # =========================
+                # EVALUATING
+                # =========================
+                job.phase = JobPhase.EVALUATING
+                await push_event(job_id, "evaluating")
 
-                version = await create_version(
-                    db=db,
-                    user_story_id=state["user_story_id"],
-                    job_id=job_id,
-                    improved_story=result.get("best_story") or result.get("improved_story"),  
-                    acceptance_criteria=result.get("best_ac") or result.get("acceptance_criteria", []), 
-                    initial_score=result.get("initial_score"),
-                    final_score=result.get("best_score") or result.get("final_score"), 
-                    iteration=result.get("iteration", 0),
-                    llm_calls=result.get("llm_calls"),
-                    duration=result.get("duration"),
+                # =========================
+                # EXTRACTION
+                # =========================
+                new_story = (
+                    result.get("best_story")
+                    or result.get("improved_story")
+                    or state.get("raw_story")
                 )
 
+                new_ac = result.get("best_ac") or result.get("acceptance_criteria", [])
+
+                new_score = (
+                    result.get("best_score")
+                    or result.get("final_score")
+                    or 0.0
+                )
+
+                initial_score = result.get("initial_score") or new_score
+
+                duration = (
+                    result.get("timing", {}).get("analysis")
+                    or result.get("duration")
+                )
+
+                print(f"[RESULT] score={new_score}")
+
+                # =========================
+                # VERSIONING LOGIC (PROD)
+                # =========================
+                best = await get_best_version(db, state["user_story_id"])
+                best_score = best.final_score if best else 0.0
+
+                def normalize_ac(ac_list):
+                    return sorted([
+                        ac.strip().lower()
+                        for ac in (ac_list or [])
+                        if ac and ac.strip()
+                    ])
+
+                is_same_content = (
+                    best is not None
+                    and (best.improved_story or "").strip() == new_story.strip()
+                    and normalize_ac(best.generated_acceptance_criteria) == normalize_ac(new_ac)
+                )
+
+                # =========================
+                # DECISION
+                # =========================
+                if best and new_score < best_score:
+                    print("[SKIP] Worse than best")
+                    version = best
+                    has_new_version = False
+
+                elif best and new_score == best_score and is_same_content:
+                    print("[SKIP] Same as best")
+                    version = best
+                    has_new_version = False
+
+                else:
+                    print("[CREATE] New improved version")
+
+                    version = await create_version(
+                        db=db,
+                        user_story_id=state["user_story_id"],
+                        job_id=job_id,
+                        improved_story=new_story,
+                        acceptance_criteria=new_ac,
+                        initial_score=initial_score,
+                        final_score=new_score,
+                        iteration=result.get("iteration", 0),
+                        llm_calls=result.get("llm_calls"),
+                        duration=duration,
+                        model_used=result.get("model_used"),
+                        prompt_tokens=result.get("prompt_tokens"),
+                        completion_tokens=result.get("completion_tokens"),
+                    )
+
+                    has_new_version = True
+
+                # =========================
                 # COMPLETE
+                # =========================
                 job.status = JobStatus.COMPLETED
                 job.phase = JobPhase.COMPLETED
-                job.final_score = result.get("final_score")
+                job.final_score = new_score
                 job.iteration = result.get("iteration", 0)
 
                 await db.commit()
 
+                # =========================
+                # FINAL SSE
+                # =========================
                 await push_event(job_id, "completed", {
-                    "final_score": result.get("best_score") or result.get("final_score"), 
-                    "initial_score": result.get("initial_score"),
-                    "improved_story": result.get("best_story") or result.get("improved_story"),
-                    "acceptance_criteria": result.get("best_ac") or result.get("acceptance_criteria", []),
+                    "final_score": new_score,
+                    "initial_score": initial_score,
+                    "improved_story": new_story,
+                    "acceptance_criteria": new_ac,
                     "iteration": result.get("iteration", 0),
-                    "version_id": version.id if version else None,
+                    "version_id": getattr(version, "id", None),
+                    "has_new_version": has_new_version
                 })
-                
-                print(f"[WORKER-{worker_id}] ✅ Job {job_id} completed, SSE pushed")
+
+                print(f"[DONE] Pipeline finished")
 
             except asyncio.TimeoutError:
-                job = await get_job_by_id(db, state["job_id"])
+                job = await get_job_by_id(db, job_id)
                 if job:
                     job.status = JobStatus.FAILED
                     job.error = "Timeout"
                     await db.commit()
-                
-                # ✅ PUSH SSE FAILED EVENT
+
                 await push_event(job_id, "failed", {
                     "error": "Pipeline timeout"
                 })
@@ -118,21 +202,19 @@ async def async_worker(worker_id: int):
             except Exception as e:
                 traceback.print_exc()
 
-                job = await get_job_by_id(db, state["job_id"])
+                job = await get_job_by_id(db, job_id)
                 if job:
                     job.status = JobStatus.FAILED
                     job.error = str(e)
                     await db.commit()
 
-                # ✅ PUSH SSE FAILED EVENT
                 await push_event(job_id, "failed", {
                     "error": str(e)
                 })
 
             finally:
                 job_queue.task_done()
-
-
+                              
 # =========================================================
 # SUBMIT JOB
 # =========================================================
