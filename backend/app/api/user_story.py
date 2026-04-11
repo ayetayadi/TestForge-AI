@@ -50,7 +50,7 @@ async def get_story_versions(
             "story_id": v.user_story_id,
             "job_id": v.job_id,
             "improved_story": v.improved_story,
-            "acceptance_criteria": v.acceptance_criteria,
+            "generated_acceptance_criteria": v.generated_acceptance_criteria,
             "initial_score": v.initial_score,
             "final_score": v.final_score,
             "score_delta": (
@@ -60,7 +60,9 @@ async def get_story_versions(
             ),
             "iteration": v.iteration,
             "created_at": v.created_at,
-            "is_selected": v.is_selected,
+            "decision_status": (
+                v.decision_status.value if v.decision_status else "pending"
+            ),
         }
         for v in versions
     ]

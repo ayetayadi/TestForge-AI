@@ -668,6 +668,11 @@ $transition: 0.15s ease;
     background: rgba(245, 158, 11, 0.08);
     color: #d97706;
   }
+
+  &.failed {
+    background: rgba(239, 68, 68, 0.08);
+    color: #dc2626;
+  }
 }
 
 .pipeline-idle {

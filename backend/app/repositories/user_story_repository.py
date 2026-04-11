@@ -15,7 +15,7 @@ async def get_all_user_stories(db: AsyncSession):
 # =========================
 # GET BY PROJECT
 # =========================
-async def get_user_stories_by_project(db: AsyncSession, project_id: str):
+async def get_user_stories_by_project_id(db: AsyncSession, project_id: str):
     result = await db.execute(
         select(UserStory).where(UserStory.project_id == project_id)
     )
@@ -98,31 +98,27 @@ async def create_user_story(
     jira_updated_at: datetime | None = None,
 ):
     user_story = UserStory(
-        issue_key=issue_key,
-        project_id=project_id,
-        title=title,
-        description=description,
-        acceptance_criteria=acceptance_criteria,
-        issue_type=issue_type,
-        status=status,
-        priority=priority,
-        story_points=story_points,
-        assignee=assignee,
-        reporter=reporter,
-        epic_key=epic_key,
-        sprint=sprint,
-        labels=labels,
-        components=components,
-        fix_version=fix_version,
-        jira_created_at=jira_created_at,
-        jira_updated_at=jira_updated_at,
+    issue_key=issue_key,
+    project_id=project_id,
+    title=title,
+    description=description,
+    acceptance_criteria=acceptance_criteria or [],
+    issue_type=issue_type,
+    jira_status=status,
+    priority=priority,
+    story_points=story_points,
+    assignee=assignee,
+    reporter=reporter,
+    epic_key=epic_key,
+    sprint=sprint,
+    labels=labels or [],
+    components=components or [],
+    fix_version=fix_version,
+    jira_created_at=jira_created_at,
+    jira_updated_at=jira_updated_at,
     )
 
     db.add(user_story)
     await db.flush()
 
     return user_story
-
-
-async def get_user_stories_by_project_id(db: AsyncSession, project_id: str):
-    return await get_user_stories_by_project(db, project_id)

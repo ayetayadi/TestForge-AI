@@ -31,6 +31,10 @@ class LLMResponse:
     success: bool
     content: Dict[str, Any]
     error: Optional[str] = None
+    model: Optional[str] = None
+    prompt_tokens: Optional[int] = 0
+    completion_tokens: Optional[int] = 0
+    duration: Optional[float] = 0.0
 
 
 # =========================
@@ -68,7 +72,14 @@ class LLMService:
             cached = await LLMCache.get(cache_key)
             if cached:
                 print(f"[LLM CACHE HIT] {task}")
-                return LLMResponse(success=True, content=cached)
+                return LLMResponse(
+                    success=True,
+                    content=cached,
+                    model=get_llm(task).model,
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    duration=0.0,
+                )
         else:
             print(f"[LLM CACHE SKIP] {task}")
 
@@ -101,7 +112,14 @@ class LLMService:
                 if use_cache:
                     await LLMCache.set(cache_key, parsed)
 
-                return LLMResponse(success=True, content=parsed)
+                return LLMResponse(
+                    success=True,
+                    content=parsed,
+                    model=llm.model,
+                    prompt_tokens=response.get("prompt_tokens", 0),
+                    completion_tokens=response.get("completion_tokens", 0),
+                    duration=response.get("duration", 0.0),
+                )
 
             except Exception as e:
                 print(f"[LLM ERROR] attempt {attempt+1}: {e}")
@@ -119,7 +137,11 @@ class LLMService:
         return LLMResponse(
             success=True,
             content=FALLBACKS.get(task),
-            error="LLM failed, fallback used"
+            error="LLM failed, fallback used",
+            model=llm.model,
+            prompt_tokens=0,
+            completion_tokens=0,
+            duration=0.0,
         )
 
 
@@ -140,7 +162,13 @@ class LLMService:
         )
     
         if response.success and response.content:
-            return response.content
+            return {
+                **response.content,
+                "model": response.model,
+                "prompt_tokens": response.prompt_tokens,
+                "completion_tokens": response.completion_tokens,
+                "duration": response.duration,
+            }
     
         print(f"[LLM FALLBACK USED] {task}")
         return fallback

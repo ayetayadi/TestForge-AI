@@ -17,43 +17,33 @@ export interface ImportResult {
 }
 
 // ==============================
-// User Story (le problème Jira)
+// User Story
 // ==============================
 export interface UserStory {
   id: string;
   issue_key: string;
-  jira_project_id?: string;
+  project_id: string;
 
-  // Contenu original
   title?: string;
   description?: string;
-  acceptance_criteria?: string[] | string;
+  acceptance_criteria?: string[];
 
-  // Métadonnées Jira
   issue_type?: string;
-  status?: string;
+  jira_status?: string;
   priority?: string;
   story_points?: number;
 
-  // Personnes
   assignee?: string;
   reporter?: string;
 
-  // Agile
   epic_key?: string;
-  epic_name?: string;
   sprint?: string;
   labels?: string[];
   components?: string[];
 
-  // Version Jira
   fix_version?: string;
 
-  // Decision state
-  decision_status?: 'pending' | 'approved' | 'rejected_keep' | 'rejected_relaunch';
   selected_version_id?: string | null;
-  selected_version?: UserStoryVersion | null;
-  latest_version?: UserStoryVersion | null;
 }
 
 // ==============================
@@ -61,24 +51,19 @@ export interface UserStory {
 // ==============================
 export interface UserStoryVersion {
   id: string;
-  story_id: string;
-  job_id: string;
+  user_story_id: string;
+  job_id?: string | null;
 
-  // Contenu amélioré
   improved_story: string;
-  acceptance_criteria: string[];
+  generated_acceptance_criteria: string[];
 
-  // Scores
   initial_score: number;
   final_score: number;
-  score_delta: number;
 
-  // Metadata
   iteration: number;
   created_at?: string;
 
-  // Selection
-  is_selected: boolean;
+  decision_status: 'pending' | 'approved' | 'rejected';
 }
 
 // ==============================
@@ -89,10 +74,9 @@ export type JobStatus = 'processing' | 'completed' | 'failed';
 export interface Job {
   job_id: string;
   issue_key: string;
-  story_id?: string;
+  user_story_id?: string;
   status: JobStatus;
   phase?: 'analyzing' | 'refining' | 'evaluating' | 'completed';
-  iteration?: number;
   created_at?: string;
 }
 
@@ -108,27 +92,36 @@ export interface StoryJob {
 // StoryWithJob (UI enrichie)
 // ==============================
 export interface StoryWithJob extends UserStory {
-  // Job actif (runtime)
-  job?: StoryJob;
-  jobPhase?: 'analyzing' | 'refining' | 'evaluating' | 'completed' | 'failed';
+  // Job
+  job?: {
+    job_id: string;
+    issue_key: string;
+  };
+
+  jobPhase?: 'analyzing' | 'refining' | 'evaluating' | 'completed';
+  jobStatus?: 'processing' | 'completed' | 'failed';
+
   jobScore?: number;
   jobIteration?: number;
 
   // Versions
   versions?: UserStoryVersion[];
-  selected_version?: UserStoryVersion | null;  // Version approuvée par l'utilisateur
-  latest_version?: UserStoryVersion | null;    // Dernière version du dernier job
+
+  // Backend truth
+  selected_version?: UserStoryVersion | null;
+  latest_version?: UserStoryVersion | null;
+  display_version?: UserStoryVersion | null;
 }
 
-export type DecisionStatus =
-  | 'approved'
-  | 'rejected_keep'
-  | 'rejected_relaunch'
-  | null;
+// ==============================
+// Decision
+// ==============================
+export type DecisionChoice = 'approve' | 'reject_keep' | 'reject_relaunch';
 
+export type DecisionStatus = 'pending' | 'approved' | 'rejected';
 
 // ==============================
-// JobState (réponse API détaillée)
+// JobState
 // ==============================
 export interface JobState {
   job_id: string;
@@ -137,7 +130,7 @@ export interface JobState {
   iteration: number;
 
   // Story info
-  story_id?: string;
+  user_story_id?: string;
   jira_id?: string;
   issue_key?: string;
   project_id?: string;
@@ -146,25 +139,25 @@ export interface JobState {
   // Original content
   initial_story?: string;
   raw_story?: string;
-  existing_ac?: string[] | string;
+  existing_ac?: string[];
 
-  // Improved content (from version)
+  // Improved content
   improved_story?: string;
-  acceptance_criteria?: string[];
+  generated_acceptance_criteria?: string[];
 
   // Scores
   initial_score?: number;
   final_score?: number;
 
-  // Version reference
+  // Version
   version_id?: string;
 
   decision_status?: DecisionStatus;
 
-  // Trace/history
+  // Trace
   trace?: TraceEntry[];
 
-  has_new_version?: boolean; // Indique s'il existe une version améliorée non encore sélectionnée
+  has_new_version?: boolean;
 }
 
 export interface TraceEntry {
@@ -212,15 +205,13 @@ export interface PendingJob {
   status: JobStatus;
   iteration: number;
   improved_story?: string;
-  acceptance_criteria?: string[];
+  generated_acceptance_criteria?: string[];
   final_score?: number;
 }
 
 // ==============================
-// Decision
+// Decision Response
 // ==============================
-export type DecisionChoice = 'approve' | 'reject_keep' | 'reject_relaunch';
-
 export interface DecisionResponse {
   status: 'ok' | 'error';
   message?: string;
@@ -265,9 +256,10 @@ export interface SSEEvent {
     initial_score?: number;
     final_score?: number;
     improved_story?: string;
-    acceptance_criteria?: string[];
+    generated_acceptance_criteria?: string[];
     version_id?: string;
     error?: string;
+    has_new_version?: boolean; 
   };
   timestamp: string;
 }

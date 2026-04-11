@@ -200,6 +200,11 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
     
   }
 
+  
+getScore(version: UserStoryVersion | null): number {
+  return version?.final_score ?? 0;
+}
+
   private scrollToStory(issueKey: string): void {
   const element = document.getElementById(`story-${issueKey}`);
   if (element) {
@@ -233,8 +238,6 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
           jobPhase: undefined,
           jobScore: undefined,
           jobIteration: undefined,
-          selected_version: undefined,
-          latest_version: undefined,
         }));
         
         this.stories.set(storiesWithJob);
@@ -273,24 +276,23 @@ private recoverJobStates(): void {
               issue_key: s.issue_key,
             },
             jobPhase: jobData.phase,
+            jobStatus: jobData.status,
             jobScore: jobData.final_score,
             jobIteration: jobData.iteration,
-            decision_status: jobData.decision_status,
           };
 
           if (jobData.status === 'completed') {
             updated.latest_version = jobData.improved_story
               ? {
                   id: jobData.version_id,
-                  story_id: s.id,
+                  user_story_id: s.id,
                   job_id: jobData.job_id,
                   improved_story: jobData.improved_story,
-                  acceptance_criteria: jobData.acceptance_criteria || [],
+                  generated_acceptance_criteria: jobData.generated_acceptance_criteria || [],
                   initial_score: jobData.initial_score || 0,
                   final_score: jobData.final_score || 0,
-                  score_delta: jobData.score_delta || 0,
                   iteration: jobData.iteration || 1,
-                  is_selected: false,
+                  decision_status: jobData.decision_status ?? 'pending',
                 }
               : undefined;
           }
@@ -335,8 +337,9 @@ private loadVersionsForStory(issueKey: string): void {
           s.issue_key === issueKey
             ? {
                 ...s,
-                selected_version: selectedVersion,
-                latest_version: updated.latest_version ?? s.latest_version
+                selected_version: updated.selected_version,
+                latest_version: updated.latest_version,
+                display_version: updated.selected_version ?? updated.latest_version,
               }
             : s
         )
@@ -360,8 +363,7 @@ private reconnectSSE(issueKey: string, jobId: string): void {
  * Vérifie si une story est en cours de processing
  */
 isProcessing(story: StoryWithJob): boolean {
-  if (!story.job || !story.jobPhase) return false;
-  return !['completed', 'failed'].includes(story.jobPhase);
+  return story.jobStatus === 'processing';
 }
 
 /**
@@ -392,15 +394,8 @@ getPhaseLabel(story: StoryWithJob): string {
  * - rejected_relaunch → devient pending car nouvelle version créée
  */
 getDecisionStatus(story: StoryWithJob): string {
-  const status = story.decision_status;
-  
-  // rejected_relaunch n'est pas un état final
-  // Après relaunch, une nouvelle version existe = pending
-  if (status === 'rejected_relaunch') {
-    return 'pending';
-  }
-  
-  return status || 'pending';
+  const version = this.getDisplayVersion(story);  
+  return version?.decision_status ?? 'pending';
 }
   // ─── Search handler ─────────────────────────────────────────────
 
@@ -486,28 +481,28 @@ getDecisionStatus(story: StoryWithJob): string {
 
   // ─── Version Helper ─────────────────────────────────────────────
   
-  /**
-   * Retourne la version à afficher:
-   * - selected_version si l'utilisateur a fait un choix
-   * - sinon latest_version (dernière du pipeline)
-   */
-  getDisplayVersion(story: StoryWithJob): UserStoryVersion | null {
-    return story.selected_version ?? story.latest_version ?? null;
+getDisplayVersion(story: StoryWithJob): UserStoryVersion | null {
+  // ✅ 1. Si une version est approuvée → priorité
+  if (story.selected_version) {
+    return story.selected_version;
   }
+
+  // ✅ 2. Si dernière version est rejetée → l'afficher
+  if (story.latest_version?.decision_status === 'rejected') {
+    return story.latest_version;
+  }
+
+  // ✅ 3. Sinon → dernière version normale
+  return story.latest_version ?? null;
+}
 
   // ─── Utils ──────────────────────────────────────────────────────
 
-  getAcList(story: UserStory): string[] {
-    const ac = story.acceptance_criteria;
-    if (!ac) return [];
-    if (Array.isArray(ac)) {
-      return ac.filter(item => item && String(item).trim());
-    }
-    if (typeof ac === 'string') {
-      return ac.split('\n').filter(line => line.trim());
-    }
-    return [];
-  }
+getAcList(story: UserStory): string[] {
+  const ac = story.acceptance_criteria;
+  if (!ac) return [];
+  return ac.filter(item => item && String(item).trim());
+}
 
   getAcCount(story: UserStory): number {
     return this.getAcList(story).length;
@@ -516,33 +511,27 @@ getDecisionStatus(story: StoryWithJob): string {
   /**
    * Détermine le statut pipeline pour les filtres
    */
-  private getPipelineStatus(story: StoryWithJob): string {
-    if (story.jobPhase === 'failed') return 'failed';
-    if (story.jobPhase === 'completed') return 'completed';
-    if (story.jobPhase && story.job) return 'processing';
-    
-    // Vérifie s'il y a une version (selected ou latest)
-    if (story.job) return 'completed';
-    
-    return 'idle';
-  }
+private getPipelineStatus(story: StoryWithJob): string {
+  if (story.jobStatus === 'failed') return 'failed';
+  if (story.jobStatus === 'processing') return 'processing';
+  if (story.jobPhase === 'completed') return 'completed';
+  return 'idle';
+}
 
 
 isCompleted(story: StoryWithJob): boolean {
-  // ✅ Si un pipeline est en cours, ce n'est PAS completed
-  if (story.job && story.jobPhase && !['completed', 'failed'].includes(story.jobPhase)) {
+  // pipeline en cours → pas completed
+  if (story.jobStatus === 'processing') {
     return false;
   }
 
-  // Kept original = completed (seulement si pas de pipeline en cours)
-  if (story.decision_status === 'rejected_keep') {
+  // erreur → considéré comme terminé (mais failed)
+  if (story.jobStatus === 'failed') {
     return true;
   }
 
-  const hasVersion = this.getDisplayVersion(story) !== null;
-  if (!hasVersion) return false;
-
-  return true;
+  // si une version existe → completed
+  return this.getDisplayVersion(story) !== null;
 }
 
   /**
@@ -553,7 +542,7 @@ isCompleted(story: StoryWithJob): boolean {
   canRunPipeline(story: StoryWithJob): boolean {
     if (!story.job) return true;
     if (!story.jobPhase) return true;
-    return ['completed', 'failed'].includes(story.jobPhase);
+    return ['completed', 'failed'].includes(story.jobStatus ?? '');
   }
 
   /**
@@ -604,9 +593,10 @@ isCompleted(story: StoryWithJob): boolean {
 private runPipeline(issueKeys: string[]): void {
   this.pipelineLoading.set(true);
 
-  const storiesBeingRelaunched = this.stories().filter(s => 
-    issueKeys.includes(s.issue_key) && s.decision_status === 'rejected_keep'
-  );
+  const storiesBeingRelaunched = this.stories().filter(s => {
+    const version = this.getDisplayVersion(s);
+    return issueKeys.includes(s.issue_key) && version?.decision_status === 'rejected';
+  });
 
   this.pipelineService.runPipelineByKeys(issueKeys).subscribe({
     next: (response: PipelineResponse) => {
@@ -631,9 +621,9 @@ private runPipeline(issueKeys: string[]): void {
                       issue_key: job.issue_key,
                     },
                     jobPhase: 'analyzing',
+                    jobStatus: 'processing',
                     jobIteration: 0,
                     jobScore: undefined,
-                    decision_status: 'pending',
                   }
                 : s
             )
@@ -687,7 +677,7 @@ private runPipeline(issueKeys: string[]): void {
 
     const queue = this.phaseQueues.get(issueKey)!;
 
-    if (phase === 'completed' || phase === 'failed') {
+    if (phase === 'completed') {
       queue.push({ job, phase, score, iteration });
       if (!this.phaseProcessing.get(issueKey)) {
         this.phaseProcessing.set(issueKey, true);
@@ -745,7 +735,7 @@ private runPipeline(issueKeys: string[]): void {
     const next = queue.shift()!;
     this.applyPhaseUpdate(issueKey, next.job, next.phase, next.score, next.iteration);
 
-    if (next.phase === 'completed' || next.phase === 'failed') {
+    if (next.phase === 'completed') {
       setTimeout(() => {
         this.phaseProcessing.set(issueKey, false);
         this.phaseTimers.delete(issueKey);
@@ -833,26 +823,35 @@ case 'completed':
 
       return {
         ...s,
+        jobStatus: 'completed',
         latest_version: {
           id: data.version_id,
-          story_id: s.id,
+          user_story_id: s.id,
           improved_story: data.improved_story ?? '',
-          acceptance_criteria: data.acceptance_criteria ?? [],
+          generated_acceptance_criteria: data.generated_acceptance_criteria ?? [],
           initial_score: data.initial_score ?? 0,
           final_score: data.final_score ?? 0,
-          score_delta: (data.final_score ?? 0) - (data.initial_score ?? 0),
           iteration: data.iteration ?? 1,
           job_id: job.job_id,
-          is_selected: false,
+          decision_status: 'pending',
         },
       };
     })
   );
   break;
     case 'failed':
-      this.updateStoryJob(issueKey, job, 'failed', undefined, data.iteration);
+      this.stories.update(stories =>
+        stories.map(s =>
+          s.issue_key === issueKey
+            ? {
+                ...s,
+                jobStatus: 'failed',
+              }
+            : s
+        )
+      );
       break;
-  }
+      }
 }
 
   private disconnectJob(jobId: string): void {
@@ -878,7 +877,6 @@ private loadJobState(jobId: string, issueKey: string): Promise<void> {
           stories.map(s => {
             if (s.issue_key !== issueKey) return s;
 
-            // 🔴 GUARD CRITIQUE
             if (state.status === "completed" && !state.version_id) {
               console.error("❌ Missing version_id in job state", state);
               return s; // skip update
@@ -887,20 +885,23 @@ private loadJobState(jobId: string, issueKey: string): Promise<void> {
             return {
               ...s,
               job: { job_id: jobId, issue_key: issueKey },
-              jobPhase: state.status as 'completed' | 'failed',
+            
+              jobPhase: state.status === 'completed' ? 'completed' : undefined,
+              jobStatus: state.status,
+            
               jobIteration: state.iteration ?? 0,
+            
               latest_version: state.status === 'completed'
                 ? {
-                    id: state.version_id, // ✅ FIX
-                    story_id: s.id,
+                    id: state.version_id,
+                    user_story_id: s.id,
                     improved_story: state.improved_story ?? '',
-                    acceptance_criteria: state.acceptance_criteria ?? [],
+                    generated_acceptance_criteria: state.generated_acceptance_criteria ?? [],
                     initial_score: state.initial_score ?? 0,
                     final_score: state.final_score ?? 0,
-                    score_delta: (state.final_score ?? 0) - (state.initial_score ?? 0),
                     iteration: state.iteration ?? 1,
                     job_id: jobId,
-                    is_selected: false,
+                    decision_status: 'pending',
                   }
                 : s.latest_version,
             };
@@ -919,6 +920,7 @@ private loadJobState(jobId: string, issueKey: string): Promise<void> {
                   ...s,
                   job: { job_id: jobId, issue_key: issueKey },
                   jobPhase: (state.phase as StoryWithJob['jobPhase']) ?? 'analyzing',
+                  jobStatus: 'processing',
                   jobIteration: state.iteration ?? 0,
                   latest_version: undefined,
                 }

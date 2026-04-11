@@ -1,11 +1,9 @@
-from typing import Dict, List
+from typing import Dict, List, Any
 import uuid
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from unstructured_client import Any
-
 from app.models.enums import StoryDecision
 from app.models.job import Job
 from app.models.user_story import UserStory
@@ -13,15 +11,13 @@ from app.repositories.job_repository import create_job
 from app.repositories.user_story_repository import get_user_story_by_id
 from app.repositories.user_story_version_repository import (
     get_version_by_id,
-    reset_selected_versions,
-    get_latest_version
+    get_latest_version,
+    get_versions_by_story_id
 )
 from app.workers.asyncio_workers import submit_job
 
 
 async def start_job(db: AsyncSession, user_story, use_cache: bool = True, reset: bool = False):
-    user_story.decision_status = StoryDecision.PENDING
-    await db.flush()
     
     latest = await get_latest_version(db, user_story.id)
     print(f"[START_JOB] {user_story.issue_key}")
@@ -38,7 +34,7 @@ async def start_job(db: AsyncSession, user_story, use_cache: bool = True, reset:
         )
     
         acceptance_criteria = (
-            latest.acceptance_criteria
+            latest.generated_acceptance_criteria
             if latest else user_story.acceptance_criteria or []
         )
 
@@ -58,7 +54,6 @@ async def start_job(db: AsyncSession, user_story, use_cache: bool = True, reset:
     print(f"[START_JOB] Final state use_cache: {state['use_cache']}")
     return job_id, state
 
-
 async def apply_decision(
     db: AsyncSession,
     user_story_id: str,
@@ -71,42 +66,56 @@ async def apply_decision(
         if not user_story:
             raise HTTPException(404, "User story not found")
 
+        if decision in ("approve", "reject_relaunch", "reject_keep"):
+            if not version_id:
+                raise HTTPException(400, "version_id is required")
+
+        version = await get_version_by_id(db, version_id) if version_id else None
+
+        if not version:
+            raise HTTPException(404, "Version not found")
+
+        if version.user_story_id != user_story_id:
+            raise HTTPException(400, "Version does not belong to this story")
+
         # =========================
         # APPROVE
         # =========================
         if decision == "approve":
-        
-            if not version_id:
-                raise HTTPException(400, "version_id is required for approval")
-        
-            version = await get_version_by_id(db, version_id)
-        
-            if not version:
-                raise HTTPException(404, "Version not found")
-        
-            if version.user_story_id != user_story_id:
-                raise HTTPException(400, "Version does not belong to this story")
-        
-            await reset_selected_versions(db, user_story_id)
-        
-            version.is_selected = True
-            user_story.decision_status = StoryDecision.APPROVED
-        
+
+            versions = await get_versions_by_story_id(db, user_story_id)
+
+            for v in versions:
+                if v.id != version.id:
+                    v.decision_status = StoryDecision.REJECTED
+
+            version.decision_status = StoryDecision.APPROVED
+
             await db.commit()
-        
+
             return {"message": "Approved"}
 
         # =========================
         # REJECT + RELAUNCH
         # =========================
         elif decision == "reject_relaunch":
-            user_story.decision_status = StoryDecision.REJECTED_RELAUNCH
+
+            version.decision_status = StoryDecision.REJECTED
+
+            new_job_id, state = await start_job(
+                db,
+                user_story,
+                use_cache=False,
+                reset=True
+            )
+
             await db.commit()
-        
-            new_job_id, state = await start_job(db, user_story, use_cache=False, reset=True)
-            await db.commit()
-            await submit_job(state)
-        
+
+            try:
+                await submit_job(state)
+            except Exception as e:
+                print(f"[SUBMIT ERROR] {e}")
+
             return {
                 "message": "Relaunched",
                 "job_id": new_job_id
@@ -116,9 +125,8 @@ async def apply_decision(
         # REJECT KEEP
         # =========================
         elif decision == "reject_keep":
-            await reset_selected_versions(db, user_story_id)
 
-            user_story.decision_status = StoryDecision.REJECTED_KEEP
+            version.decision_status = StoryDecision.REJECTED
 
             await db.commit()
 
@@ -134,9 +142,9 @@ async def apply_decision(
 def _get_latest_version(job: Job):
     if not job.versions:
         return None
-    return max(job.versions, key=lambda v: v.iteration)
+    return max(job.versions, key=lambda v: (v.iteration or 0))
 
-async def get_jobs_by_issue_keys_service(
+async def get_jobs_by_issue_keys(
     db: AsyncSession,
     issue_keys: List[str]
 ) -> Dict[str, Any]:
@@ -153,41 +161,86 @@ async def get_jobs_by_issue_keys_service(
 
     jobs = result.scalars().all()
 
-    # mapping issue_key → job
-    job_map = {
-        job.user_story.issue_key: job
-        for job in jobs
-    }
+    # =========================
+    # mapping issue_key → list[jobs]
+    # =========================
+    job_map: Dict[str, List[Job]] = {}
+
+    for job in jobs:
+        key = job.user_story.issue_key
+        job_map.setdefault(key, []).append(job)
 
     response = {}
 
     for issue_key in issue_keys:
-        job = job_map.get(issue_key)
+        jobs_list = job_map.get(issue_key, [])
 
-        if not job:
+        if not jobs_list:
             response[issue_key] = None
             continue
 
-        latest = _get_latest_version(job)
-        story = job.user_story  # <-- AJOUTER CETTE LIGNE
+        # =========================
+        # collect ALL versions
+        # =========================
+        all_versions = []
+        for job in jobs_list:
+            all_versions.extend(job.versions)
 
+        if not all_versions:
+            response[issue_key] = None
+            continue
+
+        # =========================
+        # latest version (global)
+        # =========================
+        latest = max(
+            all_versions,
+            key=lambda v: v.created_at or v.iteration or 0
+        )
+
+        # =========================
+        # selected version (approved)
+        # =========================
+        selected = next(
+            (v for v in all_versions if v.decision_status == StoryDecision.APPROVED),
+            None
+        )
+
+        display = selected or latest
+
+        # =========================
+        # latest job (pour status UI)
+        # =========================
+        latest_job = max(
+            jobs_list,
+            key=lambda j: j.started_at or 0
+        )
+
+        # =========================
+        # response
+        # =========================
         response[issue_key] = {
-            "job_id": job.id,
-            "status": job.status.value if job.status else None,  # <-- .value pour enum
-            "phase": job.phase.value if job.phase else None,     # <-- .value pour enum
-            "iteration": job.iteration,
-            "improved_story": latest.improved_story if latest else None,
-            "acceptance_criteria": latest.acceptance_criteria if latest else [],
-            "initial_score": latest.initial_score if latest else 0,
-            "final_score": latest.final_score if latest else 0,
+            "job_id": latest_job.id,
+            "status": latest_job.status.value if latest_job.status else None,
+            "phase": latest_job.phase.value if latest_job.phase else None,
+            "iteration": display.iteration if display else 0,
+            "improved_story": display.improved_story if display else None,
+            "acceptance_criteria": display.generated_acceptance_criteria if display else [],
+            "initial_score": display.initial_score if display else 0,
+            "final_score": display.final_score if display else 0,
             "score_delta": (
-                (latest.final_score - latest.initial_score)
-                if latest and latest.initial_score is not None and latest.final_score is not None
+                (display.final_score - display.initial_score)
+                if display and display.initial_score is not None and display.final_score is not None
                 else 0
             ),
-            "decision_status": story.decision_status.value if story.decision_status else "pending",
-            "version_id": latest.id if latest else None,
-            "has_new_version": latest is not None and latest.iteration > 0
+            "decision_status": (
+                display.decision_status.value
+                if display and display.decision_status
+                else "pending"
+            ),
+            "version_id": display.id if display else None,
+            "has_new_version": len(all_versions) > 1,
+            "versions_count": len(all_versions)
         }
 
     return response

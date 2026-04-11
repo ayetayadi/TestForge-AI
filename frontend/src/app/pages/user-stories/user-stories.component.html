@@ -123,7 +123,7 @@
             @for (story of paginatedStories(); track story.issue_key) {
               <tr
                 [id]="'story-' + story.issue_key"
-                [class.processing]="story.job && story.jobPhase && !['completed', 'failed'].includes(story.jobPhase)"
+                [class.processing]="story.jobStatus === 'processing'"
                 [class.row-completed]="isCompleted(story)"
                 (click)="openStoryDetail(story)"
               >
@@ -179,6 +179,11 @@
       <app-spinner [size]="14" />
       <span>{{ getPhaseLabel(story) }}</span>
     </div>
+  }
+  @else if (story.jobStatus === 'failed') {
+  <div class="pipeline-status failed">
+    <span>Failed</span>
+  </div>  
   } @else if (isCompleted(story)) {
     @let version = getDisplayVersion(story);
     @let status = getDecisionStatus(story);
@@ -191,10 +196,10 @@
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
           </svg>
           <span>Approved</span>
-          <app-score-badge [score]="version?.final_score ?? 0" size="small" />
+          <app-score-badge [score]="getScore(version)" size="small" />
         </div>
       }
-      @case ('rejected_keep') {
+      @case ('rejected') {
         <!-- Kept original -->
         <div class="pipeline-status rejected clickable" (click)="viewResults(story)">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="status-icon">

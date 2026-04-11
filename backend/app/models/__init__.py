@@ -4,7 +4,7 @@ from .jira_project import JiraProject
 from .user_story import UserStory
 from .user_story_version import UserStoryVersion
 from .job import Job
-from .enums import StoryDecision
+from .enums import StoryDecision, JobStatus, JobPhase    
 
 __all__ = [
     "User",
@@ -14,4 +14,6 @@ __all__ = [
     "Job",
     "UserStoryVersion",
     "StoryDecision",
+    "JobStatus",
+    "JobPhase"
 ]
