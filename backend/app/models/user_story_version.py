@@ -44,8 +44,14 @@ class UserStoryVersion(Base):
     # =========================
     initial_score: Mapped[Optional[float]] = mapped_column(Float)
     final_score: Mapped[Optional[float]] = mapped_column(Float)
-
     iteration: Mapped[int] = mapped_column(default=0, nullable=False)
+
+    # =========================
+    # TESTABILITY
+    # =========================
+    testability_score: Mapped[Optional[float]] = mapped_column(Float)
+    is_testable: Mapped[Optional[bool]] = mapped_column()
+    testability_issues: Mapped[Optional[List[str]]] = mapped_column(JSONB)
 
     # =========================
     # DECISION

@@ -1,267 +1,287 @@
-<div class="page-container">
-
+<!-- user-stories.component.html -->
+<div class="page">
   <!-- Header -->
   <div class="page-header">
-    <div class="header-left">
-      <button class="btn-back" (click)="goBack()">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/>
-        </svg>
-      </button>
-      <div class="header-info">
-        <h1>{{ projectName() || 'User Stories' }}</h1>
-        <span class="story-count">{{ filteredStories().length }} stories</span>
-      </div>
-    </div>
-
-    <div class="header-actions">
-      @if (selectedCount() > 0) {
-        <button class="btn btn-primary" (click)="runSelectedPipeline()" [disabled]="pipelineLoading()">
-          @if (pipelineLoading()) {
-            <app-spinner [size]="16" />
-          }
-          Run Pipeline ({{ selectedCount() }})
+    <div class="header-content">
+      <div class="header-text">
+        <button class="btn-back" (click)="goBack()">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/>
+          </svg>
         </button>
-      }
+        <div>
+          <h1>{{ projectName() || 'User Stories' }}</h1>
+          <p>{{ filteredStories().length }} stories</p>
+        </div>
+      </div>
 
-      <button class="btn btn-secondary" (click)="runAllPipeline()" [disabled]="pipelineLoading() || stories().length === 0">
-        @if (pipelineLoading()) {
-          <app-spinner [size]="16" />
+      <div class="header-actions">
+        @if (selectedCount() > 0) {
+          <button class="btn btn-primary" (click)="runSelectedPipeline()" [disabled]="pipelineLoading()">
+            @if (pipelineLoading()) {
+              <div class="btn-spinner"></div>
+            }
+            Run Pipeline ({{ selectedCount() }})
+          </button>
         }
-        Run All ({{ stories().length }})
-      </button>
+
+        <button class="btn btn-secondary" (click)="runAllPipeline()" [disabled]="pipelineLoading() || stories().length === 0">
+          @if (pipelineLoading()) {
+            <div class="btn-spinner"></div>
+          }
+          Run All ({{ stories().length }})
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Loading -->
-  @if (loading()) {
-    <div class="loading-container">
-      <app-spinner [size]="48" text="Loading stories..." />
-    </div>
-  }
-
-  <!-- Empty state: no stories at all -->
-  @if (!loading() && stories().length === 0) {
-    <app-empty-state
-      title="No User Stories"
-      description="Import user stories from Jira to get started with analysis and refinement."
-    >
-      <svg icon xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-      </svg>
-    </app-empty-state>
-
-    <div class="empty-actions">
-      <button class="btn btn-primary" (click)="openImportModal()">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
-          <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
-          <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
-        </svg>
-        Import from Jira
-      </button>
-      <button class="btn btn-secondary" (click)="goBack()">
-        Go to Projects
-      </button>
-    </div>
-  }
-
-  <!-- Stories exist: show toolbar + table -->
-  @if (!loading() && stories().length > 0) {
-
-    <!-- Toolbar: Search + Filters -->
-    <div class="toolbar">
-      <app-search-bar
-        placeholder="Search by issue key, title or description..."
-        [debounce]="300"
-        (searchChange)="onSearchChange($event)"
-      />
-
-      <app-filter-bar
-        [groups]="filterGroups"
-        [activeFilters]="activeFilters()"
-        (filtersChange)="onFiltersChange($event)"
-      />
-    </div>
-
-    <!-- No results after filtering -->
-    @if (filteredStories().length === 0) {
-      <div class="no-results">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
-        </svg>
-        <p class="no-results-title">No stories match your filters</p>
-        <p class="no-results-desc">Try adjusting your search or filters to find what you're looking for.</p>
-        <button class="btn btn-secondary btn-sm" (click)="clearAllFilters()">
-          Clear all filters
-        </button>
+  <div class="page-content">
+    <!-- Loading -->
+    @if (loading()) {
+      <div class="loading-container">
+        <app-spinner text="Loading stories..." />
       </div>
     }
 
-    <!-- Table -->
-    @if (filteredStories().length > 0) {
-      <div class="table-container">
-        <table class="stories-table">
-          <thead>
-            <tr>
-              <th class="col-checkbox">
-                <input
-                  type="checkbox"
-                  [checked]="allSelected()"
-                  [indeterminate]="someSelected()"
-                  (change)="toggleSelectAll()"
-                />
-              </th>
-              <th class="col-key">Key</th>
-              <th class="col-title">User Story</th>
-              <th class="col-priority">Priority</th>
-              <th class="col-ac">AC</th>
-              <th class="col-pipeline">Pipeline</th>
-              <th class="col-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (story of paginatedStories(); track story.issue_key) {
-              <tr
-                [id]="'story-' + story.issue_key"
-                [class.processing]="story.jobStatus === 'processing'"
-                [class.row-completed]="isCompleted(story)"
-                (click)="openStoryDetail(story)"
-              >
-                <!-- Checkbox -->
-                <td class="col-checkbox" (click)="$event.stopPropagation()">
+    <!-- Empty state: no stories at all - Same style as projects empty hero -->
+    @if (!loading() && stories().length === 0) {
+      <div class="empty-hero">
+        <div class="empty-hero-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+          </svg>
+        </div>
+        <h2 class="empty-hero-title">No User Stories</h2>
+        <p class="empty-hero-desc">
+          Import user stories from Jira to start analyzing and refining them with AI.
+        </p>
+        <button class="btn btn-primary btn-lg" (click)="openImportModal()">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
+            <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
+            <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+          </svg>
+          Import from Jira
+        </button>
+
+        <div class="empty-hero-steps">
+          <div class="step">
+            <span class="step-num">1</span>
+            <span class="step-text">Select a Jira project</span>
+          </div>
+          <div class="step-arrow">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="step">
+            <span class="step-num">2</span>
+            <span class="step-text">Import user stories</span>
+          </div>
+          <div class="step-arrow">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="step">
+            <span class="step-num">3</span>
+            <span class="step-text">Run the AI pipeline</span>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Stories exist: show toolbar + table -->
+    @if (!loading() && stories().length > 0) {
+      <!-- Toolbar: Search + Filters -->
+      <div class="toolbar">
+        <app-search-bar
+          placeholder="Search by issue key, title or description..."
+          [debounce]="300"
+          (searchChange)="onSearchChange($event)"
+        />
+
+        <app-filter-bar
+          [groups]="filterGroups"
+          [activeFilters]="activeFilters()"
+          (filtersChange)="onFiltersChange($event)"
+        />
+      </div>
+
+      <!-- No results after filtering -->
+      @if (filteredStories().length === 0) {
+        <div class="no-results">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+          </svg>
+          <p class="no-results-title">No stories match your search</p>
+          <p class="no-results-desc">Try different keywords or clear your filters.</p>
+          <button class="btn btn-secondary btn-sm" (click)="clearAllFilters()">
+            Clear all filters
+          </button>
+        </div>
+      }
+
+      <!-- Table -->
+      @if (filteredStories().length > 0) {
+        <div class="table-container">
+          <table class="stories-table">
+            <thead>
+              <tr>
+                <th class="col-checkbox">
                   <input
                     type="checkbox"
-                    [checked]="isSelected(story)"
-                    (change)="toggleSelect(story)"
+                    [checked]="allSelected()"
+                    [indeterminate]="someSelected()"
+                    (change)="toggleSelectAll()"
                   />
-                </td>
-
-                <!-- Key -->
-                <td class="col-key">
-                  <span class="issue-key">{{ story.issue_key }}</span>
-                </td>
-
-                <!-- Title -->
-                <td class="col-title">
-                  <div class="story-main">                
-                    <span class="title">
-                      {{ story.title || 'No title' }}
-                    </span>
-                
-                    <span class="description">
-                      {{ story.description || 'No description' }}
-                    </span>
-                  </div>
-                </td>
-
-                <!-- Priority -->
-                <td class="col-priority">
-                  @if (story.priority) {
-                    <span class="jira-badge priority" [attr.data-priority]="story.priority.toLowerCase()">
-                      {{ story.priority }}
-                    </span>
-                  } @else {
-                    <span class="text-muted">—</span>
-                  }
-                </td>
-
-                <!-- AC -->
-                <td class="col-ac">
-                  <span class="ac-badge" [class.has-ac]="getAcCount(story) > 0" [class.empty]="getAcCount(story) === 0">
-                    {{ getAcCount(story) }}
-                  </span>
-                </td>
-<!-- Pipeline Status Column -->
-<td class="col-pipeline" (click)="$event.stopPropagation()">
-  @if (isProcessing(story)) {
-    <!-- Processing state -->
-    <div class="pipeline-status processing">
-      <app-spinner [size]="14" />
-      <span>{{ getPhaseLabel(story) }}</span>
-    </div>
-  }
-  @else if (story.jobStatus === 'failed') {
-  <div class="pipeline-status failed">
-    <span>Failed</span>
-  </div>  
-  } @else if (isCompleted(story)) {
-    @let version = getDisplayVersion(story);
-    @let status = getDecisionStatus(story);
-    
-    @switch (status) {
-      @case ('approved') {
-        <!-- Approved: show score + version number -->
-        <div class="pipeline-status approved clickable" (click)="viewResults(story)">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="status-icon">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-          </svg>
-          <span>Approved</span>
-          <app-score-badge [score]="getScore(version)" size="small" />
-        </div>
-      }
-      @case ('rejected') {
-        <!-- Kept original -->
-        <div class="pipeline-status rejected clickable" (click)="viewResults(story)">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="status-icon">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
-          </svg>
-          <span>Kept original</span>
-        </div>
-      }
-      @default {
-<button class="review-chip" (click)="viewResults(story)">
-  <span class="status-dot"></span>
-  <span>Review</span>
-  <svg class="arrow-icon" viewBox="0 0 20 20" fill="currentColor">
-    <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"/>
-  </svg>
-</button>
-      }
-    }
-  } @else {
-    <!-- Idle state -->
-    <span class="pipeline-idle">Not processed</span>
-  }
-</td>
-                <!-- Actions -->
-                <td class="col-actions" (click)="$event.stopPropagation()">
-                  <div class="action-buttons">
-                    <!-- Run Pipeline: When can run and no version yet -->
-                    @if (canRunPipeline(story) && !getDisplayVersion(story)) {
-                      <button class="btn-icon run" title="Run Pipeline" (click)="runSinglePipeline(story)">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
-                        </svg>
-                      </button>
-                    }
-
-                    <!-- Re-run: When has version and can run -->
-                    @if (canRerunPipeline(story)) {
-                      <button class="btn-icon" title="Re-run Pipeline" (click)="rerunPipeline(story)">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                    }
-                  </div>
-                </td>
+                </th>
+                <th class="col-key">Key</th>
+                <th class="col-title">User Story</th>
+                <th class="col-priority">Priority</th>
+                <th class="col-ac">AC</th>
+                <th class="col-pipeline">Pipeline</th>
+                <th class="col-actions">Actions</th>
               </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              @for (story of paginatedStories(); track story.issue_key) {
+                <tr
+                  [id]="'story-' + story.issue_key"
+                  [class.processing]="story.jobStatus === 'processing'"
+                  [class.row-completed]="isCompleted(story)"
+                  (click)="openStoryDetail(story)"
+                >
+                  <!-- Checkbox -->
+                  <td class="col-checkbox" (click)="$event.stopPropagation()">
+                    <input
+                      type="checkbox"
+                      [checked]="isSelected(story)"
+                      (change)="toggleSelect(story)"
+                    />
+                  </td>
 
-      <!-- Pagination -->
-      <app-pagination
-        [totalItems]="filteredStories().length"
-        [currentPage]="page()"
-        [pageSize]="pageSize()"
-        [pageSizeOptions]="[5, 10, 20, 50]"
-        (pageChange)="onPageChange($event)"
-        (pageSizeChange)="onPageSizeChange($event)"
-      />
+                  <!-- Key -->
+                  <td class="col-key">
+                    <span class="issue-key">{{ story.issue_key }}</span>
+                  </td>
+
+                  <!-- Title -->
+                  <td class="col-title">
+                    <div class="story-main">                
+                      <span class="title">
+                        {{ story.title || 'No title' }}
+                      </span>
+                      <span class="description">
+                        {{ story.description || 'No description' }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Priority -->
+                  <td class="col-priority">
+                    @if (story.priority) {
+                      <span class="jira-badge priority" [attr.data-priority]="story.priority.toLowerCase()">
+                        {{ story.priority }}
+                      </span>
+                    } @else {
+                      <span class="text-muted">—</span>
+                    }
+                  </td>
+
+                  <!-- AC -->
+                  <td class="col-ac">
+                    <span class="ac-badge" [class.has-ac]="getAcCount(story) > 0" [class.empty]="getAcCount(story) === 0">
+                      {{ getAcCount(story) }}
+                    </span>
+                  </td>
+
+                  <!-- Pipeline Status Column -->
+                  <td class="col-pipeline" (click)="$event.stopPropagation()">
+                    @if (isProcessing(story)) {
+                      <div class="pipeline-status processing">
+                        <app-spinner [size]="14" />
+                        <span>{{ getPhaseLabel(story) }}</span>
+                      </div>
+                    }
+                    @else if (story.jobStatus === 'failed') {
+                      <div class="pipeline-status failed">
+                        <span>Failed</span>
+                      </div>  
+                    } @else if (isCompleted(story)) {
+                      @let version = getDisplayVersion(story);
+                      @let status = getDecisionStatus(story);
+                      
+                      @switch (status) {
+                        @case ('approved') {
+                          <div class="pipeline-status approved clickable" (click)="viewResults(story)">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="status-icon">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                            </svg>
+                            <span>Approved</span>
+                            <app-score-badge [score]="getScore(version)" size="small" />
+                          </div>
+                        }
+                        @case ('rejected') {
+                          <div class="pipeline-status rejected clickable" (click)="viewResults(story)">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="status-icon">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
+                            </svg>
+                            <span>Kept original</span>
+                          </div>
+                        }
+                        @default {
+                          <button class="review-chip" (click)="viewResults(story)">
+                            <span class="status-dot"></span>
+                            <span>Review</span>
+                            <svg class="arrow-icon" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"/>
+                            </svg>
+                          </button>
+                        }
+                      }
+                    } @else {
+                      <span class="pipeline-idle">Not processed</span>
+                    }
+                  </td>
+
+                  <!-- Actions -->
+                  <td class="col-actions" (click)="$event.stopPropagation()">
+                    <div class="action-buttons">
+                      @if (canRunPipeline(story) && !getDisplayVersion(story)) {
+                        <button class="btn-icon run" title="Run Pipeline" (click)="runSinglePipeline(story)">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                          </svg>
+                        </button>
+                      }
+
+                      @if (canRerunPipeline(story)) {
+                        <button class="btn-icon" title="Re-run Pipeline" (click)="rerunPipeline(story)">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
+                          </svg>
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <app-pagination
+          [totalItems]="filteredStories().length"
+          [currentPage]="page()"
+          [pageSize]="pageSize()"
+          [pageSizeOptions]="[5, 10, 20, 50]"
+          (pageChange)="onPageChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
+      }
     }
-  }
+  </div>
 </div>
 
 <!-- Import Modal -->

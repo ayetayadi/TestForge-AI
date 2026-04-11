@@ -59,6 +59,11 @@ export interface UserStoryVersion {
 
   initial_score: number;
   final_score: number;
+ 
+  testability_score?: number;
+  is_testable?: boolean;
+  testability_issues?: string[];
+
 
   iteration: number;
   created_at?: string;
@@ -153,6 +158,10 @@ export interface JobState {
   version_id?: string;
 
   decision_status?: DecisionStatus;
+
+  testability_score?: number;
+  is_testable?: boolean;
+  testability_issues?: string[];
 
   // Trace
   trace?: TraceEntry[];

@@ -159,6 +159,9 @@ async def async_worker(worker_id: int):
                         model_used=result.get("model_used"),
                         prompt_tokens=result.get("prompt_tokens"),
                         completion_tokens=result.get("completion_tokens"),
+                        testability_score=result.get("testability_score"),
+                        is_testable=result.get("is_testable"),
+                        testability_issues=result.get("testability_issues"),
                     )
 
                     has_new_version = True

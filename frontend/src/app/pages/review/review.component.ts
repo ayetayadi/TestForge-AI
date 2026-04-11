@@ -97,6 +97,9 @@ export class ReviewComponent implements OnInit, OnDestroy {
         final_score: state.final_score || 0,
         iteration: state.iteration || 0,
         decision_status: 'pending',
+        testability_score: state.testability_score,
+        is_testable: state.is_testable,
+        testability_issues: state.testability_issues || []
       } as UserStoryVersion;
     }
     
@@ -502,6 +505,29 @@ private parseAc(ac: string[] | string | undefined | null): string[] {
     if (entry?.data?.current_score !== undefined) return entry.data.current_score;
     return null;
   }
+
+getTestabilityScore(): number | null {
+  return (
+    this.currentVersion()?.testability_score ??
+    this.state()?.testability_score ??
+    null
+  );
+}
+isTestable(): boolean | null {
+  return (
+    this.currentVersion()?.is_testable ??
+    this.state()?.is_testable ??
+    null
+  );
+}
+
+getTestabilityIssues(): string[] {
+  return (
+    this.currentVersion()?.testability_issues ??
+    this.state()?.testability_issues ??
+    []
+  );
+}
 
   // ─────────────────────────────────────────────
   // DECISION
