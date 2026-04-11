@@ -15,7 +15,7 @@ class ACService:
     def filter_testable(ac_list):
         return [
             ac for ac in ac_list
-            if is_testable_ac(ac) or len(ac.split()) >= 4
+            if is_testable_ac(ac) or len(ac.split()) >= 3
         ]
 
     @staticmethod
@@ -30,7 +30,6 @@ class ACService:
 
         ratio = len(testable) / len(ac_list)
 
-        # bonus léger seulement
         detailed = [ac for ac in testable if len(ac.split()) > 6]
         bonus = min(0.2, len(detailed) / max(len(testable), 1) * 0.2)
 
@@ -52,24 +51,44 @@ class ACService:
         return result
 
     @staticmethod
+    def score_ac(ac: str) -> int:
+        score = len(ac.split())
+
+        if is_testable_ac(ac):
+            score += 5
+
+        return score
+
+    @staticmethod
     def get_best(
         ac_list: List[str],
-        min_length: int = 5,
+        min_length: int = 3,
         max_count: int = 5
     ) -> List[str]:
 
+        if not ac_list:
+            return []
+
         testable = ACService.filter_testable(ac_list)
+
+        if not testable or len(testable) < len(ac_list) * 0.6:
+            testable = ac_list
 
         sorted_ac = sorted(
             testable,
-            key=lambda x: len(x.split()),
+            key=ACService.score_ac,
             reverse=True
         )
 
-        return [
+        result = [
             ac for ac in sorted_ac
             if len(ac.split()) >= min_length
-        ][:max_count]
+        ]
+
+        if not result:
+            return ac_list[:max_count]
+
+        return result[:max_count]
 
 
 ac_service = ACService()

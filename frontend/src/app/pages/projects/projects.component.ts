@@ -32,7 +32,7 @@ export class ProjectsComponent implements OnInit {
 
   @ViewChild('importModal') importModal!: ImportModalComponent;
 
-  projects = signal<Project[]>([]);
+  projects = signal<Project[] | null>(null);
   loading = signal(true);
   jiraConnected = signal(false);
   errorMessage = signal<string | null>(null);
@@ -57,7 +57,7 @@ export class ProjectsComponent implements OnInit {
   ];
 
   filteredProjects = computed(() => {
-    let result = this.projects();
+    let result = this.projects() ?? [];
     const query = this.searchQuery().toLowerCase().trim();
     const filters = this.activeFilters();
 
@@ -83,7 +83,7 @@ export class ProjectsComponent implements OnInit {
   });
 
   paginatedProjects = computed(() => {
-    const all = this.filteredProjects();
+    const all = this.filteredProjects() ?? [];
     const start = (this.page() - 1) * this.pageSize();
     return all.slice(start, start + this.pageSize());
   });
@@ -109,7 +109,6 @@ export class ProjectsComponent implements OnInit {
         this.projects.set(Array.isArray(projects) ? projects : []);
         this.loading.set(false);
         
-        // Toast de succès optionnel (décommentez si vous voulez)
         // this.toastService.success('Projects loaded', `${projects.length} projects found`);
       },
       error: (err) => {
@@ -212,7 +211,7 @@ export class ProjectsComponent implements OnInit {
         
         // Mise à jour locale
         this.projects.update(list =>
-          list.filter(p => p.id !== project.id)
+          (list ?? []).filter(p => p.id !== project.id)
         );
         
         // Ajuster la pagination si nécessaire

@@ -141,79 +141,89 @@ class ConstraintGuard:
         original_story: str,
         language: str = None
     ) -> Tuple[List[str], List[Dict]]:
-
+    
         if not ac_list:
             return [], []
-
+    
         original_lower = original_story.lower()
         original_tokens = set(re.findall(r'\b\w{3,}\b', original_lower))
+    
         lang = (language or detect_language(original_story) or "").lower()
-        if lang in ["fr", "french", "français"]:
-            lang_key = "fr"
-        elif lang in ["en", "english"]:
-            lang_key = "en"
-        else:
-            lang_key = "fr"
-
+        lang_key = "fr" if lang.startswith("fr") else "en"
+    
         original_tokens = self._expand_tokens_with_stems(original_tokens, lang_key)
+    
         allowed_terms = {t.lower() for t in ALLOWED_STANDARD_TERMS.get(lang_key, set())}
         safe_terms = {t.lower() for t in SAFE_TERMS}
-
-        # Merge all allowed terms into a single set for filtering
         all_allowed = allowed_terms | safe_terms
-
+    
         valid = []
         rejected = []
-
+    
         for ac in ac_list:
             ac_lower = ac.lower()
-            rejection_reason = None
-
-            # --- Language consistency check ---
+    
+            # =========================
+            # 1. Language check (SOFT)
+            # =========================
             ac_lang = detect_language(ac)
-            ac_lang_key = "fr" if ac_lang in ["fr", "french", "français"] else "en"
-
+            ac_lang_key = "fr" if ac_lang.startswith("fr") else "en"
+    
+            # tolérance : accepter EN dans FR si termes techniques
             if ac_lang_key != lang_key:
-                rejected.append({
-                    "ac": ac,
-                    "reason": f"language_mismatch:expected={lang_key},got={ac_lang_key}"
-                })
-                continue
-            
+                if not any(term in ac_lower for term in all_allowed):
+                    rejected.append({
+                        "ac": ac,
+                        "reason": "language_mismatch"
+                    })
+                    continue
+    
+            # =========================
+            # 2. Opposite action (KEEP STRICT)
+            # =========================
             if self._is_opposite_action_ac(ac_lower, original_lower):
                 rejected.append({
                     "ac": ac,
                     "reason": "opposite_action_drift"
                 })
                 continue
-
-            # --- Hallucination pattern check ---
+    
+            # =========================
+            # 3. Hallucination (SOFTENED)
+            # =========================
+            hallucinated = False
             for pattern in HALLUCINATION_PATTERNS:
                 if re.search(pattern, ac_lower) and not re.search(pattern, original_lower):
-                    rejection_reason = f"hallucinated_feature:{pattern}"
+                    hallucinated = True
                     break
-
-            if rejection_reason:
-                rejected.append({"ac": ac, "reason": rejection_reason})
-                continue
-
-            # --- New concept check ---
+    
+            # ❗ on ne rejette plus directement
+            # on log seulement
+    
+            # =========================
+            # 4. New concepts (RELAXED)
+            # =========================
             ac_tokens = set(re.findall(r'\b\w{3,}\b', ac_lower))
             ac_tokens_expanded = self._expand_tokens_with_stems(ac_tokens, lang_key)
+    
             new_tokens = ac_tokens_expanded - original_tokens - all_allowed
             domain_tokens = {t for t in new_tokens if len(t) > 5}
-
-            if len(domain_tokens) > MAX_NEW_DOMAIN_TERMS:
+    
+            # ⚠️ seuil augmenté + soft reject
+            if len(domain_tokens) > MAX_NEW_DOMAIN_TERMS * 2:
                 rejected.append({
                     "ac": ac,
-                    "reason": f"new_concepts:{list(domain_tokens)[:3]}"
+                    "reason": f"too_many_new_concepts:{list(domain_tokens)[:3]}"
                 })
                 continue
-
+    
+            # =========================
+            # 5. ACCEPT
+            # =========================
             valid.append(ac)
-
+    
         return valid, rejected
-
+    
     def _expand_tokens_with_stems(self, tokens: set, language: str) -> set:
         expanded = set(tokens)
 

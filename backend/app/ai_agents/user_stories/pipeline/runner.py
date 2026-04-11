@@ -56,6 +56,9 @@ async def run_user_story_pipeline(state: dict) -> dict:
     state.setdefault("existing_ac", None)
     state.setdefault("consecutive_llm_failures", 0)
     state.setdefault("llm_calls", 0)
+    state.setdefault("model_used", None)
+    state.setdefault("prompt_tokens", 0)
+    state.setdefault("completion_tokens", 0)
 
     state = add_trace(state, "start", {
         "story": state["raw_story"]
@@ -101,7 +104,6 @@ async def run_user_story_pipeline(state: dict) -> dict:
         result["improved_story"] = result["best_story"]
         result["acceptance_criteria"] = result.get("best_ac", [])
 
-    result["has_new_version"] = result.get("improved_story") is not None
 
     duration = round(time.time() - start_time, 3)
 
@@ -112,7 +114,11 @@ async def run_user_story_pipeline(state: dict) -> dict:
         "initial_score": initial,
         "final_score": final,
         "duration": duration,
-        "status": "completed"
+        "status": "completed",
+        "llm_calls": result.get("llm_calls", 0),
+        "model_used": result.get("model_used"),
+        "prompt_tokens": result.get("prompt_tokens"),
+        "completion_tokens": result.get("completion_tokens"),
     })
 
     result = add_trace(result, "end", {

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Dict, Any
 
 from app.utils.pipeline_utils import add_trace
@@ -23,6 +24,15 @@ async def compute_all_scores(
 
     jira_id = state.get("jira_id", "?")
     iteration = state.get("iteration", 0)
+
+    # ============================================================
+    # SAFE INIT
+    # ============================================================
+    state["prompt_tokens"] = state.get("prompt_tokens", 0)
+    state["completion_tokens"] = state.get("completion_tokens", 0)
+    state["llm_calls"] = state.get("llm_calls", 0)
+
+    ac = ac or []
 
     # ============================================================
     # TRACE INPUT
@@ -54,7 +64,37 @@ async def compute_all_scores(
     rule_result, nlp_result, llm_response = results
 
     # ============================================================
-    # RAW DEBUG (IMPORTANT)
+    # LLM RESPONSE
+    # ============================================================
+    if isinstance(llm_response, Exception):
+        print("LLM ERROR:", llm_response)
+        llm_response = {}
+
+    if isinstance(llm_response, str):
+        try:
+            llm_response = json.loads(llm_response)
+        except Exception as e:
+            print("JSON PARSE ERROR:", e)
+            llm_response = {}
+
+    # ============================================================
+    # LLM METRICS
+    # ============================================================
+    if not isinstance(llm_response, Exception):
+        state["llm_calls"] += 1
+
+        if isinstance(llm_response, dict):
+            state["prompt_tokens"] += llm_response.get("prompt_tokens", 0)
+            state["completion_tokens"] += llm_response.get("completion_tokens", 0)
+            state["model_used"] = llm_response.get("model")
+
+        elif getattr(llm_response, "content", None):
+            state["prompt_tokens"] += getattr(llm_response, "prompt_tokens", 0) or 0
+            state["completion_tokens"] += getattr(llm_response, "completion_tokens", 0) or 0
+            state["model_used"] = getattr(llm_response, "model", None)
+
+    # ============================================================
+    # TRACE RAW RESULTS
     # ============================================================
     state = add_trace(state, "scoring_raw_results", {
         "iteration": iteration,
@@ -64,67 +104,51 @@ async def compute_all_scores(
     })
 
     # ============================================================
-    # EXTRACT RULE SCORE
+    # RULE SCORE
     # ============================================================
-    rule_score = _extract_score(
-        result=rule_result,
-        key="rule_score",
-        source="rule_engine",
-        jira_id=jira_id,
-        state=state
-    )
+    if isinstance(rule_result, Exception):
+        print("RULE ERROR:", rule_result)
+        rule_score = 0.0
+    else:
+        rule_score = _extract_score(
+            result=rule_result,
+            key="rule_score",
+            source="rule_engine",
+            jira_id=jira_id,
+            state=state
+        )
 
     # ============================================================
-    # EXTRACT NLP SCORE
+    # NLP SCORE
     # ============================================================
-    nlp_score = _extract_score(
-        result=nlp_result,
-        key="nlp_score",
-        source="nlp_checker",
-        jira_id=jira_id,
-        state=state
-    )
+    if isinstance(nlp_result, Exception):
+        print("NLP ERROR:", nlp_result)
+        nlp_score = 0.0
+    else:
+        nlp_score = _extract_score(
+            result=nlp_result,
+            key="nlp_score",
+            source="nlp_checker",
+            jira_id=jira_id,
+            state=state
+        )
 
     # ============================================================
-    # EXTRACT LLM RESULT
+    # LLM SCORE
     # ============================================================
-    if isinstance(llm_response, Exception):
-        llm_score = fallback.get("llm_score", 0.3)
-        llm_issues = fallback.get("llm_issues", [])
-        llm_suggestions = fallback.get("llm_suggestions", [])
-        llm_failed = True
-
-        state = add_trace(state, "llm_error", {
-            "iteration": iteration,
-            "error": str(llm_response)
-        })
-
-    elif isinstance(llm_response, dict):
+    if isinstance(llm_response, dict):
         llm_score = safe_float(llm_response.get("llm_score", 0.3))
         llm_issues = llm_response.get("llm_issues", [])
         llm_suggestions = llm_response.get("llm_suggestions", [])
-        llm_failed = False 
-
-    elif getattr(llm_response, "success", False) and getattr(llm_response, "content", None):
-        content = llm_response.content
-
-        llm_score = safe_float(content.get("llm_score", 0.3))
-        llm_issues = content.get("llm_issues", [])
-        llm_suggestions = content.get("llm_suggestions", [])
         llm_failed = False
-
     else:
         llm_score = fallback.get("llm_score", 0.3)
         llm_issues = fallback.get("llm_issues", [])
         llm_suggestions = fallback.get("llm_suggestions", [])
         llm_failed = True
 
-        state = add_trace(state, "llm_fallback_used", {
-            "iteration": iteration
-        })
-
     # ============================================================
-    # COMPUTE FINAL SCORE
+    # FINAL SCORE
     # ============================================================
     ac_score = ac_service.compute_score(ac)
     is_garbage = garbage_detector.is_garbage(story)
@@ -140,14 +164,8 @@ async def compute_all_scores(
     final_score = components.normalized
 
     # ============================================================
-    # TRACE INPUT / OUTPUT
+    # TRACE OUTPUT
     # ============================================================
-    state = add_trace(state, "scoring_input", {
-        "iteration": iteration,
-        "story": story,
-        "ac": ac
-    })
-
     state = add_trace(state, "scoring_output", {
         "iteration": iteration,
         "scores": {
@@ -156,20 +174,9 @@ async def compute_all_scores(
             "nlp": nlp_score,
             "ac": ac_score,
             "final": round(final_score, 3)
-        },
-        "flags": {
-            "llm_failed": llm_failed,
-            "is_garbage": is_garbage
-        },
-        "llm_feedback": {
-            "issues": llm_issues,
-            "suggestions": llm_suggestions
         }
     })
 
-    # ============================================================
-    # RETURN
-    # ============================================================
     return {
         "rule_score": rule_score,
         "nlp_score": nlp_score,
@@ -183,19 +190,13 @@ async def compute_all_scores(
     }
 
 
-def _extract_score(
-    result: Any,
-    key: str,
-    source: str,
-    jira_id: str,
-    state: Dict[str, Any]
-) -> float:
+# ============================================================
+# SAFE EXTRACT SCORE
+# ============================================================
+def _extract_score(result, key, source, jira_id, state):
 
     if isinstance(result, Exception):
-        state = add_trace(state, f"{source}_error", {
-            "jira_id": jira_id,
-            "error": str(result)
-        })
+        print(f"{source.upper()} ERROR:", result)
         return 0.0
 
     if isinstance(result, dict):

@@ -91,6 +91,14 @@ class UserStoryState(TypedDict, total=False):
     current_step: str
 
     # =========================
+    # LLM METRICS
+    # =========================
+    llm_calls: int
+    model_used: str
+    prompt_tokens: int
+    completion_tokens: int 
+
+    # =========================
     # TRACE & EVENTS
     # =========================
     trace: List[Dict[str, Any]]

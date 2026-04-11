@@ -3,8 +3,7 @@ from enum import Enum
 class StoryDecision(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
-    REJECTED_KEEP = "rejected_keep"
-    REJECTED_RELAUNCH = "rejected_relaunch"
+    REJECTED = "rejected"
 
 class JobStatus(str, Enum):
     PROCESSING = "processing"
