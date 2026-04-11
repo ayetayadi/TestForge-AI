@@ -12,6 +12,7 @@ from app.ai_agents.user_stories.utils.text_quality_utils import (
 from app.ai_agents.user_stories.services.ac_extraction_service import ac_extraction_service
 from ..services.publishing_service import publishing_service
 from ..utils.text_sanitizer import sanitize_story
+from ..utils.testability_utils import compute_testability
 from ..utils.scoring_utils import compute_all_scores
 from ..prompts.analysis import ANALYSIS_PROMPT
 
@@ -117,6 +118,16 @@ async def analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
         },
         state=state
     )
+
+    # ============================================================
+    # Compute testability
+    # ============================================================
+    testability = compute_testability(raw_story, ac)
+
+    state["testability_score"] = testability["score"]
+    state["is_testable"] = testability["is_testable"]
+    state["testability_issues"] = testability["issues"]
+    state["input_quality"] = "good" if testability["is_testable"] else "poor"
 
     # ============================================================
     # 7. STATE UPDATE

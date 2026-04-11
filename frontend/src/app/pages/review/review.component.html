@@ -123,33 +123,33 @@
           <div class="versions-list">
             @for (version of allVersions(); track version.id; let i = $index) {
               <button 
-              class="version-card"
-              [class.active]="isViewing(version)"
-              [class.selected]="version.decision_status === 'approved'"
-              [class.latest]="isLatest(i)"
-              [class.best]="isBest(version)"
-              (click)="viewVersion(version)"
-            >
-              <div class="version-header">
-                <span class="version-number">V{{ i + 1 }}</span>
-            
-                @if (isBest(version)) {
-                  <span class="best-badge">⭐ Best</span>
-                }
-            
-                @if (version.decision_status === 'approved') {
-                  <span class="selected-badge">✓ Selected</span>
-                }
-              </div>
-            
-              <div class="version-score">
-                <app-score-badge 
-                  [score]="version.final_score" 
-                  [delta]="(version.final_score) - (version.initial_score)"
-                  size="small"
-                />
-              </div>
-            </button>
+                class="version-card"
+                [class.active]="isViewing(version)"
+                [class.selected]="version.decision_status === 'approved'"
+                [class.latest]="isLatest(i)"
+                [class.best]="isBest(version)"
+                (click)="viewVersion(version)"
+              >
+                <div class="version-header">
+                  <span class="version-number">V{{ i + 1 }}</span>
+              
+                  @if (isBest(version)) {
+                    <span class="best-badge">⭐ Best</span>
+                  }
+              
+                  @if (version.decision_status === 'approved') {
+                    <span class="selected-badge">✓ Selected</span>
+                  }
+                </div>
+              
+                <div class="version-score">
+                  <app-score-badge 
+                    [score]="version.final_score" 
+                    [delta]="(version.final_score) - (version.initial_score)"
+                    size="small"
+                  />
+                </div>
+              </button>
             }
           </div>
         </div>
@@ -186,19 +186,11 @@
 
       <!-- Decision already made notice -->
       @if (state()?.decision_status === 'approved' && !relaunching()) {
-        <div class="decision-notice" [class.approved]="state()?.decision_status === 'approved'" [class.rejected]="state()?.decision_status === 'rejected'">
+        <div class="decision-notice approved">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            @if (state()?.decision_status === 'approved') {
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-            } @else {
-              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
-            }
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
           </svg>
-          @if (state()?.decision_status === 'approved') {
-            <span>This story has been <strong>approved</strong>. The selected version is final.</span>
-          } @else {
-            <span>This version was <strong>rejected</strong>.</span>
-          }
+          <span>This story has been <strong>approved</strong>. The selected version is final.</span>
         </div>
       }
 
@@ -239,6 +231,52 @@
           <span>{{ getIteration() }} iteration{{ getIteration() > 1 ? 's' : '' }}</span>
         </div>
       </div>
+
+      <!-- Testability Section -->
+      @if (getTestabilityScore() !== null) {
+        <div class="testability-card">
+          <div class="testability-header">
+            <span class="testability-label">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 1.5a8.25 8.25 0 00-8.25 8.25c0 3.817 2.6 7.022 6.1 7.97a.75.75 0 00.6-1.374 6.75 6.75 0 01-3.1-6.596 6.75 6.75 0 0110.5-4.242.75.75 0 00.9-1.2A8.22 8.22 0 0010 1.5zM14.22 7.28a.75.75 0 00-1.06 0l-3.41 3.41-1.47-1.47a.75.75 0 00-1.06 1.06l2 2a.75.75 0 001.06 0l4-4a.75.75 0 000-1.06z" clip-rule="evenodd" />
+              </svg>
+              Testability Assessment
+            </span>
+
+            <span class="testability-badge" [class.good]="isTestable() === true" [class.bad]="isTestable() === false">
+              {{ isTestable() ? 'Testable' : 'Not Testable' }}
+            </span>
+          </div>
+
+          <div class="testability-score">
+            <span class="score-value">{{ formatScore(getTestabilityScore()) }}</span>
+            <span class="score-max">/ 10</span>
+          </div>
+
+          @if (getTestabilityIssues().length > 0) {
+            <div class="testability-issues">
+              <h4>Issues Identified:</h4>
+              <ul>
+                @for (issue of getTestabilityIssues(); track $index) {
+                  <li>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                    </svg>
+                    {{ issue }}
+                  </li>
+                }
+              </ul>
+            </div>
+          } @else if (isTestable() === true) {
+            <div class="testability-success">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+              </svg>
+              <span>This story has good testability characteristics</span>
+            </div>
+          }
+        </div>
+      }
 
       <!-- Comparison: User Story -->
       <div class="comparison-section">
@@ -451,6 +489,6 @@
           <span>Decision submitted. Redirecting...</span>
         </div>
       }
-    </div>
+    </div>  
   }
 </div>

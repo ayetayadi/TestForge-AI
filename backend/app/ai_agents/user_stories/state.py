@@ -51,6 +51,15 @@ class UserStoryState(TypedDict, total=False):
     initial_score: float
     score_delta: float
 
+
+    # =========================
+    # TESTABILITY
+    # =========================
+    testability_score: float
+    is_testable: bool
+    testability_issues: List[str]
+    input_quality: str  # "good" | "poor"
+    
     # =========================
     # LLM STATE
     # =========================
