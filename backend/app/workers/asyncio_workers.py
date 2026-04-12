@@ -64,6 +64,7 @@ async def async_worker(worker_id: int):
                 # =========================
                 # START → ANALYZING
                 # =========================
+                is_retry = state.get("is_retry", False)
                 job.status = JobStatus.PROCESSING
                 job.phase = JobPhase.ANALYZING
                 job.iteration = 0
@@ -74,7 +75,7 @@ async def async_worker(worker_id: int):
                 # RUN PIPELINE
                 # =========================
                 result = await asyncio.wait_for(
-                    run_user_story_pipeline(state),
+                    run_user_story_pipeline(state, resume=is_retry),
                     timeout=120
                 )
 
@@ -192,15 +193,24 @@ async def async_worker(worker_id: int):
                 print(f"[DONE] Pipeline finished")
 
             except asyncio.TimeoutError:
+                # Possibilité de retry automatique
                 job = await get_job_by_id(db, job_id)
                 if job:
-                    job.status = JobStatus.FAILED
-                    job.error = "Timeout"
-                    await db.commit()
+                    if job.retry_count < 3:  # Max 3 retries
+                        job.retry_count += 1
+                        job.status = JobStatus.PENDING
+                        await db.commit()
+                        
+                        # Remettre dans la queue avec flag retry
+                        state["is_retry"] = True
+                        await job_queue.put(state)
+                        print(f"[RETRY] Job {job_id} - attempt {job.retry_count}")
+                    else:
+                        job.status = JobStatus.FAILED
+                        job.error = "Timeout after 3 retries"
+                        await db.commit()
+                        await push_event(job_id, "failed", {"error": "Pipeline timeout"})
 
-                await push_event(job_id, "failed", {
-                    "error": "Pipeline timeout"
-                })
 
             except Exception as e:
                 traceback.print_exc()

@@ -34,3 +34,5 @@ python-jose[cryptography]
 cryptography
 httpx
 fastapi-mail
+langgraph-checkpoint-postgres 
+psycopg[binary,pool]
