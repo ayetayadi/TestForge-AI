@@ -117,3 +117,9 @@ class UserStoryState(TypedDict, total=False):
     # TIMING
     # =========================
     timing: Dict[str, float]
+
+
+    # =========================
+    # RETRY CONTROL FOR CHECKPOINTING
+    # =========================
+    is_retry: bool
