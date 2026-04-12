@@ -15,18 +15,25 @@ graph_pipeline = build_graph()
 
 
 @traceable(name="user_story_pipeline")
-async def run_user_story_pipeline(state: dict) -> dict:
+async def run_user_story_pipeline(state: dict, resume: bool = False) -> dict:
     if not state:
         raise ValueError("state is None or empty")
     
-    print(f"[RUNNER] BEFORE deepcopy - use_cache: {state.get('use_cache')}")
     state = copy.deepcopy(state)
-    print(f"[RUNNER] AFTER deepcopy - use_cache: {state.get('use_cache')}")
 
     jira_id = state.get("jira_id", "?")
+    job_id = state.get("job_id")
     start_time = time.time()
 
-    print(f"[RUNNER] {jira_id} use_cache: {state.get('use_cache')}")
+    # ============================================================
+    # CONFIG AVEC THREAD_ID POUR CHECKPOINTING
+    # ============================================================
+    config = {
+        "recursion_limit": 15,
+        "configurable": {
+            "thread_id": f"job-{job_id}"
+        }
+    }
 
     # ============================================================
     # LANGSMITH — METADATA INITIALE
@@ -44,7 +51,24 @@ async def run_user_story_pipeline(state: dict) -> dict:
 
     if "raw_story" not in state:
         raise ValueError("raw_story is required")
+    
+    # ============================================================
+    # VÉRIFIER SI ON PEUT REPRENDRE
+    # ============================================================
+    if resume:
+        try:
+            existing_state = graph_pipeline.get_state(config)
+            if existing_state and existing_state.values:
+                print(f"[{jira_id}] Resuming from checkpoint...")
+                state = existing_state.values
+        except Exception as e:
+            print(f"[{jira_id}] No checkpoint found, starting fresh: {e}")
 
+
+    # ============================================================
+    # INITIALISATION
+    # ============================================================
+    
     state["status"] = "processing"
     state["raw_story"] = clean_raw_story(state["raw_story"])
 
@@ -69,7 +93,7 @@ async def run_user_story_pipeline(state: dict) -> dict:
 
         result = await graph_pipeline.ainvoke(
             state,
-            config={"recursion_limit": 15}
+            config=config
         )
 
         print(f"\n[{jira_id}] ===== PIPELINE RESULT =====")

@@ -6,7 +6,7 @@ from .nodes.analysis_node import analysis_node
 from .nodes.refinement_node import refinement_node
 from .nodes.evaluate_node import evaluate_node
 from .edges import should_refine, should_retry
-
+from .checkpointer import checkpointer
 
 def build_graph():
     graph = StateGraph(UserStoryState)
@@ -50,4 +50,4 @@ def build_graph():
         }
     )
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
