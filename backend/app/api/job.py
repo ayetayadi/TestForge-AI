@@ -10,7 +10,10 @@ from app.repositories.job_repository import get_job_by_id, get_active_jobs
 from app.services.job_service import apply_decision, get_jobs_by_issue_keys
 from app.streaming.sse_manager import event_generator
 from app.repositories.user_story_version_repository import get_latest_version
-
+from app.models.enums import JobStatus
+from app.workers.asyncio_workers import submit_job
+from app.ai_agents.user_stories.graph import build_graph
+graph = build_graph()
 
 class DecisionRequest(BaseModel):
     decision: str
@@ -140,3 +143,59 @@ async def get_jobs_by_issues(
         return {}
 
     return await get_jobs_by_issue_keys(db, issue_keys)
+
+
+
+@router.post("/{job_id}/resume")
+async def resume_job(job_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Reprendre un job échoué depuis son dernier checkpoint.
+    """
+    job = await get_job_by_id(db, job_id)
+    
+    if not job:
+        raise HTTPException(404, "Job not found")
+    
+    if job.status != JobStatus.FAILED:
+        raise HTTPException(400, "Job is not in failed state")
+    
+    # Vérifier s'il y a un checkpoint
+    config = {"configurable": {"thread_id": f"job-{job_id}"}}
+    
+    try:
+        state = graph.get_state(config)
+        if not state or not state.values:
+            raise HTTPException(400, "No checkpoint found for this job")
+        
+        # Remettre le job dans la queue
+        await submit_job({
+            **state.values,
+            "job_id": job_id,
+            "is_retry": True
+        })
+        
+        return {"message": "Job resumed", "last_node": state.next}
+        
+    except Exception as e:
+        raise HTTPException(500, f"Failed to resume: {e}")
+
+
+@router.get("/{job_id}/state")
+async def get_job_state(job_id: str):
+    """
+    Voir l'état actuel du checkpoint (debug).
+    """
+    config = {"configurable": {"thread_id": f"job-{job_id}"}}
+    
+    state = graph.get_state(config)
+    
+    if not state:
+        return {"checkpoint": None}
+    
+    return {
+        "checkpoint": {
+            "values": state.values,
+            "next": state.next,  # Prochain node à exécuter
+            "config": state.config,
+        }
+    }
