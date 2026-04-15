@@ -81,7 +81,7 @@ export interface Job {
   issue_key: string;
   user_story_id?: string;
   status: JobStatus;
-  phase?: 'analyzing' | 'refining' | 'evaluating' | 'completed';
+  phase?: string;  // ❌ SUPPRIMER (plus utilisé)
   created_at?: string;
 }
 
@@ -103,9 +103,9 @@ export interface StoryWithJob extends UserStory {
     issue_key: string;
   };
 
-  jobPhase?: 'analyzing' | 'refining' | 'evaluating' | 'completed';
-  jobStatus?: 'processing' | 'completed' | 'failed';
-
+  jobStatus?: 'processing' | 'completed' | 'failed';  // ✅ Garder
+  jobPhase?: never;  // ❌ SUPPRIMER
+  
   jobScore?: number;
   jobIteration?: number;
 
@@ -131,7 +131,7 @@ export type DecisionStatus = 'pending' | 'approved' | 'rejected';
 export interface JobState {
   job_id: string;
   status: JobStatus | 'not_found';
-  phase?: 'analyzing' | 'refining' | 'evaluating' | 'completed';
+  phase?: never;  // ❌ SUPPRIMER
   iteration: number;
 
   // Story info
@@ -168,7 +168,6 @@ export interface JobState {
 
   has_new_version?: boolean;
 }
-
 export interface TraceEntry {
   step?: string;
   iteration?: number;
@@ -251,24 +250,32 @@ export interface PipelineResponse {
 // SSE Events
 // ==============================
 export type SSEEventType =
-  | 'analyzing'
-  | 'refining'
-  | 'evaluating'
-  | 'completed'
-  | 'failed'
-  | 'ping';
+  | 'processing'      // ✅ Agent tourne
+  | 'completed'       // ✅ Succès
+  | 'failed'          // ✅ Erreur
+  | 'ping';           // ✅ Keepalive
 
 export interface SSEEvent {
   type: SSEEventType;
   data?: {
-    iteration?: number;
-    initial_score?: number;
+    message?: string;           // "Analyzing story...", etc.
+    status?: 'processing' | 'completed' | 'failed';
+    jira_id?: string;
+    thread_id?: string;
+    
+    // Au completion
     final_score?: number;
+    initial_score?: number;
     improved_story?: string;
     generated_acceptance_criteria?: string[];
     version_id?: string;
+    iteration?: number;
+    testability_score?: number;
+    is_testable?: boolean;
+    has_new_version?: boolean;
+    
+    // Au failure
     error?: string;
-    has_new_version?: boolean; 
   };
   timestamp: string;
 }
