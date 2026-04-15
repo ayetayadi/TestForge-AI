@@ -1,3 +1,7 @@
+// ============================================================
+// src/app/pages/review/review.component.ts (CORRIGÉ)
+// ============================================================
+
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -46,8 +50,12 @@ export class ReviewComponent implements OnInit, OnDestroy {
   relaunching = signal(false);
   relaunchPhase = signal<string>('');
 
-  // Pipeline step indicator
-  step = signal<'analysis' | 'refinement' | 'done' | 'idle'>('idle');
+  // ============================================================
+  // ❌ SUPPRIMER: step signal (plus utilisé)
+  // step = signal<'analysis' | 'refinement' | 'done' | 'idle'>('idle');
+
+  // ✅ REMPLACER PAR:
+  processingStep = signal<'processing' | 'done'>('done');
 
   // Navigation context
   private navProjectId: string | null = null;
@@ -69,19 +77,16 @@ export class ReviewComponent implements OnInit, OnDestroy {
     const viewingId = this.viewingVersionId();
     const state = this.state();
     
-    // Si on a sélectionné une version spécifique
     if (viewingId) {
       const found = versions.find(v => v.id === viewingId);
       if (found) return found;
     }
     
-    // Chercher la version du job actuel par version_id
     if (state?.version_id && versions.length > 0) {
       const found = versions.find(v => v.id === state.version_id);
       if (found) return found;
     }
     
-    // Dernière version disponible
     if (versions.length > 0) {
       return [...versions].sort((a,b) => (a.iteration ?? 0) - (b.iteration ?? 0)).at(-1);
     }
@@ -112,19 +117,17 @@ export class ReviewComponent implements OnInit, OnDestroy {
   isViewingLatestVersion = computed(() => {
     const versions = this.allVersions();
     
-    // Pas de versions chargées = on regarde le job directement = c'est la dernière
     if (versions.length === 0) return true;
     
     const current = this.currentVersion();
     if (!current) return true;
     
-    // La dernière version est la dernière du tableau (trié par created_at)
     const latestVersion = versions[versions.length - 1];
     return current.id === latestVersion.id;
   });
 
   /**
-   * Retourne le numéro de la version actuelle (1, 2, 3...)
+   * Retourne le numéro de la version actuelle
    */
   getCurrentVersionNumber = computed(() => {
     const versions = this.allVersions();
@@ -137,8 +140,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
   });
 
   /**
-   * Vérifie si la story a une décision FINALE (approved ou rejected_keep)
-   * rejected_relaunch n'est PAS une décision finale car une nouvelle version est créée
+   * Vérifie si la story a une décision FINALE
    */
   hasFinalDecision = computed(() => {
     const s = this.state();
@@ -148,36 +150,34 @@ export class ReviewComponent implements OnInit, OnDestroy {
 
   /**
    * Vérifie si on peut prendre une décision
-   * - Job doit être completed
-   * - Doit être sur la dernière version
-   * - Pas de décision finale déjà prise
-   * - Pas en train de relancer
-   * - Pas déjà décidé dans cette session
    */
-canMakeDecision = computed(() => {
-  const s = this.state();
-  
-  if (!s || s.status !== 'completed') return false;
-  if (this.relaunching()) return false;
-  if (this.decisionMade()) return false;
+  canMakeDecision = computed(() => {
+    const s = this.state();
+    
+    if (!s || s.status !== 'completed') return false;
+    if (this.relaunching()) return false;
+    if (this.decisionMade()) return false;
 
-  const versionId = this.currentVersion()?.id;
-  if (!versionId) return false;  
-  return true;
-});
+    const versionId = this.currentVersion()?.id;
+    if (!versionId) return false;  
+    return true;
+  });
 
+  /**
+   * Meilleure version (score le plus élevé)
+   */
   bestVersion = computed(() => {
-  const versions = this.allVersions();
-  if (!versions.length) return null;
+    const versions = this.allVersions();
+    if (!versions.length) return null;
 
-  return versions.reduce((best, v) =>
-    (v.final_score || 0) > (best.final_score || 0) ? v : best
-  );
-});
+    return versions.reduce((best, v) =>
+      (v.final_score || 0) > (best.final_score || 0) ? v : best
+    );
+  });
 
-isBest(version: UserStoryVersion): boolean {
-  return this.bestVersion()?.id === version.id;
-}
+  isBest(version: UserStoryVersion): boolean {
+    return this.bestVersion()?.id === version.id;
+  }
 
   /**
    * Version sélectionnée (approuvée)
@@ -226,7 +226,7 @@ isBest(version: UserStoryVersion): boolean {
     this.decisionMade.set(false);
     this.relaunching.set(false);
     this.relaunchPhase.set('');
-    this.step.set('idle');
+    this.processingStep.set('done');  // ✅ Mise à jour
     this.viewingVersionId.set(null);
     this.allVersions.set([]);
   }
@@ -255,22 +255,27 @@ isBest(version: UserStoryVersion): boolean {
       next: (event: SSEEvent) => {
         console.log("[SSE EVENT]", event.type, event.data);
 
+        // ============================================================
+        // ✅ SIMPLIFIÉ: Juste 3 events
+        // ============================================================
         switch (event.type) {
-          case 'analyzing':
-            this.step.set('analysis');
+          case 'processing':
+            // ✅ Agent tourne
+            this.processingStep.set('processing');
+            console.log("[SSE] Agent processing:", event.data?.message);
             break;
-          case 'refining':
-          case 'evaluating':
-            this.step.set('refinement');
-            break;
+
           case 'completed':
+            // ✅ Complété
             this.cleanupSSE();
-            this.step.set('done');
+            this.processingStep.set('done');
             this.loadJob(jobId);
             break;
+
           case 'failed':
+            // ✅ Erreur
             this.cleanupSSE();
-            this.step.set('done');
+            this.processingStep.set('done');
             this.error.set('Pipeline failed');
             break;
         }
@@ -302,34 +307,30 @@ isBest(version: UserStoryVersion): boolean {
 
         this.state.set(jobState);
 
-        // Update issue key if not set
         if (!this.issueKey && jobState.issue_key) {
           this.issueKey = jobState.issue_key;
         }
 
-        // Load all versions for this story
         if (jobState.user_story_id) {
           this.loadVersions(jobState.user_story_id);
         } else {
           this.loading.set(false);
         }
 
-        // Handle different statuses
+        // ============================================================
+        // ✅ SIMPLIFIÉ: Juste checking processing vs completed/failed
+        // ============================================================
         const status = jobState.status;
-        const phase = jobState.phase;
 
-        if (status === 'processing' && !this.relaunching()) {
-          if (phase === 'analyzing') {
-            this.step.set('analysis');
-          } else {
-            this.step.set('refinement');
-          }
+        if (status === 'processing') {
+          // ✅ Agent tourne
+          this.processingStep.set('processing');
           this.listenToStream(jobId);
-        } else if (status === 'completed' || status === 'failed') {
-          this.step.set('done');
+        } else {
+          // ✅ Complété ou failed
+          this.processingStep.set('done');
         }
 
-        // Navigation context from job
         if (!this.navProjectId && jobState.project_id) {
           this.navProjectId = jobState.project_id;
         }
@@ -351,7 +352,6 @@ isBest(version: UserStoryVersion): boolean {
     fetch(`${environment.apiUrl}/user-stories/${storyId}/versions`)
       .then(res => {
         if (!res.ok) {
-
           console.warn(`[VERSIONS] HTTP ${res.status}`);
           return [];
         }
@@ -377,16 +377,10 @@ isBest(version: UserStoryVersion): boolean {
   // VERSION NAVIGATION
   // ─────────────────────────────────────────────
 
-  /**
-   * Sélectionne une version à afficher
-   */
   viewVersion(version: UserStoryVersion): void {
     this.viewingVersionId.set(version.id);
   }
 
-  /**
-   * Retourne à la dernière version
-   */
   viewLatestVersion(): void {
     const versions = this.allVersions();
     if (versions.length > 0) {
@@ -397,16 +391,10 @@ isBest(version: UserStoryVersion): boolean {
     }
   }
 
-  /**
-   * Vérifie si une version est celle qu'on regarde
-   */
   isViewing(version: UserStoryVersion): boolean {
     return this.currentVersion()?.id === version.id;
   }
 
-  /**
-   * Vérifie si c'est la dernière version
-   */
   isLatest(index: number): boolean {
     return index === this.allVersions().length - 1;
   }
@@ -450,35 +438,35 @@ isBest(version: UserStoryVersion): boolean {
     return this.parseAc(this.state()?.existing_ac);
   }
 
-getImprovedAC(): string[] {
-  const version = this.currentVersion();
-  if (version?.generated_acceptance_criteria) {
-    return version.generated_acceptance_criteria;
-  }
-  return this.parseAc(this.state()?.generated_acceptance_criteria);
-}
-
-private parseAc(ac: string[] | string | undefined | null): string[] {
-  if (!ac) return [];
-
-  if (Array.isArray(ac)) {
-    return ac.filter(item => item && String(item).trim());
+  getImprovedAC(): string[] {
+    const version = this.currentVersion();
+    if (version?.generated_acceptance_criteria) {
+      return version.generated_acceptance_criteria;
+    }
+    return this.parseAc(this.state()?.generated_acceptance_criteria);
   }
 
-  if (typeof ac === 'string') {
-    try {
-      const parsed = JSON.parse(ac);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {}
+  private parseAc(ac: string[] | string | undefined | null): string[] {
+    if (!ac) return [];
 
-    return ac
-      .split('\n')
-      .map((x: string) => x.trim())
-      .filter(Boolean);
+    if (Array.isArray(ac)) {
+      return ac.filter(item => item && String(item).trim());
+    }
+
+    if (typeof ac === 'string') {
+      try {
+        const parsed = JSON.parse(ac);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+
+      return ac
+        .split('\n')
+        .map((x: string) => x.trim())
+        .filter(Boolean);
+    }
+
+    return [];
   }
-
-  return [];
-}
 
   // ─────────────────────────────────────────────
   // TRACE & HISTORY
@@ -506,28 +494,29 @@ private parseAc(ac: string[] | string | undefined | null): string[] {
     return null;
   }
 
-getTestabilityScore(): number | null {
-  return (
-    this.currentVersion()?.testability_score ??
-    this.state()?.testability_score ??
-    null
-  );
-}
-isTestable(): boolean | null {
-  return (
-    this.currentVersion()?.is_testable ??
-    this.state()?.is_testable ??
-    null
-  );
-}
+  getTestabilityScore(): number | null {
+    return (
+      this.currentVersion()?.testability_score ??
+      this.state()?.testability_score ??
+      null
+    );
+  }
 
-getTestabilityIssues(): string[] {
-  return (
-    this.currentVersion()?.testability_issues ??
-    this.state()?.testability_issues ??
-    []
-  );
-}
+  isTestable(): boolean | null {
+    return (
+      this.currentVersion()?.is_testable ??
+      this.state()?.is_testable ??
+      null
+    );
+  }
+
+  getTestabilityIssues(): string[] {
+    return (
+      this.currentVersion()?.testability_issues ??
+      this.state()?.testability_issues ??
+      []
+    );
+  }
 
   // ─────────────────────────────────────────────
   // DECISION
@@ -536,9 +525,8 @@ getTestabilityIssues(): string[] {
   submitDecision(choice: DecisionChoice): void {
     if (!this.jobId || this.submitting() || !this.canMakeDecision()) return;
 
-    const versionId =  this.currentVersion()?.id;
+    const versionId = this.currentVersion()?.id;
     console.log("🚨 VERSION SENT:", versionId);
-
 
     if (!versionId) {
       this.toastService.error("No valid version found. Please wait.");
@@ -585,26 +573,22 @@ getTestabilityIssues(): string[] {
   // RELAUNCH
   // ─────────────────────────────────────────────
 
-private handleRelaunch(res: any): void {
-  const newJobId = res.job_id;
+  private handleRelaunch(res: any): void {
+    const newJobId = res.job_id;
 
-  if (!newJobId) {
-    this.toastService.error('Relaunch failed: no job_id');
-    this.navigateToStories();
-    return;
+    if (!newJobId) {
+      this.toastService.error('Relaunch failed: no job_id');
+      this.navigateToStories();
+      return;
+    }
+
+    this.relaunching.set(true);
+    this.relaunchPhase.set('Processing...');
+
+    this.jobId = newJobId;
+    this.connectRelaunchSSE(newJobId);
+    this.loadJob(newJobId);
   }
-
-  this.relaunching.set(true);
-  this.relaunchPhase.set('Starting...');
-
-  this.jobId = newJobId;
-
-  // ✅ connecter SSE AVANT tout
-  this.connectRelaunchSSE(newJobId);
-
-  // ❌ PAS de double load
-  this.loadJob(newJobId);
-}
 
   private connectRelaunchSSE(newJobId: string): void {
     this.cleanupSSE();
@@ -615,17 +599,13 @@ private handleRelaunch(res: any): void {
       next: (event: SSEEvent) => {
         console.log('[RELAUNCH SSE]', event.type, event.data);
 
+        // ============================================================
+        // ✅ SIMPLIFIÉ: Juste processing/completed/failed
+        // ============================================================
         switch (event.type) {
-          case 'analyzing':
-            this.relaunchPhase.set('Analyzing...');
-            break;
-
-          case 'refining':
-            this.relaunchPhase.set(`Refining... (iteration ${event.data?.iteration || 1})`);
-            break;
-
-          case 'evaluating':
-            this.relaunchPhase.set(`Evaluating... (iteration ${event.data?.iteration || 1})`);
+          case 'processing':
+            // ✅ Juste "Processing..." sans détails de phase
+            this.relaunchPhase.set('Processing...');
             break;
 
           case 'completed':
@@ -654,7 +634,8 @@ private handleRelaunch(res: any): void {
               }
             }, 600);
           
-            break; 
+            break;
+
           case 'failed':
             this.cleanupSSE();
             this.relaunching.set(false);
