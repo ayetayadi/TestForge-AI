@@ -364,37 +364,24 @@ isProcessing(story: StoryWithJob): boolean {
   return story.jobStatus === 'processing';
 }
 
-/**
- * Retourne le label de la phase actuelle
- */
-getPhaseLabel(story: StoryWithJob): string {
-  const phase = story.jobPhase;
-  const iteration = story.jobIteration;
-
-  switch (phase) {
-    case 'analyzing':
-      return 'Analyzing...';
-    case 'refining':
-      return iteration && iteration > 0 
-        ? `Refining #${iteration}` 
-        : 'Refining...';
-    case 'evaluating':
-      return iteration && iteration > 0 
-        ? `Evaluating #${iteration}` 
-        : 'Evaluating...';
-    default:
-      return 'Processing...';
+getStatusLabel(story: StoryWithJob): string {
+    switch (story.jobStatus) {
+      case 'processing':
+        return 'Processing...';
+      case 'completed':
+        return 'Completed';
+      case 'failed':
+        return 'Failed';
+      default:
+        return 'Not processed';
+    }
   }
-}
 
-/**
- * Retourne le statut de décision effectif
- * - rejected_relaunch → devient pending car nouvelle version créée
- */
-getDecisionStatus(story: StoryWithJob): string {
-  const version = this.getDisplayVersion(story);  
-  return version?.decision_status ?? 'pending';
-}
+ getDecisionStatus(story: StoryWithJob): string {
+    const version = this.getDisplayVersion(story);  
+    return version?.decision_status ?? 'pending';
+  }
+
   // ─── Search handler ─────────────────────────────────────────────
 
   onSearchChange(query: string): void {
@@ -537,18 +524,28 @@ isCompleted(story: StoryWithJob): boolean {
    * - Pas de job en cours
    * - Ou job terminé (completed/failed)
    */
-  canRunPipeline(story: StoryWithJob): boolean {
-    if (!story.job) return true;
-    if (!story.jobPhase) return true;
-    return ['completed', 'failed'].includes(story.jobStatus ?? '');
+canRunPipeline(story: StoryWithJob): boolean {
+  // ✅ NE PAS montrer le bouton si le pipeline est en cours
+  if (story.jobStatus === 'processing') {
+    return false;
   }
+  
+  // Si pas de job ou job terminé
+  if (!story.job) return true;
+  return ['completed', 'failed'].includes(story.jobStatus ?? '');
+}
 
   /**
    * Vérifie si on peut re-lancer le pipeline (a déjà des résultats)
    */
-  canRerunPipeline(story: StoryWithJob): boolean {
-    return this.getDisplayVersion(story) !== null && this.canRunPipeline(story);
+canRerunPipeline(story: StoryWithJob): boolean {
+  // ✅ Pas de re-run si en cours de processing
+  if (story.jobStatus === 'processing') {
+    return false;
   }
+  
+  return this.getDisplayVersion(story) !== null && this.canRunPipeline(story);
+}
 
   // ─── Pipeline ───────────────────────────────────────────────────
 
@@ -588,77 +585,75 @@ isCompleted(story: StoryWithJob): boolean {
     this.runPipeline(keys);
   }
 
-private runPipeline(issueKeys: string[]): void {
-  this.pipelineLoading.set(true);
+  private runPipeline(issueKeys: string[]): void {
+    this.pipelineLoading.set(true);
 
-  const storiesBeingRelaunched = this.stories().filter(s => {
-    const version = this.getDisplayVersion(s);
-    return issueKeys.includes(s.issue_key) && version?.decision_status === 'rejected';
-  });
+    const storiesBeingRelaunched = this.stories().filter(s => {
+      const version = this.getDisplayVersion(s);
+      return issueKeys.includes(s.issue_key) && version?.decision_status === 'rejected';
+    });
 
-  this.pipelineService.runPipelineByKeys(issueKeys).subscribe({
-    next: (response: PipelineResponse) => {
-      this.pipelineLoading.set(false);
+    this.pipelineService.runPipelineByKeys(issueKeys).subscribe({
+      next: (response: PipelineResponse) => {
+        this.pipelineLoading.set(false);
 
-      if (response.jobs && response.jobs.length > 0) {
-        response.jobs.forEach(job => {
-          // Cleanup previous state
-          this.disconnectJob(job.job_id);
-          this.phaseQueues.delete(job.issue_key);
-          this.phaseProcessing.delete(job.issue_key);
-          this.phaseTimers.delete(job.issue_key);
+        if (response.jobs && response.jobs.length > 0) {
+          response.jobs.forEach(job => {
+            // ============================================================
+            // CLEANUP: Simplifier (supprimer phase queues)
+            // ============================================================
+            this.disconnectJob(job.job_id);
+            
+            // ❌ SUPPRIMER:
+            // this.phaseQueues.delete(job.issue_key);
+            // this.phaseProcessing.delete(job.issue_key);
+            // this.phaseTimers.delete(job.issue_key);
 
-          this.stories.update(stories =>
-            stories.map(s =>
-              s.issue_key === job.issue_key
-                ? {
-                    ...s,
-                    latest_version: undefined,
-                    job: {
-                      job_id: job.job_id,
-                      issue_key: job.issue_key,
-                    },
-                    jobPhase: 'analyzing',
-                    jobStatus: 'processing',
-                    jobIteration: 0,
-                    jobScore: undefined,
-                  }
-                : s
-            )
-          );
-
-          this.phaseTimers.set(job.issue_key, { 
-            phase: 'analyzing', 
-            startTime: Date.now() 
+            this.stories.update(stories =>
+              stories.map(s =>
+                s.issue_key === job.issue_key
+                  ? {
+                      ...s,
+                      latest_version: undefined,
+                      job: {
+                        job_id: job.job_id,
+                        issue_key: job.issue_key,
+                      },
+                      jobStatus: 'processing',  // ✅ Juste processing
+                      jobIteration: 0,
+                      jobScore: undefined,
+                    }
+                  : s
+              )
+            );
+            
+            this.connectSSE(job.job_id, job.issue_key);
           });
-          
-          this.connectSSE(job.job_id, job.issue_key);
-        });
 
-        // ✅ Message différent selon le contexte
-        if (storiesBeingRelaunched.length > 0) {
-          this.toastService.info(
-            `${storiesBeingRelaunched.length} story(ies) previously rejected (kept original) — reusing cached results`
-          );
+          // ✅ Message similaire
+          if (storiesBeingRelaunched.length > 0) {
+            this.toastService.info(
+              `${storiesBeingRelaunched.length} story(ies) relaunched`
+            );
+          } else {
+            const count = response.jobs.length;
+            const label = count === 1 ? 'user story' : 'user stories';
+            this.toastService.success(
+              `Pipeline started for ${count} ${label}`
+            );
+          }
+
         } else {
-          const count = response.jobs.length;
-          const label = count === 1 ? 'user story' : 'user stories';
-          this.toastService.success(
-            `Pipeline started for ${count} ${label}`
-          );
+          this.toastService.warning('No stories to process');
         }
-
-      } else {
-        this.toastService.warning('No stories to process');
-      }
-    },
-    error: (err) => {
-      console.error('Pipeline error:', err);
-      this.toastService.error('Failed to start pipeline');
-      this.pipelineLoading.set(false);
-    },
-  });
-}
+      },
+      error: (err) => {
+        console.error('Pipeline error:', err);
+        this.toastService.error('Failed to start pipeline');
+        this.pipelineLoading.set(false);
+      },
+    });
+  }
 
   // ─── Phase queue system ─────────────────────────────────────────
 
@@ -783,74 +778,84 @@ private runPipeline(issueKeys: string[]): void {
   }
 
 private handleSSEEvent(issueKey: string, event: SSEEvent): void {
-  const story = this.stories().find(s => s.issue_key === issueKey);
-  if (!story?.job) {
-    console.warn("[SSE] No story/job found for", issueKey);
-    return;
+    const story = this.stories().find(s => s.issue_key === issueKey);
+    if (!story?.job) {
+      console.warn("[SSE] No story/job found for", issueKey);
+      return;
+    }
+
+    const job = story.job;
+    const data = event.data || {};
+
+    console.log("[EVENT]", issueKey, event.type, data);
+
+    // ============================================================
+    // ONLY 3 EVENTS NOW
+    // ============================================================
+    switch (event.type) {
+      case 'processing':
+        // ✅ Juste mettre à jour le message si nécessaire
+        this.stories.update(stories =>
+          stories.map(s =>
+            s.issue_key === issueKey
+              ? {
+                  ...s,
+                  jobStatus: 'processing',
+                }
+              : s
+          )
+        );
+        break;
+
+      case 'completed':
+        // ✅ Mettre à jour avec résultats finaux
+        this.stories.update(stories =>
+          stories.map(s => {
+            if (s.issue_key !== issueKey) return s;
+
+            if (!data.version_id) {
+              console.error("❌ Missing version_id", data);
+              return s;
+            }
+
+            return {
+              ...s,
+              jobStatus: 'completed',
+              jobIteration: data.iteration ?? 1,
+              latest_version: {
+                id: data.version_id,
+                user_story_id: s.id,
+                improved_story: data.improved_story ?? '',
+                generated_acceptance_criteria: data.generated_acceptance_criteria ?? [],
+                initial_score: data.initial_score ?? 0,
+                final_score: data.final_score ?? 0,
+                iteration: data.iteration ?? 1,
+                job_id: job.job_id,
+                testability_score: data.testability_score,
+                is_testable: data.is_testable,
+                testability_issues: [],
+                decision_status: 'pending',
+              },
+            };
+          })
+        );
+        break;
+
+      case 'failed':
+        // ✅ Marquer comme failed
+        this.stories.update(stories =>
+          stories.map(s =>
+            s.issue_key === issueKey
+              ? {
+                  ...s,
+                  jobStatus: 'failed',
+                }
+              : s
+          )
+        );
+        break;
+    }
   }
-
-  const job = story.job;
-  const data = event.data || {};
-
-  console.log("[EVENT]", issueKey, event.type, data);
-
-  switch (event.type) {
-    case 'analyzing':
-    case 'refining':
-    case 'evaluating':
-      this.updateStoryJob(
-        issueKey,
-        job,
-        event.type as StoryWithJob['jobPhase'],
-        undefined,
-        data.iteration
-      );
-      break;
-
-case 'completed':
-  this.updateStoryJob(issueKey, job, 'completed', data.final_score, data.iteration);
-
-  this.stories.update(stories =>
-    stories.map(s => {
-      if (s.issue_key !== issueKey) return s;
-
-      if (!data.version_id) {
-        console.error("❌ Missing version_id", data);
-        return s;
-      }
-
-      return {
-        ...s,
-        jobStatus: 'completed',
-        latest_version: {
-          id: data.version_id,
-          user_story_id: s.id,
-          improved_story: data.improved_story ?? '',
-          generated_acceptance_criteria: data.generated_acceptance_criteria ?? [],
-          initial_score: data.initial_score ?? 0,
-          final_score: data.final_score ?? 0,
-          iteration: data.iteration ?? 1,
-          job_id: job.job_id,
-          decision_status: 'pending',
-        },
-      };
-    })
-  );
-  break;
-    case 'failed':
-      this.stories.update(stories =>
-        stories.map(s =>
-          s.issue_key === issueKey
-            ? {
-                ...s,
-                jobStatus: 'failed',
-              }
-            : s
-        )
-      );
-      break;
-      }
-}
 
   private disconnectJob(jobId: string): void {
     this.sseService.disconnect(jobId);
@@ -862,78 +867,79 @@ case 'completed':
   }
 
 private loadJobState(jobId: string, issueKey: string): Promise<void> {
-  return fetch(`${environment.apiUrl}/jobs/${jobId}`)
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    })
-    .then(state => {
-      console.log("[JOB STATE]", issueKey, state);
+    return fetch(`${environment.apiUrl}/jobs/${jobId}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(state => {
+        console.log("[JOB STATE]", issueKey, state);
 
-      if (state.status === "completed" || state.status === "failed") {
         this.stories.update(stories =>
           stories.map(s => {
             if (s.issue_key !== issueKey) return s;
 
-            if (state.status === "completed" && !state.version_id) {
+            if (state.status === 'completed' && !state.version_id) {
               console.error("❌ Missing version_id in job state", state);
-              return s; // skip update
+              return s;
             }
 
-            return {
-              ...s,
-              job: { job_id: jobId, issue_key: issueKey },
-            
-              jobPhase: state.status === 'completed' ? 'completed' : undefined,
-              jobStatus: state.status,
-            
-              jobIteration: state.iteration ?? 0,
-            
-              latest_version: state.status === 'completed'
-                ? {
-                    id: state.version_id,
-                    user_story_id: s.id,
-                    improved_story: state.improved_story ?? '',
-                    generated_acceptance_criteria: state.generated_acceptance_criteria ?? [],
-                    initial_score: state.initial_score ?? 0,
-                    final_score: state.final_score ?? 0,
-                    iteration: state.iteration ?? 1,
-                    job_id: jobId,
-                    decision_status: 'pending',
-                  }
-                : s.latest_version,
-            };
+            if (state.status === 'completed') {
+              return {
+                ...s,
+                job: { job_id: jobId, issue_key: issueKey },
+                jobStatus: 'completed',
+                jobIteration: state.iteration ?? 0,
+                latest_version: {
+                  id: state.version_id,
+                  user_story_id: s.id,
+                  improved_story: state.improved_story ?? '',
+                  generated_acceptance_criteria: state.generated_acceptance_criteria ?? [],
+                  initial_score: state.initial_score ?? 0,
+                  final_score: state.final_score ?? 0,
+                  iteration: state.iteration ?? 1,
+                  job_id: jobId,
+                  testability_score: state.testability_score,
+                  is_testable: state.is_testable,
+                  testability_issues: state.testability_issues ?? [],
+                  decision_status: 'pending',
+                },
+              };
+            }
+
+            if (state.status === 'failed') {
+              return {
+                ...s,
+                job: { job_id: jobId, issue_key: issueKey },
+                jobStatus: 'failed',
+              };
+            }
+
+            if (state.status === 'processing') {
+              return {
+                ...s,
+                job: { job_id: jobId, issue_key: issueKey },
+                jobStatus: 'processing',
+                jobIteration: state.iteration ?? 0,
+                latest_version: undefined,
+              };
+            }
+
+            return s;
           })
         );
 
-        this.disconnectJob(jobId);
-        return;
-      }
-
-      if (state.status === "processing") {
-        this.stories.update(stories =>
-          stories.map(s =>
-            s.issue_key === issueKey
-              ? {
-                  ...s,
-                  job: { job_id: jobId, issue_key: issueKey },
-                  jobPhase: (state.phase as StoryWithJob['jobPhase']) ?? 'analyzing',
-                  jobStatus: 'processing',
-                  jobIteration: state.iteration ?? 0,
-                  latest_version: undefined,
-                }
-              : s
-          )
-        );
-
-        if (!this.sseService.isConnected(jobId) && !this.sseSubscriptions.has(jobId)) {
-          console.log("[SSE RECONNECT]", jobId);
-          this.connectSSE(jobId, issueKey);
+        if (state.status === 'processing') {
+          if (!this.sseService.isConnected(jobId) && !this.sseSubscriptions.has(jobId)) {
+            console.log("[SSE RECONNECT]", jobId);
+            this.connectSSE(jobId, issueKey);
+          }
+        } else {
+          this.disconnectJob(jobId);
         }
-      }
-    })
-    .catch(err => {
-      console.error("[JOB STATE ERROR]", err);
-    });
-}
+      })
+      .catch(err => {
+        console.error("[JOB STATE ERROR]", err);
+      });
+  }
 }

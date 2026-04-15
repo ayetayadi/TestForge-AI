@@ -27,24 +27,11 @@ from app.api.user_story import router as story_router
 from app.api.job import router as job_router
 from app.api.pipeline import router as pipeline_router
 from app.core.database import Base, engine
-from app.llm.factory import get_llm
 from app.streaming.sse_manager import set_main_loop
 from app.core.embedding import preload_embedding_model
 from app.core.config import settings
 from app.workers.asyncio_workers import start_workers , stop_workers
 
-# =========================
-# LLM
-# =========================
-def preload_llms():
-    print("[LLM] Preloading...")
-    try:
-        get_llm("analysis")
-        get_llm("refinement")
-        get_llm("ac_repair")
-        print("[LLM] Ready")
-    except Exception as e:
-        print(f"[LLM ERROR] {e}")
 
 
 # =========================
@@ -54,7 +41,6 @@ def preload_models():
     print("[STARTUP] Preloading models...")
 
     preload_embedding_model()
-    preload_llms()
 
     print("[STARTUP] Models ready!")
 
