@@ -200,7 +200,7 @@
                     @if (isProcessing(story)) {
                       <div class="pipeline-status processing">
                         <app-spinner [size]="14" />
-                        <span>{{ getPhaseLabel(story) }}</span>
+                        <span>Processing ...</span>
                       </div>
                     }
                     @else if (story.jobStatus === 'failed') {
