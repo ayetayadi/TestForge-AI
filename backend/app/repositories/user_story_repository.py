@@ -8,7 +8,10 @@ from datetime import datetime
 # GET ALL
 # =========================
 async def get_all_user_stories(db: AsyncSession):
-    result = await db.execute(select(UserStory))
+    result = await db.execute(
+        select(UserStory)
+        .order_by(UserStory.issue_key.asc())
+    )
     return result.scalars().all()
 
 
@@ -17,7 +20,9 @@ async def get_all_user_stories(db: AsyncSession):
 # =========================
 async def get_user_stories_by_project_id(db: AsyncSession, project_id: str):
     result = await db.execute(
-        select(UserStory).where(UserStory.project_id == project_id)
+        select(UserStory)
+        .where(UserStory.project_id == project_id)
+        .order_by(UserStory.issue_key.asc())
     )
     return result.scalars().all()
 

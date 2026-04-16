@@ -1,5 +1,5 @@
 # ============================================================
-# ai_agents_v2/orchestration/state.py (SANS REQUIRED)
+# ai_agents_v2/orchestration/state.py (CORRIGÉ)
 # ============================================================
 """
 Orchestration State - Global state for all pipeline steps.
@@ -12,6 +12,8 @@ Orchestration State - Global state for all pipeline steps.
 from typing import TypedDict, List, Optional
 from datetime import datetime
 import sys
+
+from app.ai_agents_v2.user_story_refinement.config import LLM_MODEL, LLM_TEMPERATURE, MAX_ITERATIONS
 
 
 # ============================================================
@@ -78,6 +80,7 @@ class UserStoryImprovementResult(TypedDict, total=False):
     iterations: int
     agent_status: str  # "success" | "best_effort" | "error"
     error: Optional[str]
+    duration_seconds: Optional[float]  # ✅ Seulement ici
 
 
 # ============================================================
@@ -93,7 +96,7 @@ class OrchestrationState(TypedDict, total=False):
     # IDENTIFICATION & CONTROL
     # ============================================================
     jira_id: str
-    job_id: str
+    version_id: str
     timestamp: str
     current_step: str  # "story_improvement" | "test_case" | etc.
     
@@ -123,11 +126,9 @@ class OrchestrationState(TypedDict, total=False):
     retry_count: int
     
     # ============================================================
-    # TIMING
+    # TIMING (seulement started_at pour référence, pas de durée)
     # ============================================================
     started_at: str           # ISO format UTC datetime
-    completed_at: Optional[str]
-    duration_seconds: Optional[float]
     
     # ============================================================
     # AGENT METADATA
@@ -150,30 +151,30 @@ class OrchestrationState(TypedDict, total=False):
 
 def create_initial_state(
     jira_id: str,
-    job_id: str,
+    version_id: str,
     story: str,
     acceptance_criteria: List[str] = None,
     language: str = "en",
     actor: str = "",
     agent_version: str = "2.0",
-    model_used: str = "gpt-4o",
-    temperature: float = 0.3,
-    max_iterations: int = 3,
+    model_used: str = LLM_MODEL,
+    temperature: float = LLM_TEMPERATURE,
+    max_iterations: int = MAX_ITERATIONS,
 ) -> OrchestrationState:
     """
     Create initial orchestration state.
     
     Args:
         jira_id: Jira issue ID
-        job_id: Job ID
+        version_id: Version ID
         story: Original story
         acceptance_criteria: Input AC (optional)
         language: Input language (default: "en")
         actor: Input actor (default: "")
         agent_version: Agent version (default: "2.0")
-        model_used: LLM model (default: "gpt-4o")
+        model_used: LLM model (default: "gpt-oss-20b")
         temperature: LLM temperature (default: 0.3)
-        max_iterations: Max iterations (default: 3)
+        max_iterations: Max iterations (default: 2)
         
     Returns:
         Initial OrchestrationState
@@ -183,7 +184,7 @@ def create_initial_state(
     return {
         # Identification
         "jira_id": jira_id,
-        "job_id": job_id,
+        "version_id": version_id,
         "timestamp": now,
         "current_step": "story_improvement",
         
@@ -202,10 +203,8 @@ def create_initial_state(
         "steps_completed": 0,
         "retry_count": 0,
         
-        # Timing
+        # Timing (seulement started_at)
         "started_at": now,
-        "completed_at": None,
-        "duration_seconds": None,
         
         # Metadata
         "agent_version": agent_version,
@@ -223,7 +222,6 @@ def mark_step_complete(
 ) -> OrchestrationState:
     """
     Marque une étape comme complétée.
-    Ne calcule PAS la durée finale.
     """
     state["steps_completed"] = state.get("steps_completed", 0) + 1
     state["current_step"] = step_name
@@ -233,18 +231,10 @@ def mark_step_complete(
 def mark_pipeline_complete(state: OrchestrationState) -> OrchestrationState:
     """
     Marque le pipeline ENTIER comme complété.
-    Calcule la durée totale.
-    À appeler UNIQUEMENT dans le nœud final.
+    ✅ Ne calcule PAS la durée (c'est fait dans l'agent)
     """
-    now = datetime.utcnow()
-    started = datetime.fromisoformat(state.get("started_at", now.isoformat()))
-    duration = (now - started).total_seconds()
-    
-    state["completed_at"] = now.isoformat()
-    state["duration_seconds"] = duration
     state["status"] = "success"
     state["current_step"] = "done"
-    
     return state
 
 
@@ -266,12 +256,5 @@ def mark_failed(
     errors.append(error)
     state["errors"] = errors
     state["status"] = "failed"
-    
-    now = datetime.utcnow()
-    state["completed_at"] = now.isoformat()
-    
-    started = datetime.fromisoformat(state.get("started_at", now.isoformat()))
-    duration = (now - started).total_seconds()
-    state["duration_seconds"] = duration
     
     return state

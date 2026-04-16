@@ -43,7 +43,7 @@
       </div>
     }
 
-    <!-- Empty state: no stories at all - Same style as projects empty hero -->
+    <!-- Empty state: no stories at all -->
     @if (!loading() && stories().length === 0) {
       <div class="empty-hero">
         <div class="empty-hero-icon">
@@ -147,7 +147,7 @@
               @for (story of paginatedStories(); track story.issue_key) {
                 <tr
                   [id]="'story-' + story.issue_key"
-                  [class.processing]="story.jobStatus === 'processing'"
+                  [class.processing]="story.agentStatus === 'processing'"
                   [class.row-completed]="isCompleted(story)"
                   (click)="openStoryDetail(story)"
                 >
@@ -203,7 +203,7 @@
                         <span>Processing ...</span>
                       </div>
                     }
-                    @else if (story.jobStatus === 'failed') {
+                    @else if (story.agentStatus === 'failed') {
                       <div class="pipeline-status failed">
                         <span>Failed</span>
                       </div>  
@@ -218,7 +218,7 @@
                               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
                             </svg>
                             <span>Approved</span>
-                            <app-score-badge [score]="getScore(version)" size="small" />
+                            <app-score-badge [score]="version?.final_score ?? 0" size="small" />
                           </div>
                         }
                         @case ('rejected') {
@@ -242,7 +242,7 @@
                     } @else {
                       <span class="pipeline-idle">Not processed</span>
                     }
-                  </td>
+                   </td>
 
                   <!-- Actions -->
                   <td class="col-actions" (click)="$event.stopPropagation()">
@@ -263,11 +263,11 @@
                         </button>
                       }
                     </div>
-                  </td>
-                </tr>
+                   </td>
+                 </tr>
               }
             </tbody>
-          </table>
+           </table>
         </div>
 
         <!-- Pagination -->

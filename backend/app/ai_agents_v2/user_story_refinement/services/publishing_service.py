@@ -85,7 +85,7 @@ class PublishingService:
                 "status": "completed",
                 "message": "Orchestration completed successfully",
                 "jira_id": state.get("jira_id"),
-                "job_id": state.get("job_id"),
+                "version_id": state.get("version_id"),
                 "steps_completed": state.get("steps_completed", 0),
                 "user_story_improvement": state.get("user_story_improvement", {}),
             }
@@ -111,7 +111,7 @@ class PublishingService:
                 "status": "failed",
                 "message": error or "Orchestration failed",
                 "jira_id": state.get("jira_id"),
-                "job_id": state.get("job_id"),
+                "version_id": state.get("version_id"),
                 "errors": state.get("errors", []),
                 "error": error
             }

@@ -8,7 +8,7 @@ from app.repositories.user_story_repository import (
     create_user_story,
     get_user_story_by_issue_key
 )
-from app.repositories.user_story_version_repository import get_latest_version, get_selected_version, get_versions_by_story_id, get_versions_by_story_ids
+from app.repositories.user_story_version_repository import get_versions_by_story_ids
 from app.utils.mapper_utils import map_jira_issue
 from app.models.enums import StoryDecision
 
@@ -44,16 +44,22 @@ def _version_to_dict(version):
     return {
         "id": version.id,
         "user_story_id": version.user_story_id,
-        "job_id": version.job_id,
         "improved_story": version.improved_story,
         "generated_acceptance_criteria": version.generated_acceptance_criteria or [],
+        "testability_score": version.testability_score,
+        "is_testable": version.is_testable,
+        "testability_issues": version.testability_issues or [],
         "initial_score": version.initial_score,
         "final_score": version.final_score,
-        "iteration": version.iteration,
         "llm_calls": version.llm_calls,
+        "model_used": version.model_used,
+        "prompt_tokens": version.prompt_tokens,
+        "completion_tokens": version.completion_tokens,
         "duration": version.duration,
-        "created_at": version.created_at.isoformat() if version.created_at else None,
+        "started_at": version.started_at.isoformat() if version.started_at else None,
+        "completed_at": version.completed_at.isoformat() if version.completed_at else None,
         "decision_status": version.decision_status.value if version.decision_status else "pending",
+        "agent_status": version.agent_status.value if version.agent_status else "processing",
     }
 
 
@@ -87,7 +93,7 @@ async def _enrich_with_versions(db: AsyncSession, stories):
         # =========================
         latest = None
         if story_versions:
-            latest = max(story_versions, key=lambda v: (v.iteration or 0, v.created_at.timestamp() if v.created_at else 0))
+            latest = max(story_versions, key=lambda v: (v.started_at.timestamp() if v.started_at else 0))
 
         # =========================
         # DISPLAY

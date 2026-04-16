@@ -22,10 +22,10 @@ from app.api.auth import router as auth_router
 from app.api.admin import router as admin_router
 from app.api.jira import router as jira_router
 from app.api.users import router as users_router
-from app.api.project import router as project_router
-from app.api.user_story import router as story_router
-from app.api.job import router as job_router
+from app.api.projects import router as project_router
+from app.api.user_stories import router as story_router
 from app.api.pipeline import router as pipeline_router
+from app.api.versions import router as versions_router
 from app.core.database import Base, engine
 from app.streaming.sse_manager import set_main_loop
 from app.core.embedding import preload_embedding_model
@@ -109,8 +109,8 @@ app.include_router(jira_router)
 app.include_router(users_router)
 app.include_router(project_router)
 app.include_router(story_router)
-app.include_router(job_router)
 app.include_router(pipeline_router)
+app.include_router(versions_router)
 
 # =========================
 # HEALTH
