@@ -8,7 +8,7 @@ from app.core.ac_config import (
     FRENCH_STEMS,
     SAFE_TERMS
 )
-from app.ai_agents_v2.user_story_refinement.utils import detect_language
+from app.ai_agents_v2.user_story_refinement.utils.text_processing import detect_language
 
 
 class ConstraintGuard:
