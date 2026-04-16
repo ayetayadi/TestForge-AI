@@ -44,6 +44,9 @@ async def story_improvement_node(state: OrchestrationState) -> OrchestrationStat
     ✅ Pas de couche llm_service intermédiaire
     """
     
+    # ✅ Définir node_start au début de la fonction
+    node_start = datetime.utcnow()
+    
     try:
         # ✅ Récupérer les inputs
         original_story = state["original_story"]
@@ -66,6 +69,12 @@ async def story_improvement_node(state: OrchestrationState) -> OrchestrationStat
             language=input_language,
             jira_id=jira_id
         )
+        
+        # ✅ Calculer la durée APRÈS l'exécution de l'agent
+        node_end = datetime.utcnow()
+        node_duration = (node_end - node_start).total_seconds()
+        
+        logger.info(f"  - Node duration: {node_duration:.2f}s")
         
         # ============================================================
         # Vérifier le résultat
@@ -100,19 +109,20 @@ async def story_improvement_node(state: OrchestrationState) -> OrchestrationStat
             iterations=result.get("iterations", 0),
             agent_status=result.get("agent_status", "unknown"),
             error=result.get("error", None),
+            duration_seconds=node_duration,  # ✅ durée de ce node
         )
-        
+
         # ============================================================
         # Marquer comme complété
         # ============================================================
         state = mark_step_complete(state, "story_improvement_done")
         state["status"] = "success"
         
-        
         logger.info(f"✓ Story improved successfully")
         logger.info(f"  - Score: {result.get('score', 0.0):.3f}")
         logger.info(f"  - Testability: {result.get('testability_score', 0.0):.3f}")
         logger.info(f"  - Iterations: {result.get('iterations', 0)}")
+        logger.info(f"  - Duration: {node_duration:.2f}s")
         
         return state
     
@@ -143,8 +153,6 @@ async def aggregator_node(state: OrchestrationState) -> OrchestrationState:
             logger.error("Aggregation: Previous step failed")
             state["current_step"] = "done"
             print(f"[ERROR] Previous steps failed")
-            
-            # Event already published by failed node
             return state
         
         # ============================================================
@@ -152,7 +160,7 @@ async def aggregator_node(state: OrchestrationState) -> OrchestrationState:
         # ============================================================
         state["status"] = "success"
         state["current_step"] = "done"
-        state["steps_completed"] = 1  # Actuellement que 1 agent
+        state["steps_completed"] = 1
 
         state = mark_pipeline_complete(state)
         
@@ -161,7 +169,9 @@ async def aggregator_node(state: OrchestrationState) -> OrchestrationState:
         # ============================================================
         await publishing_service.publish_completed(state)
         
-        logger.info(f"✓ Orchestration completed successfully in {state['duration_seconds']:.1f}s")
+        # ✅ Afficher la durée depuis user_story_improvement
+        duration = state.get("user_story_improvement", {}).get("duration_seconds", 0)
+        logger.info(f"✓ Orchestration completed successfully (story improvement: {duration:.1f}s)")
         print(f"[✓] Orchestration completed successfully\n")
     
     except Exception as e:
@@ -169,9 +179,6 @@ async def aggregator_node(state: OrchestrationState) -> OrchestrationState:
         state["errors"].append(f"Aggregation: {str(e)}")
         state["status"] = "failed"
         
-        # ============================================================
-        # Event: Publishing Failed
-        # ============================================================
         await publishing_service.publish_failed(state, str(e))
     
     return state
@@ -233,64 +240,5 @@ def build_orchestration_graph():
     compiled_graph = graph.compile(checkpointer=checkpointer)
     
     logger.info("✓ Orchestration graph built successfully")
-    logger.info(f"✓ Checkpointer enabled for job resumption")
     
     return compiled_graph
-
-
-# ============================================================
-# FUTURE STRUCTURE (Quand vous ajouterez d'autres agents)
-# ============================================================
-
-"""
-FUTURE: Quand vous implémentez les autres agents
-
-async def test_case_node(state: OrchestrationState) -> OrchestrationState:
-    # À implémenter
-    logger.info(f"[Node] Test Case: {state['jira_id']}")
-    
-    try:
-        await publishing_service.publish_processing(
-            state=state,
-            message="Test Case Agent generating test cases...",
-            details={"node": "test_case"}
-        )
-        
-        agent = get_test_case_agent()
-        result = await agent.run(...)
-        
-        state["test_case"] = result
-        state["steps_completed"] = 2
-        
-    except Exception as e:
-        state["errors"].append(str(e))
-        state["status"] = "failed"
-        await publishing_service.publish_failed(state, str(e))
-    
-    return state
-
-
-async def playwright_node(state: OrchestrationState) -> OrchestrationState:
-    # À implémenter
-    pass
-
-
-def build_orchestration_graph_full():
-    # Quand vous aurez les 2 autres agents
-    graph = StateGraph(OrchestrationState)
-    
-    graph.add_node("story_improvement", story_improvement_node)
-    graph.add_node("test_case", test_case_node)
-    graph.add_node("playwright", playwright_node)
-    graph.add_node("aggregator", aggregator_node)
-    
-    # Linear flow
-    graph.add_edge("story_improvement", "test_case")
-    graph.add_edge("test_case", "playwright")
-    graph.add_edge("playwright", "aggregator")
-    graph.add_edge("aggregator", END)
-    
-    graph.set_entry_point("story_improvement")
-    
-    return graph.compile(checkpointer=checkpointer)
-"""

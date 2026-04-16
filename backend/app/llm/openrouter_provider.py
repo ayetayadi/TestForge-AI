@@ -24,7 +24,7 @@ from app.llm.base import LLMProvider
 
 class OpenRouterProvider(LLMProvider):
     """
-    OpenRouter LLM Provider with GPT-OSS-20B (FREE).
+    OpenRouter LLM Provider with GPT-OSS-120B (FREE).
     
     ✅ Features:
     - 100% FREE tier (openai/gpt-oss-20b)

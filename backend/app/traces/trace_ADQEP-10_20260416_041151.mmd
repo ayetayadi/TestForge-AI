@@ -1,0 +1,30 @@
+```mermaid
+graph TD
+    %% Style definitions
+    classDef input fill:#e1f5fe,stroke:#01579b
+    classDef llm fill:#fff3e0,stroke:#e65100
+    classDef tool fill:#e8f5e9,stroke:#1b5e20
+    classDef result fill:#f3e5f5,stroke:#4a148c
+    classDef final fill:#c8e6c9,stroke:#2e7d32
+    classDef error fill:#ffcdd2,stroke:#b71c1c
+
+    N1[📥 INPUT]<br/>6 AC:::input
+    N2{🤖 LLM CALL}<br/>openai/gpt-oss-20b:::llm
+    N3_score_story[🔧 score_story]:::tool
+    N4[✅ score_story]<br/>Score: 0.90:::result
+    N5_extract_acceptance_criteria[🔧 extract_acceptance_criteria]:::tool
+    N6[✅ extract_acceptance_criteria]<br/>5 AC:::result
+    N7_score_story[🔧 score_story]:::tool
+    N8[✅ score_story]<br/>Score: 0.90:::result
+    N9[📝 RESPONSE]:::llm
+    FINAL[🎯 FINAL]<br/>Score: 0.90 ✅:::final
+    N1 --> N2
+    N2 --> N3_score_story
+    N3_score_story --> N4
+    N4 --> N5_extract_acceptance_criteria
+    N5_extract_acceptance_criteria --> N6
+    N6 --> N7_score_story
+    N7_score_story --> N8
+    N8 --> N9
+    N9 --> FINAL
+```

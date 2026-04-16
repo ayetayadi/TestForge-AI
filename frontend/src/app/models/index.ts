@@ -43,16 +43,18 @@ export interface UserStory {
 
   fix_version?: string;
 
+  current_score?: number;  // ← AJOUTÉ (dernier score)
   selected_version_id?: string | null;
 }
 
 // ==============================
-// Version (résultat d'un job)
+// Version (résultat d'une exécution IA)
 // ==============================
+export type AgentStatus = 'processing' | 'completed' | 'failed' | 'idle';
+
 export interface UserStoryVersion {
   id: string;
   user_story_id: string;
-  job_id?: string | null;
 
   improved_story: string;
   generated_acceptance_criteria: string[];
@@ -64,50 +66,45 @@ export interface UserStoryVersion {
   is_testable?: boolean;
   testability_issues?: string[];
 
+  llm_calls: number;  // ← RENOMMÉ (était iteration)
+  duration?: number;
+  model_used?: string;
+  prompt_tokens?: number;
+  completion_tokens?: number;
 
-  iteration: number;
-  created_at?: string;
-
+  agent_status: AgentStatus;  // ← AJOUTÉ
   decision_status: 'pending' | 'approved' | 'rejected';
-}
 
-// ==============================
-// Job (une exécution du pipeline)
-// ==============================
-export type JobStatus = 'processing' | 'completed' | 'failed';
-
-export interface Job {
-  job_id: string;
-  issue_key: string;
-  user_story_id?: string;
-  status: JobStatus;
-  phase?: string;  // ❌ SUPPRIMER (plus utilisé)
+  started_at?: string;  // ← AJOUTÉ
+  completed_at?: string;  // ← AJOUTÉ
   created_at?: string;
 }
 
 // ==============================
-// StoryJob (état runtime UI)
+// Version (état runtime UI)
 // ==============================
-export interface StoryJob {
-  job_id: string;
+export interface StoryVersion {
+  version_id: string;
   issue_key: string;
+  status: AgentStatus;
+  started_at?: string;
 }
 
 // ==============================
-// StoryWithJob (UI enrichie)
+// StoryWithVersion (UI enrichie)
 // ==============================
-export interface StoryWithJob extends UserStory {
-  // Job
-  job?: {
-    job_id: string;
+export interface StoryWithVersion extends UserStory {
+  // Version en cours
+  version?: {
+    version_id: string;
     issue_key: string;
   };
 
-  jobStatus?: 'processing' | 'completed' | 'failed';  // ✅ Garder
-  jobPhase?: never;  // ❌ SUPPRIMER
+  agentStatus?: AgentStatus;
+  versionStatus?: AgentStatus;
   
-  jobScore?: number;
-  jobIteration?: number;
+  versionScore?: number;
+  versionIteration?: number;
 
   // Versions
   versions?: UserStoryVersion[];
@@ -116,6 +113,9 @@ export interface StoryWithJob extends UserStory {
   selected_version?: UserStoryVersion | null;
   latest_version?: UserStoryVersion | null;
   display_version?: UserStoryVersion | null;
+  processing_version?: UserStoryVersion | null;  // ← AJOUTÉ
+  has_processing?: boolean;  // ← AJOUTÉ
+  versions_count?: number;  // ← AJOUTÉ
 }
 
 // ==============================
@@ -126,12 +126,11 @@ export type DecisionChoice = 'approve' | 'reject_keep' | 'reject_relaunch';
 export type DecisionStatus = 'pending' | 'approved' | 'rejected';
 
 // ==============================
-// JobState
+// VersionState (remplace JobState)
 // ==============================
-export interface JobState {
-  job_id: string;
-  status: JobStatus | 'not_found';
-  phase?: never;  // ❌ SUPPRIMER
+export interface VersionState {
+  version_id: string;
+  agent_status: AgentStatus | 'not_found';
   iteration: number;
 
   // Story info
@@ -153,21 +152,32 @@ export interface JobState {
   // Scores
   initial_score?: number;
   final_score?: number;
+  score_delta?: number;
 
-  // Version
-  version_id?: string;
-
-  decision_status?: DecisionStatus;
-
+  // Testability
   testability_score?: number;
   is_testable?: boolean;
   testability_issues?: string[];
+
+  // LLM Metrics
+  model_used?: string;
+  llm_calls?: number;
+  duration?: number;
+
+  // Decision
+  decision_status?: DecisionStatus;
+
+  // Dates
+  started_at?: string;
+  completed_at?: string;
 
   // Trace
   trace?: TraceEntry[];
 
   has_new_version?: boolean;
+  versions_count?: number;
 }
+
 export interface TraceEntry {
   step?: string;
   iteration?: number;
@@ -181,36 +191,37 @@ export interface TraceEntry {
 }
 
 // ==============================
-// Active Job (dashboard)
+// Active Version (dashboard)
 // ==============================
-export interface ActiveJob {
-  job_id: string;
+export interface ActiveVersion {
+  version_id: string;
   jira_id: string;
   issue_key: string;
-  status: JobStatus;
+  agent_status: AgentStatus;
   current_score?: number;
   final_score?: number;
   iteration: number;
+  started_at?: string;
 }
 
 // ==============================
-// Running Job
+// Running Version
 // ==============================
-export interface RunningJob {
-  job_id: string;
+export interface RunningVersion {
+  version_id: string;
   issue_key: string;
-  status: JobStatus;
+  agent_status: AgentStatus;
   current_step?: string;
   iteration: number;
 }
 
 // ==============================
-// Pending Job (UI)
+// Pending Version (UI)
 // ==============================
-export interface PendingJob {
-  job_id: string;
+export interface PendingVersion {
+  version_id: string;
   issue_key: string;
-  status: JobStatus;
+  agent_status: AgentStatus;
   iteration: number;
   improved_story?: string;
   generated_acceptance_criteria?: string[];
@@ -225,7 +236,9 @@ export interface DecisionResponse {
   message?: string;
   issue_key?: string;
   version_id?: string;
-  new_job_id?: string;
+  new_version_id?: string;
+  previous_version_id?: string;
+  final_score?: number;
 }
 
 // ==============================
@@ -243,7 +256,16 @@ export type RunPipelineRequest = RunByProject | RunByKeys;
 
 export interface PipelineResponse {
   message: string;
-  jobs: Job[];
+  total_requests: number;
+  total_versions: number;
+  skipped: Array<{
+    issue_key: string;
+    reason: string;
+  }>;
+  versions: Array<{
+    version_id: string;
+    issue_key: string;
+  }>;
 }
 
 // ==============================
@@ -253,26 +275,30 @@ export type SSEEventType =
   | 'processing'      // ✅ Agent tourne
   | 'completed'       // ✅ Succès
   | 'failed'          // ✅ Erreur
-  | 'ping';           // ✅ Keepalive
+  | 'ping'          // ✅ Keepalive
+  | 'version_created'
+  | 'version_updated'
 
 export interface SSEEvent {
   type: SSEEventType;
   data?: {
     message?: string;           // "Analyzing story...", etc.
-    status?: 'processing' | 'completed' | 'failed';
+    status?: AgentStatus;
     jira_id?: string;
     thread_id?: string;
+    version_id?: string;        // ← AJOUTÉ
     
     // Au completion
     final_score?: number;
     initial_score?: number;
+    score_delta?: number;
     improved_story?: string;
     generated_acceptance_criteria?: string[];
-    version_id?: string;
     iteration?: number;
     testability_score?: number;
     is_testable?: boolean;
     has_new_version?: boolean;
+    versions_count?: number;
     
     // Au failure
     error?: string;
@@ -288,4 +314,32 @@ export interface Toast {
   type: 'success' | 'error' | 'warning' | 'info';
   title: string;
   message?: string;
+}
+
+// ==============================
+// HELPER TYPES
+// ==============================
+
+// Pour convertir une réponse API en StoryWithVersion
+export interface ApiStoryResponse {
+  id: string;
+  issue_key: string;
+  project_id: string;
+  title?: string;
+  description?: string;
+  acceptance_criteria?: string[];
+  current_score?: number;
+  selected_version?: UserStoryVersion | null;
+  latest_version?: UserStoryVersion | null;
+  display_version?: UserStoryVersion | null;
+  processing_version?: UserStoryVersion | null;
+  has_processing?: boolean;
+  versions_count?: number;
+  versions?: UserStoryVersion[];
+}
+
+// Pour la requête de décision
+export interface DecisionApiRequest {
+  decision: DecisionChoice;
+  version_id?: string;
 }

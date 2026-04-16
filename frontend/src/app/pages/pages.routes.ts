@@ -29,7 +29,7 @@ export const PagesRoutes: Routes = [
     data: { title: 'User Stories' },
   },
   {
-    path: 'review/:jobId',
+    path: 'review/:versionId',
     loadComponent: () =>
       import('./review/review.component').then(m => m.ReviewComponent),
     canActivate: [authGuard],

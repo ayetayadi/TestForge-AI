@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 from typing import List, Optional
-from sqlalchemy import DateTime, String, Text, Float, ForeignKey
+from sqlalchemy import DateTime, Index, String, Text, Float, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
@@ -86,8 +86,12 @@ class UserStory(Base):
         foreign_keys="UserStoryVersion.user_story_id"
     )
 
-    jobs = relationship(
-        "Job",
-        back_populates="user_story",
-        cascade="all, delete-orphan"
+    # =========================
+    # INDEX OPTIMISÉS
+    # =========================
+    __table_args__ = (
+        Index("idx_user_story_project_id", "project_id"),
+        Index("idx_user_story_issue_key", "issue_key"),
+        Index("idx_user_story_jira_status", "jira_status"),
+        Index("idx_user_story_current_score", "current_score"),
     )

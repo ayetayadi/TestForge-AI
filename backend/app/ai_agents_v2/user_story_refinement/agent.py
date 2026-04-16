@@ -14,7 +14,7 @@ from app.ai_agents_v2.user_story_refinement.utils.debugger import create_debugge
 from app.ai_agents_v2.user_story_refinement.utils.text_processing import clean_story_text, compare_similarity, extract_actor_from_story, is_improvement_valid, verify_language_consistency, verify_role_preserved
 from .tools import TOOLS
 from .prompts import SYSTEM_PROMPT, AGENT_INSTRUCTIONS
-from .config import LLM_TEMPERATURE
+from .config import LLM_MODEL, LLM_TEMPERATURE
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,6 @@ class UserStoryReActAgent:
         )
         
         logger.info("✓ ReAct Agent initialized successfully")
-        logger.info(f"  - Model: openai/gpt-oss-20b (FREE)")
         logger.info(f"  - Tools: {len(TOOLS)}")
 
     @traceable(name="user_story_react_agent")
@@ -92,7 +91,7 @@ class UserStoryReActAgent:
             
             debugger.log_llm_call(
                 messages=[("system", SYSTEM_PROMPT), ("user", user_message)],
-                model="openai/gpt-oss-20b"
+                model=LLM_MODEL,
             )
             
             final_state = await self.graph.ainvoke(inputs)
@@ -124,6 +123,15 @@ class UserStoryReActAgent:
             )
             
             result["jira_id"] = jira_id
+
+            model_used = LLM_MODEL
+            prompt_tokens = 0
+            completion_tokens = 0
+
+            # Si il ya accès aux métriques de l'API
+            if hasattr(self.llm, 'last_usage'):
+                prompt_tokens = self.llm.last_usage.get('prompt_tokens', 0)
+                completion_tokens = self.llm.last_usage.get('completion_tokens', 0)
             
             # Print results
             print(f"{'='*80}")
@@ -135,6 +143,8 @@ class UserStoryReActAgent:
             print(f"[SCORE] Testability: {result.get('testability_score', 0.0):.3f} ⭐ PRIMARY")
             print(f"[STATUS] Improved: {result.get('is_improved', False)}")
             print(f"[INFO] Iterations: {result.get('iterations', 0)}")
+            print(f"[INFO] Prompt Tokens: {result.get('prompt_tokens', 0)}")
+            print(f"[INFO] Completion Tokens: {result.get('completion_tokens', 0)}")
             print(f"{'='*80}\n")
             
             debugger.log_final_result(result)
@@ -173,6 +183,9 @@ class UserStoryReActAgent:
                 "improved_actor": "",
                 "agent_status": "error",
                 "violations": [],
+                "model_used": LLM_MODEL,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
             }
     
     async def _process_agent_result(

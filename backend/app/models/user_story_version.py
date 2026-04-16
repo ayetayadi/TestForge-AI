@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 
 from app.core.database import Base
-from app.models.enums import StoryDecision
+from app.models.enums import AgentStatus, StoryDecision
 
 class UserStoryVersion(Base):
     __tablename__ = "user_story_versions"
@@ -22,13 +22,7 @@ class UserStoryVersion(Base):
         String(36),
         ForeignKey("user_stories.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
-    )
-
-    job_id: Mapped[Optional[str]] = mapped_column(
-        String(36),
-        ForeignKey("jobs.id"),
-        nullable=True
+        index=True  # ← Déjà un index simple ici
     )
 
     improved_story: Mapped[str] = mapped_column(Text, nullable=False)
@@ -44,7 +38,6 @@ class UserStoryVersion(Base):
     # =========================
     initial_score: Mapped[Optional[float]] = mapped_column(Float)
     final_score: Mapped[Optional[float]] = mapped_column(Float)
-    iteration: Mapped[int] = mapped_column(default=0, nullable=False)
 
     # =========================
     # TESTABILITY
@@ -75,12 +68,20 @@ class UserStoryVersion(Base):
     # =========================
     # META
     # =========================
-    version_type: Mapped[Optional[str]] = mapped_column(String(50))  # initial / refined
 
-    created_at: Mapped[datetime] = mapped_column(
+    agent_status: Mapped[AgentStatus] = mapped_column(
+        SqlEnum(AgentStatus),
+        default=AgentStatus.PROCESSING,
+        nullable=False
+    )
+
+    started_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now()
     )
+
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)  # ← Pas de server_default!
+    
 
     # =========================
     # RELATIONS
@@ -89,10 +90,33 @@ class UserStoryVersion(Base):
         "UserStory", 
         back_populates="versions",
         foreign_keys=[user_story_id]
-        )
-    job = relationship("Job", back_populates="versions")
+    )
 
+    # =========================
+    # INDEX OPTIMISÉS
+    # =========================
     __table_args__ = (
+        # Index simple sur user_story_id (déjà fait par index=True)
+        # Mais on garde un index nommé pour les requêtes complexes
         Index("idx_version_user_story_id", "user_story_id"),
-        Index("idx_version_job_id", "job_id"),
+        
+        # Pour filtrer par statut (dashboard, monitoring)
+        Index("idx_version_agent_status", "agent_status"),
+        
+        # Pour trier par date (historique, timeline)
+        Index("idx_version_started_at", "started_at"),
+        
+        # Pour chercher les versions complétées dans une plage de temps
+        Index("idx_version_completed_at", "completed_at"),
+        
+        # INDEX COMPOSITE 🔥 Le plus important !
+        # Pour trouver rapidement la dernière version d'une story
+        Index("idx_version_story_agent_status_date", 
+              "user_story_id", "agent_status", "started_at"),
+        
+        # Pour les analyses de performance
+        Index("idx_version_score", "final_score"),
+        
+        # Pour le workflow d'approbation
+        Index("idx_version_decision", "decision_status", "agent_status"),
     )
