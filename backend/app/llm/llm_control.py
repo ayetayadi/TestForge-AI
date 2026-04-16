@@ -3,6 +3,8 @@ import logging
 from typing import Any
 from langchain_openrouter import ChatOpenRouter
 
+from app.ai_agents_v2.user_story_refinement.config import LLM_TEMPERATURE
+
 logger = logging.getLogger(__name__)
 
 # Semaphore global pour limiter les appels simultanés
@@ -34,7 +36,7 @@ class ControlledChatOpenRouter(ChatOpenRouter):
                 raise
 
 
-def create_llm(temperature: float = 0.3) -> ControlledChatOpenRouter:
+def create_llm(temperature: float = LLM_TEMPERATURE) -> ControlledChatOpenRouter:
     """
     Factory pour créer une instance ChatOpenRouter contrôlée.
     

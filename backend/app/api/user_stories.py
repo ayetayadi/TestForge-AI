@@ -4,16 +4,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.repositories.user_story_version_repository import get_versions_by_story_id
 from app.services.user_story_service import (
-    get_all_user_stories,
+    list_stories,
     get_user_story_details,
-    get_user_stories_by_project_id,
+    list_stories_by_project,
     get_story_by_issue_key
 )
 
 router = APIRouter(prefix="/user-stories", tags=["user-stories"])
 @router.get("/")
 async def get_user_stories(db: AsyncSession = Depends(get_db)):
-    return await get_all_user_stories(db)
+    return await list_stories(db)
 
 
 @router.get("/{user_story_id}")
@@ -26,7 +26,7 @@ async def get_user_story(user_story_id: str, db: AsyncSession = Depends(get_db))
 
 @router.get("/by-project/{project_id}")
 async def get_user_stories_by_project(project_id: str, db: AsyncSession = Depends(get_db)):
-    return await get_user_stories_by_project_id(db, project_id)
+    return await list_stories_by_project(db, project_id)
 
 @router.get("/by-issue-key/{issue_key}")
 async def get_user_story_by_issue_key(issue_key: str, db: AsyncSession = Depends(get_db)):
@@ -48,7 +48,6 @@ async def get_story_versions(
         {
             "id": v.id,
             "story_id": v.user_story_id,
-            "job_id": v.job_id,
             "improved_story": v.improved_story,
             "generated_acceptance_criteria": v.generated_acceptance_criteria,
             "initial_score": v.initial_score,
@@ -58,11 +57,20 @@ async def get_story_versions(
                 if v.initial_score is not None and v.final_score is not None
                 else 0
             ),
-            "iteration": v.iteration,
-            "created_at": v.created_at,
+            "started_at": v.started_at.isoformat() if v.started_at else None,
+            "completed_at": v.completed_at.isoformat() if v.completed_at else None,
             "decision_status": (
                 v.decision_status.value if v.decision_status else "pending"
             ),
+            "testability_score": v.testability_score,
+            "is_testable": v.is_testable,
+            "testability_issues": v.testability_issues or [],
+            "agent_status": v.agent_status.value if v.agent_status else "processing",
+            "model_used": v.model_used,
+            "llm_calls": v.llm_calls,
+            "prompt_tokens": v.prompt_tokens,
+            "completion_tokens": v.completion_tokens,
+            "duration": v.duration,
         }
         for v in versions
     ]

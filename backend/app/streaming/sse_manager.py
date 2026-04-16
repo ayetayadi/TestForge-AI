@@ -14,7 +14,7 @@ def set_main_loop(loop: asyncio.AbstractEventLoop):
     _main_loop = loop
 
 
-def publish_event(job_id: str, event: str, data: dict):
+def publish_event(version_id: str, event: str, data: dict):
     """Publish SSE event (synchrone, pour appels depuis threads)"""
     message = {
         "event": event,
@@ -22,14 +22,14 @@ def publish_event(job_id: str, event: str, data: dict):
     }
 
     # BUFFER AVEC LIMITE
-    buffer = event_buffer.setdefault(job_id, [])
+    buffer = event_buffer.setdefault(version_id, [])
     buffer.append(message)
 
     if len(buffer) > 50:
         buffer.pop(0)
 
-    if job_id not in connections:
-        print(f"[SSE PUSH] job={job_id} event={event} (no listeners)")
+    if version_id not in connections:
+        print(f"[SSE PUSH] version={version_id} event={event} (no listeners)")
         return
 
     if _main_loop is None:
@@ -38,13 +38,13 @@ def publish_event(job_id: str, event: str, data: dict):
     
     loop = _main_loop
 
-    for queue in list(connections.get(job_id, [])):
+    for queue in list(connections.get(version_id, [])):
         loop.call_soon_threadsafe(_safe_put, queue, message)
 
-    print(f"[SSE PUSH] job={job_id} event={event}")
+    print(f"[SSE PUSH] version={version_id} event={event}")
 
 
-async def push_event(job_id: str, event: str, data: dict = None):
+async def push_event(version_id: str, event: str, data: dict = None):
     """Push SSE event (async, pour appels depuis coroutines)"""
     message = {
         "event": event,
@@ -52,17 +52,17 @@ async def push_event(job_id: str, event: str, data: dict = None):
     }
 
     # BUFFER AVEC LIMITE
-    buffer = event_buffer.setdefault(job_id, [])
+    buffer = event_buffer.setdefault(version_id, [])
     buffer.append(message)
 
     if len(buffer) > 50:
         buffer.pop(0)
 
     # Push vers toutes les queues connectées
-    queues = connections.get(job_id, [])
+    queues = connections.get(version_id, [])
     
     if not queues:
-        print(f"[SSE PUSH] job={job_id} event={event} (buffered, no listeners)")
+        print(f"[SSE PUSH] version={version_id} event={event} (buffered, no listeners)")
         return
 
     for queue in list(queues):
@@ -71,7 +71,7 @@ async def push_event(job_id: str, event: str, data: dict = None):
         except asyncio.QueueFull:
             print("[SSE WARNING] Queue full → dropping event")
 
-    print(f"[SSE PUSH] job={job_id} event={event}")
+    print(f"[SSE PUSH] version={version_id} event={event}")
 
 
 def _safe_put(queue: asyncio.Queue, message: dict):
@@ -81,14 +81,14 @@ def _safe_put(queue: asyncio.Queue, message: dict):
         print("[SSE WARNING] Queue full → dropping event")
 
 
-async def event_generator(job_id: str, request: Request):
+async def event_generator(version_id: str, request: Request):
     queue = asyncio.Queue(maxsize=100)
-    connections.setdefault(job_id, []).append(queue)
+    connections.setdefault(version_id, []).append(queue)
 
-    print(f"[SSE CONNECT] job={job_id}")
+    print(f"[SSE CONNECT] version={version_id}")
 
     # REPLAY buffered events
-    for msg in event_buffer.get(job_id, []):
+    for msg in event_buffer.get(version_id, []):
         yield f"event: {msg['event']}\n"
         yield f"data: {json.dumps(msg['data'])}\n\n"
 
@@ -110,23 +110,23 @@ async def event_generator(job_id: str, request: Request):
                 yield "event: ping\ndata: {}\n\n"
 
     finally:
-        if job_id in connections:
+        if version_id in connections:
             try:
-                connections[job_id].remove(queue)
+                connections[version_id].remove(queue)
             except ValueError:
                 pass
 
-            if not connections[job_id]:
-                del connections[job_id]
+            if not connections[version_id]:
+                del connections[version_id]
         
         # Ne pas supprimer le buffer immédiatement (pour replay si reconnexion)
-        # if job_id in event_buffer:
-        #     del event_buffer[job_id]
+        # if version_id in event_buffer:
+        #     del event_buffer[version_id]
 
 
-def sse_endpoint(request: Request, job_id: str):
+def sse_endpoint(request: Request, version_id: str):
     return StreamingResponse(
-        event_generator(job_id, request),
+        event_generator(version_id, request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -134,3 +134,4 @@ def sse_endpoint(request: Request, job_id: str):
             "X-Accel-Buffering": "no",
         },
     )
+    

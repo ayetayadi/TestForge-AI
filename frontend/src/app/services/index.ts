@@ -3,4 +3,4 @@ export * from './sse.service';
 export * from './projects.service';
 export * from './stories.service';
 export * from './pipeline.service';
-export * from './jobs.service';
+export * from './versions.service';

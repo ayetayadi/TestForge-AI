@@ -11,6 +11,8 @@ load_dotenv()
 # ============================================================
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 LLM_TEMPERATURE = 0.3
+LLM_MODEL="openai/gpt-oss-20b"
+
 # ============================================================
 # Agent Configuration
 # ============================================================

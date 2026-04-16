@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.services.pipeline_service import run_pipeline
