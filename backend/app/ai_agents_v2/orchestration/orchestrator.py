@@ -79,21 +79,19 @@ class TestAutomationOrchestrator:
             # ============================================================
             # Create Initial State
             # ============================================================
-            initial_state = OrchestrationState(
+            # ✅ Utiliser create_initial_state au lieu de construire manuellement
+            from .state import create_initial_state
+            
+            initial_state = create_initial_state(
                 jira_id=jira_id,
-                job_id=thread_id,
-                timestamp=datetime.now().isoformat(),
-                original_story=story,
-                current_step="story_improvement",
-                user_story_improvement=None,
-                errors=[],
-                status="processing",
-                steps_completed=0,
-                retry_count=0,
-                input_acceptance_criteria=acceptance_criteria or [],
-                input_language=language,
-                max_iterations=MAX_ITERATIONS,
+                version_id=thread_id,
+                story=story,
+                acceptance_criteria=acceptance_criteria,
+                language=language,
             )
+            
+            # Ajouter les champs supplémentaires
+            initial_state["max_iterations"] = MAX_ITERATIONS
             
             logger.debug(f"Initial state created: {thread_id}")
             
@@ -120,11 +118,6 @@ class TestAutomationOrchestrator:
                 config=config
             )
 
-            if final_state.get("started_at"):
-               started = datetime.fromisoformat(final_state["started_at"])
-               duration = (datetime.utcnow() - started).total_seconds()
-               final_state["duration_seconds"] = duration
-
             if final_state.get("status") == "failed":
                 logger.error(f"Graph execution failed: {final_state.get('errors', [])}")
                 
@@ -144,10 +137,15 @@ class TestAutomationOrchestrator:
             # ============================================================
             # Print Summary
             # ============================================================
+            # ✅ Récupérer la durée depuis user_story_improvement
+            improvement = final_state.get("user_story_improvement", {})
+            duration = improvement.get("duration_seconds", 0.0)
+            
             print(f"\n{'='*80}")
             print(f"[✅ COMPLETE] Status: {final_state['status'].upper()}")
             print(f"[INFO] Steps Completed: {final_state['steps_completed']}")
-            if final_state["errors"]:
+            print(f"[INFO] Duration: {duration:.1f}s")
+            if final_state.get("errors"):
                 print(f"[⚠️  WARNINGS] {len(final_state['errors'])} errors")
                 for error in final_state["errors"]:
                     print(f"  - {error}")
@@ -163,13 +161,13 @@ class TestAutomationOrchestrator:
             # ============================================================
             # SSE EVENT: Failed
             # ============================================================
-            error_state = OrchestrationState(
-                jira_id=jira_id,
-                job_id=thread_id,
-                timestamp=datetime.now().isoformat(),
-                errors=[str(e)],
-                status="failed"
-            )
+            error_state = {
+                "jira_id": jira_id,
+                "version_id": thread_id,
+                "timestamp": datetime.now().isoformat(),
+                "errors": [str(e)],
+                "status": "failed"
+            }
             
             await publishing_service.publish_failed(error_state, str(e))
             
@@ -183,7 +181,7 @@ class TestAutomationOrchestrator:
             
             return {
                 "jira_id": jira_id,
-                "job_id": thread_id,
+                "version_id": thread_id,
                 "thread_id": thread_id,
                 "timestamp": datetime.now().isoformat(),
                 "status": "failed",
@@ -193,12 +191,12 @@ class TestAutomationOrchestrator:
     
     async def resume(self, thread_id: str) -> Dict[str, Any]:
         """
-        Resume a previously interrupted job.
+        Resume a previously interrupted version user story.
         
         ⭐ Reprend depuis le dernier checkpoint
         
         Args:
-            thread_id: Thread ID of the job to resume
+            thread_id: Thread ID of the version to resume
             
         Returns:
             Result dict
@@ -209,7 +207,7 @@ class TestAutomationOrchestrator:
         logger.info(f"Resuming orchestration: {thread_id}")
         
         print(f"\n{'='*80}")
-        print(f"[🔄 RESUMING] Previously Interrupted Job")
+        print(f"[🔄 RESUMING] Previously Interrupted Version")
         print(f"[INFO] Thread ID: {thread_id}")
         print(f"{'='*80}\n")
         
@@ -224,14 +222,14 @@ class TestAutomationOrchestrator:
                 config=config
             )
             
-            logger.info(f"Job resumed successfully: {final_state['status']}")
+            logger.info(f"Version resumed successfully: {final_state['status']}")
             
             output = self._format_output(final_state)
-            output["thread_id"] = thread_id
+            output["version_id"] = thread_id
             output["resumed"] = True
             
             print(f"\n{'='*80}")
-            print(f"[✅ RESUMED] Job completed")
+            print(f"[✅ RESUMED] Version completed")
             print(f"[INFO] Status: {final_state['status'].upper()}")
             print(f"{'='*80}\n")
             
@@ -262,19 +260,16 @@ class TestAutomationOrchestrator:
         
         output = {
             "jira_id": state.get("jira_id"),
-            "job_id": state.get("job_id"),
+            "version_id": state.get("version_id"),
             "timestamp": state.get("timestamp"),
             "status": state["status"],
             "steps_completed": state["steps_completed"],
             "errors": state.get("errors", []),
-            "duration_seconds": state.get("duration_seconds"),
             "model_used": state.get("user_story_improvement", {}).get("model_used", "unknown") if state.get("user_story_improvement") else "unknown",
             "prompt_tokens": state.get("user_story_improvement", {}).get("prompt_tokens", 0) if state.get("user_story_improvement") else 0,
             "completion_tokens": state.get("user_story_improvement", {}).get("completion_tokens", 0) if state.get("user_story_improvement") else 0,
-
-
+            # ✅ duration_seconds SUPPRIMÉ (pas dans OrchestrationState)
         }
-        
         
         if state.get("user_story_improvement"):
             improvement = state["user_story_improvement"]
@@ -312,7 +307,7 @@ class TestAutomationOrchestrator:
                 "violations": improved_data.get("violations", []),
                 "iterations": improved_data.get("iterations", 0),
                 "agent_status": improved_data.get("agent_status", "unknown"),
-                "duration_seconds": improved_data.get("duration_seconds", 0.0),
+                "duration_seconds": improved_data.get("duration_seconds", 0.0),  # ✅ ICI SEULEMENT
             }
         
         return output

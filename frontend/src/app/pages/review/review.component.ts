@@ -1,16 +1,18 @@
 // ============================================================
-// src/app/pages/review/review.component.ts (CORRIGÉ)
+// src/app/pages/review/review.component.ts (CORRIGÉ - VERSION)
 // ============================================================
 
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
+
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
-import { JobsService, ToastService, PipelineService, SseService } from '../../services';
-import { DecisionChoice, JobState, SSEEvent, TraceEntry, UserStoryVersion } from '../../models';
+import { VersionsService, ToastService, PipelineService, SseService } from '../../services';
+import { DecisionChoice, VersionState, SSEEvent, TraceEntry, UserStoryVersion, AgentStatus } from '../../models';
 import { environment } from '../../../environments/environment';
-import { Subscription } from 'rxjs';
+import { NavigationService } from '../../services/navigation.service';
 
 @Component({
   selector: 'app-review',
@@ -23,16 +25,18 @@ export class ReviewComponent implements OnInit, OnDestroy {
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private jobsService = inject(JobsService);
+  private versionsService = inject(VersionsService);
   private toastService = inject(ToastService);
   private pipelineService = inject(PipelineService);
   private sseService = inject(SseService);
+  private navigationService = inject(NavigationService);
 
-  // Current job being viewed
-  jobId = '';
 
-  // Job state from API
-  state = signal<JobState | null>(null);
+  // Current version being viewed
+  versionId = '';
+
+  // Version state from API
+  state = signal<VersionState | null>(null);
 
   // All versions for this story
   allVersions = signal<UserStoryVersion[]>([]);
@@ -50,11 +54,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
   relaunching = signal(false);
   relaunchPhase = signal<string>('');
 
-  // ============================================================
-  // ❌ SUPPRIMER: step signal (plus utilisé)
-  // step = signal<'analysis' | 'refinement' | 'done' | 'idle'>('idle');
-
-  // ✅ REMPLACER PAR:
+  // Processing step
   processingStep = signal<'processing' | 'done'>('done');
 
   // Navigation context
@@ -88,23 +88,27 @@ export class ReviewComponent implements OnInit, OnDestroy {
     }
     
     if (versions.length > 0) {
-      return [...versions].sort((a,b) => (a.iteration ?? 0) - (b.iteration ?? 0)).at(-1);
+      return [...versions].sort((a, b) => 
+        (a.started_at || '') > (b.started_at || '') ? -1 : 1
+      )[0];
     }
     
     if (state && state.improved_story && state.version_id) {
       return {
         id: state.version_id,
         user_story_id: state.user_story_id || '',
-        job_id: state.job_id,
         improved_story: state.improved_story,
         generated_acceptance_criteria: state.generated_acceptance_criteria || [],
         initial_score: state.initial_score || 0,
         final_score: state.final_score || 0,
-        iteration: state.iteration || 0,
+        llm_calls: state.iteration || 0,
+        agent_status: state.agent_status as AgentStatus || 'completed',
         decision_status: 'pending',
         testability_score: state.testability_score,
         is_testable: state.is_testable,
-        testability_issues: state.testability_issues || []
+        testability_issues: state.testability_issues || [],
+        started_at: state.started_at,
+        completed_at: state.completed_at,
       } as UserStoryVersion;
     }
     
@@ -154,7 +158,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
   canMakeDecision = computed(() => {
     const s = this.state();
     
-    if (!s || s.status !== 'completed') return false;
+    if (!s || s.agent_status !== 'completed') return false;
     if (this.relaunching()) return false;
     if (this.decisionMade()) return false;
 
@@ -204,17 +208,17 @@ export class ReviewComponent implements OnInit, OnDestroy {
     });
 
     this.route.params.subscribe(params => {
-      const jobId = params['jobId'];
+      const versionId = params['versionId'];
 
-      if (!jobId) {
-        this.error.set("Missing jobId");
+      if (!versionId) {
+        this.error.set("Missing versionId");
         this.loading.set(false);
         return;
       }
 
-      this.jobId = jobId;
+      this.versionId = versionId;
       this.resetState();
-      this.loadJob(this.jobId);
+      this.loadVersion(this.versionId);
     });
   }
 
@@ -226,7 +230,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
     this.decisionMade.set(false);
     this.relaunching.set(false);
     this.relaunchPhase.set('');
-    this.processingStep.set('done');  // ✅ Mise à jour
+    this.processingStep.set('done');
     this.viewingVersionId.set(null);
     this.allVersions.set([]);
   }
@@ -240,40 +244,33 @@ export class ReviewComponent implements OnInit, OnDestroy {
       this.sseSubscription.unsubscribe();
       this.sseSubscription = null;
     }
-    if (this.jobId) {
-      this.sseService.disconnect(this.jobId);
+    if (this.versionId) {
+      this.versionsService.disconnectFromVersionStream(this.versionId);
     }
   }
 
-  private listenToStream(jobId: string): void {
+  private listenToStream(versionId: string): void {
     if (this.sseSubscription) return;
 
-    const url = `${environment.apiUrl}/jobs/${jobId}/stream`;
-    console.log("[SSE CONNECT]", jobId);
+    console.log("[SSE CONNECT]", versionId);
 
-    this.sseSubscription = this.sseService.connect(url, jobId).subscribe({
+    this.sseSubscription = this.versionsService.connectToVersionStream(versionId).subscribe({
       next: (event: SSEEvent) => {
         console.log("[SSE EVENT]", event.type, event.data);
 
-        // ============================================================
-        // ✅ SIMPLIFIÉ: Juste 3 events
-        // ============================================================
         switch (event.type) {
           case 'processing':
-            // ✅ Agent tourne
             this.processingStep.set('processing');
             console.log("[SSE] Agent processing:", event.data?.message);
             break;
 
           case 'completed':
-            // ✅ Complété
             this.cleanupSSE();
             this.processingStep.set('done');
-            this.loadJob(jobId);
+            this.loadVersion(versionId);
             break;
 
           case 'failed':
-            // ✅ Erreur
             this.cleanupSSE();
             this.processingStep.set('done');
             this.error.set('Pipeline failed');
@@ -288,58 +285,53 @@ export class ReviewComponent implements OnInit, OnDestroy {
   }
 
   // ─────────────────────────────────────────────
-  // LOAD JOB & VERSIONS
+  // LOAD VERSION & VERSIONS
   // ─────────────────────────────────────────────
 
-  loadJob(jobId: string): void {
+  loadVersion(versionId: string): void {
     this.loading.set(true);
     this.error.set(null);
 
-    this.jobsService.getJob(jobId).subscribe({
-      next: (jobState) => {
-        console.log("[LOAD JOB] Full response:", JSON.stringify(jobState, null, 2));
+    this.versionsService.getVersion(versionId).subscribe({
+      next: (versionState) => {
+        console.log("[LOAD VERSION] Full response:", JSON.stringify(versionState, null, 2));
 
-        if (jobState.status === 'not_found') {
-          this.error.set('Job not found');
+        if (versionState.agent_status === 'not_found') {
+          this.error.set('Version not found');
           this.loading.set(false);
           return;
         }
 
-        this.state.set(jobState);
+        this.state.set(versionState);
 
-        if (!this.issueKey && jobState.issue_key) {
-          this.issueKey = jobState.issue_key;
+        if (!this.issueKey && versionState.issue_key) {
+          this.issueKey = versionState.issue_key;
         }
 
-        if (jobState.user_story_id) {
-          this.loadVersions(jobState.user_story_id);
+        if (versionState.user_story_id) {
+          this.loadVersions(versionState.user_story_id);
         } else {
           this.loading.set(false);
         }
 
-        // ============================================================
-        // ✅ SIMPLIFIÉ: Juste checking processing vs completed/failed
-        // ============================================================
-        const status = jobState.status;
+        const agentStatus = versionState.agent_status;
 
-        if (status === 'processing') {
-          // ✅ Agent tourne
+        if (agentStatus === 'processing') {
           this.processingStep.set('processing');
-          this.listenToStream(jobId);
+          this.listenToStream(versionId);
         } else {
-          // ✅ Complété ou failed
           this.processingStep.set('done');
         }
 
-        if (!this.navProjectId && jobState.project_id) {
-          this.navProjectId = jobState.project_id;
+        if (!this.navProjectId && versionState.project_id) {
+          this.navProjectId = versionState.project_id;
         }
-        if (!this.navProjectName && jobState.project_name) {
-          this.navProjectName = jobState.project_name;
+        if (!this.navProjectName && versionState.project_name) {
+          this.navProjectName = versionState.project_name;
         }
       },
       error: (err) => {
-        this.error.set(err.message || 'Failed to load job');
+        this.error.set(err.message || 'Failed to load version');
         this.loading.set(false);
       },
     });
@@ -422,7 +414,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
   }
 
   getIteration(): number {
-    return this.currentVersion()?.iteration ?? this.state()?.iteration ?? 0;
+    return this.currentVersion()?.llm_calls ?? this.state()?.iteration ?? 0;
   }
 
   getOriginalStory(): string {
@@ -518,164 +510,153 @@ export class ReviewComponent implements OnInit, OnDestroy {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // DECISION
-  // ─────────────────────────────────────────────
+// review.component.ts
 
-  submitDecision(choice: DecisionChoice): void {
-    if (!this.jobId || this.submitting() || !this.canMakeDecision()) return;
+submitDecision(choice: DecisionChoice): void {
+    if (!this.versionId || this.submitting() || !this.canMakeDecision()) return;
 
     const versionId = this.currentVersion()?.id;
     console.log("🚨 VERSION SENT:", versionId);
 
     if (!versionId) {
-      this.toastService.error("No valid version found. Please wait.");
-      return;
+        this.toastService.error("No valid version found. Please wait.");
+        return;
     }
 
     this.submitting.set(true);
-    this.jobsService.sendDecision(this.jobId, choice, versionId).subscribe({
-      next: (res) => {
-        this.submitting.set(false);
+    this.versionsService.sendDecision(versionId, choice).subscribe({
+        next: (res) => {
+            this.submitting.set(false);
 
-        if (res.status === 'error') {
-          this.toastService.error(res.message || 'Decision failed');
-          return;
+            if (res.status === 'error') {
+                this.toastService.error(res.message || 'Decision failed');
+                return;
+            }
+
+            // ✅ NE PAS définir decisionMade pour 'reject_relaunch'
+            // Car on veut rester sur la page pour voir la nouvelle version
+            if (choice !== 'reject_relaunch') {
+                this.decisionMade.set(true);
+            }
+
+            switch (choice) {
+                case 'approve':
+                    this.toastService.success('Version approved successfully');
+                    this.navigateToStories();
+                    break;
+
+                case 'reject_keep':
+                    this.toastService.info('Original version kept (AI suggestion rejected)');
+                    this.navigateToStories();
+                    break;
+
+                case 'reject_relaunch':
+                    // ✅ Ne pas rediriger immédiatement
+                    // ✅ Ne pas set decisionMade
+                    this.handleRelaunch(res);
+                    break;
+            }
+        },
+        error: (err) => {
+            this.submitting.set(false);
+            this.toastService.error('Decision failed');
+            console.error('[DECISION ERROR]', err);
         }
-
-        this.decisionMade.set(true);
-
-        switch (choice) {
-          case 'approve':
-            this.toastService.success('Version approved successfully');
-            this.navigateToStories();
-            break;
-
-          case 'reject_keep':
-            this.toastService.info('Original version kept (AI suggestion rejected)');
-            this.navigateToStories();
-            break;
-
-          case 'reject_relaunch':
-            this.handleRelaunch(res);
-            break;
-        }
-      },
-      error: (err) => {
-        this.submitting.set(false);
-        this.toastService.error('Decision failed');
-        console.error('[DECISION ERROR]', err);
-      }
     });
-  }
+}
 
-  // ─────────────────────────────────────────────
-  // RELAUNCH
-  // ─────────────────────────────────────────────
+private handleRelaunch(res: any): void {
+    const newVersionId = res.new_version_id;
 
-  private handleRelaunch(res: any): void {
-    const newJobId = res.job_id;
-
-    if (!newJobId) {
-      this.toastService.error('Relaunch failed: no job_id');
-      this.navigateToStories();
-      return;
+    if (!newVersionId) {
+        this.toastService.error('Relaunch failed: no version_id');
+        this.navigateToStories();
+        return;
     }
 
     this.relaunching.set(true);
     this.relaunchPhase.set('Processing...');
 
-    this.jobId = newJobId;
-    this.connectRelaunchSSE(newJobId);
-    this.loadJob(newJobId);
-  }
+    // ✅ Seulement connecter au SSE
+    this.connectRelaunchSSE(newVersionId);
+}
 
-  private connectRelaunchSSE(newJobId: string): void {
-    this.cleanupSSE();
-
-    const url = `${environment.apiUrl}/jobs/${newJobId}/stream`;
-
-    this.sseSubscription = this.sseService.connect(url, newJobId).subscribe({
-      next: (event: SSEEvent) => {
-        console.log('[RELAUNCH SSE]', event.type, event.data);
-
-        // ============================================================
-        // ✅ SIMPLIFIÉ: Juste processing/completed/failed
-        // ============================================================
-        switch (event.type) {
-          case 'processing':
-            // ✅ Juste "Processing..." sans détails de phase
-            this.relaunchPhase.set('Processing...');
-            break;
-
-          case 'completed':
-            this.cleanupSSE();
-            this.relaunching.set(false);
-          
-            const hasNewVersion = event.data?.has_new_version;
-          
-            if (hasNewVersion) {
-              this.toastService.success('New version created');
-            } else {
-              this.toastService.info('Already optimal (no better version)');
+private connectRelaunchSSE(versionId: string): void {
+    this.sseSubscription = this.versionsService.connectToVersionStream(versionId).subscribe({
+        next: (event: SSEEvent) => {
+            console.log('[SSE EVENT]', event.type, event.data);
+            
+            // Écouter "version_created"
+            if (event.type === 'version_created') {
+                const newVersionId = event.data?.version_id;
+                if (newVersionId) {
+                    this.versionId = newVersionId;
+                    this.loadVersion(newVersionId);
+                    this.toastService.success('New version created');
+                    this.relaunching.set(false);  // ✅ AJOUTER ICI
+                    
+                    const storyId = this.state()?.user_story_id;
+                    if (storyId) {
+                        this.loadVersions(storyId);
+                    }
+                }
             }
-          
-            this.decisionMade.set(false);
-            this.viewingVersionId.set(null);
-          
-            this.loadJob(newJobId);
-          
-            setTimeout(() => {
-              const newState = this.state();
-              const storyId = newState?.user_story_id;
-          
-              if (storyId) {
-                this.loadVersions(storyId);
-              }
-            }, 600);
-          
-            break;
-
-          case 'failed':
-            this.cleanupSSE();
+            
+            // Événement completed
+            if (event.type === 'completed') {
+                const hasNewVersion = event.data?.has_new_version;
+                
+                if (hasNewVersion === false) {
+                    this.toastService.info(event.data?.message || 'Already optimal');
+                    this.relaunching.set(false);
+                } else if (hasNewVersion === true) {
+                    // ✅ Si nouvelle version créée, s'assurer que relaunching est false
+                    this.relaunching.set(false);
+                }
+                
+                const storyId = this.state()?.user_story_id;
+                if (storyId) {
+                    this.loadVersions(storyId);
+                }
+                
+                this.cleanupSSE();
+            }
+            
+            // Événement failed
+            if (event.type === 'failed') {
+                this.relaunching.set(false);
+                this.toastService.error(event.data?.error || 'Pipeline failed');
+                this.cleanupSSE();
+            }
+        },
+        error: (err) => {
+            console.error('[SSE ERROR]', err);
             this.relaunching.set(false);
-            this.toastService.error('Pipeline failed');
-            this.navigateToStories();
-            break;
+            this.toastService.error('Connection lost');
+            this.cleanupSSE();
         }
-      },
-      error: (err) => {
-        console.error('[RELAUNCH SSE ERROR]', err);
-        this.cleanupSSE();
-        this.toastService.error('Connection lost');
-
-        this.router.navigate(['/review', newJobId], {
-          queryParams: {
-            projectId: this.navProjectId,
-            projectName: this.navProjectName,
-            issueKey: this.issueKey,
-          }
-        });
-      }
     });
-  }
-
+}
   // ─────────────────────────────────────────────
   // NAVIGATION
   // ─────────────────────────────────────────────
 
-  private navigateToStories(): void {
+// review.component.ts
+private navigateToStories(): void {
+    // Récupérer la page actuelle de la pagination
+    const currentPage = this.navigationService.getCurrentPage() || 1;
+    
     setTimeout(() => {
-      this.router.navigate(['/user-stories'], {
-        queryParams: {
-          projectId: this.navProjectId,
-          projectName: this.navProjectName,
-          highlight: this.issueKey
-        }
-      });
+        this.router.navigate(['/user-stories'], {
+            queryParams: {
+                projectId: this.navProjectId,
+                projectName: this.navProjectName,
+                highlight: this.issueKey,
+                page: currentPage  // ← AJOUTER la page
+            }
+        });
     }, 1000);
-  }
-
+}
   goBack(): void {
     this.cleanupSSE();
     this.router.navigate(['/user-stories'], {
@@ -696,16 +677,16 @@ export class ReviewComponent implements OnInit, OnDestroy {
     return displayScore.toFixed(1);
   }
 
-  isJobCompleted(): boolean {
-    return this.state()?.status === 'completed';
+  isVersionCompleted(): boolean {
+    return this.state()?.agent_status === 'completed';
   }
 
-  isJobFailed(): boolean {
-    return this.state()?.status === 'failed';
+  isVersionFailed(): boolean {
+    return this.state()?.agent_status === 'failed';
   }
 
-  isJobProcessing(): boolean {
-    return this.state()?.status === 'processing';
+  isVersionProcessing(): boolean {
+    return this.state()?.agent_status === 'processing';
   }
 
   formatDate(date: string | undefined): string {

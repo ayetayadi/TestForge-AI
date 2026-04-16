@@ -24,7 +24,7 @@
   <!-- Loading -->
   @if (loading() && !relaunching()) {
     <div class="loading-container">
-      <app-spinner text="Loading job details..." />
+      <app-spinner text="Loading version details..." />
     </div>
   }
 
@@ -51,27 +51,27 @@
         </svg>
         <h3>Failed to load</h3>
         <p>{{ error() }}</p>
-        <button class="btn btn-primary" (click)="loadJob(jobId)">Retry</button>
+        <button class="btn btn-primary" (click)="loadVersion(versionId)">Retry</button>
       </div>
     </div>
   }
 
-  <!-- Job processing -->
-  @else if (isJobProcessing()) {
+  <!-- Version processing -->
+  @else if (isVersionProcessing()) {
     <div class="processing-container">
       <div class="processing-card">
         <app-spinner [size]="48" />
         <h3>Pipeline Running</h3>
-        <p>This job is still being processed...</p>
+        <p>This version is still being processed...</p>
         <div class="processing-hint">
-        <p>Please wait while the AI agent analyzes and improves your user story.</p>
-      </div>
+          <p>Please wait while the AI agent analyzes and improves your user story.</p>
+        </div>
       </div>
     </div>
   }
 
-  <!-- Job failed -->
-  @else if (isJobFailed()) {
+  <!-- Version failed -->
+  @else if (isVersionFailed()) {
     <div class="error-container">
       <div class="error-card">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
@@ -85,7 +85,7 @@
   }
 
   <!-- Main content -->
-  @else if (state() && isJobCompleted()) {
+  @else if (state() && isVersionCompleted()) {
     <div class="page-content">
 
       <!-- Version Selector (si plusieurs versions) -->
@@ -122,7 +122,7 @@
                 <div class="version-score">
                   <app-score-badge 
                     [score]="version.final_score" 
-                    [delta]="(version.final_score) - (version.initial_score)"
+                    [delta]="version.final_score - version.initial_score"
                     size="small"
                   />
                 </div>
@@ -162,7 +162,7 @@
       }
 
       <!-- Decision already made notice -->
-      @if (state()?.decision_status === 'approved' && !relaunching()) {
+      @if (hasFinalDecision() && !relaunching()) {
         <div class="decision-notice approved">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />

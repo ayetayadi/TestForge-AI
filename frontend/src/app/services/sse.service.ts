@@ -1,8 +1,7 @@
 // services/sse.service.ts
 import { Injectable, NgZone } from '@angular/core';
-import { Observable, Observer, Subject, timer } from 'rxjs';
-import { retryWhen, delay, take, tap, catchError } from 'rxjs/operators';
-import { SSEEvent, SSEEventType } from '../models';
+import { Observable, Observer } from 'rxjs';
+import { SSEEvent } from '../models';
 
 @Injectable({
   providedIn: 'root'
@@ -15,36 +14,34 @@ export class SseService {
 
   constructor(private zone: NgZone) {}
 
-  connect(url: string, jobId: string): Observable<SSEEvent> {
+  /**
+   * Connecte à une version via SSE
+   * @param url - URL du stream (ex: /versions/{version_id}/stream)
+   * @param versionId - ID de la version
+   */
+  connectToVersion(url: string, versionId: string): Observable<SSEEvent> {
     return new Observable((observer: Observer<SSEEvent>) => {
       // Si une connexion existe déjà, la fermer
-      if (this.eventSources.has(jobId)) {
-        this.disconnect(jobId);
+      if (this.eventSources.has(versionId)) {
+        this.disconnect(versionId);
       }
 
-      console.log(`[SSE] Connecting to job ${jobId}...`);
+      console.log(`[SSE] Connecting to version ${versionId}...`);
       
       const eventSource = new EventSource(url);
-      this.eventSources.set(jobId, eventSource);
-      this.reconnectAttempts.set(jobId, 0);
+      this.eventSources.set(versionId, eventSource);
+      this.reconnectAttempts.set(versionId, 0);
 
       // Gestion de l'ouverture
       eventSource.onopen = () => {
         this.zone.run(() => {
-          console.log(`[SSE] Connected to job ${jobId}`);
-          this.reconnectAttempts.set(jobId, 0);
+          console.log(`[SSE] Connected to version ${versionId}`);
+          this.reconnectAttempts.set(versionId, 0);
         });
       };
 
-      // Types d'événements à écouter
-      const eventTypes: string[] = [
-        'analyzing',
-        'refining',
-        'evaluating',
-        'completed',
-        'failed',
-        'ping'
-      ];
+      // Types d'événements à écouter (simplifiés pour versions)
+      const eventTypes: string[] = ['processing', 'completed', 'failed', 'ping'];
 
       // Ajouter les listeners pour chaque type d'événement
       eventTypes.forEach(eventType => {
@@ -57,25 +54,25 @@ export class SseService {
               
               // Si c'est un événement terminal, on peut fermer la connexion
               if (eventType === 'completed' || eventType === 'failed') {
-                console.log(`[SSE] Terminal event ${eventType} for job ${jobId}`);
+                console.log(`[SSE] Terminal event ${eventType} for version ${versionId}`);
                 observer.next({
-                  type: eventType,
+                  type: eventType as any,
                   data: data,
                   timestamp: new Date().toISOString()
                 });
                 observer.complete();
-                this.disconnect(jobId);
+                this.disconnect(versionId);
                 return;
               }
 
               observer.next({
-                type: eventType as SSEEventType,
+                type: eventType as any,
                 data: data,
                 timestamp: new Date().toISOString()
               });
 
             } catch (e) {
-              console.error(`[SSE] Parse error for job ${jobId}:`, e);
+              console.error(`[SSE] Parse error for version ${versionId}:`, e);
             }
           });
         });
@@ -84,30 +81,26 @@ export class SseService {
       // Gestion des erreurs de connexion
       eventSource.onerror = (error) => {
         this.zone.run(() => {
-          console.error(`[SSE] Error for job ${jobId}:`, error);
+          console.error(`[SSE] Error for version ${versionId}:`, error);
           
-          const attempts = this.reconnectAttempts.get(jobId) || 0;
+          const attempts = this.reconnectAttempts.get(versionId) || 0;
           
-          // Si la connexion est fermée et qu'on n'a pas atteint le max de tentatives
           if (eventSource.readyState === EventSource.CLOSED && 
               attempts < this.MAX_RECONNECT_ATTEMPTS) {
             
             const newAttempts = attempts + 1;
-            this.reconnectAttempts.set(jobId, newAttempts);
-            console.log(`[SSE] Reconnecting to job ${jobId} (attempt ${newAttempts}/${this.MAX_RECONNECT_ATTEMPTS})...`);
+            this.reconnectAttempts.set(versionId, newAttempts);
+            console.log(`[SSE] Reconnecting to version ${versionId} (attempt ${newAttempts}/${this.MAX_RECONNECT_ATTEMPTS})...`);
             
-            // Réessayer après un délai
             setTimeout(() => {
-              if (this.eventSources.has(jobId)) {
-                this.disconnect(jobId);
-                // La reconnexion se fera via un nouveau subscribe
-                // Pour cela, il faudrait émettre un événement de reconnexion
+              if (this.eventSources.has(versionId)) {
+                this.disconnect(versionId);
                 observer.error(new Error(`Connection lost, attempt ${newAttempts}/${this.MAX_RECONNECT_ATTEMPTS}`));
               }
             }, this.RECONNECT_DELAY);
             
           } else if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
-            console.error(`[SSE] Max reconnect attempts reached for job ${jobId}`);
+            console.error(`[SSE] Max reconnect attempts reached for version ${versionId}`);
             observer.error(new Error('Max reconnect attempts reached'));
           }
         });
@@ -115,61 +108,47 @@ export class SseService {
 
       // Nettoyage
       return () => {
-        this.disconnect(jobId);
+        this.disconnect(versionId);
       };
     });
   }
 
   /**
-   * Connecte avec retry automatique (utilise les opérateurs RxJS)
+   * Vérifie si une connexion SSE existe pour une version
    */
-  connectWithRetry(url: string, jobId: string): Observable<SSEEvent> {
-    return this.connect(url, jobId).pipe(
-      retryWhen(errors => 
-        errors.pipe(
-          tap(err => console.error(`[SSE] Error for ${jobId}, retrying...`, err)),
-          delay(this.RECONNECT_DELAY),
-          take(this.MAX_RECONNECT_ATTEMPTS)
-        )
-      ),
-      catchError((err) => {
-        console.error(`[SSE] Failed after ${this.MAX_RECONNECT_ATTEMPTS} attempts for ${jobId}`);
-        throw err;
-      })
-    );
-  }
-
-  /**
-   * Vérifie si une connexion SSE existe pour un job
-   */
-  isConnected(jobId: string): boolean {
-    const es = this.eventSources.get(jobId);
+  isConnected(versionId: string): boolean {
+    const es = this.eventSources.get(versionId);
     return es !== undefined && es.readyState === EventSource.OPEN;
   }
 
   /**
    * Récupère l'état de la connexion
    */
-  getConnectionState(jobId: string): number | null {
-    const es = this.eventSources.get(jobId);
+  getConnectionState(versionId: string): number | null {
+    const es = this.eventSources.get(versionId);
     return es ? es.readyState : null;
   }
 
-
-  disconnect(jobId: string): void {
-    const es = this.eventSources.get(jobId);
+  /**
+   * Déconnecte une version spécifique
+   */
+  disconnect(versionId: string): void {
+    const es = this.eventSources.get(versionId);
     if (es) {
-      console.log(`[SSE] Disconnecting from job ${jobId}`);
+      console.log(`[SSE] Disconnecting from version ${versionId}`);
       es.close();
-      this.eventSources.delete(jobId);
-      this.reconnectAttempts.delete(jobId);
+      this.eventSources.delete(versionId);
+      this.reconnectAttempts.delete(versionId);
     }
   }
 
+  /**
+   * Déconnecte toutes les versions
+   */
   disconnectAll(): void {
     console.log(`[SSE] Disconnecting all (${this.eventSources.size} connections)`);
-    this.eventSources.forEach((_, jobId) => {
-      this.disconnect(jobId);
+    this.eventSources.forEach((_, versionId) => {
+      this.disconnect(versionId);
     });
     this.eventSources.clear();
     this.reconnectAttempts.clear();
@@ -182,7 +161,7 @@ export class SseService {
     const details: any[] = [];
     let connected = 0;
     
-    this.eventSources.forEach((es, jobId) => {
+    this.eventSources.forEach((es, versionId) => {
       const state = es.readyState;
       const stateName = state === EventSource.CONNECTING ? 'connecting' :
                         state === EventSource.OPEN ? 'open' :
@@ -191,7 +170,7 @@ export class SseService {
       if (state === EventSource.OPEN) connected++;
       
       details.push({
-        jobId,
+        versionId,
         state: stateName,
         readyState: state
       });
@@ -203,5 +182,4 @@ export class SseService {
       details
     };
   }
-
 }
