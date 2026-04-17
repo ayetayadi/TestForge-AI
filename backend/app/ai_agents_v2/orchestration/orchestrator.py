@@ -268,7 +268,6 @@ class TestAutomationOrchestrator:
             "model_used": state.get("user_story_improvement", {}).get("model_used", "unknown") if state.get("user_story_improvement") else "unknown",
             "prompt_tokens": state.get("user_story_improvement", {}).get("prompt_tokens", 0) if state.get("user_story_improvement") else 0,
             "completion_tokens": state.get("user_story_improvement", {}).get("completion_tokens", 0) if state.get("user_story_improvement") else 0,
-            # ✅ duration_seconds SUPPRIMÉ (pas dans OrchestrationState)
         }
         
         if state.get("user_story_improvement"):
