@@ -200,3 +200,74 @@ async def update_version_decision(
     version.decision_status = decision_status
     await db.flush()
     return version
+
+async def update_version_content(
+    db: AsyncSession,
+    version_id: str,
+    improved_story: str,
+    acceptance_criteria: List[str]
+) -> UserStoryVersion | None:
+    """
+    Met à jour le contenu d'une version existante.
+    Marque la version comme 'customized' lors de la première modification.
+    """
+    version = await get_version_by_id(db, version_id)
+    if not version:
+        return None
+    
+    # Vérifier qu'on peut modifier (pas approved)
+    if version.decision_status == StoryDecision.APPROVED:
+        raise PermissionError(f"Cannot modify approved version {version_id}")
+    
+    # Si c'est la première modification, marquer comme personnalisée
+    if not version.is_customized:
+        version.is_customized = True
+        version.customized_at = datetime.utcnow()
+    
+    # Mettre à jour le contenu
+    version.improved_story = improved_story
+    version.generated_acceptance_criteria = acceptance_criteria
+    
+    await db.flush()
+    await db.refresh(version)
+    
+    return version
+
+
+async def can_edit_version(
+    db: AsyncSession,
+    version_id: str
+) -> bool:
+    """
+    Vérifie si une version peut être modifiée.
+    Une version approuvée (APPROVED) ne peut PAS être modifiée.
+    """
+    version = await get_version_by_id(db, version_id)
+    if not version:
+        return False
+    
+    return version.decision_status != StoryDecision.APPROVED
+
+async def reset_customization(
+    db: AsyncSession,
+    version_id: str
+) -> UserStoryVersion | None:
+    """
+    Réinitialise le statut 'customized' d'une version.
+    Utile si l'utilisateur annule ses modifications.
+    """
+    version = await get_version_by_id(db, version_id)
+    if not version:
+        return None
+    
+    # Ne pas réinitialiser si la version est approuvée
+    if version.decision_status == StoryDecision.APPROVED:
+        raise PermissionError(f"Cannot reset approved version {version_id}")
+    
+    version.is_customized = False
+    version.customized_at = None
+    
+    await db.flush()
+    await db.refresh(version)
+    
+    return version
