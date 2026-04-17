@@ -16,7 +16,7 @@ LLM_MODEL="openai/gpt-oss-20b"
 # ============================================================
 # Agent Configuration
 # ============================================================
-MAX_ITERATIONS = 3
+MAX_ITERATIONS = 2
 MIN_SCORE_THRESHOLD = 0.8
 MIN_SIMILARITY_THRESHOLD = 0.65
 
