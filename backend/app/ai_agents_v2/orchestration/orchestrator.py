@@ -10,7 +10,6 @@ from typing import Dict, Any, Optional
 import logging
 
 from app.ai_agents_v2.user_story_refinement.services.publishing_service import publishing_service
-from app.ai_agents_v2.user_story_refinement.config import MAX_ITERATIONS
 from .graph import build_orchestration_graph
 from .state import OrchestrationState
 
@@ -91,7 +90,6 @@ class TestAutomationOrchestrator:
             )
             
             # Ajouter les champs supplémentaires
-            initial_state["max_iterations"] = MAX_ITERATIONS
             
             logger.debug(f"Initial state created: {thread_id}")
             
@@ -268,7 +266,6 @@ class TestAutomationOrchestrator:
             "model_used": state.get("user_story_improvement", {}).get("model_used", "unknown") if state.get("user_story_improvement") else "unknown",
             "prompt_tokens": state.get("user_story_improvement", {}).get("prompt_tokens", 0) if state.get("user_story_improvement") else 0,
             "completion_tokens": state.get("user_story_improvement", {}).get("completion_tokens", 0) if state.get("user_story_improvement") else 0,
-            # ✅ duration_seconds SUPPRIMÉ (pas dans OrchestrationState)
         }
         
         if state.get("user_story_improvement"):
