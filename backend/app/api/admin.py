@@ -127,6 +127,29 @@ async def update_user(
 
     return _to_read(user)
 
+def is_jira_connected(user: User) -> bool:
+    """
+    Détermine si un user est connecté à Jira
+    """
+
+    # 🚫 Règle métier : admin jamais connecté
+    if user.is_admin:
+        return False
+
+    jira_conn = user.jira_connection
+
+    if not jira_conn:
+        return False
+
+    if not jira_conn.access_token:
+        return False
+    if jira_conn.token_expires_at:
+        from datetime import datetime
+        if datetime.utcnow() >= jira_conn.token_expires_at:
+            return False
+
+    return True
+
 def _to_read(user: User) -> UserRead:
     return UserRead(
         id=user.id,
@@ -135,5 +158,5 @@ def _to_read(user: User) -> UserRead:
         is_admin=user.is_admin,
         is_active=user.is_active,
         created_at=user.created_at,
-        jira_connected=user.jira_connection is not None,
+        jira_connected=is_jira_connected(user),
     )
