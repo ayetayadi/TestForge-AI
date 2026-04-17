@@ -94,13 +94,29 @@ class UserStoryReActAgent:
                 model=LLM_MODEL,
             )
             
+            # Dans la méthode run(), après final_state = await self.graph.ainvoke(inputs)
+            
             final_state = await self.graph.ainvoke(inputs)
             
             print(f"\n{'='*80}\n")
             
-            # Debug tool calls
+            prompt_tokens = 0
+            completion_tokens = 0
+            
             messages = final_state.get("messages", [])
             for msg in messages:
+                if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
+                    prompt_tokens += msg.usage_metadata.get('input_tokens', 0)
+                    completion_tokens += msg.usage_metadata.get('output_tokens', 0)
+                    print(f"[TOKENS] Found in message: input={msg.usage_metadata.get('input_tokens')}, output={msg.usage_metadata.get('output_tokens')}")
+                
+                elif hasattr(msg, 'response_metadata'):
+                    usage = msg.response_metadata.get('usage', {})
+                    if usage:
+                        prompt_tokens += usage.get('prompt_tokens', 0)
+                        completion_tokens += usage.get('completion_tokens', 0)
+                        print(f"[TOKENS] Found in response_metadata: {usage}")
+
                 msg_type = type(msg).__name__
                 if msg_type == "AIMessage":
                     debugger.log_llm_response(msg)
@@ -114,6 +130,11 @@ class UserStoryReActAgent:
                         success = True
                     debugger.log_tool_result(tool_name, result, success)
             
+            print(f"\n[TOKEN TOTAL] Prompt tokens: {prompt_tokens}, Completion tokens: {completion_tokens}\n")
+
+            messages = final_state.get("messages", [])
+
+            
             # Process result
             result = await self._process_agent_result(
                 final_state,
@@ -123,17 +144,11 @@ class UserStoryReActAgent:
             )
             
             result["jira_id"] = jira_id
-
-            model_used = LLM_MODEL
-            prompt_tokens = 0
-            completion_tokens = 0
-
-            # Si il ya accès aux métriques de l'API
-            if hasattr(self.llm, 'last_usage'):
-                prompt_tokens = self.llm.last_usage.get('prompt_tokens', 0)
-                completion_tokens = self.llm.last_usage.get('completion_tokens', 0)
             
-            # Print results
+            result["model_used"] = LLM_MODEL
+            result["prompt_tokens"] = prompt_tokens  
+            result["completion_tokens"] = completion_tokens
+            
             print(f"{'='*80}")
             print(f"[✅ RESULT SUMMARY]")
             print(f"{'='*80}")
@@ -143,8 +158,9 @@ class UserStoryReActAgent:
             print(f"[SCORE] Testability: {result.get('testability_score', 0.0):.3f} ⭐ PRIMARY")
             print(f"[STATUS] Improved: {result.get('is_improved', False)}")
             print(f"[INFO] Iterations: {result.get('iterations', 0)}")
-            print(f"[INFO] Prompt Tokens: {result.get('prompt_tokens', 0)}")
-            print(f"[INFO] Completion Tokens: {result.get('completion_tokens', 0)}")
+            print(f"[INFO] Model: {LLM_MODEL}")
+            print(f"[INFO] Prompt Tokens: {prompt_tokens}")  # ← Affiche les vraies valeurs
+            print(f"[INFO] Completion Tokens: {completion_tokens}")  # ← Affiche les vraies valeurs
             print(f"{'='*80}\n")
             
             debugger.log_final_result(result)
@@ -275,8 +291,8 @@ class UserStoryReActAgent:
             "is_improved": is_improved,
             "valid": is_valid,
             "score": round(final_score, 3),
-            "initial_score": round(initial_score, 3),       # ✅ Score INITIAL
-            "final_score": round(final_score, 3),           # ✅ Score FINAL
+            "initial_score": round(initial_score, 3),    
+            "final_score": round(final_score, 3),     
             "testability_score": round(testability_score, 3),
             "is_testable": is_testable,
             "testability_issues": testability_issues,
@@ -293,9 +309,14 @@ class UserStoryReActAgent:
     
     def _extract_all_scores_from_tool_calls(self, state: Dict) -> tuple:
         """
-        Extract INITIAL and FINAL scores from tool calls.
-        
+        Extract INITIAL and FINAL scores from tool calls across all iterations.
+
+        Iterative refinement produces N score_story calls:
+          - call 1        = initial score (before any improvement)
+          - calls 2..N    = one score per improvement iteration
+
         Returns: (initial_score, final_score, testability_score, is_testable, testability_issues, iterations)
+          where iterations = number of improvement cycles (= total score calls - 1)
         """
         messages = state.get("messages", [])
         
@@ -304,47 +325,42 @@ class UserStoryReActAgent:
         testability_score = 0.0
         is_testable = False
         testability_issues = []
-        iterations = 0
-        
-        # ✅ Trouver le PREMIER score (initial)
+        total_score_calls = 0
+
+        score_results = []
+
+        # Collect all score_story results in chronological order
         for msg in messages:
             if hasattr(msg, "type") and msg.type == "tool":
                 if hasattr(msg, "name") and msg.name == "score_story":
                     try:
                         content = msg.content if hasattr(msg, "content") else str(msg)
-                        if isinstance(content, str):
-                            result = json.loads(content)
-                        else:
-                            result = content
-                        initial_score = float(result.get("final_score", 0.0))
-                        logger.info(f"✓ Initial score from tool: {initial_score:.3f}")
-                        break  # ✅ Premier trouvé = initial
+                        result = json.loads(content) if isinstance(content, str) else content
+                        score_results.append(result)
                     except Exception as e:
-                        logger.warning(f"Failed to parse initial score: {e}")
+                        logger.warning(f"Failed to parse score_story result: {e}")
         
-        # ✅ Trouver le DERNIER score (final)
-        for msg in reversed(messages):
-            if hasattr(msg, "type") and msg.type == "tool":
-                if hasattr(msg, "name") and msg.name == "score_story":
-                    iterations += 1
-                    try:
-                        content = msg.content if hasattr(msg, "content") else str(msg)
-                        if isinstance(content, str):
-                            result = json.loads(content)
-                        else:
-                            result = content
-                        
-                        if final_score == 0.0:
-                            final_score = float(result.get("final_score", 0.0))
-                            testability_score = float(result.get("testability_score", 0.0))
-                            is_testable = result.get("is_testable", False)
-                            testability_issues = result.get("testability_issues", [])
-                            logger.info(f"✓ Final score from tool: {final_score:.3f}")
-                    except Exception as e:
-                        logger.warning(f"Failed to parse final score: {e}")
-        
-        iterations = max(1, iterations)
-        return initial_score, final_score, testability_score, is_testable, testability_issues, iterations
+        total_score_calls = len(score_results)
+
+        if total_score_calls == 0:
+            return 0.0, 0.0, 0.0, False, [], 0
+
+        # First call = initial evaluation (before any improvement)
+        initial_score = float(score_results[0].get("final_score", 0.0))
+        logger.info(f"✓ Initial score: {initial_score:.3f}")
+
+        # Last call = best result after all improvement iterations
+        last = score_results[-1]
+        final_score = float(last.get("final_score", 0.0))
+        testability_score = float(last.get("testability_score", 0.0))
+        is_testable = last.get("is_testable", False)
+        testability_issues = last.get("testability_issues", [])
+        logger.info(f"✓ Final score: {final_score:.3f} after {total_score_calls - 1} improvement iteration(s)")
+
+        # improvement iterations = total score calls minus the initial evaluation
+        improvement_iterations = max(0, total_score_calls - 1)
+
+        return initial_score, final_score, testability_score, is_testable, testability_issues, improvement_iterations
     
     def _create_empty_result(self, story: str, ac: List[str], actor: str) -> Dict[str, Any]:
         """Create empty result for error cases"""
@@ -367,6 +383,9 @@ class UserStoryReActAgent:
             "iterations": 0,
             "agent_status": "error",
             "violations": [],
+            "model_used": LLM_MODEL,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
         }
 
 

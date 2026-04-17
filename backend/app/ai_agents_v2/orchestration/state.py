@@ -1,5 +1,5 @@
 # ============================================================
-# ai_agents_v2/orchestration/state.py (CORRIGÉ)
+# ai_agents_v2/orchestration/state.py
 # ============================================================
 """
 Orchestration State - Global state for all pipeline steps.
@@ -13,7 +13,7 @@ from typing import TypedDict, List, Optional
 from datetime import datetime
 import sys
 
-from app.ai_agents_v2.user_story_refinement.config import LLM_MODEL, LLM_TEMPERATURE, MAX_ITERATIONS
+from app.ai_agents_v2.user_story_refinement.config import LLM_MODEL, LLM_TEMPERATURE
 
 
 # ============================================================
@@ -78,9 +78,13 @@ class UserStoryImprovementResult(TypedDict, total=False):
     # EXECUTION METADATA
     # ============================================================
     iterations: int
-    agent_status: str  # "success" | "best_effort" | "error"
+    agent_status: str
     error: Optional[str]
-    duration_seconds: Optional[float]  # ✅ Seulement ici
+    duration_seconds: Optional[float]
+
+    used_model: Optional[str]
+    prompt_tokens: Optional[int]
+    completion_tokens: Optional[int]
 
 
 # ============================================================
@@ -135,8 +139,9 @@ class OrchestrationState(TypedDict, total=False):
     # ============================================================
     agent_version: str
     model_used: str
+    prompt_tokens: int
+    completion_tokens: int
     temperature: float
-    max_iterations: int
     
     # ============================================================
     # PIPELINE VERSION
@@ -158,8 +163,9 @@ def create_initial_state(
     actor: str = "",
     agent_version: str = "2.0",
     model_used: str = LLM_MODEL,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
     temperature: float = LLM_TEMPERATURE,
-    max_iterations: int = MAX_ITERATIONS,
 ) -> OrchestrationState:
     """
     Create initial orchestration state.
@@ -174,7 +180,6 @@ def create_initial_state(
         agent_version: Agent version (default: "2.0")
         model_used: LLM model (default: "gpt-oss-20b")
         temperature: LLM temperature (default: 0.3)
-        max_iterations: Max iterations (default: 2)
         
     Returns:
         Initial OrchestrationState
@@ -210,9 +215,10 @@ def create_initial_state(
         "agent_version": agent_version,
         "model_used": model_used,
         "temperature": temperature,
-        "max_iterations": max_iterations,
         "pipeline_version": "1.0",
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
     }
 
 

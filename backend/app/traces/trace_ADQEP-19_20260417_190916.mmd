@@ -8,16 +8,16 @@ graph TD
     classDef final fill:#c8e6c9,stroke:#2e7d32
     classDef error fill:#ffcdd2,stroke:#b71c1c
 
-    N1[📥 INPUT]<br/>6 AC:::input
-    N2{🤖 LLM CALL}<br/>openai/gpt-oss-120b:::llm
+    N1[📥 INPUT]<br/>5 AC:::input
+    N2{🤖 LLM CALL}<br/>openai/gpt-oss-20b:::llm
     N3_score_story[🔧 score_story]:::tool
-    N4[✅ score_story]<br/>Score: 0.70:::result
+    N4[✅ score_story]<br/>Score: 0.65:::result
     N5_extract_acceptance_criteria[🔧 extract_acceptance_criteria]:::tool
     N6[✅ extract_acceptance_criteria]<br/>5 AC:::result
     N7_score_story[🔧 score_story]:::tool
-    N8[✅ score_story]<br/>Score: 0.82:::result
+    N8[✅ score_story]<br/>Score: 0.75:::result
     N9[📝 RESPONSE]:::llm
-    FINAL[🎯 FINAL]<br/>Score: 0.82 ❌:::final
+    FINAL[🎯 FINAL]<br/>Score: 0.75 ✅:::final
     N1 --> N2
     N2 --> N3_score_story
     N3_score_story --> N4

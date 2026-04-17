@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, List
 import uuid
+import logging
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -17,10 +18,14 @@ from app.repositories.user_story_version_repository import (
     get_selected_version,
     get_version_by_id,
     get_versions_by_story_id,
+    reset_customization,
+    update_version_content,
 )
 from app.ai_agents_v2.user_story_refinement.utils.text_processing import detect_language
 from app.workers.asyncio_workers import submit_version
 
+
+logger = logging.getLogger(__name__)
 
 async def get_final_details(db: AsyncSession, user_story_id: str):
     """Récupère les détails finaux d'une story"""
@@ -116,7 +121,7 @@ async def apply_decision(
     
     Decisions:
     - approve: Mark version as approved
-    - reject_relaunch: Reject and start new version
+    - relaunch: Start new version
     - reject_keep: Reject but keep original
     """
     
@@ -132,7 +137,7 @@ async def apply_decision(
         # ============================================================
         # Validate decision + version_id
         # ============================================================
-        if decision in ("approve", "reject_relaunch"):
+        if decision in ("approve", "relaunch"):
             if not version_id:
                 raise HTTPException(400, "version_id is required for this decision")
 
@@ -174,14 +179,14 @@ async def apply_decision(
             }
 
         # ============================================================
-        # REJECT + RELAUNCH
+        # RELAUNCH
         # ============================================================
-        elif decision == "reject_relaunch":
+        elif decision == "relaunch":
             
             # Mark version as rejected
-            if version:
-                version.decision_status = StoryDecision.REJECTED
-                await db.flush()
+            #if version:
+            #    version.decision_status = StoryDecision.REJECTED
+            #    await db.flush()
 
             # Start new version with original story
             new_version_id, state = await start_version(
@@ -221,7 +226,7 @@ async def apply_decision(
             }
 
         else:
-            raise HTTPException(400, "Invalid decision. Use: approve, reject_relaunch, reject_keep")
+            raise HTTPException(400, "Invalid decision. Use: approve, relaunch, reject_keep")
 
     except HTTPException:
         await db.rollback()
@@ -362,3 +367,174 @@ async def get_versions_by_issue_keys(
         }
 
     return response
+
+async def edit_version(
+    db: AsyncSession,
+    version_id: str,
+    improved_story: str,
+    acceptance_criteria: List[str],
+    user_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Permet à l'utilisateur de modifier manuellement une version.
+    """
+    # 1. Validation du contenu
+    _validate_content(improved_story, acceptance_criteria)  # Note: plus de self
+    
+    # 2. Récupérer la version
+    version = await get_version_by_id(db, version_id)  # Note: db direct
+    if not version:
+        raise ValueError(f"Version {version_id} not found")
+    
+    # 3. Vérification : Version approuvée = NON modifiable
+    if version.decision_status == StoryDecision.APPROVED:
+        raise PermissionError(
+            f"Cannot edit approved version {version_id}. "
+            f"Approved versions are locked."
+        )
+    
+    # 4. Vérifier si le contenu a vraiment changé
+    if _is_content_identical(version, improved_story, acceptance_criteria):
+        return {
+            "status": "no_change",
+            "message": "No changes detected",
+            "version_id": version_id,
+            "is_customized": version.is_customized,
+            "customized_at": version.customized_at.isoformat() if version.customized_at else None
+        }
+    
+    # 5. Mise à jour
+    updated = await update_version_content(
+        db,
+        version_id,
+        improved_story,
+        acceptance_criteria
+    )
+    
+    if not updated:
+        raise ValueError(f"Failed to update version {version_id}")
+    
+    # 6. Commit
+    await db.commit()
+    
+    logger.info(f"Version {version_id} manually edited by {user_id or 'anonymous'}")
+    
+    return {
+        "status": "success",
+        "message": "Version edited successfully",
+        "version_id": version_id,
+        "is_customized": updated.is_customized,
+        "customized_at": updated.customized_at.isoformat() if updated.customized_at else None
+    }
+
+
+async def can_edit(
+    db: AsyncSession,
+    version_id: str
+) -> Dict[str, Any]:
+    """
+    Vérifie si une version peut être modifiée.
+    """
+    version = await get_version_by_id(db, version_id)
+    
+    if not version:
+        return {
+            "can_edit": False,
+            "reason": "Version not found",
+            "is_approved": False,
+            "is_customized": False
+        }
+    
+    is_approved = version.decision_status == StoryDecision.APPROVED
+    
+    if is_approved:
+        return {
+            "can_edit": False,
+            "reason": "Approved versions cannot be edited. They are locked.",
+            "is_approved": True,
+            "is_customized": version.is_customized
+        }
+    
+    return {
+        "can_edit": True,
+        "reason": None,
+        "is_approved": False,
+        "is_customized": version.is_customized
+    }
+
+
+async def reset_to_original(
+    db: AsyncSession,  # ← CORRIGÉ
+    version_id: str,
+    user_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Réinitialise une version personnalisée à son état original.
+    """
+    # 1. Récupérer la version
+    version = await get_version_by_id(db, version_id)
+    if not version:
+        raise ValueError(f"Version {version_id} not found")
+    
+    # 2. Vérifier qu'elle est personnalisée
+    if not version.is_customized:
+        return {
+            "status": "no_change",
+            "message": "Version is not customized",
+            "version_id": version_id,
+            "is_customized": False
+        }
+    
+    # 3. Vérifier qu'elle n'est pas approuvée
+    if version.decision_status == StoryDecision.APPROVED:
+        raise PermissionError(f"Cannot reset approved version {version_id}")
+    
+    # 4. Réinitialiser
+    reset_version = await reset_customization(db, version_id)
+    
+    if not reset_version:
+        raise ValueError(f"Failed to reset version {version_id}")
+    
+    await db.commit()
+    
+    logger.info(f"Version {version_id} reset by {user_id or 'anonymous'}")
+    
+    return {
+        "status": "success",
+        "message": "Version reset to original (customization flag removed)",
+        "version_id": version_id,
+        "is_customized": False,
+        "customized_at": None
+    }
+
+
+# ⚠️ Ajouter ces fonctions helper (sans self)
+def _validate_content(story: str, criteria: List[str]) -> None:
+    """Valide le contenu d'une version"""
+    if not story or len(story.strip()) < 10:
+        raise ValueError("Story must be at least 10 characters long")
+    
+    if len(story) > 5000:
+        raise ValueError("Story exceeds maximum length of 5000 characters")
+    
+    if not criteria or len(criteria) == 0:
+        raise ValueError("At least one acceptance criterion is required")
+    
+    if len(criteria) > 50:
+        raise ValueError("Maximum 50 acceptance criteria allowed")
+    
+    for i, criterion in enumerate(criteria):
+        if not criterion or len(criterion.strip()) < 3:
+            raise ValueError(f"Criterion {i+1} is too short (minimum 3 characters)")
+
+
+def _is_content_identical(version, new_story: str, new_criteria: List[str]) -> bool:
+    """Vérifie si le contenu est identique à l'original"""
+    story_identical = version.improved_story == new_story
+    
+    criteria_identical = (
+        len(version.generated_acceptance_criteria) == len(new_criteria) and
+        all(a == b for a, b in zip(version.generated_acceptance_criteria, new_criteria))
+    )
+    
+    return story_identical and criteria_identical

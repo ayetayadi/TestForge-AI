@@ -109,7 +109,10 @@ async def story_improvement_node(state: OrchestrationState) -> OrchestrationStat
             iterations=result.get("iterations", 0),
             agent_status=result.get("agent_status", "unknown"),
             error=result.get("error", None),
-            duration_seconds=node_duration,  # ✅ durée de ce node
+            duration_seconds=node_duration,
+            model_used=result.get("model_used", "unknown"),
+            prompt_tokens=result.get("prompt_tokens", 0),
+            completion_tokens=result.get("completion_tokens", 0)
         )
 
         # ============================================================

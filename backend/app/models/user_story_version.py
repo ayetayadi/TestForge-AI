@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 from typing import List, Optional
-from sqlalchemy import DateTime, String, Text, Float, ForeignKey, Index, Integer, Enum as SqlEnum
+from sqlalchemy import Boolean, DateTime, String, Text, Float, ForeignKey, Index, Integer, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
@@ -64,6 +64,21 @@ class UserStoryVersion(Base):
     model_used: Mapped[Optional[str]] = mapped_column(String(100))
     prompt_tokens: Mapped[Optional[int]] = mapped_column(Integer)
     completion_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # =========================
+    # USER CUSTOMIZATION
+    # =========================
+    is_customized: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default="false"
+    )
+    
+    customized_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True
+    )
 
     # =========================
     # META
