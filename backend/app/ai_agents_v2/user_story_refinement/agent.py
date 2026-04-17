@@ -293,9 +293,14 @@ class UserStoryReActAgent:
     
     def _extract_all_scores_from_tool_calls(self, state: Dict) -> tuple:
         """
-        Extract INITIAL and FINAL scores from tool calls.
-        
+        Extract INITIAL and FINAL scores from tool calls across all iterations.
+
+        Iterative refinement produces N score_story calls:
+          - call 1        = initial score (before any improvement)
+          - calls 2..N    = one score per improvement iteration
+
         Returns: (initial_score, final_score, testability_score, is_testable, testability_issues, iterations)
+          where iterations = number of improvement cycles (= total score calls - 1)
         """
         messages = state.get("messages", [])
         
@@ -304,47 +309,42 @@ class UserStoryReActAgent:
         testability_score = 0.0
         is_testable = False
         testability_issues = []
-        iterations = 0
-        
-        # ✅ Trouver le PREMIER score (initial)
+        total_score_calls = 0
+
+        score_results = []
+
+        # Collect all score_story results in chronological order
         for msg in messages:
             if hasattr(msg, "type") and msg.type == "tool":
                 if hasattr(msg, "name") and msg.name == "score_story":
                     try:
                         content = msg.content if hasattr(msg, "content") else str(msg)
-                        if isinstance(content, str):
-                            result = json.loads(content)
-                        else:
-                            result = content
-                        initial_score = float(result.get("final_score", 0.0))
-                        logger.info(f"✓ Initial score from tool: {initial_score:.3f}")
-                        break  # ✅ Premier trouvé = initial
+                        result = json.loads(content) if isinstance(content, str) else content
+                        score_results.append(result)
                     except Exception as e:
-                        logger.warning(f"Failed to parse initial score: {e}")
+                        logger.warning(f"Failed to parse score_story result: {e}")
         
-        # ✅ Trouver le DERNIER score (final)
-        for msg in reversed(messages):
-            if hasattr(msg, "type") and msg.type == "tool":
-                if hasattr(msg, "name") and msg.name == "score_story":
-                    iterations += 1
-                    try:
-                        content = msg.content if hasattr(msg, "content") else str(msg)
-                        if isinstance(content, str):
-                            result = json.loads(content)
-                        else:
-                            result = content
-                        
-                        if final_score == 0.0:
-                            final_score = float(result.get("final_score", 0.0))
-                            testability_score = float(result.get("testability_score", 0.0))
-                            is_testable = result.get("is_testable", False)
-                            testability_issues = result.get("testability_issues", [])
-                            logger.info(f"✓ Final score from tool: {final_score:.3f}")
-                    except Exception as e:
-                        logger.warning(f"Failed to parse final score: {e}")
-        
-        iterations = max(1, iterations)
-        return initial_score, final_score, testability_score, is_testable, testability_issues, iterations
+        total_score_calls = len(score_results)
+
+        if total_score_calls == 0:
+            return 0.0, 0.0, 0.0, False, [], 0
+
+        # First call = initial evaluation (before any improvement)
+        initial_score = float(score_results[0].get("final_score", 0.0))
+        logger.info(f"✓ Initial score: {initial_score:.3f}")
+
+        # Last call = best result after all improvement iterations
+        last = score_results[-1]
+        final_score = float(last.get("final_score", 0.0))
+        testability_score = float(last.get("testability_score", 0.0))
+        is_testable = last.get("is_testable", False)
+        testability_issues = last.get("testability_issues", [])
+        logger.info(f"✓ Final score: {final_score:.3f} after {total_score_calls - 1} improvement iteration(s)")
+
+        # improvement iterations = total score calls minus the initial evaluation
+        improvement_iterations = max(0, total_score_calls - 1)
+
+        return initial_score, final_score, testability_score, is_testable, testability_issues, improvement_iterations
     
     def _create_empty_result(self, story: str, ac: List[str], actor: str) -> Dict[str, Any]:
         """Create empty result for error cases"""

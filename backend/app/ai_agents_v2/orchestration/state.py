@@ -13,7 +13,7 @@ from typing import TypedDict, List, Optional
 from datetime import datetime
 import sys
 
-from app.ai_agents_v2.user_story_refinement.config import LLM_MODEL, LLM_TEMPERATURE, MAX_ITERATIONS
+from app.ai_agents_v2.user_story_refinement.config import LLM_MODEL, LLM_TEMPERATURE
 
 
 # ============================================================
@@ -136,7 +136,6 @@ class OrchestrationState(TypedDict, total=False):
     agent_version: str
     model_used: str
     temperature: float
-    max_iterations: int
     
     # ============================================================
     # PIPELINE VERSION
@@ -159,7 +158,6 @@ def create_initial_state(
     agent_version: str = "2.0",
     model_used: str = LLM_MODEL,
     temperature: float = LLM_TEMPERATURE,
-    max_iterations: int = MAX_ITERATIONS,
 ) -> OrchestrationState:
     """
     Create initial orchestration state.
@@ -174,7 +172,6 @@ def create_initial_state(
         agent_version: Agent version (default: "2.0")
         model_used: LLM model (default: "gpt-oss-20b")
         temperature: LLM temperature (default: 0.3)
-        max_iterations: Max iterations (default: 2)
         
     Returns:
         Initial OrchestrationState
@@ -210,7 +207,6 @@ def create_initial_state(
         "agent_version": agent_version,
         "model_used": model_used,
         "temperature": temperature,
-        "max_iterations": max_iterations,
         "pipeline_version": "1.0",
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
     }
