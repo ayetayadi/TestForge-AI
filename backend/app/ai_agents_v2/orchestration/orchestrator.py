@@ -307,7 +307,7 @@ class TestAutomationOrchestrator:
                 "violations": improved_data.get("violations", []),
                 "iterations": improved_data.get("iterations", 0),
                 "agent_status": improved_data.get("agent_status", "unknown"),
-                "duration_seconds": improved_data.get("duration_seconds", 0.0),  # ✅ ICI SEULEMENT
+                "duration_seconds": improved_data.get("duration_seconds", 0.0),
             }
         
         return output
