@@ -1,0 +1,213 @@
+{
+  "jira_id": "ADQEP-18",
+  "started_at": "2026-04-17T18:52:32.604796",
+  "steps": [
+    {
+      "step": 1,
+      "timestamp": "2026-04-17T18:52:32.607783",
+      "type": "input",
+      "story": "En tant qu'utilisateur Je veux récupérer les User Stories d'un projet Jira Afin de sélectionner celles à analyser.",
+      "story_length": 114,
+      "acceptance_criteria": [
+        "Connexion à l'API Jira",
+        "Filtrage par - Sprint",
+        "Filtrage par - Statut",
+        "Filtrage par - Label",
+        "Filtrage par - Affichage de la liste des User Stories",
+        "Filtrage par - Sélection des User Stories à importer",
+        "Filtrage par - Import dans la base de données"
+      ],
+      "ac_count": 7,
+      "language": "fr"
+    },
+    {
+      "step": 2,
+      "timestamp": "2026-04-17T18:52:32.610782",
+      "type": "llm_call",
+      "model": "openai/gpt-oss-20b",
+      "messages_count": 2,
+      "messages": [
+        {
+          "role": "system",
+          "content": "\nYou are a User Story Improvement ReAct Agent.\n\nYour mission: Analyze and improve user stories to make them CLEAR, TESTABLE, and COMPLETE for test case generation, using INVEST principles.\n\nCore Principle: IMPROVE EXISTING CONTENT, NEVER INVENT NEW CONTENT.\n\n═══════════════════════════════════════════════════════════\n🚨 CARDINAL RULE - ZERO INVENTION\n═══════════════════════════════════════════════════════════\n\n❌ FORBIDDEN - NEVER ADD:\n   - Minimum or maximum values (length, time, quantity)\n   - Numerical limits of any kind\n   - Time constraints or [SPECIFY_TIMEOUT] (unless original contains vague temporal terms like \"quickly\", \"rapidement\", \"vite\")\n   - Any constraint not explicitly stated in original\n\n✅ ALLOWED - YOU MAY:\n   - Fix grammar and spelling\n   - Add action verbs (affiche, displays, contains, redirects, enregistre)\n   - Add articles (le, la, un, the, a, an)\n   - Combine very short/similar criteria\n   - Split very long/complex criteria\n   - Reorder criteria for logical flow\n\n═══════════════════════════════════════════════════════════\n🔄 WORKFLOW - EXACTLY 3 TOOL CALLS\n═══════════════════════════════════════════════════════════\n\nYOU MUST CALL THESE 3 TOOLS IN EXACTLY THIS ORDER:\n\nTOOL 1: score_story (INITIAL)\nTOOL 2: extract_acceptance_criteria\nTOOL 3: validate_constraints (MANDATORY)\nTOOL 4: score_story (FINAL)\n\n═══════════════════════════════════════════════════════════\n📊 [SPECIFY_TIMEOUT] RULE (ONLY EXCEPTION)\n═══════════════════════════════════════════════════════════\n\n[SPECIFY_TIMEOUT] is a PLACEHOLDER for MISSING measurements.\n\n✅ ALLOWED: Add [SPECIFY_TIMEOUT] ONLY if original contains vague temporal terms:\n   - \"quickly\", \"rapidement\", \"vite\", \"fast\", \"in a timely manner\"\n   \n❌ FORBIDDEN: Add [SPECIFY_TIMEOUT] for functional criteria:\n   - Display, show, create, delete, update, redirect, associate\n   - Any action without temporal ambiguity in original\n\n═══════════════════════════════════════════════════════════\n🔄 WORKFLOW - EXACTLY 2 SCORE CALLS\n═══════════════════════════════════════════════════════════\n\nCALL 1: score_story on ORIGINAL story\nCALL 2: score_story on IMPROVED story\n\nAfter CALL 2, output JSON. STOP.\n\nPHASE 1 (CALL 1):\n   1. CALL score_story(original_story, original_ac)\n   2. If testability_score >= 0.8 AND is_testable=true: Go to PHASE 3\n   3. Otherwise: Go to PHASE 2\n\nPHASE 2 (CALL 2):\n   1. CALL extract_acceptance_criteria(story, existing_ac)\n   2. IMPROVE: grammar, action verbs, articles, clarity ONLY\n   3. ADD [SPECIFY_TIMEOUT] ONLY if original has vague temporal term\n   4. NEVER add numerical constraints\n   5. CALL score_story(improved_story, new_ac)\n   6. Go to PHASE 3\n\nPHASE 3 (OUTPUT):\n   1. Output JSON\n   2. STOP - NO MORE TOOL CALLS\n\n═══════════════════════════════════════════════════════════\n❌ FORBIDDEN ACTIONS - SUMMARY\n═══════════════════════════════════════════════════════════\n\nNEVER:\n   1. Call score_story more than 2 times\n   2. Call validate_constraints\n   3. Output anything other than JSON\n   4. Add minimum/maximum values\n   5. Add time limits (unless vague temporal in original)\n   6. Add any number not in original\n   7. Change user role\n   8. Change language\n   9. Remove or add acceptance criteria\n   10. Change meaning of any criterion\n\n═══════════════════════════════════════════════════════════\n✅ REQUIRED ACTIONS - SUMMARY\n═══════════════════════════════════════════════════════════\n\nALWAYS:\n   1. Make EXACTLY 2 score_story calls\n   2. Pass existing_ac to extract_acceptance_criteria\n   3. Preserve language and role\n   4. Add action verbs for clarity\n   5. Add articles for readability\n   6. Output ONLY valid JSON\n   7. Include all required fields\n\n═══════════════════════════════════════════════════════════\n📊 SCORING STRATEGY\n═══════════════════════════════════════════════════════════\n\nscore_story returns:\n- final_score: Overall score (0-1)\n- testability_score: Testability (0-1) ⭐ PRIMARY\n- is_testable: All AC automatable?\n\nDECISION: If testability_score >= 0.8 AND is_testable=true after CALL 1: STOP early\n\n═══════════════════════════════════════════════════════════\n📋 OUTPUT FORMAT (JSON ONLY)\n═══════════════════════════════════════════════════════════\n\n{\n  \"improved_story\": \"string\",\n  \"acceptance_criteria\": [\"string\"],\n  \"initial_score\": 0.00,\n  \"final_score\": 0.00,\n  \"testability_score\": 0.00,\n  \"is_testable\": false,\n  \"iterations_performed\": 1,\n  \"testability_issues_fixed\": [],\n  \"language\": \"fr\",\n  \"role_preserved\": true,\n  \"similarity_to_original\": 0.95,\n  \"status\": \"success\"\n}\n\nONLY JSON. NO OTHER TEXT.\n\n═══════════════════════════════════════════════════════════\nYOU ARE READY. START WITH CALL 1.\nOUTPUT ONLY JSON.\n"
+        },
+        {
+          "role": "user",
+          "content": "\nImprove this user story following the STRICT workflow.\n\n⚠️ ABSOLUTE LIMITS:\n   - MAXIMUM 2 score_story calls TOTAL\n   - After CALL 2, output JSON\n   - NEVER invent constraints not in original\n\n═══════════════════════════════════════════════════════════\n\nCURRENT STATE:\n\nStory: En tant qu'utilisateur Je veux récupérer les User Stories d'un projet Jira Afin de sélectionner celles à analyser.\n\nAcceptance Criteria: - Connexion à l'API Jira\n- Filtrage par - Sprint\n- Filtrage par - Statut\n- Filtrage par - Label\n- Filtrage par - Affichage de la liste des User Stories\n- Filtrage par - Sélection des User Stories à importer\n- Filtrage par - Import dans la base de données\n\n═══════════════════════════════════════════════════════════\n\nMANDATORY WORKFLOW:\n\nCALL 1 - INITIAL SCORE\n──────────────────────\nscore_story(story=\"En tant qu'utilisateur Je veux récupérer les User Stories d'un projet Jira Afin de sélectionner celles à analyser.\", acceptance_criteria=[- Connexion à l'API Jira\n- Filtrage par - Sprint\n- Filtrage par - Statut\n- Filtrage par - Label\n- Filtrage par - Affichage de la liste des User Stories\n- Filtrage par - Sélection des User Stories à importer\n- Filtrage par - Import dans la base de données])\n→ Save as initial_score\n→ If testability_score >= 0.8 AND is_testable=true: Go to OUTPUT\n\nCALL 2 - IMPROVEMENT (LAST CALL)\n────────────────────────────────\nextract_acceptance_criteria(story=\"En tant qu'utilisateur Je veux récupérer les User Stories d'un projet Jira Afin de sélectionner celles à analyser.\", existing_ac=[- Connexion à l'API Jira\n- Filtrage par - Sprint\n- Filtrage par - Statut\n- Filtrage par - Label\n- Filtrage par - Affichage de la liste des User Stories\n- Filtrage par - Sélection des User Stories à importer\n- Filtrage par - Import dans la base de données])\n→ Improve: grammar, action verbs, articles ONLY\n→ Add [SPECIFY_TIMEOUT] ONLY if original has \"quickly/rapidement/vite\"\n→ NEVER add numerical constraints\n→ score_story(story=improved, acceptance_criteria=new_ac)\n→ Save as final_score\n\nOUTPUT JSON\n───────────\n→ Output JSON with all fields\n→ STOP - NO MORE TOOL CALLS\n\n═══════════════════════════════════════════════════════════\n\nREMEMBER:\n   ✅ Add action verbs: \"affiche\", \"displays\", \"contient\", \"contains\", \"enregistre\", \"saves\", \"redirige\", \"redirects\"\n   ✅ Add articles: \"le\", \"la\", \"un\", \"une\", \"the\", \"a\", \"an\"\n   ✅ Fix grammar and spelling\n   \n   ❌ NEVER add: minimum, maximum, timeout (unless vague temporal), limits, numbers\n\n═══════════════════════════════════════════════════════════\n\nYOU ARE READY. START WITH CALL 1.\nOUTPUT ONLY JSON.\n"
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "timestamp": "2026-04-17T18:53:37.849867",
+      "type": "llm_response",
+      "content": "",
+      "has_content": false,
+      "tool_calls": [
+        {
+          "name": "score_story",
+          "args": {
+            "story": "En tant qu'utilisateur Je veux récupérer les User Stories d'un projet Jira Afin de sélectionner celles à analyser.",
+            "acceptance_criteria": [
+              "Connexion à l'API Jira",
+              "Filtrage par - Sprint",
+              "Filtrage par - Statut",
+              "Filtrage par - Label",
+              "Filtrage par - Affichage de la liste des User Stories",
+              "Filtrage par - Sélection des User Stories à importer",
+              "Filtrage par - Import dans la base de données"
+            ]
+          }
+        }
+      ],
+      "tool_calls_count": 1
+    },
+    {
+      "step": 4,
+      "timestamp": "2026-04-17T18:53:37.849867",
+      "type": "tool_result",
+      "tool": "score_story",
+      "success": true,
+      "result": {
+        "status": "success",
+        "final_score": 0.65,
+        "rule_score": 1.0,
+        "nlp_score": 1.0,
+        "ac_score": 1.0,
+        "testability_score": 0.41,
+        "is_testable": false,
+        "is_garbage": false,
+        "language": "fr",
+        "testability_issues": [
+          "Seulement 0/7 critères sont clairement vérifiables",
+          "Aucun critère mesurable : sans conditions mesurables, les tests ne peuvent pas valider le comportement"
+        ],
+        "issues": [],
+        "suggestions": [
+          "Utiliser des verbes d'action : affiche, retourne, crée, valide...",
+          "Ajouter des conditions mesurables : 'en moins de 2s', 'minimum 6 caractères'"
+        ]
+      }
+    },
+    {
+      "step": 5,
+      "timestamp": "2026-04-17T18:53:37.852694",
+      "type": "llm_response",
+      "content": "",
+      "has_content": false,
+      "tool_calls": [
+        {
+          "name": "extract_acceptance_criteria",
+          "args": {
+            "story": "En tant qu'utilisateur Je veux récupérer les User Stories d'un projet Jira Afin de sélectionner celles à analyser.",
+            "existing_ac": [
+              "Connexion à l'API Jira",
+              "Filtrage par - Sprint",
+              "Filtrage par - Statut",
+              "Filtrage par - Label",
+              "Filtrage par - Affichage de la liste des User Stories",
+              "Filtrage par - Sélection des User Stories à importer",
+              "Filtrage par - Import dans la base de données"
+            ]
+          }
+        }
+      ],
+      "tool_calls_count": 1
+    },
+    {
+      "step": 6,
+      "timestamp": "2026-04-17T18:53:37.852694",
+      "type": "tool_result",
+      "tool": "extract_acceptance_criteria",
+      "success": true,
+      "result": {
+        "status": "success",
+        "acceptance_criteria": [
+          "Connexion à l'API Jira",
+          "Filtrage par Sprint",
+          "Filtrage par Statut",
+          "Filtrage par Label",
+          "Filtrage par",
+          "Affichage de la liste des User Stories",
+          "Sélection des User Stories à importer",
+          "Import dans la base de données"
+        ],
+        "count": 8
+      }
+    },
+    {
+      "step": 7,
+      "timestamp": "2026-04-17T18:53:37.852694",
+      "type": "llm_response",
+      "content": "",
+      "has_content": false,
+      "tool_calls": [
+        {
+          "name": "score_story",
+          "args": {
+            "story": "En tant qu'utilisateur, je souhaite récupérer les User Stories d'un projet Jira afin de sélectionner celles à analyser.",
+            "acceptance_criteria": [
+              "Établit une connexion à l'API Jira",
+              "Filtre les User Stories par Sprint",
+              "Filtre les User Stories par Statut",
+              "Filtre les User Stories par Label",
+              "Affiche la liste des User Stories récupérées",
+              "Permet de sélectionner les User Stories à importer",
+              "Importe les User Stories sélectionnées dans la base de données"
+            ]
+          }
+        }
+      ],
+      "tool_calls_count": 1
+    },
+    {
+      "step": 8,
+      "timestamp": "2026-04-17T18:53:37.855078",
+      "type": "tool_result",
+      "tool": "score_story",
+      "success": true,
+      "result": {
+        "status": "success",
+        "final_score": 0.65,
+        "rule_score": 1.0,
+        "nlp_score": 1.0,
+        "ac_score": 1.0,
+        "testability_score": 0.41,
+        "is_testable": false,
+        "is_garbage": false,
+        "language": "fr",
+        "testability_issues": [
+          "Seulement 1/7 critères sont clairement vérifiables",
+          "Aucun critère mesurable : sans conditions mesurables, les tests ne peuvent pas valider le comportement"
+        ],
+        "issues": [],
+        "suggestions": [
+          "Utiliser des verbes d'action : affiche, retourne, crée, valide...",
+          "Ajouter des conditions mesurables : 'en moins de 2s', 'minimum 6 caractères'"
+        ]
+      }
+    },
+    {
+      "step": 9,
+      "timestamp": "2026-04-17T18:53:37.856092",
+      "type": "llm_response",
+      "content": "{\"improved_story\":\"En tant qu'utilisateur, je souhaite récupérer les User Stories d'un projet Jira afin de sélectionner celles à analyser.\", \"acceptance_criteria\":[\"Établit une connexion à l'API Jira\",\"Filtre les User Stories par Sprint\",\"Filtre les User Stories par Statut\",\"Filtre les User Stories par Label\",\"Affiche la liste des User Stories récupérées\",\"Permet de sélectionner les User Stories à importer\",\"Importe les User Stories sélectionnées dans la base de données\"],\"initial_score\":0.65,\"final_score\":0.65,\"testability_score\":0.41,\"is_testable\":false,\"iterations_performed\":1,\"testability_issues_fixed\":[],\"language\":\"fr\",\"role_preserved\":true,\"similarity_to_original\":0.95,\"status\":\"success\"}",
+      "has_content": true,
+      "tool_calls": [],
+      "tool_calls_count": 0
+    }
+  ],
+  "errors": [],
+  "summary": {
+    "score": 0.65,
+    "testability_score": 0.41,
+    "is_improved": true,
+    "valid": true,
+    "iterations": 2,
+    "agent_status": "success",
+    "has_error": false
+  },
+  "completed_at": "2026-04-17T18:53:37.914854",
+  "total_steps": 9,
+  "has_errors": false
+}

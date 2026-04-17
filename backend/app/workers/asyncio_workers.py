@@ -264,15 +264,18 @@ async def async_worker(worker_id: int) -> None:
                 # ============================================================
                 # VERSIONING LOGIC
                 # ============================================================
+                # 1. Récupérer la meilleure version existante
                 best = await get_best_version(db, state.get("user_story_id"))
                 best_score = best.final_score if best else 0.0
                 
+                # 2. Normaliser les critères d'acceptation pour comparaison
                 new_ac_normalized = normalize_ac(new_ac)
                 best_ac_normalized = (
                     normalize_ac(best.generated_acceptance_criteria)
                     if best else []
                 )
                 
+                # 3. Vérifier si le contenu est identique
                 is_same_content = (
                     best is not None
                     and (best.improved_story or "").strip() == new_story.strip()
@@ -285,6 +288,7 @@ async def async_worker(worker_id: int) -> None:
                 has_new_version = True
                 version = None
                 
+                # CAS 1: Score moins bon → PAS de création
                 if best and final_score < best_score:
                     logger.info(
                         f"Score worse than best ({final_score:.3f} < {best_score:.3f})"
@@ -309,6 +313,7 @@ async def async_worker(worker_id: int) -> None:
                     job_queue.task_done()
                     continue
                 
+                # CAS 2: Score égal ET contenu identique → PAS de création
                 elif best and final_score == best_score and is_same_content:
                     logger.info(f"Same content as best version")
                     print(f"[SKIP] Same content as best version")
@@ -329,7 +334,8 @@ async def async_worker(worker_id: int) -> None:
                     print(f"[DONE] No new version created (same content as best)\n")
                     job_queue.task_done()
                     continue
-                
+
+                # CAS 3: Score meilleur OU score égal mais contenu différent → CRÉATIO
                 else:
                     logger.info(f"Creating new version (score={final_score:.3f})")
                     print(f"[CREATE] New improved version")

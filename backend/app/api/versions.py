@@ -18,7 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.services.user_story_version_service import (
     apply_decision,
+    can_edit,
+    edit_version,
     get_versions_by_issue_keys,
+    reset_to_original,
     start_version
 )
 from app.repositories.user_story_version_repository import (
@@ -218,7 +221,7 @@ async def apply_version_decision(
     
     Decisions:
     - approve: Mark version as approved
-    - reject_relaunch: Reject and start new version
+    - relaunch: Start new version
     - reject_keep: Reject but keep original
     
     Args:
@@ -234,8 +237,8 @@ async def apply_version_decision(
     if not version:
         raise HTTPException(404, "Version not found")
 
-    if request.decision not in ("approve", "reject_relaunch", "reject_keep"):
-        raise HTTPException(400, "Invalid decision. Use: approve, reject_relaunch, reject_keep")
+    if request.decision not in ("approve", "relaunch", "reject_keep"):
+        raise HTTPException(400, "Invalid decision. Use: approve, relaunch, reject_keep")
 
     result = await apply_decision(
         db=db,
@@ -369,3 +372,117 @@ async def get_latest_version_by_issue_key(
         "started_at": latest.started_at,
         "completed_at": latest.completed_at,
     }
+
+
+# ============================================================
+# EDIT VERSION (MODIFIER MANUELLEMENT)
+# ============================================================
+
+class EditVersionRequest(BaseModel):
+    """Requête pour modifier une version"""
+    improved_story: str
+    acceptance_criteria: List[str]
+
+
+class EditVersionResponse(BaseModel):
+    """Réponse après modification"""
+    status: str
+    message: str
+    version_id: str
+    is_customized: bool
+    customized_at: Optional[str] = None
+
+
+class CanEditResponse(BaseModel):
+    """Vérification si une version est modifiable"""
+    can_edit: bool
+    reason: Optional[str] = None
+    is_approved: bool
+    is_customized: bool
+
+
+class ResetCustomizationResponse(BaseModel):
+    """Réponse après réinitialisation"""
+    status: str
+    message: str
+    version_id: str
+    is_customized: bool
+    customized_at: Optional[str] = None
+
+
+@router.put("/{version_id}/edit", response_model=EditVersionResponse)
+async def edit_version_endpoint(
+    version_id: str,
+    request: EditVersionRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        print(f"[DEBUG] Editing version: {version_id}")
+        print(f"[DEBUG] Story: {request.improved_story[:50]}...")
+        print(f"[DEBUG] AC count: {len(request.acceptance_criteria)}")
+        
+        result = await edit_version(
+            db=db,
+            version_id=version_id,
+            improved_story=request.improved_story,
+            acceptance_criteria=request.acceptance_criteria,
+            user_id=None
+        )
+        print(f"[DEBUG] Result: {result}")
+        return result
+    except ValueError as e:
+        print(f"[ERROR] ValueError: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        print(f"[ERROR] PermissionError: {e}")
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        print(f"[ERROR] Exception: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{version_id}/can-edit", response_model=CanEditResponse)
+async def can_edit_version_endpoint(
+    version_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Vérifie si une version peut être modifiée.
+    
+    Une version est modifiable si:
+    - Elle existe
+    - Elle n'est pas approuvée (decision_status != APPROVED)
+    """
+        
+    try:
+        result = await can_edit(db=db, version_id=version_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{version_id}/reset-customization", response_model=ResetCustomizationResponse)
+async def reset_customization_endpoint(
+    version_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Réinitialise le flag is_customized d'une version à False.
+    
+    Attention: Ne restaure PAS le contenu original.
+    """
+    
+    try:
+        result = await reset_to_original(
+            db=db,
+            version_id=version_id
+        )
+        return result
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

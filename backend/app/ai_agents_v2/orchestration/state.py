@@ -1,5 +1,5 @@
 # ============================================================
-# ai_agents_v2/orchestration/state.py (CORRIGÉ)
+# ai_agents_v2/orchestration/state.py
 # ============================================================
 """
 Orchestration State - Global state for all pipeline steps.
@@ -78,9 +78,13 @@ class UserStoryImprovementResult(TypedDict, total=False):
     # EXECUTION METADATA
     # ============================================================
     iterations: int
-    agent_status: str  # "success" | "best_effort" | "error"
+    agent_status: str
     error: Optional[str]
-    duration_seconds: Optional[float]  # ✅ Seulement ici
+    duration_seconds: Optional[float]
+
+    used_model: Optional[str]
+    prompt_tokens: Optional[int]
+    completion_tokens: Optional[int]
 
 
 # ============================================================
@@ -135,6 +139,8 @@ class OrchestrationState(TypedDict, total=False):
     # ============================================================
     agent_version: str
     model_used: str
+    prompt_tokens: int
+    completion_tokens: int
     temperature: float
     max_iterations: int
     
@@ -158,6 +164,8 @@ def create_initial_state(
     actor: str = "",
     agent_version: str = "2.0",
     model_used: str = LLM_MODEL,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
     temperature: float = LLM_TEMPERATURE,
     max_iterations: int = MAX_ITERATIONS,
 ) -> OrchestrationState:
@@ -213,6 +221,8 @@ def create_initial_state(
         "max_iterations": max_iterations,
         "pipeline_version": "1.0",
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
     }
 
 
