@@ -20,8 +20,4 @@ class User(Base):
     reset_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
     reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    jira_connection: Mapped[List["JiraConnection"]] = relationship(
-        "JiraConnection",
-        back_populates="user",
-        cascade="all, delete-orphan"
-    )
+    jira_connection = relationship("JiraConnection", back_populates="user", uselist=False)
