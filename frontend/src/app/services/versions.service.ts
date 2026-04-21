@@ -1,11 +1,12 @@
 // services/version.service.ts
+
 import { Injectable, inject, NgZone } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject, interval, throwError } from 'rxjs';
 import { map, catchError, share, switchMap, takeWhile, filter } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { SseService } from './sse.service';
-import { ActiveVersion, AgentStatus, DecisionResponse, SSEEvent, UserStoryVersion, VersionState } from '../models';
+import { ActiveVersion, AgentStatus, DecisionResponse, SSEEvent, UserStoryVersion, VersionState } from '../models/user_story.model';
 
 @Injectable({
   providedIn: 'root'
@@ -32,11 +33,7 @@ export class VersionsService {
   // SSE CONNECTION
   // ==============================
 
-  /**
-   * Se connecte au flux SSE d'une version
-   */
   connectToVersionStream(versionId: string): Observable<SSEEvent> {
-    // Vérifier si déjà connecté
     if (this.sseSubjects.has(versionId)) {
       const subject = this.sseSubjects.get(versionId)!;
       return subject.asObservable().pipe(
@@ -55,7 +52,6 @@ export class VersionsService {
           console.log(`[SSE] Version ${versionId} event:`, event.type);
           subject.next(event);
           
-          // Si événement terminal, fermer après 5 secondes
           if (event.type === 'completed' || event.type === 'failed') {
             setTimeout(() => {
               this.disconnectFromVersionStream(versionId);
@@ -81,9 +77,6 @@ export class VersionsService {
     );
   }
 
-  /**
-   * Se déconnecte du flux SSE d'une version
-   */
   disconnectFromVersionStream(versionId: string): void {
     const subject = this.sseSubjects.get(versionId);
     if (subject) {
@@ -93,9 +86,6 @@ export class VersionsService {
     this.sseService.disconnect(versionId);
   }
 
-  /**
-   * Se déconnecte de tous les flux SSE
-   */
   disconnectAllStreams(): void {
     this.sseSubjects.forEach((_, versionId) => {
       this.disconnectFromVersionStream(versionId);
@@ -103,15 +93,12 @@ export class VersionsService {
     this.sseService.disconnectAll();
   }
 
-  /**
-   * Vérifie si une version est connectée au SSE
-   */
   isVersionConnected(versionId: string): boolean {
     return this.sseSubjects.has(versionId) && this.sseService.isConnected(versionId);
   }
 
   // ==============================
-  // VERSION CRUD (garde vos méthodes existantes)
+  // VERSION CRUD
   // ==============================
 
   getVersion(versionId: string): Observable<VersionState> {
@@ -157,6 +144,34 @@ export class VersionsService {
       .pipe(catchError(this.handleError));
   }
 
+editVersion(versionId: string, improvedStory: string, acceptanceCriteria: string[]): Observable<any> {
+  return this.http.put(`${this.baseUrl}/${versionId}/edit`, {
+    improved_story: improvedStory,
+    acceptance_criteria: acceptanceCriteria
+  });
+}
+
+  /**
+   * Vérifie si une version peut être modifiée
+   * @param versionId ID de la version
+   */
+  canEditVersion(versionId: string): Observable<CanEditResponse> {
+    return this.http.get<CanEditResponse>(
+      `${this.baseUrl}/${versionId}/can-edit`
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Réinitialise le flag is_customized d'une version
+   * @param versionId ID de la version
+   */
+  resetCustomization(versionId: string): Observable<ResetCustomizationResponse> {
+    return this.http.post<ResetCustomizationResponse>(
+      `${this.baseUrl}/${versionId}/reset-customization`,
+      {}
+    ).pipe(catchError(this.handleError));
+  }
+
   // ==============================
   // DÉCISIONS
   // ==============================
@@ -170,10 +185,10 @@ export class VersionsService {
   }
 
   rejectRelaunchVersion(versionId: string): Observable<DecisionResponse> {
-    return this.sendDecision(versionId, 'reject_relaunch');
+    return this.sendDecision(versionId, 'relaunch');
   }
 
-  sendDecision(versionId: string, decision: 'approve' | 'reject_keep' | 'reject_relaunch'): Observable<DecisionResponse> {
+  sendDecision(versionId: string, decision: 'approve' | 'reject_keep' | 'relaunch'): Observable<DecisionResponse> {
     return this.http.post<DecisionResponse>(`${this.baseUrl}/${versionId}/decision`, { decision })
       .pipe(catchError(this.handleError));
   }
@@ -220,6 +235,10 @@ export class VersionsService {
     return version?.agent_status === 'failed';
   }
 
+  isCustomized(version: UserStoryVersion | VersionState): boolean {
+    return version?.is_customized === true;
+  }
+
   getScoreDelta(version: UserStoryVersion): number {
     if (version.initial_score !== undefined && version.final_score !== undefined) {
       return version.final_score - version.initial_score;
@@ -251,4 +270,31 @@ export class VersionsService {
     console.error('VersionsService error:', error);
     return throwError(() => error);
   }
+}
+
+// ==============================
+// INTERFACES
+// ==============================
+
+export interface EditVersionResponse {
+  status: 'success' | 'no_change';
+  message: string;
+  version_id: string;
+  is_customized: boolean;
+  customized_at: string | null;
+}
+
+export interface CanEditResponse {
+  can_edit: boolean;
+  reason: string | null;
+  is_approved: boolean;
+  is_customized: boolean;
+}
+
+export interface ResetCustomizationResponse {
+  status: 'success' | 'no_change';
+  message: string;
+  version_id: string;
+  is_customized: boolean;
+  customized_at: string | null;
 }

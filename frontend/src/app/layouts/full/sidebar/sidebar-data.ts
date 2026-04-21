@@ -29,6 +29,18 @@ export const navItems: NavItem[] = [
     userOnly: true,
   },
   {
+    displayName: 'Test Cases',
+    iconName: 'solar:document-add-line-duotone',
+    route: '/test-cases',
+    userOnly: true,
+  },
+  {
+    displayName: 'Playwright Scripts',
+    iconName: 'solar:play-circle-line-duotone',
+    route: '/playwright-scripts',
+    userOnly: true,
+  },
+  {
     navCap: 'Admin',
     divider: true,
     adminOnly: true,

@@ -8,12 +8,11 @@
         </svg>
       </button>
       <div class="header-text">
-        <h1>Review: {{ getIssueKey() }}</h1>
+        <h1>Review User Story: {{ getIssueKey() }}</h1>
         <p>Compare original and improved versions</p>
       </div>
     </div>
 
-    <!-- Version indicator -->
     @if (versionCount() > 1) {
       <div class="version-indicator">
         <span class="version-count">{{ versionCount() }} versions</span>
@@ -21,14 +20,12 @@
     }
   </header>
 
-  <!-- Loading -->
   @if (loading() && !relaunching()) {
     <div class="loading-container">
       <app-spinner text="Loading version details..." />
     </div>
   }
 
-  <!-- Relaunch waiting state -->
   @else if (relaunching()) {
     <div class="relaunch-container">
       <div class="relaunch-card">
@@ -42,7 +39,6 @@
     </div>
   }
 
-  <!-- Error -->
   @else if (error()) {
     <div class="error-container">
       <div class="error-card">
@@ -56,7 +52,6 @@
     </div>
   }
 
-  <!-- Version processing -->
   @else if (isVersionProcessing()) {
     <div class="processing-container">
       <div class="processing-card">
@@ -70,7 +65,6 @@
     </div>
   }
 
-  <!-- Version failed -->
   @else if (isVersionFailed()) {
     <div class="error-container">
       <div class="error-card">
@@ -84,11 +78,9 @@
     </div>
   }
 
-  <!-- Main content -->
   @else if (state() && isVersionCompleted()) {
     <div class="page-content">
 
-      <!-- Version Selector (si plusieurs versions) -->
       @if (versionCount() > 1) {
         <div class="versions-section">
           <h3 class="section-label">
@@ -105,26 +97,21 @@
                 [class.selected]="version.decision_status === 'approved'"
                 [class.latest]="isLatest(i)"
                 [class.best]="isBest(version)"
-                (click)="viewVersion(version)"
-              >
+                (click)="viewVersion(version)">
                 <div class="version-header">
                   <span class="version-number">V{{ i + 1 }}</span>
-              
                   @if (isBest(version)) {
                     <span class="best-badge">⭐ Best</span>
                   }
-              
                   @if (version.decision_status === 'approved') {
                     <span class="selected-badge">✓ Selected</span>
                   }
                 </div>
-              
                 <div class="version-score">
                   <app-score-badge 
                     [score]="version.final_score" 
                     [delta]="version.final_score - version.initial_score"
-                    size="small"
-                  />
+                    size="small" />
                 </div>
               </button>
             }
@@ -132,7 +119,6 @@
         </div>
       }
 
-      <!-- Notice pour la sélection de version -->
       @if (!hasFinalDecision() && versionCount() > 1) {
         <div class="version-selection-notice">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -148,7 +134,6 @@
         </div>
       }
 
-      <!-- Notice si on regarde une ancienne version -->
       @if (!isViewingLatestVersion() && versionCount() > 1) {
         <div class="old-version-notice warning">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -161,7 +146,6 @@
         </div>
       }
 
-      <!-- Decision already made notice -->
       @if (hasFinalDecision() && !relaunching()) {
         <div class="decision-notice approved">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -180,14 +164,12 @@
             <span class="score-max">/ 10</span>
           </div>
         </div>
-
         <div class="score-arrow">
           <div class="arrow-line"></div>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clip-rule="evenodd" />
           </svg>
         </div>
-
         <div class="score-item">
           <span class="score-label">Final Score</span>
           <div class="score-display improved">
@@ -195,7 +177,6 @@
             <span class="score-max">/ 10</span>
           </div>
         </div>
-
         <div class="score-delta" [class.positive]="getDelta() > 0" [class.negative]="getDelta() < 0" [class.neutral]="getDelta() === 0">
           <span class="delta-value">{{ getDelta() > 0 ? '+' : '' }}{{ formatScore(getDelta()) }}</span>
           <span class="delta-label">improvement</span>
@@ -212,17 +193,14 @@
               </svg>
               Testability Assessment
             </span>
-
             <span class="testability-badge" [class.good]="isTestable() === true" [class.bad]="isTestable() === false">
               {{ isTestable() ? 'Testable' : 'Not Testable' }}
             </span>
           </div>
-
           <div class="testability-score">
             <span class="score-value">{{ formatScore(getTestabilityScore()) }}</span>
             <span class="score-max">/ 10</span>
           </div>
-
           @if (getTestabilityIssues().length > 0) {
             <div class="testability-issues">
               <h4>Issues Identified:</h4>
@@ -273,10 +251,55 @@
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
                 </svg>
                 AI Improved
+                @if (currentVersion()?.is_customized) {
+                  <span class="custom-badge">✏️ Edited</span>
+                }
               </span>
+              @if (canMakeDecision() && !isEditingStory() && !hasFinalDecision()) {
+                <button class="btn-edit" (click)="startEditingStory()" [disabled]="isSaving()">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                    <path d="M2.695 14.762l-1.262 3.155a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.419a4 4 0 00-.885 1.343z" />
+                  </svg>
+                  Edit Story
+                </button>
+              }
             </div>
             <div class="card-body">
-              <p>{{ getImprovedStory() || 'No improved story' }}</p>
+              @if (isEditingStory()) {
+                <div class="edit-mode">
+                  <textarea 
+                    [(ngModel)]="editableStory"
+                    class="editable-story"
+                    rows="4"
+                    placeholder="Edit user story..."
+                    [disabled]="isSaving()">
+                  </textarea>
+                  <div class="edit-actions">
+                    <button class="btn-save" (click)="saveStoryEdits()" [disabled]="isSaving()">
+                      @if (isSaving()) {
+                        <app-spinner [size]="16" />
+                        <span>Saving...</span>
+                      } @else {
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                          <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Save Story</span>
+                      }
+                    </button>
+                    <button class="btn-cancel" (click)="cancelEditingStory()" [disabled]="isSaving()" type="button">Cancel</button>
+                  </div>
+                </div>
+              } @else {
+                <p class="improved-story-text">{{ getImprovedStory() || 'No improved story' }}</p>
+                @if (currentVersion()?.is_customized && currentVersion()?.customized_at) {
+                  <div class="customized-info">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                      <path d="M2.695 14.762l-1.262 3.155a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.419a4 4 0 00-.885 1.343z" />
+                    </svg>
+                    <span>Last edited: {{ formatDate(currentVersion()?.customized_at) }}</span>
+                  </div>
+                }
+              }
             </div>
           </div>
         </div>
@@ -319,21 +342,79 @@
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
                 </svg>
                 AI Improved
+                @if (currentVersion()?.is_customized) {
+                  <span class="custom-badge">✏️ Edited</span>
+                }
               </span>
               <span class="ac-count">{{ getImprovedAC().length }} criteria</span>
+              @if (canMakeDecision() && !isEditingAC() && !hasFinalDecision()) {
+                <button class="btn-edit" (click)="startEditingAC()" [disabled]="isSaving()">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                    <path d="M2.695 14.762l-1.262 3.155a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.419a4 4 0 00-.885 1.343z" />
+                  </svg>
+                  Edit Criteria
+                </button>
+              }
             </div>
             <div class="card-body">
-              @if (getImprovedAC().length > 0) {
-                <ul class="ac-list improved">
-                  @for (ac of getImprovedAC(); track $index) {
-                    <li>
-                      <span class="ac-bullet"></span>
-                      <span>{{ ac }}</span>
-                    </li>
-                  }
-                </ul>
+              @if (isEditingAC()) {
+                <div class="edit-mode">
+                  <div class="editable-ac-section">
+                    <h4>Acceptance Criteria</h4>
+                    @for (ac of editableAC; track $index; let i = $index) {
+                      <div class="editable-ac-item">
+                        <input 
+                          [(ngModel)]="editableAC[i]"
+                          (blur)="updateCriterion(i, editableAC[i])"
+                          class="editable-ac-input"
+                          [disabled]="isSaving()"
+                          placeholder="Enter criterion..." />
+                        <button 
+                          class="btn-remove-ac" 
+                          (click)="removeAcceptanceCriterion(i)"
+                          [disabled]="isSaving()"
+                          type="button">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                            <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.9 41.9 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+                    }
+                    <button class="btn-add-ac" (click)="addAcceptanceCriterion()" [disabled]="isSaving()" type="button">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                      </svg>
+                      Add criterion
+                    </button>
+                  </div>
+                  <div class="edit-actions">
+                    <button class="btn-save" (click)="saveACEdits()" [disabled]="isSaving()">
+                      @if (isSaving()) {
+                        <app-spinner [size]="16" />
+                        <span>Saving...</span>
+                      } @else {
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                          <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Save Criteria</span>
+                      }
+                    </button>
+                    <button class="btn-cancel" (click)="cancelEditingAC()" [disabled]="isSaving()" type="button">Cancel</button>
+                  </div>
+                </div>
               } @else {
-                <p class="no-content">No acceptance criteria</p>
+                @if (getImprovedAC().length > 0) {
+                  <ul class="ac-list improved">
+                    @for (ac of getImprovedAC(); track $index) {
+                      <li>
+                        <span class="ac-bullet"></span>
+                        <span>{{ ac }}</span>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="no-content">No acceptance criteria</p>
+                }
               }
             </div>
           </div>
@@ -392,55 +473,40 @@
         </div>
       }
 
-      <!-- Decision Buttons - Only show if can make decision -->
+      <!-- Decision Buttons -->
       @if (canMakeDecision()) {
         <div class="decision-section">
           <h3>Make Your Decision</h3>
           <p>Choose how to proceed with this version</p>
-
           <div class="decision-buttons">
             <button class="decision-btn approve" [disabled]="submitting()" (click)="submitDecision('approve')">
-              @if (submitting()) {
-                <div class="decision-icon"><app-spinner [size]="24" /></div>
-              } @else {
-                <div class="decision-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clip-rule="evenodd" />
-                  </svg>
-                </div>
-              }
+              <div class="decision-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clip-rule="evenodd" />
+                </svg>
+              </div>
               <div class="decision-content">
                 <span class="decision-title">Approve</span>
                 <span class="decision-desc">Select this version as final</span>
               </div>
             </button>
-
-            <button class="decision-btn relaunch" [disabled]="submitting()" (click)="submitDecision('reject_relaunch')">
-              @if (submitting()) {
-                <div class="decision-icon"><app-spinner [size]="24" /></div>
-              } @else {
-                <div class="decision-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-3.183a.75.75 0 100 1.5h4.992a.75.75 0 00.75-.75V4.356a.75.75 0 00-1.5 0v3.18l-1.9-1.9A9 9 0 003.306 9.67a.75.75 0 101.45.388zm15.408 3.352a.75.75 0 00-.919.53 7.5 7.5 0 01-12.548 3.364l-1.902-1.903h3.183a.75.75 0 000-1.5H2.984a.75.75 0 00-.75.75v4.992a.75.75 0 001.5 0v-3.18l1.9 1.9a9 9 0 0015.059-4.035.75.75 0 00-.53-.918z" clip-rule="evenodd" />
-                  </svg>
-                </div>
-              }
+            <button class="decision-btn relaunch" [disabled]="submitting()" (click)="submitDecision('relaunch')">
+              <div class="decision-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-3.183a.75.75 0 100 1.5h4.992a.75.75 0 00.75-.75V4.356a.75.75 0 00-1.5 0v3.18l-1.9-1.9A9 9 0 003.306 9.67a.75.75 0 101.45.388zm15.408 3.352a.75.75 0 00-.919.53 7.5 7.5 0 01-12.548 3.364l-1.902-1.903h3.183a.75.75 0 000-1.5H2.984a.75.75 0 00-.75.75v4.992a.75.75 0 001.5 0v-3.18l1.9 1.9a9 9 0 0015.059-4.035.75.75 0 00-.53-.918z" clip-rule="evenodd" />
+                </svg>
+              </div>
               <div class="decision-content">
-                <span class="decision-title">Reject & Relaunch</span>
+                <span class="decision-title">Relaunch</span>
                 <span class="decision-desc">Generate a new version</span>
               </div>
             </button>
-
             <button class="decision-btn reject" [disabled]="submitting()" (click)="submitDecision('reject_keep')">
-              @if (submitting()) {
-                <div class="decision-icon"><app-spinner [size]="24" /></div>
-              } @else {
-                <div class="decision-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z" clip-rule="evenodd" />
-                  </svg>
-                </div>
-              }
+              <div class="decision-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z" clip-rule="evenodd" />
+                </svg>
+              </div>
               <div class="decision-content">
                 <span class="decision-title">Reject & Keep Original</span>
                 <span class="decision-desc">Discard all AI improvements</span>
@@ -450,7 +516,6 @@
         </div>
       }
 
-      <!-- Decision made banner -->
       @if (decisionMade() && !relaunching()) {
         <div class="decision-made-banner">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -459,6 +524,6 @@
           <span>Decision submitted. Redirecting...</span>
         </div>
       }
-    </div>  
+    </div>
   }
 </div>

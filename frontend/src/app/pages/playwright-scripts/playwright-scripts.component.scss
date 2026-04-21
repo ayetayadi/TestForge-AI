@@ -1,0 +1,770 @@
+// ============================================
+// VARIABLES
+// ============================================
+$primary:        #4f46e5;
+$primary-dark:   #4338ca;
+$emerald:        #059669;
+$emerald-dark:   #047857;
+$danger:         #ef4444;
+$danger-dark:    #dc2626;
+$warning:        #f59e0b;
+$success:        #16a34a;
+$text-primary:   #0f172a;
+$text-secondary: #64748b;
+$border:         #e2e8f0;
+$bg-page:        #f1f5f9;
+$bg-card:        #ffffff;
+$radius-sm:      6px;
+$radius-md:      10px;
+$radius-lg:      14px;
+$transition:     0.2s ease;
+$slate-900:   #0f172a;
+$indigo-50:   #eef2ff;
+$indigo-600:  #4f46e5;
+$indigo-100:  #e0e7ff;
+
+// ============================================
+// PAGE
+// ============================================
+.playwright-page {
+  padding: 28px 36px;
+  max-width: 1600px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: $bg-page;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// ============================================
+// HEADER
+// ============================================
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  .header-left {
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: $text-primary;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: $text-secondary;
+      margin: 10px 0 0;
+    }
+  }
+
+.title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  
+  h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: $slate-900;
+    white-space: nowrap;
+  }
+}
+
+.lang-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: $primary;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  line-height: 1;
+  
+  &::before {
+    content: 'TS';
+    margin-right: 5px;
+    font-weight: 700;
+    font-size: 0.65rem;
+  }
+}
+
+.tc-id-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: $indigo-50;
+  color: $indigo-600;
+  border: 1px solid $indigo-100;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+  .header-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 10px;
+  }
+}
+
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: white;
+  border: 1px solid $border;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: $text-secondary;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+
+  svg {
+    width: 15px;
+    height: 15px;
+    fill: $primary;
+    flex-shrink: 0;
+  }
+}
+
+// ============================================
+// BUTTONS
+// ============================================
+.btn-primary, .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: $radius-md;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition;
+  border: none;
+  text-decoration: none;
+
+  svg { width: 15px; height: 15px; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.btn-primary {
+  background: $primary;
+  color: white;
+  svg { fill: white; }
+  &:hover:not(:disabled) {
+    background: $primary-dark;
+    box-shadow: 0 4px 14px rgba($primary, 0.35);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-secondary {
+  background: white;
+  color: #374151;
+  border: 1px solid $border;
+  svg { fill: $text-secondary; }
+  &:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
+}
+
+// ============================================
+// EXECUTION CONFIG CARD
+// ============================================
+.config-card {
+  background: white;
+  border: 1px solid $border;
+  border-radius: $radius-lg;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+
+  &__label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+
+    svg {
+      width: 14px;
+      height: 14px;
+      fill: $primary;
+    }
+  }
+
+  &__fields {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    font-size: 11px;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &--checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 7px;
+    padding-bottom: 1px;
+
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      color: $text-primary;
+      cursor: pointer;
+    }
+
+    input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: $primary;
+      cursor: pointer;
+    }
+  }
+}
+
+.form-input,
+.form-select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid $border;
+  border-radius: $radius-sm;
+  font-size: 13px;
+  color: $text-primary;
+  background: white;
+  transition: border-color $transition;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 2px rgba($primary, 0.1);
+  }
+}
+
+.form-input { min-width: 220px; }
+.form-select {
+  min-width: 130px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  padding-right: 30px;
+}
+
+// ============================================
+// FILTERS BAR
+// ============================================
+.filters-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+
+  .filter-item {
+    flex: 0 0 auto;
+
+    &.search-item {
+      flex: 1;
+      min-width: 200px;
+    }
+  }
+}
+
+.filter-select {
+  height: 40px;
+  padding: 0 36px 0 14px;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  background: white;
+  font-size: 13px;
+  color: $text-primary;
+  cursor: pointer;
+  min-width: 160px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 18px;
+  transition: all $transition;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 2px rgba($primary, 0.1);
+  }
+
+  &:hover { border-color: #cbd5e1; }
+}
+
+// Style for FilterBarComponent
+:host ::ng-deep {
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    height: 40px;
+  }
+
+  .filter-dropdown { position: relative; height: 100%; }
+
+  .filter-trigger {
+    height: 40px;
+    padding: 0 14px;
+    background: white;
+    border: 1px solid $border;
+    border-radius: $radius-md;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all $transition;
+
+    .filter-icon { width: 16px; height: 16px; fill: #64748b; }
+    .chevron { width: 16px; height: 16px; fill: #64748b; transition: transform $transition; }
+
+    &:hover { border-color: #cbd5e1; background: #f8fafc; }
+  }
+
+  .filter-dropdown.open .filter-trigger {
+    border-color: $primary;
+    background: #f8fafc;
+    .chevron { transform: rotate(180deg); }
+  }
+
+  .filter-dropdown.has-active .filter-trigger {
+    border-color: $primary;
+    background: #eef2ff;
+    color: $primary;
+    .filter-icon { fill: $primary; }
+  }
+
+  .dropdown-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 200px;
+    background: white;
+    border: 1px solid $border;
+    border-radius: $radius-lg;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+    z-index: 100;
+    overflow: hidden;
+  }
+
+  .option-list { list-style: none; margin: 0; padding: 8px 0; li { padding: 0; } }
+
+  .option-btn {
+    width: 100%;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: #374151;
+    transition: background $transition;
+    text-align: left;
+
+    &:hover { background: #f1f5f9; }
+    &.selected { background: #eef2ff; color: $primary; }
+
+    .checkbox {
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 4px;
+      background: white;
+
+      &.checked {
+        background: $primary;
+        border-color: $primary;
+        svg { width: 12px; height: 12px; fill: white; }
+      }
+    }
+
+    .option-label { flex: 1; }
+
+    .option-count {
+      font-size: 11px;
+      color: #94a3b8;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 20px;
+    }
+
+    &.selected .option-count { background: #e0e7ff; color: $primary; }
+  }
+
+  .clear-all-btn {
+    height: 40px;
+    padding: 0 16px;
+    background: white;
+    border: 1px solid $border;
+    border-radius: $radius-md;
+    font-size: 13px;
+    font-weight: 500;
+    color: $danger;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all $transition;
+
+    &:hover { background: #fef2f2; border-color: $danger; }
+  }
+}
+
+// ============================================
+// LOADING & EMPTY STATES
+// ============================================
+.loading-state {
+  display: flex;
+  justify-content: center;
+  padding: 80px 0;
+}
+
+.empty-state, .no-results {
+  text-align: center;
+  padding: 64px 24px;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+
+  .empty-icon svg { width: 48px; height: 48px; color: #94a3b8; }
+  svg { width: 40px; height: 40px; color: #94a3b8; }
+
+  h3, h4 { font-size: 17px; font-weight: 600; color: $text-primary; margin: 16px 0 8px; }
+  p { font-size: 13px; color: $text-secondary; margin: 0 0 20px; }
+}
+
+// ============================================
+// SCRIPTS GRID
+// ============================================
+.scripts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+// ============================================
+// SCRIPT CARD
+// ============================================
+.script-card {
+  position: relative;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  transition: box-shadow $transition, transform $transition, border-color $transition;
+  animation: fadeUp 0.25s ease-out both;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px -6px rgba(0,0,0,0.12);
+    border-color: #c7d2fe;
+  }
+
+  &.card--active {
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba($primary, 0.1);
+  }
+
+  // Accent top bar
+  &__accent {
+    height: 4px;
+    width: 100%;
+    background: #e2e8f0;
+
+    &.accent-passed { background: #22c55e; }
+    &.accent-failed { background: $danger; }
+    &.accent-error  { background: $warning; }
+    &.accent-none   { background: #e2e8f0; }
+  }
+
+  // Top row
+  &__top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 16px 0;
+    flex-wrap: wrap;
+  }
+
+  // Title
+  &__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 10px 16px 0;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    cursor: pointer;
+
+    &:hover { color: $primary; }
+  }
+
+  // Meta
+  &__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 16px 0;
+    flex: 1;
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: $text-secondary;
+
+      svg { width: 13px; height: 13px; fill: #94a3b8; flex-shrink: 0; }
+      span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    }
+  }
+
+  // Actions row
+  &__actions {
+    display: flex;
+    gap: 7px;
+    padding: 14px 16px 16px;
+    margin-top: auto;
+    border-top: 1px solid #f1f5f9;
+    flex-wrap: nowrap;
+  }
+}
+
+// ============================================
+// TC CODE CHIP
+// ============================================
+.tc-code {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: $primary;
+  background: #eef2ff;
+  padding: 3px 9px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+
+  &:hover { background: #e0e7ff; }
+}
+
+// ============================================
+// BADGES
+// ============================================
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+
+  svg { width: 11px; height: 11px; }
+
+  &-script      { background: #f0fdf4; color: $success; border: 1px solid #bbf7d0; }
+  &-noscript    { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+  &-placeholder { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  &-success     { background: #dcfce7; color: #166534; }
+  &-danger      { background: #fee2e2; color: #991b1b; }
+  &-warning     { background: #fef9c3; color: #854d0e; }
+  &-secondary   { background: #f3f4f6; color: #6b7280; }
+}
+
+// ============================================
+// CARD ACTION BUTTONS
+// ============================================
+.btn-view,
+.btn-generate,
+.btn-run {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 11px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all $transition;
+  white-space: nowrap;
+
+  svg { width: 13px; height: 13px; flex-shrink: 0; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.btn-view {
+  background: #eef2ff;
+  color: $primary;
+  svg { fill: $primary; }
+
+  &:hover:not(:disabled) {
+    background: #e0e7ff;
+    transform: translateY(-1px);
+  }
+}
+
+.btn-generate {
+  background: $primary;
+  color: white;
+  flex: 1;
+  svg { fill: white; }
+
+  &:hover:not(:disabled) {
+    background: $primary-dark;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba($primary, 0.3);
+  }
+}
+
+.btn-run {
+  background: $emerald;
+  color: white;
+  svg { fill: white; }
+
+  &:hover:not(:disabled) {
+    background: $emerald-dark;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba($emerald, 0.3);
+  }
+
+  &--workflow {
+    background: #7c3aed;
+    &:hover:not(:disabled) { background: #6d28d9; box-shadow: 0 3px 10px rgba(124,58,237,0.3); }
+  }
+}
+
+// ============================================
+// SPINNER
+// ============================================
+.spinner-inline {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+// ============================================
+// LIVE SSE STEPS IN CARD
+// ============================================
+.card-steps {
+  margin: 10px 16px;
+  background: #1e1e2e;
+  border-radius: $radius-sm;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 180px;
+  overflow-y: auto;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: #45475a; border-radius: 2px; }
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11px;
+  color: #cdd6f4;
+
+  &.step-success .step-content  { color: #a6e3a1; }
+  &.step-failed  .step-content  { color: #f38ba8; }
+  &.step-running .step-content  { color: #fab387; }
+  &.step-pending .step-content  { color: #89b4fa; }
+}
+
+.step-icon { flex-shrink: 0; width: 16px; text-align: center; }
+.step-content { flex: 1; word-break: break-word; line-height: 1.4; font-family: 'JetBrains Mono', monospace; }
+.step-duration { flex-shrink: 0; font-size: 10px; color: #6c7086; }
+
+// ============================================
+// PAGINATION
+// ============================================
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+// ============================================
+// ANIMATIONS
+// ============================================
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+// ============================================
+// RESPONSIVE
+// ============================================
+@media (max-width: 1024px) {
+  .scripts-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+}
+
+@media (max-width: 768px) {
+  .playwright-page { padding: 16px 18px; }
+  .scripts-grid { grid-template-columns: 1fr; }
+  .page-header { flex-direction: column; align-items: flex-start; .header-center { display: none; } }
+  .config-card { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .filters-bar { flex-direction: column; .filter-item { width: 100%; &.search-item { width: 100%; } } .filter-select { width: 100%; } }
+}

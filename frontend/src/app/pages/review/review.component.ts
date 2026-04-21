@@ -1,23 +1,19 @@
-// ============================================================
-// src/app/pages/review/review.component.ts (CORRIGÉ - VERSION)
-// ============================================================
-
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
-
+import { FormsModule } from '@angular/forms';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
 import { VersionsService, ToastService, PipelineService, SseService } from '../../services';
-import { DecisionChoice, VersionState, SSEEvent, TraceEntry, UserStoryVersion, AgentStatus } from '../../models';
+import { DecisionChoice, VersionState, SSEEvent, TraceEntry, UserStoryVersion, AgentStatus } from '../../models/user_story.model';
 import { environment } from '../../../environments/environment';
 import { NavigationService } from '../../services/navigation.service';
 
 @Component({
   selector: 'app-review',
   standalone: true,
-  imports: [CommonModule, SpinnerComponent, ScoreBadgeComponent],
+  imports: [CommonModule, SpinnerComponent, ScoreBadgeComponent, FormsModule],
   templateUrl: './review.component.html',
   styleUrls: ['./review.component.scss'],
 })
@@ -53,6 +49,17 @@ export class ReviewComponent implements OnInit, OnDestroy {
   // Relaunch states
   relaunching = signal(false);
   relaunchPhase = signal<string>('');
+
+  isEditingStory = signal(false);
+  isEditingAC = signal(false);
+  isSaving = signal(false);
+  
+  editableStory: string = '';
+  editableAC: string[] = [];
+  
+  // Backup pour annuler
+  private originalStoryBackup: string = '';
+  private originalACBackup: string[] = [];
 
   // Processing step
   processingStep = signal<'processing' | 'done'>('done');
@@ -350,11 +357,9 @@ export class ReviewComponent implements OnInit, OnDestroy {
         return res.json();
       })
       .then((versions: any) => {
-        console.log("[VERSIONS RAW]", versions);
         const data = Array.isArray(versions)
           ? versions
           : versions?.data || versions?.versions || [];
-        console.log("[VERSIONS FIXED]", data);
         this.allVersions.set(data);
         this.loading.set(false);
       })
@@ -510,7 +515,147 @@ export class ReviewComponent implements OnInit, OnDestroy {
     );
   }
 
-// review.component.ts
+
+  startEditingStory(): void {
+  this.originalStoryBackup = this.getImprovedStory();
+  this.editableStory = this.getImprovedStory();
+  this.isEditingStory.set(true);
+}
+
+cancelEditingStory(): void {
+  this.editableStory = this.originalStoryBackup;
+  this.isEditingStory.set(false);
+}
+
+async saveStoryEdits(): Promise<void> {
+  const versionId = this.currentVersion()?.id;
+  if (!versionId) {
+    this.toastService.error('No version found');
+    return;
+  }
+
+  // Vérifier si des changements ont été faits
+  if (this.editableStory === this.getImprovedStory()) {
+    this.toastService.info('No changes detected');
+    this.isEditingStory.set(false);
+    return;
+  }
+
+  this.isSaving.set(true);
+
+  try {
+    // Garder les AC inchangées
+    const currentAC = this.getImprovedAC();
+    
+    const result = await this.versionsService.editVersion(
+      versionId,
+      this.editableStory,
+      currentAC
+    ).toPromise();
+
+    if (result?.status === 'success') {
+      this.toastService.success('Story updated successfully');
+      this.isEditingStory.set(false);
+      // Recharger la version
+      this.loadVersion(this.versionId);
+    } else if (result?.status === 'no_change') {
+      this.toastService.info('No changes detected');
+      this.isEditingStory.set(false);
+    } else {
+      this.toastService.error('Failed to update story');
+    }
+  } catch (error: any) {
+    if (error.status === 403) {
+      this.toastService.error('Cannot edit an approved version');
+    } else {
+      this.toastService.error(error.message || 'Failed to update story');
+    }
+  } finally {
+    this.isSaving.set(false);
+  }
+}
+
+// ============================================================
+// MÉTHODES POUR ACCEPTANCE CRITERIA
+// ============================================================
+
+startEditingAC(): void {
+  this.originalACBackup = [...this.getImprovedAC()];
+  this.editableAC = [...this.getImprovedAC()];
+  this.isEditingAC.set(true);
+}
+
+cancelEditingAC(): void {
+  this.editableAC = [...this.originalACBackup];
+  this.isEditingAC.set(false);
+}
+
+async saveACEdits(): Promise<void> {
+  const versionId = this.currentVersion()?.id;
+  if (!versionId) {
+    this.toastService.error('No version found');
+    return;
+  }
+
+  // Vérifier si des changements ont été faits
+  const currentAC = this.getImprovedAC();
+  const hasChanges = JSON.stringify(this.editableAC) !== JSON.stringify(currentAC);
+  
+  if (!hasChanges) {
+    this.toastService.info('No changes detected');
+    this.isEditingAC.set(false);
+    return;
+  }
+
+  this.isSaving.set(true);
+
+  try {
+    // Garder la story inchangée
+    const currentStory = this.getImprovedStory();
+    
+    const result = await this.versionsService.editVersion(
+      versionId,
+      currentStory,
+      this.editableAC
+    ).toPromise();
+
+    if (result?.status === 'success') {
+      this.toastService.success('Criteria updated successfully');
+      this.isEditingAC.set(false);
+      // Recharger la version
+      this.loadVersion(this.versionId);
+    } else if (result?.status === 'no_change') {
+      this.toastService.info('No changes detected');
+      this.isEditingAC.set(false);
+    } else {
+      this.toastService.error('Failed to update criteria');
+    }
+  } catch (error: any) {
+    if (error.status === 403) {
+      this.toastService.error('Cannot edit an approved version');
+    } else {
+      this.toastService.error(error.message || 'Failed to update criteria');
+    }
+  } finally {
+    this.isSaving.set(false);
+  }
+}
+
+
+
+addAcceptanceCriterion(): void {
+  this.editableAC = [...this.editableAC, 'New criterion...'];
+}
+
+removeAcceptanceCriterion(index: number): void {
+  this.editableAC = this.editableAC.filter((_, i) => i !== index);
+}
+
+updateCriterion(index: number, value: string): void {
+  const newAC = [...this.editableAC];
+  newAC[index] = value;
+  this.editableAC = newAC;
+}
 
 submitDecision(choice: DecisionChoice): void {
     if (!this.versionId || this.submitting() || !this.canMakeDecision()) return;
@@ -533,9 +678,9 @@ submitDecision(choice: DecisionChoice): void {
                 return;
             }
 
-            // ✅ NE PAS définir decisionMade pour 'reject_relaunch'
+            // ✅ NE PAS définir decisionMade pour 'relaunch'
             // Car on veut rester sur la page pour voir la nouvelle version
-            if (choice !== 'reject_relaunch') {
+            if (choice !== 'relaunch') {
                 this.decisionMade.set(true);
             }
 
@@ -550,7 +695,7 @@ submitDecision(choice: DecisionChoice): void {
                     this.navigateToStories();
                     break;
 
-                case 'reject_relaunch':
+                case 'relaunch':
                     // ✅ Ne pas rediriger immédiatement
                     // ✅ Ne pas set decisionMade
                     this.handleRelaunch(res);
@@ -689,13 +834,13 @@ private navigateToStories(): void {
     return this.state()?.agent_status === 'processing';
   }
 
-  formatDate(date: string | undefined): string {
-    if (!date) return '';
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
+formatDate(date: string | undefined | null): string {
+  if (!date) return '';
+  return new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
 }

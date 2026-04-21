@@ -7,7 +7,7 @@ import { FilterBarComponent, FilterGroup, ActiveFilters } from '../../components
 import { PaginationComponent } from '../../components/pagination/pagination.component';
 import { ImportModalComponent } from '../../components/import-modal/import-modal.component';
 import { ProjectsService, ToastService } from '../../services';
-import { Project } from '../../models';
+import { Project } from '../../models/user_story.model';
 import { JiraService } from 'src/app/services/jira.service';
 
 @Component({
@@ -38,7 +38,7 @@ export class ProjectsComponent implements OnInit {
   errorMessage = signal<string | null>(null);
 
   page = signal(1);
-  pageSize = signal(12);
+  pageSize = signal(10);
   viewMode: 'grid' | 'list' = 'grid';
 
   private searchQuery = signal('');

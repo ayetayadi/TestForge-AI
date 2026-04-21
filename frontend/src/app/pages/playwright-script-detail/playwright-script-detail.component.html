@@ -1,0 +1,392 @@
+<div class="detail-page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <button class="btn-back" (click)="goBack()">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
+      </svg>
+      Back
+    </button>
+  
+    <div class="tcd-breadcrumb">
+      @if (projectName()) {
+        <span class="bc-item">{{ projectName() }}</span>
+        <span class="bc-sep">/</span>
+      }
+      @if (issueKey()) {
+        <span class="bc-item bc-item--key">{{ issueKey() }}</span>
+        <span class="bc-sep">/</span>
+      }
+      <span class="bc-item bc-item--code">{{ testCaseCode() }}</span>
+    </div>
+  
+    <div class="header-actions">
+      <button class="btn-run" (click)="runScript()" [disabled]="isRunning() || !selectedVersionId()">
+        @if (isRunning()) {
+          <div class="spinner-small"></div>
+          Running...
+        } @else {
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+          </svg>
+          Run Script
+        }
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="loading-center">
+      <app-spinner text="Loading scripts..." />
+    </div>
+  }
+
+  @if (!loading()) {
+
+    <!-- No scripts -->
+    @if (scripts().length === 0) {
+      <div class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+        </svg>
+        <h3>No scripts generated yet</h3>
+        <p>Go back and click "Generate Script" on this test case.</p>
+        <button class="btn-run" (click)="goBack()">Go back</button>
+      </div>
+    }
+
+    @if (scripts().length > 0) {
+      <div class="main-layout">
+
+        <!-- LEFT: version list + config -->
+        <aside class="sidebar">
+
+          <!-- Config -->
+          <div class="config-card">
+            <h3>Execution Config</h3>
+            <div class="field">
+              <label>App URL</label>
+              <input class="form-input" type="url" placeholder="https://..." [value]="appUrl()" (input)="appUrl.set($any($event.target).value)" />
+            </div>
+            <div class="field">
+              <label>Browser</label>
+              <select class="form-select" [value]="browser()" (change)="browser.set($any($event.target).value)">
+                @for (b of browsers; track b) {
+                  <option [value]="b">{{ b }}</option>
+                }
+              </select>
+            </div>
+            <div class="field field--row">
+              <input type="checkbox" id="headless" [checked]="headless()" (change)="headless.set($any($event.target).checked)" />
+              <label for="headless">Headless</label>
+            </div>
+          </div>
+
+          <!-- Version list -->
+          <div class="versions-card">
+            <h3>Versions ({{ scripts().length }})</h3>
+            <ul class="version-list">
+              @for (v of scripts(); track v.id) {
+                <li class="version-item" [class.active]="v.id === selectedVersionId()" [class.new-version]="newScriptVersionId() === v.id" (click)="selectVersion(v.id)">
+                  <div class="version-top">
+                    <span class="v-number">v{{ v.versionNumber }}</span>
+                    @if (v.isActive) { <span class="badge-active">Active</span> }
+                    <span class="v-source">{{ getSourceLabel(v.source) }}</span>
+                  </div>
+                  <div class="version-meta">
+                    <span>{{ v.placeholderCount }} placeholders</span>
+                    <span>{{ v.createdAt | date:'dd/MM HH:mm' }}</span>
+                  </div>
+                </li>
+              }
+            </ul>
+          </div>
+
+          <!-- Nouvelle version alerte (simplifiée) -->
+          @if (newScriptGenerated()) {
+            <div class="new-version-alert">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75" />
+              </svg>
+              <span>New version v{{ newScriptVersionNumber() }} generated!</span>
+              <button class="alert-btn" (click)="applyNewScript()">View →</button>
+            </div>
+          }
+
+        </aside>
+
+        <!-- RIGHT: tabs -->
+        <div class="content-area">
+
+          <!-- Tabs -->
+          <div class="tabs">
+            <button class="tab" [class.tab--active]="activeTab() === 'script'" (click)="activeTab.set('script')">
+              Script
+              @if (newScriptGenerated() && activeTab() !== 'script') {
+                <span class="tab-badge">NEW</span>
+              }
+            </button>
+            <button class="tab" [class.tab--active]="activeTab() === 'run'" (click)="activeTab.set('run')">
+              Last Run
+              @if (executionReport() && !showReport()) {
+                <span class="tab-badge" [class]="'tab-badge--' + executionReport()?.status">●</span>
+              }
+            </button>
+          </div>
+
+          <!-- SCRIPT TAB -->
+          @if (activeTab() === 'script') {
+            <div class="tab-content">
+
+              @if (selectedVersion()) {
+                <div class="script-meta-bar">
+                  <span>v{{ selectedVersion()!.versionNumber }} — {{ getSourceLabel(selectedVersion()!.source) }}</span>
+                  @if (placeholders().length > 0) {
+                    <span class="warn-placeholders">⚠ {{ placeholders().length }} unresolved placeholder(s)</span>
+                  }
+                </div>
+              }
+
+              @if (placeholders().length > 0) {
+                <div class="placeholder-list">
+                  <strong>Placeholders to resolve:</strong>
+                  <div class="placeholder-chips">
+                    @for (p of placeholders(); track p) {
+                      <span class="placeholder-chip">{{ p }}</span>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (loadingContent()) {
+                <div class="loading-center"><app-spinner /></div>
+              } @else if (selectedContent()) {
+                <pre class="code-block"><code>{{ selectedContent() }}</code></pre>
+              }
+
+            </div>
+          }
+
+          <!-- RUN TAB -->
+          @if (activeTab() === 'run') {
+            <div class="tab-content tab-content--run">
+
+              <!-- Terminal -->
+              @if (isRunning() || executionSteps().length > 0) {
+                <div class="terminal-wrap">
+                  <div class="terminal-titlebar">
+                    <span class="tb-dot tb-dot--red"></span>
+                    <span class="tb-dot tb-dot--yellow"></span>
+                    <span class="tb-dot tb-dot--green"></span>
+                    <span class="tb-title">playwright-runner</span>
+                    @if (isRunning()) {
+                      <span class="tb-badge tb-badge--running">● RUNNING</span>
+                    } @else if (lastRunResult()?.status === 'passed') {
+                      <span class="tb-badge tb-badge--passed">✓ PASSED</span>
+                    } @else if (lastRunResult()?.status) {
+                      <span class="tb-badge tb-badge--failed">✗ FAILED</span>
+                    }
+                  </div>
+
+                  <div class="terminal-body" #terminalEl>
+                    @for (step of executionSteps(); track $index) {
+                      <div class="tl" [class]="'tl--' + step.status">
+                        <span class="tl-ts">[{{ step.timestamp | date:'HH:mm:ss' }}]</span>
+                        <span class="tl-msg">{{ step.content }}</span>
+                        @if (step.duration) {
+                          <span class="tl-dur">+{{ step.duration }}ms</span>
+                        }
+                      </div>
+                    }
+                    @if (isRunning()) {
+                      <div class="tl tl--running">
+                        <span class="tl-ts">[{{ currentTime() | date:'HH:mm:ss' }}]</span>
+                        <span class="tl-cursor">▋</span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- EXECUTION REPORT (NOUVEAU) -->
+              @if (showReport() && executionReport()) {
+                <div class="execution-report" #reportEl>
+                  <div class="report-header" [class]="'report-header--' + executionReport()!.status">
+                    <div class="report-title">
+                      <span class="report-icon">{{ getStatusIcon() }}</span>
+                      Execution Report
+                    </div>
+                    <button class="report-close" (click)="closeReport()">×</button>
+                  </div>
+                  
+                  <div class="report-summary">
+                    <div class="summary-status">
+                      <span class="status-badge" [class]="'status-' + executionReport()!.status">
+                        {{ executionReport()!.status | uppercase }}
+                      </span>
+                      <span class="summary-date">{{ currentTime() | date:'HH:mm:ss' }}</span>
+                    </div>
+                    <div class="summary-stats">
+                      <div class="stat">
+                        <span class="stat-value">{{ executionReport()!.successRate | number:'1.0-0' }}%</span>
+                        <span class="stat-label">Success Rate</span>
+                      </div>
+                      <div class="stat">
+                        <span class="stat-value">{{ executionReport()!.passedSteps }}/{{ executionReport()!.totalSteps }}</span>
+                        <span class="stat-label">Steps Passed</span>
+                      </div>
+                      <div class="stat">
+                        <span class="stat-value">{{ executionReport()!.duration }}ms</span>
+                        <span class="stat-label">Duration</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Détail des steps -->
+                  @if (executionReport()!.steps.length > 0) {
+                    <div class="report-steps">
+                      <h4>Execution Steps</h4>
+                      <div class="steps-timeline">
+                        @for (step of executionReport()!.steps; track step.order) {
+                          <div class="step-item" [class.step-failed]="step.status === 'failed'">
+                            <div class="step-marker">
+                              <span class="step-icon">{{ step.status === 'success' ? '✓' : '✗' }}</span>
+                            </div>
+                            <div class="step-content">
+                              <div class="step-header">
+                                <span class="step-order">Step {{ step.order }}</span>
+                                <span class="step-type">{{ step.type }}</span>
+                                <span class="step-duration">{{ step.duration }}ms</span>
+                              </div>
+                              <div class="step-description">{{ step.description }}</div>
+                              @if (step.error) {
+                                <div class="step-error">{{ step.error }}</div>
+                              }
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                  
+                  <!-- Recommandations -->
+                  @if (executionReport()!.recommendations.length > 0) {
+                    <div class="report-recommendations">
+                      <h4>💡 Recommendations</h4>
+                      <ul>
+                        @for (rec of executionReport()!.recommendations; track $index) {
+                          <li>{{ rec }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                  
+                  <!-- Boutons d'action -->
+                  <div class="report-actions">
+                    @if (newScriptGenerated()) {
+                      <button class="btn-new-script" (click)="viewNewScript()">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v5.5h5.5a.75.75 0 010 1.5h-5.5v5.5a.75.75 0 01-1.5 0v-5.5h-5.5a.75.75 0 010-1.5h5.5v-5.5A.75.75 0 0110 3z" clip-rule="evenodd"/>
+                        </svg>
+                        View Corrected Script v{{ newScriptVersionNumber() }}
+                      </button>
+                    }
+                    <button class="btn-rerun" (click)="rerunScript()">Rerun</button>
+                    <button class="btn-close" (click)="closeReport()">Close</button>
+                  </div>
+                </div>}
+
+              <!-- Last run summary (shown after completion) -->
+              @if (lastRun() && !executionReport()) {
+                <div class="run-summary-card">
+                  <div class="rsc-header">
+                    <span class="badge" [class]="getRunStatusClass(lastRunResult()?.status)">
+                      {{ lastRunResult()?.status ?? 'unknown' }}
+                    </span>
+                    <span class="rsc-meta">
+                      {{ lastRun()!.browser }}
+                      @if (lastRun()!.duration) { · {{ lastRun()!.duration }}ms }
+                      · {{ lastRun()!.started_at | date:'dd/MM/yyyy HH:mm:ss' }}
+                    </span>
+                  </div>
+                  @if (lastRunResult()?.error_message) {
+                    <div class="rsc-error">{{ lastRunResult()!.error_message }}</div>
+                  }
+                  @if (lastRunResult()?.justification) {
+                    <div class="rsc-justification">{{ lastRunResult()!.justification }}</div>
+                  }
+                </div>
+              }
+
+              <!-- Execution Steps Report (from DB) -->
+              @if (lastRunSteps().length > 0 && !executionReport()) {
+                <div class="steps-report-card">
+                  <div class="src-header">
+                    <span class="src-title">Execution Details</span>
+                    <div class="src-counters">
+                      <span class="src-counter src-counter--ok">✅ {{ successStepsCount() }} ok</span>
+                      <span class="src-counter src-counter--fail">❌ {{ failedStepsCount() }} errors</span>
+                      <span class="src-counter src-counter--total">{{ lastRunSteps().length }} messages</span>
+                    </div>
+                  </div>
+
+                  <div class="src-timeline">
+                    @for (step of lastRunSteps(); track step.order) {
+                      <div class="srt-item" [class.srt-item--failed]="step.status === 'failed'" [class.srt-item--think]="step.type === 'think'">
+                        <div class="srt-marker">
+                          <span class="srt-icon">{{ getStepTypeIcon(step.type) }}</span>
+                        </div>
+                        <div class="srt-body">
+                          <div class="srt-head">
+                            @if (step.tool_name) {
+                              <code class="srt-tool">{{ step.tool_name }}</code>
+                            }
+                            <span class="srt-type-badge srt-type-badge--{{ step.type }}">{{ step.type }}</span>
+                            <span class="srt-status">{{ step.status === 'success' ? '✅' : '❌' }}</span>
+                          </div>
+                          <div class="srt-content">{{ getStepPreview(step) }}</div>
+                          @if (step.status === 'failed') {
+                            <div class="srt-error-detail">{{ extractError(step.content) }}</div>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (!lastRun() && !isRunning() && executionSteps().length === 0 && !executionReport()) {
+                <div class="no-run">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/>
+                  </svg>
+                  <p>No runs yet. Click <strong>Run Script</strong> to execute.</p>
+                </div>
+              }
+
+            </div>
+          }
+
+        </div>
+      </div>
+    }
+  }
+</div>
+
+<!-- Toast notification flottante pour nouveau script -->
+@if (newScriptGenerated() && activeTab() !== 'script') {
+  <div class="floating-toast">
+    <div class="toast-content">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div>
+        <strong>New corrected script available!</strong>
+        <p>Version v{{ newScriptVersionNumber() }} with resolved placeholders</p>
+      </div>
+    </div>
+    <button class="toast-action" (click)="applyNewScript()">View Script →</button>
+  </div>
+}

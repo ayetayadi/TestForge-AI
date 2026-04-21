@@ -2,6 +2,9 @@
 
 $radius: 8px;
 $transition: 0.15s ease;
+$input-height: 40px;
+$border-color: #e2e8f0;
+$primary: #4f46e5;
 
 // ============================================
 // PAGE PRINCIPALE
@@ -55,6 +58,266 @@ $transition: 0.15s ease;
       margin: 0;
     }
   }
+}
+
+// ============================================
+// FILTERS ROW - UNIFORMISATION
+// ============================================
+
+.filters-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+// Tous les éléments de la barre de filtres ont la même hauteur
+.project-filter,
+.search-wrapper,
+:host ::ng-deep .filter-bar,
+:host ::ng-deep app-search-bar,
+:host ::ng-deep app-filter-bar {
+  display: inline-flex;
+  align-items: center;
+}
+
+// Uniformisation des selects
+.project-filter .project-select,
+:host ::ng-deep .filter-trigger {
+  height: $input-height;
+  padding: 0 14px;
+  border: 1px solid $border-color;
+  border-radius: $radius;
+  background: white;
+  font-size: 0.8rem;
+  color: #374151;
+  cursor: pointer;
+  transition: all $transition;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 2px rgba($primary, 0.1);
+  }
+  
+  &:hover {
+    border-color: #cbd5e1;
+  }
+}
+
+// Select spécifique avec flèche - largeur fixe comme les filtres
+.project-filter .project-select {
+  width: 130px;  // ← Même largeur que les filtres
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 18px;
+  padding-right: 36px;
+}
+
+// Search Bar wrapper - plus large
+.search-wrapper {
+  flex: 2;  // Prend 2 fois plus d'espace
+  min-width: 280px;  // Largeur minimum raisonnable
+  max-width: 450px;  // Largeur maximum
+  
+  :host ::ng-deep .search-bar {
+    height: $input-height;
+    width: 100%;
+    
+    input {
+      height: 100%;
+      width: 100%;
+    }
+  }
+}
+
+// FilterBarComponent - uniformisation
+:host ::ng-deep {
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    height: $input-height;
+  }
+  
+  .filter-dropdown {
+    position: relative;
+    height: 100%;
+  }
+  
+  .filter-trigger {
+    height: $input-height;
+    min-width: 110px;  // Largeur des filtres Status/Priority
+    padding: 0 14px;
+    background: white;
+    border: 1px solid $border-color;
+    border-radius: $radius;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    
+    .filter-icon {
+      width: 16px;
+      height: 16px;
+      fill: #64748b;
+    }
+    
+    .chevron {
+      width: 16px;
+      height: 16px;
+      fill: #64748b;
+      transition: transform $transition;
+    }
+    
+    &:hover {
+      border-color: #cbd5e1;
+      background: #f8fafc;
+    }
+  }
+}
+  
+  .filter-dropdown.open .filter-trigger {
+    border-color: $primary;
+    background: #f8fafc;
+    
+    .chevron {
+      transform: rotate(180deg);
+    }
+  }
+  
+  .filter-dropdown.has-active .filter-trigger {
+    border-color: $primary;
+    background: #eef2ff;
+    color: $primary;
+    
+    .filter-icon {
+      fill: $primary;
+    }
+  }
+  
+  .dropdown-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 200px;
+    background: white;
+    border: 1px solid $border-color;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    overflow: hidden;
+  }
+  
+  .option-list {
+    list-style: none;
+    margin: 0;
+    padding: 8px 0;
+    
+    li {
+      padding: 0;
+    }
+  }
+  
+  .option-btn {
+    width: 100%;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #374151;
+    transition: background $transition;
+    text-align: left;
+    
+    &:hover {
+      background: #f1f5f9;
+    }
+    
+    &.selected {
+      background: #eef2ff;
+      color: $primary;
+    }
+    
+    .checkbox {
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 4px;
+      background: white;
+      
+      &.checked {
+        background: $primary;
+        border-color: $primary;
+        
+        svg {
+          width: 12px;
+          height: 12px;
+          fill: white;
+        }
+      }
+    }
+    
+    .option-label {
+      flex: 1;
+    }
+    
+    .option-count {
+      font-size: 0.7rem;
+      color: #94a3b8;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 20px;
+    }
+    
+    &.selected .option-count {
+      background: #e0e7ff;
+      color: $primary;
+    }
+  }
+  
+  .clear-all-btn {
+    height: $input-height;
+    padding: 0 16px;
+    background: white;
+    border: 1px solid $border-color;
+    border-radius: $radius;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #ef4444;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all $transition;
+    
+    &:hover {
+      background: #fef2f2;
+      border-color: #ef4444;
+    }
+  }
+
+
+// ============================================
+// TOOLBAR
+// ============================================
+
+.toolbar {
+  margin-bottom: 20px;
 }
 
 .btn-back {
@@ -120,20 +383,8 @@ $transition: 0.15s ease;
   padding: 80px 0;
 }
 
-
-.story-highlight {
-    background-color: rgba(25, 118, 210, 0.15) !important;
-    transition: background-color 0.3s ease;
-    animation: highlight-pulse 0.5s ease-in-out;
-}
-
-@keyframes highlight-pulse {
-    0% { background-color: rgba(25, 118, 210, 0); }
-    50% { background-color: rgba(25, 118, 210, 0.3); }
-    100% { background-color: rgba(25, 118, 210, 0.15); }
-}
 // ============================================
-// EMPTY HERO (No stories) - Same style as projects
+// EMPTY HERO
 // ============================================
 
 .empty-hero {
@@ -239,18 +490,7 @@ $transition: 0.15s ease;
 }
 
 // ============================================
-// TOOLBAR
-// ============================================
-
-.toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-// ============================================
-// NO RESULTS (After filtering)
+// NO RESULTS
 // ============================================
 
 .no-results {
@@ -289,14 +529,6 @@ $transition: 0.15s ease;
 // ============================================
 // TABLE CONTAINER
 // ============================================
-
-.table-container {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  overflow: hidden;
-  margin-top: 8px;
-}
 
 .stories-table {
   width: 100%;

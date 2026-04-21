@@ -4,8 +4,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
-import { UserStory, UserStoryVersion, SSEEvent, PipelineResponse, StoryWithVersion } from '../../models';
-import { StoriesService, PipelineService, SseService, ToastService, VersionsService } from '../../services';
+import { UserStory, UserStoryVersion, SSEEvent, PipelineResponse, StoryWithVersion, Project } from '../../models/user_story.model';
+import { StoriesService, PipelineService, SseService, ToastService, VersionsService, ProjectsService } from '../../services';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
 import { SearchBarComponent } from '../../components/search-bar/search-bar.component';
@@ -41,7 +41,8 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   private versionsService = inject(VersionsService);
   private toastService = inject(ToastService);
   private navigationService = inject(NavigationService);
-
+  private projectsService = inject(ProjectsService);
+  
   @ViewChild('importModal') importModal!: ImportModalComponent;
 
   // ─── State ──────────────────────────────────────────────────────
@@ -53,6 +54,10 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   // Pagination
   page = signal(1);
   pageSize = signal(10);
+
+  // Projects list pour le filtre
+projects = signal<{ id: string; project_name: string }[]>([]);
+selectedProjectId = signal<string>('');
 
   // Search
   private searchQuery = signal('');
@@ -71,41 +76,40 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   private sseSubscriptions = new Map<string, Subscription>();
 
   // ─── Filter config ──────────────────────────────────────────────
-
-  filterGroups: FilterGroup[] = [
-    {
-      key: 'priority',
-      label: 'Priority',
-      multiple: true,
-      options: [
-        { value: 'highest', label: 'Highest' },
-        { value: 'high',    label: 'High' },
-        { value: 'medium',  label: 'Medium' },
-        { value: 'low',     label: 'Low' },
-        { value: 'lowest',  label: 'Lowest' },
-      ],
-    },
-    {
-      key: 'pipeline',
-      label: 'Pipeline Status',
-      multiple: true,
-      options: [
-        { value: 'idle',       label: 'Not processed' },
-        { value: 'processing', label: 'In progress' },
-        { value: 'completed',  label: 'Completed' },
-        { value: 'failed',     label: 'Failed' },
-      ],
-    },
-    {
-      key: 'ac',
-      label: 'Acceptance Criteria',
-      multiple: false,
-      options: [
-        { value: 'has_ac', label: 'Has AC' },
-        { value: 'no_ac',  label: 'No AC' },
-      ],
-    },
-  ];
+filterGroups: FilterGroup[] = [
+  {
+    key: 'priority',
+    label: 'Priority',
+    multiple: true,
+    options: [
+      { value: 'highest', label: 'Highest' },
+      { value: 'high',    label: 'High' },
+      { value: 'medium',  label: 'Medium' },
+      { value: 'low',     label: 'Low' },
+      { value: 'lowest',  label: 'Lowest' },
+    ],
+  },
+  {
+    key: 'pipeline',
+    label: 'Pipeline Status',
+    multiple: true,
+    options: [
+      { value: 'idle',       label: 'Not processed' },
+      { value: 'processing', label: 'In progress' },
+      { value: 'completed',  label: 'Completed' },
+      { value: 'failed',     label: 'Failed' },
+    ],
+  },
+  {
+    key: 'ac',
+    label: 'Acceptance Criteria',
+    multiple: false,
+    options: [
+      { value: 'has_ac', label: 'Has AC' },
+      { value: 'no_ac',  label: 'No AC' },
+    ],
+  },
+];
 
   // ─── Computed ───────────────────────────────────────────────────
 
@@ -145,6 +149,11 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
       }
     }
 
+  const selectedProjectId = filters['project']?.[0];
+  if (selectedProjectId) {
+    result = result.filter(s => s.project_id === selectedProjectId);
+  }
+  
     return result;
   });
 
@@ -175,12 +184,13 @@ ngOnInit(): void {
         this.projectId.set(params['projectId'] || null);
         this.projectName.set(params['projectName'] || null);
         const highlightKey = params['highlight'];
-        const page = params['page'];  // ← AJOUTER
+        const page = params['page'];  
         
         if (page) {
-            this.page.set(parseInt(page, 10));  // ← AJOUTER
+            this.page.set(parseInt(page, 10));  
         }
-        
+
+        this.loadProjects();        
         this.loadStories();
         
         if (highlightKey) {
@@ -199,6 +209,52 @@ ngOnInit(): void {
     this.sseSubscriptions.clear();
     this.versionsService.disconnectAllStreams();
   }
+loadProjects(): void {
+  this.projectsService.getProjects().subscribe({
+    next: (projects: Project[]) => {
+      this.projects.set(projects);
+      
+      // Créer le filtre projet
+      const projectOptions = projects.map(p => ({
+        value: p.id,
+        label: p.project_name,
+      }));
+      
+      const projectFilter: FilterGroup = {
+        key: 'project',
+        label: 'Project',
+        multiple: false,
+        options: [
+          { value: '', label: 'All Projects' },
+          ...projectOptions
+        ],
+      };
+      
+      // Vérifier si le filtre projet existe déjà
+      const existingIndex = this.filterGroups.findIndex(g => g.key === 'project');
+      
+      if (existingIndex !== -1) {
+        // Remplacer
+        this.filterGroups[existingIndex] = projectFilter;
+      } else {
+        // Ajouter au début
+        this.filterGroups.unshift(projectFilter);
+      }
+      
+      // ✅ Forcer la détection des changements (optionnel)
+      this.filterGroups = [...this.filterGroups];
+    },
+    error: (err) => {
+      console.error('Failed to load projects:', err);
+    },
+  });
+}
+onProjectChange(event: Event): void {
+  const select = event.target as HTMLSelectElement;
+  this.selectedProjectId.set(select.value);
+  this.page.set(1);
+}
+
 
 // user-stories.component.ts
 private scrollToStory(issueKey: string): void {
@@ -265,7 +321,6 @@ private recoverVersionStates(): void {
 
     this.versionsService.getVersionsByIssueKeys(issueKeys).subscribe({
         next: (versionsMap) => {
-            console.log('[VERSIONS MAP]', JSON.stringify(versionsMap, null, 2));
             
             this.stories.update(currentStories => {
                 const updatedStories: StoryWithVersion[] = [];
@@ -273,8 +328,6 @@ private recoverVersionStates(): void {
                 for (const s of currentStories) {
                     const versionData = versionsMap[s.issue_key];
                     
-                    console.log(`[VERSION DATA for ${s.issue_key}]`, versionData);
-
                     if (!versionData) {
                         updatedStories.push({
                             ...s,
@@ -461,6 +514,7 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
   clearAllFilters(): void {
     this.searchQuery.set('');
     this.activeFilters.set({});
+    this.selectedProjectId.set('');
     this.page.set(1);
   }
 

@@ -3,7 +3,7 @@ import logging
 from typing import Any
 from langchain_openrouter import ChatOpenRouter
 
-from app.ai_agents_v2.user_story_refinement.config import LLM_TEMPERATURE
+from app.ai_agents_v2.user_story_refinement.config import LLM_TEMPERATURE, LLM_MODEL, LLM_MAX_TOKENS
 
 logger = logging.getLogger(__name__)
 
@@ -36,23 +36,23 @@ class ControlledChatOpenRouter(ChatOpenRouter):
                 raise
 
 
-def create_llm(temperature: float = LLM_TEMPERATURE) -> ControlledChatOpenRouter:
+def create_llm(temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL) -> ControlledChatOpenRouter:
     """
     Factory pour créer une instance ChatOpenRouter contrôlée.
-    
+
     Basé sur la doc officielle:
     https://python.langchain.com/docs/integrations/chat/openrouter
     """
-    
+
     from app.core.config import settings
-    
+
     if not settings.OPENROUTER_API_KEY:
         raise ValueError("OPENROUTER_API_KEY not configured in .env")
-    
+
     return ControlledChatOpenRouter(
-        model="openai/gpt-oss-20b",
+        model=model,
         temperature=temperature,
-        max_tokens=None,
+        max_tokens=LLM_MAX_TOKENS,
         max_retries=2,
         api_key=settings.OPENROUTER_API_KEY,
     )
