@@ -10,14 +10,14 @@ from app.repositories.user_story_repository import get_user_story_by_id
 from app.core.config import settings
 from app.core.database import async_session_maker
 from app.streaming.sse_manager import push_event
-from app.ai_workflows.user_story_refinement.agent import get_pipeline
+from app.ai_workflows.user_story_refinement.workflow import get_pipeline
 from app.models.user_story_version import UserStoryVersion
 from .queue import job_queue
 
 logger = logging.getLogger(__name__)
 
 MAX_WORKERS = settings.MAX_WORKERS
-AGENT_TIMEOUT = 120  # 2 minutes
+WORKFLOW_TIMEOUT = 120
 MAX_RETRIES = 3
 
 workers: List[asyncio.Task] = []
@@ -153,10 +153,10 @@ async def async_worker(worker_id: int) -> None:
                             jira_id=jira_id,
                             progress_callback=_make_progress_callback(version_id),
                         ),
-                        timeout=AGENT_TIMEOUT,
+                        timeout=WORKFLOW_TIMEOUT,
                     )
                 except asyncio.TimeoutError:
-                    raise TimeoutError(f"Agent timeout after {AGENT_TIMEOUT}s")
+                    raise TimeoutError(f"Agent timeout after {WORKFLOW_TIMEOUT}s")
 
                 # errors are returned as a result dict, not raised
                 if result.get("agent_status") == "error":
