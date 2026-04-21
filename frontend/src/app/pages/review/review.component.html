@@ -57,9 +57,9 @@
       <div class="processing-card">
         <app-spinner [size]="48" />
         <h3>Pipeline Running</h3>
-        <p>This version is still being processed...</p>
+        <p>{{ phaseMessage() || 'This version is still being processed...' }}</p>
         <div class="processing-hint">
-          <p>Please wait while the AI agent analyzes and improves your user story.</p>
+          <p>Please wait while the AI analyzes and improves your user story.</p>
         </div>
       </div>
     </div>
