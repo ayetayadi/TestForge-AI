@@ -1,7 +1,7 @@
 # test_agent.py
 import asyncio
 import time
-from app.ai_agents_v2.user_story_refinement.agent import get_pipeline
+from app.ai_workflows.user_story_refinement.agent import get_pipeline
 
 async def test():
     print("=" * 80)

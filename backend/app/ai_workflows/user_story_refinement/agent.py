@@ -15,12 +15,12 @@ from typing import Any, Callable, Dict, List, Optional
 from langsmith import traceable
 from pydantic import BaseModel, Field
 
-from app.ai_agents_v2.user_story_refinement.evaluators import (
+from app.ai_workflows.user_story_refinement.evaluators import (
     extract_acceptance_criteria,
     score_story,
     validate_constraints,
 )
-from app.ai_agents_v2.user_story_refinement.utils.text_processing import (
+from app.ai_workflows.user_story_refinement.utils.text_processing import (
     clean_story_text,
     compare_similarity,
     extract_actor_from_story,
@@ -28,7 +28,7 @@ from app.ai_agents_v2.user_story_refinement.utils.text_processing import (
     verify_role_preserved,
 )
 from app.llm.llm_control import create_llm
-from app.ai_agents_v2.user_story_refinement.prompts import IMPROVEMENT_PROMPT
+from app.ai_workflows.user_story_refinement.prompts import IMPROVEMENT_PROMPT
 from .config import LLM_TEMPERATURE, MIN_SCORE_THRESHOLD
 
 logger = logging.getLogger(__name__)

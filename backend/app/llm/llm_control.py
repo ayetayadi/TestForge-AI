@@ -62,7 +62,7 @@ import asyncio
 import logging
 from typing import Any, Optional
 from langchain_groq import ChatGroq  # ← Directement via langchain_groq
-from app.ai_agents_v2.user_story_refinement.config import LLM_TEMPERATURE, LLM_MAX_TOKENS
+from app.ai_workflows.user_story_refinement.config import LLM_TEMPERATURE, LLM_MAX_TOKENS
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
