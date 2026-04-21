@@ -7,6 +7,8 @@ import { authGuard } from '../core/guards/auth.guard';
 import { ProfileComponent } from './profile/profile.component';
 import { UserDashboardComponent } from './user/user-dashboard/user-dashboard.component';
 import { AdminDashboardComponent } from './admin/admin-dashboard/admin-dashboard.component';
+import { TestCasesComponent } from './test-cases/test-cases.component';
+import { TestCaseDetailComponent } from './test-case-detail/test-case-detail.component';
 
 export const PagesRoutes: Routes = [
   {
@@ -58,4 +60,31 @@ export const PagesRoutes: Routes = [
     canActivate: [authGuard],
     data: { title: 'Profile' },
   },
+  {
+    path: 'test-cases',
+    component: TestCasesComponent,
+    canActivate: [authGuard],
+    data: { title: 'Test Cases' },
+  },
+  {
+    path: 'test-cases/:id',
+    component: TestCaseDetailComponent,
+    canActivate: [authGuard],
+    data: { title: 'Test Case Details' },
+  },
+  {
+    path: 'playwright-scripts',
+    loadComponent: () =>
+      import('./playwright-scripts/playwright-scripts.component').then(m => m.PlaywrightScriptsComponent),
+    canActivate: [authGuard],
+    data: { title: 'Playwright Scripts' },
+  },
+  {
+    path: 'playwright-scripts/:testCaseId',
+    loadComponent: () =>
+      import('./playwright-script-detail/playwright-script-detail.component').then(m => m.PlaywrightScriptDetailComponent),
+    canActivate: [authGuard],
+    data: { title: 'Script Detail' },
+  },
+
 ];

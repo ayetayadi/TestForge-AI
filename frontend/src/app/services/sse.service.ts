@@ -1,7 +1,7 @@
 // services/sse.service.ts
 import { Injectable, NgZone } from '@angular/core';
 import { Observable, Observer } from 'rxjs';
-import { SSEEvent } from '../models';
+import { SSEEvent } from '../models/user_story.model';
 
 @Injectable({
   providedIn: 'root'
@@ -109,6 +109,65 @@ export class SseService {
       // Nettoyage
       return () => {
         this.disconnect(versionId);
+      };
+    });
+  }
+
+  /**
+   * Connecte à un stream SSE générique avec des types d'événements personnalisés.
+   * Terminal events: 'completed' et 'failed' ferment automatiquement la connexion.
+   */
+  connectToStream<T extends { type: string; data: any; timestamp: string }>(
+    url: string,
+    streamId: string,
+    eventTypes: string[]
+  ): Observable<T> {
+    return new Observable((observer) => {
+      if (this.eventSources.has(streamId)) {
+        this.disconnect(streamId);
+      }
+
+      const eventSource = new EventSource(url);
+      this.eventSources.set(streamId, eventSource);
+      this.reconnectAttempts.set(streamId, 0);
+
+      eventSource.onopen = () => {
+        this.zone.run(() => {
+          this.reconnectAttempts.set(streamId, 0);
+        });
+      };
+
+      eventTypes.forEach(eventType => {
+        eventSource.addEventListener(eventType, (event: MessageEvent) => {
+          this.zone.run(() => {
+            try {
+              const data = event.data ? JSON.parse(event.data) : {};
+              const sseEvent = { type: eventType, data, timestamp: new Date().toISOString() } as T;
+
+              if (eventType === 'completed' || eventType === 'failed') {
+                observer.next(sseEvent);
+                observer.complete();
+                this.disconnect(streamId);
+                return;
+              }
+
+              observer.next(sseEvent);
+            } catch (e) {
+              console.error(`[SSE] Parse error for stream ${streamId}:`, e);
+            }
+          });
+        });
+      });
+
+      eventSource.onerror = () => {
+        this.zone.run(() => {
+          observer.error(new Error(`SSE connection error for ${streamId}`));
+          this.disconnect(streamId);
+        });
+      };
+
+      return () => {
+        this.disconnect(streamId);
       };
     });
   }

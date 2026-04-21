@@ -57,7 +57,6 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
-
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
@@ -66,17 +65,29 @@ def run_migrations_online() -> None:
 
     """
     
-    connectable = create_engine(os.getenv("DATABASE_URL"))
-
+    # Récupérer l'URL depuis .env
+    database_url = os.getenv("DATABASE_URL")
+    
+    # Convertir l'URL async en URL sync pour Alembic
+    # De: postgresql+asyncpg://... -> postgresql://...
+    if database_url:
+        database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+        print(f"Using sync URL for migrations: {database_url}")  # Pour debug, à retirer ensuite
+    
+    # Créer l'engine synchrone avec psycopg2
+    connectable = create_engine(database_url)
+    
     with connectable.connect() as connection:
+        # Configurer avec compare_type=True pour mieux détecter les changements
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, 
+            target_metadata=target_metadata,
+            compare_type=True  # Important pour les types JSONB, ENUM, etc.
         )
 
         with context.begin_transaction():
             context.run_migrations()
-
-
+            
 if context.is_offline_mode():
     run_migrations_offline()
 else:

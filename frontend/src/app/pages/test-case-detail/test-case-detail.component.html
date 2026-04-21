@@ -1,0 +1,582 @@
+<div class="tcd-page">
+
+  <!-- ── Loading ──────────────────────────────────────────────────────────── -->
+  @if (isLoading) {
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading test case…</p>
+    </div>
+  }
+
+  <!-- ── Content ───────────────────────────────────────────────────────────── -->
+  @if (!isLoading && testCase) {
+
+    <!-- ─ Topbar ─ -->
+    <div class="tcd-topbar">
+      <button class="btn-back" (click)="goBack()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
+        </svg>
+        Back
+      </button>
+
+      <div class="tcd-breadcrumb">
+        @if (testCase.project_name) {
+          <span class="bc-item">{{ testCase.project_name }}</span>
+          <span class="bc-sep">/</span>
+        }
+        @if (testCase.issue_key) {
+          <span class="bc-item bc-item--key">{{ testCase.issue_key }}</span>
+          <span class="bc-sep">/</span>
+        }
+        <span class="bc-item bc-item--code">{{ testCase.tc_code }}</span>
+      </div>
+
+      <div class="topbar-right">
+        @if (!isEditing) {
+          <button class="btn-icon btn-icon--edit" (click)="toggleEdit()" title="Edit">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"/>
+            </svg>
+            Edit
+          </button>
+          <button class="btn-icon btn-icon--delete" (click)="deleteTestCase()" title="Delete">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+            </svg>
+            Delete
+          </button>
+        } @else {
+          <button class="btn-cancel" (click)="toggleEdit()">Cancel</button>
+          <button class="btn-save" (click)="saveChanges()" [disabled]="isSaving">
+            @if (isSaving) { <div class="spinner-small"></div> Saving… }
+            @else {
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
+              </svg>
+              Save changes
+            }
+          </button>
+        }
+        <button class="btn-playwright" (click)="generatePlaywrightScript()" [disabled]="generatingIds().has(testCase.id)">
+          @if (generatingIds().has(testCase.id)) {
+            <div class="spinner-small"></div>
+            Generating...
+          } @else {
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+            </svg>
+            Generate Playwright Script
+          }
+        </button>
+
+        @if (hasScripts()) {
+            <button class="btn-playwright btn-view-scripts" (click)="viewScripts()" title="View generated scripts">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4z" />
+                <path d="M12 10a1 1 0 10-2 0v1H9a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" />
+              </svg>
+              View Scripts
+            </button>
+          }
+      </div>
+    </div>
+
+    <!-- ─ 3-panel layout ─ -->
+    <div class="tcd-layout">
+
+      <!-- ══ LEFT ══ User Story ────────────────────────────────────────────── -->
+      <aside class="tcd-panel tcd-panel--left">
+
+        <div class="panel-header">
+          <svg class="panel-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/>
+          </svg>
+          <span class="panel-title">User Story</span>
+        </div>
+
+        @if (testCase.issue_key) {
+          <div class="us-key-badge">{{ testCase.issue_key }}</div>
+        }
+
+        @if (testCase.user_story_title) {
+          <p class="us-story-title">{{ testCase.user_story_title }}</p>
+        } @else {
+          <p class="us-empty">No linked user story</p>
+        }
+
+        @if (testCase.project_name) {
+          <div class="us-meta-row">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4zm7 5a1 1 0 10-2 0v1H8a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd"/>
+            </svg>
+            {{ testCase.project_name }}
+          </div>
+        }
+
+        <div class="us-divider"></div>
+
+        <!-- Identité du test case -->
+        <div class="tc-meta-list">
+          <div class="tc-meta-item">
+            <span class="tc-meta-key">Code</span>
+            <span class="tc-code-inline">{{ testCase.tc_code }}</span>
+          </div>
+          <div class="tc-meta-item">
+            <span class="tc-meta-key">Priority</span>
+            <span class="priority-badge" [class]="getPriorityClass(testCase.priority)">
+              {{ testCase.priority || 'medium' }}
+            </span>
+          </div>
+          <div class="tc-meta-item">
+            <span class="tc-meta-key">Status</span>
+            <span class="status-badge" [class.active]="testCase.is_active">
+              {{ getStatusLabel(testCase.is_active) }}
+            </span>
+          </div>
+          <div class="tc-meta-item">
+            <span class="tc-meta-key">Created</span>
+            <span class="tc-meta-val">{{ testCase.created_at | date:'MMM d, y' }}</span>
+          </div>
+          <div class="tc-meta-item">
+            <span class="tc-meta-key">Updated</span>
+            <span class="tc-meta-val">{{ testCase.updated_at | date:'MMM d, y' }}</span>
+          </div>
+        </div>
+
+        @if ((testCase.tags || []).length > 0) {
+          <div class="us-divider"></div>
+          <div class="us-tags">
+            @for (tag of (testCase.tags || []); track tag) {
+              <span class="tag-pill" [class]="getTagClass(tag)">{{ tag }}</span>
+            }
+          </div>
+        }
+
+        @if (!hasScripts() && !isLoading && !checkingScripts()) {
+          <div class="no-scripts-message">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4zm7 5a1 1 0 10-2 0v1H8a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd"/>
+            </svg>
+            <p>No scripts generated yet</p>
+            <span>Click "Generate Playwright Script" to create your first test script</span>
+          </div>
+        }
+
+      </aside>
+
+      <!-- ══ MAIN ══ Test case ─────────────────────────────────────────────── -->
+      <main class="tcd-panel tcd-panel--main" [formGroup]="editForm">
+
+        <!-- Title card -->
+        <div class="tc-title-card">
+          @if (!isEditing) {
+            <h2 class="tc-main-title">{{ testCase.title }}</h2>
+            @if (testCase.description) {
+              <p class="tc-description">{{ testCase.description }}</p>
+            }
+          } @else {
+            <input class="tc-title-input" formControlName="title" placeholder="Test case title…">
+            <textarea
+              class="tc-description-input"
+              formControlName="description"
+              rows="2"
+              placeholder="Short description…"
+            ></textarea>
+          }
+        </div>
+
+        <!-- Tab nav -->
+        <div class="tab-nav">
+          <button class="tab-btn" [class.active]="activeTab === 'steps'" (click)="activeTab = 'steps'">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M6 4.75A.75.75 0 016.75 4h10.5a.75.75 0 010 1.5H6.75A.75.75 0 016 4.75zM6 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H6.75A.75.75 0 016 10zm0 5.25a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H6.75a.75.75 0 01-.75-.75zM1.99 4.75a1 1 0 011-1H3a1 1 0 010 2h-.01a1 1 0 01-1-1zm0 5.25a1 1 0 011-1H3a1 1 0 110 2h-.01a1 1 0 01-1-1zm0 5.25a1 1 0 011-1H3a1 1 0 110 2h-.01a1 1 0 01-1-1z" clip-rule="evenodd"/>
+            </svg>
+            Steps
+            @if (testCase.steps?.length) {
+              <span class="tab-badge">{{ testCase.steps!.length }}</span>
+            }
+          </button>
+          <button class="tab-btn" [class.active]="activeTab === 'scenario'" (click)="activeTab = 'scenario'">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M6.28 5.22a.75.75 0 010 1.06L2.56 10l3.72 3.72a.75.75 0 01-1.06 1.06L.97 10.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 0zm7.44 0a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L17.44 10l-3.72-3.72a.75.75 0 010-1.06zM11.377 2.011a.75.75 0 01.612.867l-2.5 14.5a.75.75 0 01-1.478-.255l2.5-14.5a.75.75 0 01.866-.612z" clip-rule="evenodd"/>
+            </svg>
+            Gherkin
+          </button>
+          <button class="tab-btn" [class.active]="activeTab === 'data'" (click)="activeTab = 'data'">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 1c3.866 0 7 1.343 7 3s-3.134 3-7 3-7-1.343-7-3 3.134-3 7-3zM3 7.083C4.322 7.657 6.535 8 9 8s4.678-.343 6-1v1c0 1.657-3.134 3-7 3S3 9.657 3 8V7.083zm0 3.917V13c0 1.657 3.134 3 7 3s7-1.343 7-3v-2.917C15.678 10.657 13.465 11 11 11s-4.678-.343-6-1z" clip-rule="evenodd"/>
+            </svg>
+            Test Data
+            @if (testDataEntries.length) {
+              <span class="tab-badge">{{ testDataEntries.length }}</span>
+            }
+          </button>
+        </div>
+
+        <!-- Tab content -->
+        <div class="tab-content">
+
+          <!-- ── TAB: Steps ─────────────────────────────────────────────────── -->
+          @if (activeTab === 'steps') {
+
+            <!-- Preconditions -->
+            @if (preconditions.length > 0 || isEditing) {
+              <div class="tc-section">
+                <div class="section-head">
+                  <svg class="section-icon section-icon--blue" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/>
+                  </svg>
+                  <span class="section-label">Preconditions</span>
+                  @if (preconditions.length) {
+                    <span class="section-count">{{ preconditions.length }}</span>
+                  }
+                </div>
+                @if (!isEditing) {
+                  <ul class="cond-list cond-list--pre">
+                    @for (p of preconditions; track $index) {
+                      <li>{{ p }}</li>
+                    }
+                  </ul>
+                        @if (hasHiddenPreconditions) {
+                            <div class="show-more-container">
+                              <button class="btn-show-more" (click)="showAllPreconditions()">
+                                Show {{ hiddenPreconditionsCount }} more precondition{{ hiddenPreconditionsCount > 1 ? 's' : '' }}
+                              </button>
+                            </div>
+                          }
+                    
+                          @if (!hasHiddenPreconditions && preconditions.length > 3) {
+                            <div class="show-more-container">
+                              <button class="btn-show-less" (click)="resetPreconditionsView()">
+                                Show less (only first 3 preconditions)
+                              </button>
+                            </div>
+                          }
+                } @else {
+                  <textarea class="code-editor" formControlName="preconditions" rows="3"
+                    placeholder='["User has an active account", "App is running"]'
+                    (change)="parseJson($event, 'preconditions')"></textarea>
+                }
+              </div>
+            }
+
+            <!-- Steps -->
+            @if ((testCase.steps && testCase.steps.length > 0) || isEditing) {
+              <div class="tc-section">
+                <div class="section-head">
+                  <svg class="section-icon section-icon--indigo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5A.75.75 0 012 10z" clip-rule="evenodd"/>
+                  </svg>
+                  <span class="section-label">Test Steps</span>
+                  @if (testCase.steps?.length) {
+                    <span class="section-count">
+                      {{ visibleSteps.length }} / {{ testCase.steps!.length }} steps
+                    </span>
+                  }
+                </div>
+                @if (!isEditing) {
+                  <div class="steps-list">
+                    <!-- Steps visibles -->
+                    @for (step of visibleSteps; track step.order; let last = $last) {
+                      <div class="step-item">
+                        <div class="step-num-col">
+                          <div class="step-num">{{ step.order }}</div>
+                          @if (!last && $index < visibleSteps.length - 1) { 
+                            <div class="step-line"></div>
+                          }
+                        </div>
+                        <div class="step-body">
+                          <div class="step-action">{{ step.action }}</div>
+                          @if (step.expected) {
+                            <div class="step-expected">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+                                <path fill-rule="evenodd" d="M12.416 3.376a.75.75 0 01.208 1.04l-5 7.5a.75.75 0 01-1.154.114l-3-3a.75.75 0 011.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 011.04-.207z" clip-rule="evenodd"/>
+                              </svg>
+                              {{ step.expected }}
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+            
+                  <!-- Bouton Show more / Show all -->
+                  @if (hasHiddenSteps) {
+                    <div class="show-more-container">
+                      <button class="btn-show-more" (click)="showAllSteps()">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z" clip-rule="evenodd"/>
+                        </svg>
+                        Show {{ hiddenStepsCount }} more test step{{ hiddenStepsCount > 1 ? 's' : '' }}
+                      </button>
+                    </div>
+                  }
+            
+                  <!-- Optionnel : bouton Reset (si tout est affiché) -->
+                  @if (!hasHiddenSteps && testCase.steps && testCase.steps.length > 3) {
+                    <div class="show-more-container">
+                      <button class="btn-show-less" (click)="resetStepsView()">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd"/>
+                        </svg>
+                        Show less (only first 3 test steps)
+                      </button>
+                    </div>
+                  }
+            
+                } @else {
+                  <textarea class="code-editor" formControlName="steps" rows="8"
+                    placeholder='[{"order": 1, "action": "Navigate to /login", "expected": "Page is displayed"}]'
+                    (change)="parseJson($event, 'steps')"></textarea>
+                }
+              </div>
+            }
+
+            <!-- Postconditions -->
+            @if ((testCase.postconditions && testCase.postconditions.length > 0) || isEditing) {
+              <div class="tc-section">
+                <div class="section-head">
+                  <svg class="section-icon section-icon--green" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"/>
+                  </svg>
+                  <span class="section-label">Postconditions</span>
+                  @if (testCase.postconditions?.length) {
+                    <span class="section-count">{{ visiblePostconditions.length }} / {{ testCase.postconditions!.length }}</span>
+                  }
+                </div>
+                @if (!isEditing) {
+                  <ul class="cond-list cond-list--post">
+                    @for (p of visiblePostconditions; track $index) {
+                      <li>{{ p }}</li>
+                    }
+                  </ul>
+            
+                  <!-- Bouton Show more pour postconditions -->
+                  @if (hasHiddenPostconditions) {
+                    <div class="show-more-container">
+                      <button class="btn-show-more" (click)="showAllPostconditions()">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z" clip-rule="evenodd"/>
+                        </svg>
+                        Show {{ hiddenPostconditionsCount }} more postcondition{{ hiddenPostconditionsCount > 1 ? 's' : '' }}
+                      </button>
+                    </div>
+                  }
+            
+                  <!-- Bouton Show less pour postconditions -->
+                  @if (!hasHiddenPostconditions && testCase.postconditions && testCase.postconditions.length > 3) {
+                    <div class="show-more-container">
+                      <button class="btn-show-less" (click)="resetPostconditionsView()">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd"/>
+                        </svg>
+                        Show less (only first 3 postconditions)
+                      </button>
+                    </div>
+                  }
+            
+                } @else {
+                  <textarea class="code-editor" formControlName="postconditions" rows="3"
+                    placeholder='["User session is active", "Token stored in localStorage"]'
+                    (change)="parseJson($event, 'postconditions')"></textarea>
+                }
+              </div>
+            }
+
+            @if (preconditions.length === 0 && (!testCase.steps || testCase.steps.length === 0) && !isEditing) {
+              <div class="empty-tab">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M6 4.75A.75.75 0 016.75 4h10.5a.75.75 0 010 1.5H6.75A.75.75 0 016 4.75z" clip-rule="evenodd"/>
+                </svg>
+                No steps defined yet
+              </div>
+            }
+          }
+
+          <!-- ── TAB: Gherkin ───────────────────────────────────────────────── -->
+          @if (activeTab === 'scenario') {
+            <div class="tc-section">
+              <div class="section-head">
+                <svg class="section-icon section-icon--purple" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M6.28 5.22a.75.75 0 010 1.06L2.56 10l3.72 3.72a.75.75 0 01-1.06 1.06L.97 10.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 0zm7.44 0a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L17.44 10l-3.72-3.72a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+                </svg>
+                <span class="section-label">Gherkin Scenario</span>
+              </div>
+              @if (!isEditing) {
+                @if (testCase.gherkin_source) {
+                  <div class="gherkin-block">
+                    @for (line of getGherkinLines(); track $index) {
+                      <div class="gh-line" [class]="'gh-' + line.type">{{ line.text || '\u00a0' }}</div>
+                    }
+                  </div>
+                } @else {
+                  <div class="empty-tab">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M6.28 5.22a.75.75 0 010 1.06L2.56 10l3.72 3.72a.75.75 0 01-1.06 1.06L.97 10.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 0z" clip-rule="evenodd"/>
+                    </svg>
+                    No Gherkin scenario defined yet
+                  </div>
+                }
+              } @else {
+                <textarea class="code-editor" formControlName="gherkin_source" rows="16"
+                  placeholder="Feature: …&#10;  Scenario: …&#10;    Given …&#10;    When …&#10;    Then …"></textarea>
+              }
+            </div>
+          }
+
+          <!-- ── TAB: Data ──────────────────────────────────────────────────── -->
+          @if (activeTab === 'data') {
+
+            <!-- Test Data -->
+            <div class="tc-section">
+              <div class="section-head">
+                <svg class="section-icon section-icon--amber" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 1c3.866 0 7 1.343 7 3s-3.134 3-7 3-7-1.343-7-3 3.134-3 7-3zM3 7.083C4.322 7.657 6.535 8 9 8s4.678-.343 6-1v1c0 1.657-3.134 3-7 3S3 9.657 3 8V7.083zm0 3.917V13c0 1.657 3.134 3 7 3s7-1.343 7-3v-2.917C15.678 10.657 13.465 11 11 11s-4.678-.343-6-1z" clip-rule="evenodd"/>
+                </svg>
+                <span class="section-label">Test Data</span>
+                @if (testDataEntries.length) {
+                  <span class="section-count">{{ testDataEntries.length }} keys</span>
+                }
+              </div>
+              @if (!isEditing) {
+                @if (testDataEntries.length > 0) {
+                  <table class="test-data-table">
+                    <tbody>
+                      @for (entry of testDataEntries; track entry.key) {
+                        <tr>
+                          <td class="td-key">{{ entry.key }}</td>
+                          <td class="td-val">{{ entry.value }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                } @else {
+                  <p class="section-empty">No test data defined.</p>
+                }
+              } @else {
+                <textarea class="code-editor" formControlName="test_data" rows="5"
+                  placeholder='{"email": "user@example.com", "password": "SecurePass123!"}'
+                  (change)="parseJson($event, 'test_data')"></textarea>
+              }
+            </div>
+
+            <!-- Expected Results -->
+            <div class="tc-section">
+              <div class="section-head">
+                <svg class="section-icon section-icon--green" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+                </svg>
+                <span class="section-label">Expected Results</span>
+                @if (testCase.expected_results?.length) {
+                  <span class="section-count">{{ testCase.expected_results!.length }}</span>
+                }
+              </div>
+              @if (testCase.expected_results && testCase.expected_results.length > 0) {
+                <ul class="expected-list">
+                  @for (r of testCase.expected_results; track $index) {
+                    <li>{{ r }}</li>
+                  }
+                </ul>
+              } @else {
+                <p class="section-empty">No expected results defined.</p>
+              }
+            </div>
+
+          }
+
+        </div><!-- /tab-content -->
+
+      </main>
+
+      <!-- ══ RIGHT ══ Coverage ──────────────────────────────────────────────── -->
+      <aside class="tcd-panel tcd-panel--right">
+
+        <div class="panel-header">
+          <svg class="panel-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clip-rule="evenodd"/>
+          </svg>
+          <span class="panel-title">Coverage</span>
+        </div>
+
+        <!-- Donut -->
+        <div class="donut-wrapper">
+          <div class="donut" [style.background]="'conic-gradient(#4f46e5 ' + coverageScore + '%, #e2e8f0 0)'">
+            <div class="donut-hole">
+              <span class="donut-pct">{{ coverageScore }}%</span>
+              <span class="donut-sub">score</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bars -->
+        <div class="cov-bars">
+          <div class="cov-row">
+            <span class="cov-label">AC</span>
+            <div class="cov-track"><div class="cov-fill cov-fill--ac" [style.width.%]="tagCoverage.ac"></div></div>
+            <span class="cov-pct">{{ tagCoverage.ac }}%</span>
+          </div>
+          <div class="cov-row">
+            <span class="cov-label">Positive</span>
+            <div class="cov-track"><div class="cov-fill cov-fill--pos" [style.width.%]="tagCoverage.positive"></div></div>
+            <span class="cov-pct">{{ tagCoverage.positive }}%</span>
+          </div>
+          <div class="cov-row">
+            <span class="cov-label">Negative</span>
+            <div class="cov-track"><div class="cov-fill cov-fill--neg" [style.width.%]="tagCoverage.negative"></div></div>
+            <span class="cov-pct">{{ tagCoverage.negative }}%</span>
+          </div>
+          <div class="cov-row">
+            <span class="cov-label">Boundary</span>
+            <div class="cov-track"><div class="cov-fill cov-fill--bnd" [style.width.%]="tagCoverage.boundary"></div></div>
+            <span class="cov-pct">{{ tagCoverage.boundary }}%</span>
+          </div>
+          <div class="cov-row">
+            <span class="cov-label">Edge</span>
+            <div class="cov-track"><div class="cov-fill cov-fill--edg" [style.width.%]="tagCoverage.edge"></div></div>
+            <span class="cov-pct">{{ tagCoverage.edge }}%</span>
+          </div>
+        </div>
+
+        <!-- Gaps or All Good -->
+        @if (gaps.length > 0) {
+          <div class="gaps-block">
+            <div class="gaps-title">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+              </svg>
+              Gaps detected
+            </div>
+            @for (gap of gaps; track gap) {
+              <div class="gap-item">{{ gap }}</div>
+            }
+          </div>
+        } @else {
+          <div class="all-good-block">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+            </svg>
+            All coverage types met
+          </div>
+        }
+
+        <!-- Locators -->
+        @if (testCase.locators && testCase.locators.length > 0) {
+          <div class="locators-block">
+            <div class="locators-title">Locators</div>
+            @for (loc of testCase.locators; track loc.name) {
+              <div class="locator-item">
+                <span class="loc-name">{{ loc.name }}</span>
+                <span class="loc-reliability" [class]="'rel-' + loc.reliability">{{ loc.reliability }}</span>
+                <code class="loc-selector">{{ loc.selector }}</code>
+              </div>
+            }
+          </div>
+        }
+
+      </aside>
+
+    </div>
+  }
+
+</div>

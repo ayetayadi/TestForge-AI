@@ -872,6 +872,270 @@ $gray-900: #111827;
 }
 
 // ============================================
+// ⭐ STYLES POUR L'ÉDITION
+// ============================================
+
+.btn-edit {
+  background: $primary;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all $transition;
+  
+  @include focus-ring;
+  
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  &:hover:not(:disabled) {
+    background: $primary-dark;
+    transform: translateY(-1px);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.custom-badge {
+  background: #f59e0b;
+  color: white;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.customized-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid $gray-200;
+  font-size: 11px;
+  color: $gray-500;
+  
+  svg {
+    width: 14px;
+    height: 14px;
+    color: $warning;
+  }
+}
+
+.edit-mode {
+  width: 100%;
+}
+
+.editable-story {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid $primary;
+  border-radius: $radius;
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: vertical;
+  transition: all $transition;
+  
+  @include focus-ring;
+  
+  &:focus {
+    border-color: $primary-dark;
+    box-shadow: 0 0 0 3px rgba($primary, 0.1);
+  }
+  
+  &:disabled {
+    background: $gray-100;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+}
+
+.editable-ac-section {
+  margin-top: 20px;
+  
+  h4 {
+    margin: 0 0 12px 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: $gray-700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    
+    &::before {
+      content: "📋";
+      font-size: 12px;
+    }
+  }
+}
+
+.editable-ac-item {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  
+  .editable-ac-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid $gray-200;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    transition: all $transition;
+    
+    @include focus-ring;
+    
+    &:focus {
+      border-color: $primary;
+      box-shadow: 0 0 0 2px rgba($primary, 0.1);
+    }
+    
+    &:disabled {
+      background: $gray-100;
+      cursor: not-allowed;
+    }
+  }
+  
+  .btn-remove-ac {
+    background: $danger-light;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all $transition;
+    
+    svg {
+      width: 16px;
+      height: 16px;
+      color: $danger;
+    }
+    
+    &:hover:not(:disabled) {
+      background: #fecaca;
+      transform: scale(1.02);
+    }
+    
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.btn-add-ac {
+  background: $primary-light;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: $primary-dark;
+  transition: all $transition;
+  
+  svg {
+    width: 14px;
+    height: 14px;
+    color: $primary;
+  }
+  
+  &:hover:not(:disabled) {
+    background: #e0e7ff;
+    transform: translateY(-1px);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.edit-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid $gray-200;
+  
+  button {
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    transition: all $transition;
+    
+    @include focus-ring;
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+  
+  .btn-save {
+    background: $success;
+    color: white;
+    border: none;
+    
+    svg {
+      width: 14px;
+      height: 14px;
+      color: white;
+    }
+    
+    &:hover:not(:disabled) {
+      background: #059669;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba($success, 0.3);
+    }
+  }
+  
+  .btn-cancel {
+    background: white;
+    border: 1px solid $gray-200;
+    color: $gray-700;
+    
+    &:hover:not(:disabled) {
+      background: $gray-100;
+      border-color: $gray-300;
+    }
+  }
+}
+
+.improved-story-text {
+  margin: 0;
+  line-height: 1.6;
+  font-size: 0.8rem;
+  color: $gray-700;
+}
+
+// ============================================
 // EXPLANATION CARD
 // ============================================
 .explanation-card {
@@ -1352,5 +1616,21 @@ $gray-900: #111827;
   .processing-hint {
     flex-wrap: wrap;
     gap: 8px;
+  }
+  
+  .edit-actions {
+    flex-direction: column;
+    
+    button {
+      justify-content: center;
+    }
+  }
+  
+  .editable-ac-item {
+    flex-wrap: wrap;
+    
+    .editable-ac-input {
+      min-width: 0;
+    }
   }
 }

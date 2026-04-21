@@ -1,7 +1,7 @@
 import { Component, input, output, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
-import { StoryWithVersion, UserStory, UserStoryVersion } from '../../models';
+import { StoryWithVersion, UserStory, UserStoryVersion } from '../../models/user_story.model';
 import { SpinnerComponent } from 'src/app/shared';
 
 @Component({
