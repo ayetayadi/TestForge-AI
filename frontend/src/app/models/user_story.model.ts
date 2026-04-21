@@ -66,12 +66,6 @@ export interface UserStoryVersion {
   is_testable?: boolean;
   testability_issues?: string[];
 
-  llm_calls: number;  // ← RENOMMÉ (était iteration)
-  duration?: number;
-  model_used?: string;
-  prompt_tokens?: number;
-  completion_tokens?: number;
-
   agent_status: AgentStatus;  
   decision_status: 'pending' | 'approved' | 'rejected';
 
@@ -160,11 +154,6 @@ export interface VersionState {
   testability_score?: number;
   is_testable?: boolean;
   testability_issues?: string[];
-
-  // LLM Metrics
-  model_used?: string;
-  llm_calls?: number;
-  duration?: number;
 
   // Decision
   decision_status?: DecisionStatus;
@@ -280,7 +269,8 @@ export type SSEEventType =
   | 'processing'      // ✅ Agent tourne
   | 'completed'       // ✅ Succès
   | 'failed'          // ✅ Erreur
-  | 'ping'          // ✅ Keepalive
+  | 'ping'            // ✅ Keepalive
+  | 'phase'           // ✅ Pipeline phase progress
   | 'version_created'
   | 'version_updated'
 
@@ -288,11 +278,15 @@ export interface SSEEvent {
   type: SSEEventType;
   data?: {
     message?: string;           // "Analyzing story...", etc.
+    phase?: string;             // phase name for 'phase' events
+    score?: number;             // score at that phase
+    issues?: string[];
+    violations?: string[];
     status?: AgentStatus;
     jira_id?: string;
     thread_id?: string;
-    version_id?: string;        
-    
+    version_id?: string;
+
     // Au completion
     final_score?: number;
     initial_score?: number;
@@ -304,7 +298,7 @@ export interface SSEEvent {
     is_testable?: boolean;
     has_new_version?: boolean;
     versions_count?: number;
-    
+
     // Au failure
     error?: string;
   };

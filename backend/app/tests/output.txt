@@ -1,247 +1,871 @@
-[16:20:06]
-Retrieving Playwright TypeScript script...
-[16:20:06]
-Script v1 generated — 11 placeholders
-[16:20:06]
-Executing ReAct agent...
-[16:20:06]
-🚀 Starting execution — Browser: chromium | Headless: True
-[16:22:24]
-Completed — 0 passed / 0 failed
-INFO:     127.0.0.1:55368 - "GET /users/me HTTP/1.1" 401 Unauthorized
-INFO:     127.0.0.1:56115 - "GET /test-cases/326f1155-3a68-4d47-805f-c01e20f0f0da HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54386 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/scripts HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54386 - "OPTIONS /playwright/generate-script HTTP/1.1" 200 OK
-2026-04-20 16:18:58,404 - app.services.playwright_service - INFO - Generating Script v1 for test_case 326f1155-3a68-4d47-805f-c01e20f0f0da
-[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=generation_started (buffered, no listeners)
-2026-04-20 16:18:58,410 - app.ai_agents_v2.playwright_e2e.script_generator - INFO - Generating TypeScript Playwright script for 1 test case(s)
-2026-04-20 16:18:58,430 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): api.smith.langchain.com:443
-2026-04-20 16:18:58,576 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:18:58,710 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "GET /info HTTP/1.1" 200 1102
-2026-04-20 16:18:58,731 - langsmith.client - DEBUG - Tracing control thread func compress parallel called
-2026-04-20 16:18:59,009 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:19:50,091 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:19:50,108 - app.ai_agents_v2.playwright_e2e.script_generator - INFO - TypeScript Playwright script generated — 11 placeholder(s)
-2026-04-20 16:19:50,145 - app.repositories.playwright_repository - INFO - Script saved: test_case=326f1155-3a68-4d47-805f-c01e20f0f0da, version=1, source=v1_draft, placeholders=11
-[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=generation_completed (buffered, no listeners)
-INFO:     127.0.0.1:54386 - "POST /playwright/generate-script HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51840 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/scripts HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51840 - "OPTIONS /playwright/script/839821be-7951-487e-87e4-cb07b5ac8aef HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63168 - "OPTIONS /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/last-run HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63168 - "GET /playwright/script/839821be-7951-487e-87e4-cb07b5ac8aef HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54386 - "GET /test-cases/326f1155-3a68-4d47-805f-c01e20f0f0da HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51840 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/last-run HTTP/1.1" 200 OK
-2026-04-20 16:19:50,641 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab79-2c78-78d0-ae05-e8a9a5a0ecb2,id=019dab79-2c78-78d0-ae05-e8a9a5a0ecb2
-2026-04-20 16:19:50,808 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-INFO:     127.0.0.1:55549 - "OPTIONS /playwright/execute-script HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55549 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/stream HTTP/1.1" 200 OK
-[SSE CONNECT] version=326f1155-3a68-4d47-805f-c01e20f0f0da
-INFO:     127.0.0.1:60579 - "POST /playwright/execute-script HTTP/1.1" 200 OK
-2026-04-20 16:20:06,973 - app.services.playwright_service - INFO - Executing script for test_case 326f1155-3a68-4d47-805f-c01e20f0f0da
-2026-04-20 16:20:06,993 - app.repositories.playwright_repository - INFO - TestRun created: 2019a815-6afb-4d45-966a-a5da0f95112b for script 839821be-7951-487e-87e4-cb07b5ac8aef
-[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=execution_started
-[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=agent_step
-2026-04-20 16:20:07,002 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: === AGENT RUN START ===
-2026-04-20 16:20:07,002 - app.ai_agents_v2.playwright_e2e.agent - INFO - PlaywrightReActAgent starting
-2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.agent - INFO - App URL: http://localhost:3000
-2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.agent - INFO - Placeholders found: 11
-2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: Creating MCP client...
-2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: === ENTERING MCP CLIENT ===
-2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Acquiring semaphore lock...
-2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.tools - INFO - Execution lock acquired (timeout=60s)
-2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Calling _connect_with_fallback...
-2026-04-20 16:20:07,539 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3852-7601-bca6-05bf1b969f10
-2026-04-20 16:20:07,742 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:20:08,133 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Connecting to SSE at http://localhost:8931/sse
-2026-04-20 16:20:08,354 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Session opened, loading tools...
-2026-04-20 16:20:08,423 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Got 21 raw tools from server
-2026-04-20 16:20:08,424 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Raw tool names: ['browser_close', 'browser_resize', 'browser_console_messages', 'browser_handle_dialog', 'browser_evaluate', 'browser_file_upload', 'browser_fill_form', 'browser_press_key', 'browser_type', 'browser_navigate', 'browser_navigate_back', 'browser_network_requests', 'browser_run_code', 'browser_take_screenshot', 'browser_snapshot', 'browser_click', 'browser_drag', 'browser_hover', 'browser_select_option', 'browser_tabs', 'browser_wait_for']
-2026-04-20 16:20:08,424 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Filtered to 9 tools
-2026-04-20 16:20:08,425 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Filtered tool names: ['browser_close', 'browser_press_key', 'browser_type', 'browser_navigate', 'browser_snapshot', 'browser_click', 'browser_select_option', 'browser_tabs', 'browser_wait_for']
-2026-04-20 16:20:08,425 - app.ai_agents_v2.playwright_e2e.tools - INFO - Tools loaded [SSE]: 9/21 active
-2026-04-20 16:20:08,425 - app.ai_agents_v2.playwright_e2e.tools - INFO - MCP Playwright SSE connected to http://localhost:8931 (attempt 1/3)
-2026-04-20 16:20:08,425 - app.ai_agents_v2.playwright_e2e.tools - INFO - ✅ Connection successful, transport=sse
-2026-04-20 16:20:08,426 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Tools loaded = 9
-2026-04-20 16:20:08,427 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: === MCP CLIENT READY ===
-2026-04-20 16:20:08,427 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: MCP client created. Tools available: 9
-2026-04-20 16:20:08,427 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: Tool names: ['browser_close', 'browser_press_key', 'browser_type', 'browser_navigate', 'browser_snapshot', 'browser_click', 'browser_select_option', 'browser_tabs', 'browser_wait_for']
-2026-04-20 16:20:08,462 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: LLM created
-2026-04-20 16:20:08,498 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: ReAct agent created
-2026-04-20 16:20:08,498 - app.ai_agents_v2.playwright_e2e.agent - INFO - Invoking ReAct agent...
-2026-04-20 16:20:08,498 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: Calling agent.ainvoke...
-2026-04-20 16:20:08,524 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:20:09,076 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e3f-7f81-82d0-9a4eccd8b804; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e48-7a82-afc4-b26870a0f320; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4a-70b0-b325-3e6bbfc78b2d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4b-7111-ac55-7900c58a43f1; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4c-7620-b97a-6fd46f72cb63; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4c-7620-b97a-6fd46f72cb63; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4d-7011-9f00-924ad4b6f590
-2026-04-20 16:20:09,244 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:20:17,169 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:20:17,738 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4d-7011-9f00-924ad4b6f590; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4b-7111-ac55-7900c58a43f1; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4a-70b0-b325-3e6bbfc78b2d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6020-7df2-a9a2-eaa9812ba95c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6020-7df2-a9a2-eaa9812ba95c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e48-7a82-afc4-b26870a0f320; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6025-7fe3-8482-227e3df2d769; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6027-7c21-9897-316d6918a30c
-2026-04-20 16:20:17,911 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:20:18,573 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:20:19,118 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6027-7c21-9897-316d6918a30c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6025-7fe3-8482-227e3df2d769; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6586-7580-a9d7-38f2f3e76839; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6587-75d0-a8cd-7ac76412b45c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658a-75f1-9cfb-e36476d2feb5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658b-7ab3-b1dd-1216e25b2217; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658b-7ab3-b1dd-1216e25b2217; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658e-7883-a450-f93d2fbf80f2
-2026-04-20 16:20:19,285 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:20:21,467 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:20:21,516 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:20:22,066 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658e-7883-a450-f93d2fbf80f2; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658a-75f1-9cfb-e36476d2feb5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6587-75d0-a8cd-7ac76412b45c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e4-70e2-be57-5d80061f1001; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e4-70e2-be57-5d80061f1001; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6586-7580-a9d7-38f2f3e76839; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e7-77d2-9549-83a426c22231; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e8-7010-b639-0867b7107828; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e8-7010-b639-0867b7107828; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e7-77d2-9549-83a426c22231; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7101-7610-ac9b-88c15bbe637d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7101-7610-ac9b-88ded27eabb3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7103-7c00-97c2-d9a09df33476; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7105-7e81-88c9-43612da1ae70; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7105-7e81-88c9-43612da1ae70; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7108-7043-96a5-4cf56f008914
-2026-04-20 16:20:22,249 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:20:25,183 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:20:25,250 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:20:25,808 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7108-7043-96a5-4cf56f008914; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7103-7c00-97c2-d9a09df33476; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7101-7610-ac9b-88ded27eabb3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f75-71c3-9813-7b1df57c7d2c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f75-71c3-9813-7b1df57c7d2c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7101-7610-ac9b-88c15bbe637d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f7b-7121-9553-f93b4a36b31a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f7d-7333-ab73-e6d2aaf88501; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f7d-7333-ab73-e6d2aaf88501; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f7b-7121-9553-f93b4a36b31a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f96-7862-b96c-e7fdec50fd97; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f97-7623-ab88-0c8794416f1d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9a-76f2-a6fa-e15ff53d0728; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9b-7d63-b8d1-9c52dd96d260; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9b-7d63-b8d1-9c52dd96d260; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9f-7783-9315-83e1bb364f87
-2026-04-20 16:20:25,991 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:20:39,865 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:20:40,033 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:20:40,532 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9f-7783-9315-83e1bb364f87; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9a-76f2-a6fa-e15ff53d0728; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f97-7623-ab88-0c8794416f1d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c4-7332-98c5-f6f0118b2044; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c4-7332-98c5-f6f0118b2044; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f96-7862-b96c-e7fdec50fd97; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c8-7061-90ef-e81634c3a059; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c9-7b40-be9f-554f00d2f5b8; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c9-7b40-be9f-554f00d2f5b8; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c8-7061-90ef-e81634c3a059; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b95e-7803-9f4a-cc8d7fac0d0a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b95f-7780-837e-0414c9051523; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b961-7851-bac9-21f527476225; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b963-7343-8b11-82486d1189cb; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b963-7343-8b11-82486d1189cb; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b965-77d0-9b1c-d03eb931c14c
-2026-04-20 16:20:40,728 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:20:48,676 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:20:48,738 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:20:49,258 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b965-77d0-9b1c-d03eb931c14c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b961-7851-bac9-21f527476225; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b95f-7780-837e-0414c9051523; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db2f-75d1-b348-c2897bb55291; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db2f-75d1-b348-c2897bb55291; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b95e-7803-9f4a-cc8d7fac0d0a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db35-7f33-94c6-40caa44b2eb5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db37-7ee3-87c3-a8a5a4876f47; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db37-7ee3-87c3-a8a5a4876f47; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db35-7f33-94c6-40caa44b2eb5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db54-7250-8227-62364c5b5222; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db56-7e90-8220-3eb6a64dec85; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5a-7ce3-a5b1-197c4e708ee3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5c-7b93-b6c9-8b819952d80b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5c-7b93-b6c9-8b819952d80b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5f-75d1-a671-a29df7e4c15f
-2026-04-20 16:20:49,447 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:20:55,247 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:20:55,326 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:20:55,877 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5f-75d1-a671-a29df7e4c15f; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5a-7ce3-a5b1-197c4e708ee3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db56-7e90-8220-3eb6a64dec85; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4da-7132-b9cc-52ce3a2f6c51; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4da-7132-b9cc-52ce3a2f6c51; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db54-7250-8227-62364c5b5222; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4e0-7f23-b895-a71a4c584810; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4e2-7681-b345-b285bfecef4e; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4e2-7681-b345-b285bfecef4e; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4e0-7f23-b895-a71a4c584810; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f518-7200-9fde-d6f5eaaa4723; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f519-7dd3-ad07-154782fbcc18; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51a-7931-ace3-6b6e6aa5ecd3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51b-72f1-a181-0099b6a3a4bb; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51b-72f1-a181-0099b6a3a4bb; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51c-7943-ab7d-23900b01d0a7
-2026-04-20 16:20:56,118 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:21:01,831 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:21:02,362 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51c-7943-ab7d-23900b01d0a7; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51a-7931-ace3-6b6e6aa5ecd3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f519-7dd3-ad07-154782fbcc18; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e91-72c2-b933-11d62b4ccce5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e91-72c2-b933-11d62b4ccce5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f518-7200-9fde-d6f5eaaa4723; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e97-7370-b083-bb994ffa7561; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e98-7301-8fc0-f4aed51c6c9b
-2026-04-20 16:21:02,595 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:21:03,971 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:21:04,510 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e98-7301-8fc0-f4aed51c6c9b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e97-7370-b083-bb994ffa7561; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16de-75c0-891b-df5b7d9a22a9; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16df-7d72-82da-7f9f012a1c0a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e1-7023-8205-6795fa54723d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e1-7023-8205-67a69aba894e; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e1-7023-8205-67a69aba894e; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e3-7271-896d-f919e83f680a
-2026-04-20 16:21:04,743 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:21:07,026 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:21:07,078 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:21:07,616 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e3-7271-896d-f919e83f680a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e1-7023-8205-6795fa54723d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16df-7d72-82da-7f9f012a1c0a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22db-7b90-bac5-78897d349d3f; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22db-7b90-bac5-78897d349d3f; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16de-75c0-891b-df5b7d9a22a9; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22e0-7262-aa57-8eeb9c97693b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22e3-75a2-bf42-4864dd5aef41; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22e3-75a2-bf42-4864dd5aef41; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22e0-7262-aa57-8eeb9c97693b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fc-7da2-b451-5ecffdbc6b35; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fd-7b91-ab64-e614f28f5bb7; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fe-76f3-b1e8-b6d53b558351; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22ff-7943-ad1f-94f4ef317202; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22ff-7943-ad1f-94f4ef317202; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-2301-7a43-9b5e-663f5dbedffd
-2026-04-20 16:21:07,853 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:21:12,864 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:21:12,924 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
-2026-04-20 16:21:13,445 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-2301-7a43-9b5e-663f5dbedffd; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fe-76f3-b1e8-b6d53b558351; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fd-7b91-ab64-e614f28f5bb7; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39ab-7ed1-bd70-65c3cb3bb4ba; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39ab-7ed1-bd70-65c3cb3bb4ba; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fc-7da2-b451-5ecffdbc6b35; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39b6-7370-b12e-0790069dd7fe; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39b7-75a3-a0c1-e200afbeed68; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39b7-75a3-a0c1-e200afbeed68; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39b6-7370-b12e-0790069dd7fe; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d3-7c51-981a-3378171e8ce5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d3-7c51-981a-33895ffa0721; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d7-7d62-8d99-87fb822f0e2a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d9-7071-a58a-ad2314792fd3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d9-7071-a58a-ad2314792fd3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39db-76e3-a9eb-4085580cb4e3
-2026-04-20 16:21:13,684 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
-2026-04-20 16:22:12,925 - mcp.client.sse - ERROR - Error in sse_reader
-Traceback (most recent call last):
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_transports\default.py", line 101, in map_httpcore_exceptions
-    yield
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_transports\default.py", line 271, in __aiter__
-    async for part in self._httpcore_stream:
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\connection_pool.py", line 407, in __aiter__
-    raise exc from None
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\connection_pool.py", line 403, in __aiter__
-    async for part in self._stream:
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\http11.py", line 342, in __aiter__
-    raise exc
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\http11.py", line 334, in __aiter__
-    async for chunk in self._connection._receive_response_body(**kwargs):
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\http11.py", line 203, in _receive_response_body
-    event = await self._receive_event(timeout=timeout)
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\http11.py", line 217, in _receive_event
-    data = await self._network_stream.read(
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_backends\anyio.py", line 32, in read
-    with map_exceptions(exc_map):
-  File "C:\Users\ayeta\AppData\Local\Programs\Python\Python310\lib\contextlib.py", line 153, in __exit__
-    self.gen.throw(typ, value, traceback)
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_exceptions.py", line 14, in map_exceptions
-    raise to_exc(exc) from exc
-httpcore.ReadTimeout
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.langchain.com/llms.txt
+> Use this file to discover all available pages before exploring further.
 
-The above exception was the direct cause of the following exception:
+# Agents
 
-Traceback (most recent call last):
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\mcp\client\sse.py", line 81, in sse_reader
-    async for sse in event_source.aiter_sse():  # pragma: no branch
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx_sse\_api.py", line 42, in aiter_sse
-    async for line in lines:
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx_sse\_api.py", line 80, in _aiter_sse_lines
-    async for text in response.aiter_text():
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_models.py", line 1018, in aiter_text
-    async for byte_content in self.aiter_bytes():
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_models.py", line 997, in aiter_bytes
-    async for raw_bytes in self.aiter_raw():
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_models.py", line 1055, in aiter_raw
-    async for raw_stream_bytes in self.stream:
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_client.py", line 176, in __aiter__
-    async for chunk in self._stream:
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_transports\default.py", line 270, in __aiter__
-    with map_httpcore_exceptions():
-  File "C:\Users\ayeta\AppData\Local\Programs\Python\Python310\lib\contextlib.py", line 153, in __exit__
-    self.gen.throw(typ, value, traceback)
-  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_transports\default.py", line 118, in map_httpcore_exceptions
-    raise mapped_exc(message) from exc
-httpx.ReadTimeout
-2026-04-20 16:22:23,893 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: Agent.ainvoke completed
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 FINAL STATE MESSAGES:
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 0: HumanMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: 
-Execute this TypeScript Playwright script and replace all placeholders with real locators.
+Agents combine language models with [tools](/oss/python/langchain/tools) to create systems that can reason about tasks, decide which tools to use, and iteratively work towards solutions.
 
-Script v1:
-import { test, expect } from '@playwright/test';
+[`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) provides a production-ready agent implementation.
 
-test('Ajout utilisateur actif', async ({ page }) => {
-  // Ouvrir la page d'accueil
-  await page.goto('http://localhost:3000');
+[An LLM Agent runs tools in a loop to achieve a goal](https://simonwillison.net/2025/Sep/18/agents/).
+An agent runs until a stop condition is met - i.e., when the model emits a final output or an iteration limit is reached.
 
-  // Se connecter en tant qu'administrateur (pré-requis)
-  // (Supposé déjà connecté ou login automatisé ici)
-  // await page.locator("[TESTFORGEAI: admin login button]").click();
+```mermaid theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+%%{
+  init: {
+    "fontFamily": "monospace",
+    "flowchart": {
+      "curve": "curve"
+    }
+  }
+}%%
+graph TD
+  %% Outside the agent
+  QUERY([input])
+  LLM{model}
+  TOOL(tools)
+  ANSWER([output])
 
-  // Aller sur le dashboard
-  // (Su...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 1: AIMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 2: ToolMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': "### Ran Playwright code\n```js\nawait page.goto('http://localhost:3000');\n```\n### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n- [Snapshot](.playwright-mcp\\page-2026-04-20T15-20-18-533Z.yml)\n### Events\n- New console entries: .playwright-mcp\\console-2026-04-20T15-20-18-334Z.log#L1-L2", 'id': 'lc_c280f0ff-3a48-4a18-a853-50c69bc366a5'}]...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 3: AIMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 4: ToolMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e3]:\n  - heading "User Management System" [level=1] [ref=e4]\n  - heading "Login" [level=2] [ref=e5]\n  - generic [ref=e6]:\n    - generic [ref=e7]\n    - generic [ref=e10]\n    - button "Login" [ref=e13] [cursor=pointer]\n    - generic [ref=e14]\n```', 'id': 'lc_7d5d0c2b-bf15-4c49-8b02-cd7d430dca66'}]...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 5: AIMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 6: ToolMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e3]:\n  - heading "User Management System" [level=1] [ref=e4]\n  - heading "Login" [level=2] [ref=e5]\n  - generic [ref=e6]:\n    - generic [ref=e7]:\n      - generic [ref=e8]: "Email:"\n      - textbox "Email:" [ref=e9]\n    - generic [ref=e10]:\n      - generic [ref=e11]: "Password:"\n      - textbox "Pa...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 7: AIMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 8: ToolMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': "### Ran Playwright code\n```js\nawait page.getByTestId('email-input').fill('admin@test.com');\n```", 'id': 'lc_378f924c-c128-4c87-bc07-b0ede2d9986d'}]...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 9: AIMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 10: ToolMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e3]:\n  - heading "User Management System" [level=1] [ref=e4]\n  - heading "Login" [level=2] [ref=e5]\n  - generic [ref=e6]:\n    - generic [ref=e7]:\n      - generic [ref=e8]: "Email:"\n      - textbox "Email:" [active] [ref=e9]: admin@test.com\n    - generic [ref=e10]:\n      - generic [ref=e11]: "Passwo...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 11: AIMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 12: ToolMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': "### Ran Playwright code\n```js\nawait page.getByTestId('password-input').fill('Admin123!');\n```", 'id': 'lc_4094943e-2bad-4c29-bc2a-7e8cb49a41f3'}]...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 13: AIMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 14: ToolMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': "### Ran Playwright code\n```js\nawait page.getByTestId('login-button').click();\n```\n### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n- [Snapshot](.playwright-mcp\\page-2026-04-20T15-21-03-939Z.yml)", 'id': 'lc_ce82ff88-b541-4a79-9d1b-c41c50f44fbe'}]...
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 15: AIMessage
-2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,917 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 16: ToolMessage
-2026-04-20 16:22:23,917 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e18]:\n  - generic [ref=e19]:\n    - heading "User Management Dashboard" [level=1] [ref=e20]\n    - generic [ref=e21]\n  - generic [ref=e24]:\n    - heading "Add New User" [level=2] [ref=e25]\n    - generic [ref=e27]\n  - generic [ref=e42]:\n    - heading "Users List" [level=2] [ref=e43]\n    - table [ref=...
-2026-04-20 16:22:23,917 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 17: AIMessage
-2026-04-20 16:22:23,917 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
-2026-04-20 16:22:23,919 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 18: ToolMessage
-2026-04-20 16:22:23,919 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e18]:\n  - generic [ref=e19]:\n    - heading "User Management Dashboard" [level=1] [ref=e20]\n    - generic [ref=e21]:\n      - generic [ref=e22]: Welcome, Administrator\n      - button "Logout" [ref=e23] [cursor=pointer]\n  - generic [ref=e24]:\n    - heading "Add New User" [level=2] [ref=e25]\n    - gene...
-2026-04-20 16:22:23,919 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 19: AIMessage
-2026-04-20 16:22:23,919 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ```typescript
-import { test, expect } from '@playwright/test';
+  %% Main flows (no inline labels)
+  QUERY --> LLM
+  LLM --"action"--> TOOL
+  TOOL --"observation"--> LLM
+  LLM --"finish"--> ANSWER
 
-test('Ajout utilisateur actif', async ({ page }) => {
-  // ✅ Step 1: Ouvrir la page d'accueil
-  await page.goto('http://localhost:3000');
+  classDef blueHighlight fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A;
+  classDef greenHighlight fill:#DCFCE7,stroke:#16A34A,color:#14532D;
+  class QUERY blueHighlight;
+  class ANSWER blueHighlight;
+  class LLM greenHighlight;
+  class TOOL greenHighlight;
+```
 
-  // ✅ Step 2: Se connecter en tant qu'administrateur (pré‑requis)
-  await page.getByLabel('Email:').fill('admin@test.com');
-  await page.getByLabel('Password:').fill('Admin123!');
-  await page.getByRole('button', { name: 'Login' }).click();
+<Info>
+  [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) builds a **graph**-based agent runtime using [LangGraph](/oss/python/langgraph/overview). A graph consists of nodes (steps) and edges (connections) that define how your agent processes information. The agent moves through this graph, executing nodes like the model node (which calls the model), the tools node (which executes tools), or middleware.
 
-  // ✅ Step 3: Aller sur le dashboard (login redirige ...
-2026-04-20 16:22:23,921 - app.ai_agents_v2.playwright_e2e.agent - INFO - Script v2 ready — status=completed, remaining placeholders=0
-2026-04-20 16:22:23,921 - app.ai_agents_v2.playwright_e2e.tools - INFO - MCP connection closing - transport=sse, duration=136.92s, error=None
-2026-04-20 16:22:23,922 - app.ai_agents_v2.playwright_e2e.tools - INFO - MCP session context closed
-2026-04-20 16:22:23,922 - app.ai_agents_v2.playwright_e2e.tools - INFO - Execution lock released
-2026-04-20 16:22:23,940 - app.repositories.playwright_repository - INFO - TestRun 2019a815-6afb-4d45-966a-a5da0f95112b updated: {'status': <TestRunStatus.COMPLETED: 'completed'>, 'completed_at': datetime.datetime(2026, 4, 20, 15, 22, 23, 922819)}
-2026-04-20 16:22:23,953 - app.repositories.playwright_repository - INFO - Script saved: test_case=326f1155-3a68-4d47-805f-c01e20f0f0da, version=2, source=v2_corrected, placeholders=0
-2026-04-20 16:22:23,954 - app.repositories.playwright_repository - INFO - TestRun 2019a815-6afb-4d45-966a-a5da0f95112b updated: {'status': <TestRunStatus.COMPLETED: 'completed'>, 'completed_at': datetime.datetime(2026, 4, 20, 15, 22, 23, 954251)}
-2026-04-20 16:22:23,994 - app.repositories.playwright_repository - INFO - Added 19 steps to test_run 2019a815-6afb-4d45-966a-a5da0f95112b
-2026-04-20 16:22:24,003 - app.repositories.playwright_repository - INFO - TestResult saved: 2019a815-6afb-4d45-966a-a5da0f95112b → error
-[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=completed
-INFO:     127.0.0.1:55549 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/last-run HTTP/1.1" 200 OK
-2026-04-20 16:22:24,476 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39db-76e3-a9eb-4085580cb4e3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d7-7d62-8d99-87fb822f0e2a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d3-7c51-981a-33895ffa0721; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7c-4f21-79e3-897a-a64b79b53c01; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7c-4f21-79e3-897a-a64b79b53c01; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d3-7c51-981a-3378171e8ce5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e3f-7f81-82d0-9a4eccd8b804; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3852-7601-bca6-05bf1b969f10
-2026-04-20 16:22:24,709 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+  Learn more about the [Graph API](/oss/python/langgraph/graph-api).
+</Info>
+
+## Core components
+
+### Model
+
+The [model](/oss/python/langchain/models) is the reasoning engine of your agent. It can be specified in multiple ways, supporting both static and dynamic model selection.
+
+#### Static model
+
+Static models are configured once when creating the agent and remain unchanged throughout execution. This is the most common and straightforward approach.
+
+To initialize a static model from a <Tooltip tip="A string that follows the format `provider:model` (e.g. openai:gpt-5)" cta="See mappings" href="https://reference.langchain.com/python/langchain/models/#langchain.chat_models.init_chat_model(model)">model identifier string</Tooltip>:
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.agents import create_agent
+
+agent = create_agent("openai:gpt-5", tools=tools)
+```
+
+<Tip>
+  Model identifier strings support automatic inference (e.g., `"gpt-5"` will be inferred as `"openai:gpt-5"`). Refer to the [reference](https://reference.langchain.com/python/langchain/chat_models/base/init_chat_model) to see a full list of model identifier string mappings.
+</Tip>
+
+For more control over the model configuration, initialize a model instance directly using the provider package. In this example, we use [`ChatOpenAI`](https://reference.langchain.com/python/langchain-openai/chat_models/base/ChatOpenAI). See [Chat models](/oss/python/integrations/chat) for other available chat model classes.
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
+
+model = ChatOpenAI(
+    model="gpt-5",
+    temperature=0.1,
+    max_tokens=1000,
+    timeout=30
+    # ... (other params)
+)
+agent = create_agent(model, tools=tools)
+```
+
+Model instances give you complete control over configuration. Use them when you need to set specific [parameters](/oss/python/langchain/models#parameters) like `temperature`, `max_tokens`, `timeouts`, `base_url`, and other provider-specific settings. Refer to the [reference](/oss/python/integrations/providers/all_providers) to see available params and methods on your model.
+
+#### Dynamic model
+
+Dynamic models are selected at <Tooltip tip="The execution environment of your agent, containing immutable configuration and contextual data that persists throughout the agent's execution (e.g., user IDs, session details, or application-specific configuration).">runtime</Tooltip> based on the current <Tooltip tip="The data that flows through your agent's execution, including messages, custom fields, and any information that needs to be tracked and potentially modified during processing (e.g., user preferences or tool usage stats).">state</Tooltip> and context. This enables sophisticated routing logic and cost optimization.
+
+To use a dynamic model, create middleware using the [`@wrap_model_call`](https://reference.langchain.com/python/langchain/agents/middleware/types/wrap_model_call) decorator that modifies the model in the request:
+
+```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain_openai import ChatOpenAI
+from langchain.agents import create_agent
+from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse
+
+
+basic_model = ChatOpenAI(model="gpt-5.4-mini")
+advanced_model = ChatOpenAI(model="gpt-5.4")
+
+@wrap_model_call
+def dynamic_model_selection(request: ModelRequest, handler) -> ModelResponse:
+    """Choose model based on conversation complexity."""
+    message_count = len(request.state["messages"])
+
+    if message_count > 10:
+        # Use an advanced model for longer conversations
+        model = advanced_model
+    else:
+        model = basic_model
+
+    return handler(request.override(model=model))
+
+agent = create_agent(
+    model=basic_model,  # Default model
+    tools=tools,
+    middleware=[dynamic_model_selection]
+)
+```
+
+<Warning>
+  Pre-bound models (models with [`bind_tools`](https://reference.langchain.com/python/langchain-core/language_models/chat_models/BaseChatModel/bind_tools) already called) are not supported when using structured output. If you need dynamic model selection with structured output, ensure the models passed to the middleware are not pre-bound.
+</Warning>
+
+<Tip>
+  For model configuration details, see [Models](/oss/python/langchain/models). For dynamic model selection patterns, see [Dynamic model in middleware](/oss/python/langchain/middleware#dynamic-model).
+</Tip>
+
+### Tools
+
+Tools give agents the ability to take actions. Agents go beyond simple model-only tool binding by facilitating:
+
+* Multiple tool calls in sequence (triggered by a single prompt)
+* Parallel tool calls when appropriate
+* Dynamic tool selection based on previous results
+* Tool retry logic and error handling
+* State persistence across tool calls
+
+For more information, see [Tools](/oss/python/langchain/tools).
+
+#### Static tools
+
+Static tools are defined when creating the agent and remain unchanged throughout execution. This is the most common and straightforward approach.
+
+To define an agent with static tools, pass a list of the tools to the agent.
+
+<Tip>
+  Tools can be specified as plain Python functions or <Tooltip tip="A method that can suspend execution and resume at a later time">coroutines</Tooltip>.
+
+  The [tool decorator](/oss/python/langchain/tools#create-tools) can be used to customize tool names, descriptions, argument schemas, and other properties.
+</Tip>
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.tools import tool
+from langchain.agents import create_agent
+
+
+@tool
+def search(query: str) -> str:
+    """Search for information."""
+    return f"Results for: {query}"
+
+@tool
+def get_weather(location: str) -> str:
+    """Get weather information for a location."""
+    return f"Weather in {location}: Sunny, 72°F"
+
+agent = create_agent(model, tools=[search, get_weather])
+```
+
+If an empty tool list is provided, the agent will consist of a single LLM node without tool-calling capabilities.
+
+#### Dynamic tools
+
+With dynamic tools, the set of tools available to the agent is modified at runtime rather than defined all upfront. Not every tool is appropriate for every situation. Too many tools may overwhelm the model (overload context) and increase errors; too few limit capabilities. Dynamic tool selection enables adapting the available toolset based on authentication state, user permissions, feature flags, or conversation stage.
+
+There are two approaches depending on whether tools are known ahead of time:
+
+<Tabs>
+  <Tab title="Filtering pre-registered tools">
+    When all possible tools are known at agent creation time, you can pre-register them and dynamically filter which ones are exposed to the model based on state, permissions, or context.
+
+    <Tabs>
+      <Tab title="State">
+        Enable advanced tools only after certain conversation milestones:
+
+        ```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+        from langchain.agents import create_agent
+        from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse
+        from typing import Callable
+
+        @wrap_model_call
+        def state_based_tools(
+            request: ModelRequest,
+            handler: Callable[[ModelRequest], ModelResponse]
+        ) -> ModelResponse:
+            """Filter tools based on conversation State."""
+            # Read from State: check if user has authenticated
+            state = request.state
+            is_authenticated = state.get("authenticated", False)
+            message_count = len(state["messages"])
+
+            # Only enable sensitive tools after authentication
+            if not is_authenticated:
+                tools = [t for t in request.tools if t.name.startswith("public_")]
+                request = request.override(tools=tools)
+            elif message_count < 5:
+                # Limit tools early in conversation
+                tools = [t for t in request.tools if t.name != "advanced_search"]
+                request = request.override(tools=tools)
+
+            return handler(request)
+
+        agent = create_agent(
+            model="gpt-5.4",
+            tools=[public_search, private_search, advanced_search],
+            middleware=[state_based_tools]
+        )
+        ```
+      </Tab>
+
+      <Tab title="Store">
+        Filter tools based on user preferences or feature flags in Store:
+
+        ```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+        from dataclasses import dataclass
+        from langchain.agents import create_agent
+        from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse
+        from typing import Callable
+        from langgraph.store.memory import InMemoryStore
+
+        @dataclass
+        class Context:
+            user_id: str
+
+        @wrap_model_call
+        def store_based_tools(
+            request: ModelRequest,
+            handler: Callable[[ModelRequest], ModelResponse]
+        ) -> ModelResponse:
+            """Filter tools based on Store preferences."""
+            user_id = request.runtime.context.user_id
+
+            # Read from Store: get user's enabled features
+            store = request.runtime.store
+            feature_flags = store.get(("features",), user_id)
+
+            if feature_flags:
+                enabled_features = feature_flags.value.get("enabled_tools", [])
+                # Only include tools that are enabled for this user
+                tools = [t for t in request.tools if t.name in enabled_features]
+                request = request.override(tools=tools)
+
+            return handler(request)
+
+        agent = create_agent(
+            model="gpt-5.4",
+            tools=[search_tool, analysis_tool, export_tool],
+            middleware=[store_based_tools],
+            context_schema=Context,
+            store=InMemoryStore()
+        )
+        ```
+      </Tab>
+
+      <Tab title="Runtime Context">
+        Filter tools based on user permissions from Runtime Context:
+
+        ```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+        from dataclasses import dataclass
+        from langchain.agents import create_agent
+        from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse
+        from typing import Callable
+
+        @dataclass
+        class Context:
+            user_role: str
+
+        @wrap_model_call
+        def context_based_tools(
+            request: ModelRequest,
+            handler: Callable[[ModelRequest], ModelResponse]
+        ) -> ModelResponse:
+            """Filter tools based on Runtime Context permissions."""
+            # Read from Runtime Context: get user role
+            if request.runtime is None or request.runtime.context is None:
+                # If no context provided, default to viewer (most restrictive)
+                user_role = "viewer"
+            else:
+                user_role = request.runtime.context.user_role
+
+            if user_role == "admin":
+                # Admins get all tools
+                pass
+            elif user_role == "editor":
+                # Editors can't delete
+                tools = [t for t in request.tools if t.name != "delete_data"]
+                request = request.override(tools=tools)
+            else:
+                # Viewers get read-only tools
+                tools = [t for t in request.tools if t.name.startswith("read_")]
+                request = request.override(tools=tools)
+
+            return handler(request)
+
+        agent = create_agent(
+            model="gpt-5.4",
+            tools=[read_data, write_data, delete_data],
+            middleware=[context_based_tools],
+            context_schema=Context
+        )
+        ```
+      </Tab>
+    </Tabs>
+
+    This approach is best when:
+
+    * All possible tools are known at compile/startup time
+    * You want to filter based on permissions, feature flags, or conversation state
+    * Tools are static but their availability is dynamic
+
+    See [Dynamically selecting tools](/oss/python/langchain/middleware/custom#dynamically-selecting-tools) for more examples.
+  </Tab>
+
+  <Tab title="Runtime tool registration">
+    When tools are discovered or created at runtime (e.g., loaded from an MCP server, generated based on user data, or fetched from a remote registry), you need to both register the tools and handle their execution dynamically.
+
+    This requires two middleware hooks:
+
+    1. `wrap_model_call` - Add the dynamic tools to the request
+    2. `wrap_tool_call` - Handle execution of the dynamically added tools
+
+    ```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    from langchain.tools import tool
+    from langchain.agents import create_agent
+    from langchain.agents.middleware import AgentMiddleware, ModelRequest, ToolCallRequest
+
+    # A tool that will be added dynamically at runtime
+    @tool
+    def calculate_tip(bill_amount: float, tip_percentage: float = 20.0) -> str:
+        """Calculate the tip amount for a bill."""
+        tip = bill_amount * (tip_percentage / 100)
+        return f"Tip: ${tip:.2f}, Total: ${bill_amount + tip:.2f}"
+
+    class DynamicToolMiddleware(AgentMiddleware):
+        """Middleware that registers and handles dynamic tools."""
+
+        def wrap_model_call(self, request: ModelRequest, handler):
+            # Add dynamic tool to the request
+            # This could be loaded from an MCP server, database, etc.
+            updated = request.override(tools=[*request.tools, calculate_tip])
+            return handler(updated)
+
+        def wrap_tool_call(self, request: ToolCallRequest, handler):
+            # Handle execution of the dynamic tool
+            if request.tool_call["name"] == "calculate_tip":
+                return handler(request.override(tool=calculate_tip))
+            return handler(request)
+
+    agent = create_agent(
+        model="gpt-4o",
+        tools=[get_weather],  # Only static tools registered here
+        middleware=[DynamicToolMiddleware()],
+    )
+
+    # The agent can now use both get_weather AND calculate_tip
+    result = agent.invoke({
+        "messages": [{"role": "user", "content": "Calculate a 20% tip on $85"}]
+    })
+    ```
+
+    This approach is best when:
+
+    * Tools are discovered at runtime (e.g., from an MCP server)
+    * Tools are generated dynamically based on user data or configuration
+    * You're integrating with external tool registries
+
+    <Note>
+      The `wrap_tool_call` hook is required for runtime-registered tools because the agent needs to know how to execute tools that weren't in the original tool list. Without it, the agent won't know how to invoke the dynamically added tool.
+    </Note>
+  </Tab>
+</Tabs>
+
+<Tip>
+  To learn more about tools, see [Tools](/oss/python/langchain/tools).
+</Tip>
+
+#### Tool error handling
+
+To customize how tool errors are handled, use the [`@wrap_tool_call`](https://reference.langchain.com/python/langchain/agents/middleware/types/wrap_tool_call) decorator to create middleware:
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.agents import create_agent
+from langchain.agents.middleware import wrap_tool_call
+from langchain.messages import ToolMessage
+
+
+@wrap_tool_call
+def handle_tool_errors(request, handler):
+    """Handle tool execution errors with custom messages."""
+    try:
+        return handler(request)
+    except Exception as e:
+        # Return a custom error message to the model
+        return ToolMessage(
+            content=f"Tool error: Please check your input and try again. ({str(e)})",
+            tool_call_id=request.tool_call["id"]
+        )
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[search, get_weather],
+    middleware=[handle_tool_errors]
+)
+```
+
+The agent will return a [`ToolMessage`](https://reference.langchain.com/python/langchain-core/messages/tool/ToolMessage) with the custom error message when a tool fails:
+
+```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+[
+    ...
+    ToolMessage(
+        content="Tool error: Please check your input and try again. (division by zero)",
+        tool_call_id="..."
+    ),
+    ...
+]
+```
+
+#### Tool use in the ReAct loop
+
+Agents follow the ReAct ("Reasoning + Acting") pattern, alternating between brief reasoning steps with targeted tool calls and feeding the resulting observations into subsequent decisions until they can deliver a final answer.
+
+<Accordion title="Example of ReAct loop">
+  **Prompt:** Identify the current most popular wireless headphones and verify availability.
+
+  ```
+  ================================ Human Message =================================
+
+  Find the most popular wireless headphones right now and check if they're in stock
+  ```
+
+  * **Reasoning**: "Popularity is time-sensitive, I need to use the provided search tool."
+  * **Acting**: Call `search_products("wireless headphones")`
+
+  ```
+  ================================== Ai Message ==================================
+  Tool Calls:
+    search_products (call_abc123)
+   Call ID: call_abc123
+    Args:
+      query: wireless headphones
+  ```
+
+  ```
+  ================================= Tool Message =================================
+
+  Found 5 products matching "wireless headphones". Top 5 results: WH-1000XM5, ...
+  ```
+
+  * **Reasoning**: "I need to confirm availability for the top-ranked item before answering."
+  * **Acting**: Call `check_inventory("WH-1000XM5")`
+
+  ```
+  ================================== Ai Message ==================================
+  Tool Calls:
+    check_inventory (call_def456)
+   Call ID: call_def456
+    Args:
+      product_id: WH-1000XM5
+  ```
+
+  ```
+  ================================= Tool Message =================================
+
+  Product WH-1000XM5: 10 units in stock
+  ```
+
+  * **Reasoning**: "I have the most popular model and its stock status. I can now answer the user's question."
+  * **Acting**: Produce final answer
+
+  ```
+  ================================== Ai Message ==================================
+
+  I found wireless headphones (model WH-1000XM5) with 10 units in stock...
+  ```
+</Accordion>
+
+### System prompt
+
+You can shape how your agent approaches tasks by providing a prompt. The [`system_prompt`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent\(system_prompt\)) parameter can be provided as a string:
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+agent = create_agent(
+    model,
+    tools,
+    system_prompt="You are a helpful assistant. Be concise and accurate."
+)
+```
+
+When no [`system_prompt`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent\(system_prompt\)) is provided, the agent will infer its task from the messages directly.
+
+The [`system_prompt`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent\(system_prompt\)) parameter accepts either a `str` or a [`SystemMessage`](https://reference.langchain.com/python/langchain-core/messages/system/SystemMessage). Using a `SystemMessage` gives you more control over the prompt structure, which is useful for provider-specific features like [Anthropic's prompt caching](/oss/python/integrations/chat/anthropic#prompt-caching):
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.agents import create_agent
+from langchain.messages import SystemMessage, HumanMessage
+
+literary_agent = create_agent(
+    model="anthropic:claude-sonnet-4-5",
+    system_prompt=SystemMessage(
+        content=[
+            {
+                "type": "text",
+                "text": "You are an AI assistant tasked with analyzing literary works.",
+            },
+            {
+                "type": "text",
+                "text": "<the entire contents of 'Pride and Prejudice'>",
+                "cache_control": {"type": "ephemeral"}
+            }
+        ]
+    )
+)
+
+result = literary_agent.invoke(
+    {"messages": [HumanMessage("Analyze the major themes in 'Pride and Prejudice'.")]}
+)
+```
+
+The `cache_control` field with `{"type": "ephemeral"}` tells Anthropic to cache that content block, reducing latency and costs for repeated requests that use the same system prompt.
+
+#### Dynamic system prompt
+
+For more advanced use cases where you need to modify the system prompt based on runtime context or agent state, you can use [middleware](/oss/python/langchain/middleware).
+
+The [`@dynamic_prompt`](https://reference.langchain.com/python/langchain/agents/middleware/types/dynamic_prompt) decorator creates middleware that generates system prompts based on the model request:
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from typing import TypedDict
+
+from langchain.agents import create_agent
+from langchain.agents.middleware import dynamic_prompt, ModelRequest
+
+
+class Context(TypedDict):
+    user_role: str
+
+@dynamic_prompt
+def user_role_prompt(request: ModelRequest) -> str:
+    """Generate system prompt based on user role."""
+    user_role = request.runtime.context.get("user_role", "user")
+    base_prompt = "You are a helpful assistant."
+
+    if user_role == "expert":
+        return f"{base_prompt} Provide detailed technical responses."
+    elif user_role == "beginner":
+        return f"{base_prompt} Explain concepts simply and avoid jargon."
+
+    return base_prompt
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[web_search],
+    middleware=[user_role_prompt],
+    context_schema=Context
+)
+
+# The system prompt will be set dynamically based on context
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "Explain machine learning"}]},
+    context={"user_role": "expert"}
+)
+```
+
+<Tip>
+  For more details on message types and formatting, see [Messages](/oss/python/langchain/messages). For comprehensive middleware documentation, see [Middleware](/oss/python/langchain/middleware).
+</Tip>
+
+### Name
+
+Set an optional [`name`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) for the agent. This is used as the node identifier when adding the agent as a subgraph in [multi-agent systems](/oss/python/langchain/multi-agent):
+
+```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+agent = create_agent(
+    model,
+    tools,
+    name="research_assistant"
+)
+```
+
+<Warning>
+  Prefer `snake_case` for agent names (e.g., `research_assistant` instead of `Research Assistant`). Some model providers reject names containing spaces or special characters with errors. Using alphanumeric characters, underscores, and hyphens only ensures compatibility across all providers. The same applies to [tool names](/oss/python/langchain/tools).
+</Warning>
+
+## Invocation
+
+You can invoke an agent by passing an update to its [`State`](/oss/python/langgraph/graph-api#state). All agents include a [sequence of messages](/oss/python/langgraph/use-graph-api#messagesstate) in their state; to invoke the agent, pass a new message:
+
+```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+)
+```
+
+For streaming steps and / or tokens from the agent, refer to the [streaming](/oss/python/langchain/streaming) guide.
+
+Otherwise, the agent follows the LangGraph [Graph API](/oss/python/langgraph/use-graph-api) and supports all associated methods, such as `stream` and `invoke`.
+
+<Tip>
+  Use [LangSmith](/langsmith/home) to trace, debug, and evaluate your agents.
+</Tip>
+
+## Advanced concepts
+
+### Structured output
+
+In some situations, you may want the agent to return an output in a specific format. LangChain provides strategies for structured output via the [`response_format`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) parameter.
+
+#### ToolStrategy
+
+`ToolStrategy` uses artificial tool calling to generate structured output. This works with any model that supports tool calling. `ToolStrategy` should be used when provider-native structured output (via [`ProviderStrategy`](#providerstrategy)) is not available or reliable.
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from pydantic import BaseModel
+from langchain.agents import create_agent
+from langchain.agents.structured_output import ToolStrategy
+
+
+class ContactInfo(BaseModel):
+    name: str
+    email: str
+    phone: str
+
+agent = create_agent(
+    model="gpt-5.4-mini",
+    tools=[search_tool],
+    response_format=ToolStrategy(ContactInfo)
+)
+
+result = agent.invoke({
+    "messages": [{"role": "user", "content": "Extract contact info from: John Doe, john@example.com, (555) 123-4567"}]
+})
+
+result["structured_response"]
+# ContactInfo(name='John Doe', email='john@example.com', phone='(555) 123-4567')
+```
+
+#### ProviderStrategy
+
+`ProviderStrategy` uses the model provider's native structured output generation. This is more reliable but only works with providers that support native structured output:
+
+```python wrap theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.agents.structured_output import ProviderStrategy
+
+agent = create_agent(
+    model="gpt-5.4",
+    response_format=ProviderStrategy(ContactInfo)
+)
+```
+
+<Note>
+  As of `langchain 1.0`, simply passing a schema (e.g., `response_format=ContactInfo`) will default to `ProviderStrategy` if the model supports native structured output. It will fall back to `ToolStrategy` otherwise.
+</Note>
+
+<Tip>
+  To learn about structured output, see [Structured output](/oss/python/langchain/structured-output).
+</Tip>
+
+### Memory
+
+Agents maintain conversation history automatically through the message state. You can also configure the agent to use a custom state schema to remember additional information during the conversation.
+
+Information stored in the state can be thought of as the [short-term memory](/oss/python/langchain/short-term-memory) of the agent:
+
+Custom state schemas must extend [`AgentState`](https://reference.langchain.com/python/langchain/agents/middleware/types/AgentState) as a `TypedDict`.
+
+There are two ways to define custom state:
+
+1. Via [middleware](/oss/python/langchain/middleware) (preferred)
+2. Via [`state_schema`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.AgentMiddleware.state_schema) on [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent)
+
+#### Defining state via middleware
+
+Use middleware to define custom state when your custom state needs to be accessed by specific middleware hooks and tools attached to said middleware.
+
+```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.agents import AgentState
+from langchain.agents.middleware import AgentMiddleware
+from typing import Any
+
+
+class CustomState(AgentState):
+    user_preferences: dict
+
+class CustomMiddleware(AgentMiddleware):
+    state_schema = CustomState
+    tools = [tool1, tool2]
+
+    def before_model(self, state: CustomState, runtime) -> dict[str, Any] | None:
+        ...
+
+agent = create_agent(
+    model,
+    tools=tools,
+    middleware=[CustomMiddleware()]
+)
+
+# The agent can now track additional state beyond messages
+result = agent.invoke({
+    "messages": [{"role": "user", "content": "I prefer technical explanations"}],
+    "user_preferences": {"style": "technical", "verbosity": "detailed"},
+})
+```
+
+#### Defining state via `state_schema`
+
+Use the [`state_schema`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.AgentMiddleware.state_schema) parameter as a shortcut to define custom state that is only used in tools.
+
+```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.agents import AgentState
+
+
+class CustomState(AgentState):
+    user_preferences: dict
+
+agent = create_agent(
+    model,
+    tools=[tool1, tool2],
+    state_schema=CustomState
+)
+# The agent can now track additional state beyond messages
+result = agent.invoke({
+    "messages": [{"role": "user", "content": "I prefer technical explanations"}],
+    "user_preferences": {"style": "technical", "verbosity": "detailed"},
+})
+```
+
+<Note>
+  As of `langchain 1.0`, custom state schemas **must** be `TypedDict` types. Pydantic models and dataclasses are no longer supported. See the [v1 migration guide](/oss/python/migrate/langchain-v1#state-type-restrictions) for more details.
+</Note>
+
+<Note>
+  Defining custom state via middleware is preferred over defining it via [`state_schema`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.AgentMiddleware.state_schema) on [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent) because it allows you to keep state extensions conceptually scoped to the relevant middleware and tools.
+
+  [`state_schema`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.AgentMiddleware.state_schema) is still supported for backwards compatibility on [`create_agent`](https://reference.langchain.com/python/langchain/agents/factory/create_agent).
+</Note>
+
+<Tip>
+  To learn more about memory, see [Memory](/oss/python/concepts/memory). For information on implementing long-term memory that persists across sessions, see [Long-term memory](/oss/python/langchain/long-term-memory).
+</Tip>
+
+### Streaming
+
+We've seen how the agent can be called with `invoke` to get a final response. If the agent executes multiple steps, this may take a while. To show intermediate progress, we can stream back messages as they occur.
+
+```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+from langchain.messages import AIMessage, HumanMessage
+
+for chunk in agent.stream({
+    "messages": [{"role": "user", "content": "Search for AI news and summarize the findings"}]
+}, stream_mode="values"):
+    # Each chunk contains the full state at that point
+    latest_message = chunk["messages"][-1]
+    if latest_message.content:
+        if isinstance(latest_message, HumanMessage):
+            print(f"User: {latest_message.content}")
+        elif isinstance(latest_message, AIMessage):
+            print(f"Agent: {latest_message.content}")
+    elif latest_message.tool_calls:
+        print(f"Calling tools: {[tc['name'] for tc in latest_message.tool_calls]}")
+```
+
+<Tip>
+  For more details on streaming, see [Streaming](/oss/python/langchain/streaming).
+</Tip>
+
+### Middleware
+
+[Middleware](/oss/python/langchain/middleware) provides powerful extensibility for customizing agent behavior at different stages of execution. You can use middleware to:
+
+* Process state before the model is called (e.g., message trimming, context injection)
+* Modify or validate the model's response (e.g., guardrails, content filtering)
+* Handle tool execution errors with custom logic
+* Implement dynamic model selection based on state or context
+* Add custom logging, monitoring, or analytics
+
+Middleware integrates seamlessly into the agent's execution, allowing you to intercept and modify data flow at key points without changing the core agent logic.
+
+<Tip>
+  For comprehensive middleware documentation including decorators like [`@before_model`](https://reference.langchain.com/python/langchain/agents/middleware/types/before_model), [`@after_model`](https://reference.langchain.com/python/langchain/agents/middleware/types/after_model), and [`@wrap_tool_call`](https://reference.langchain.com/python/langchain/agents/middleware/types/wrap_tool_call), see [Middleware](/oss/python/langchain/middleware).
+</Tip>
+
+***
+
+<div className="source-links">
+  <Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/agents.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+  </Callout>
+
+  <Callout icon="terminal-2">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+  </Callout>
+</div>
+pourquoi on nutilise pas create_react_agent create_react_agent(
+  llm: BaseLanguageModel,
+  tools: Sequence[BaseTool],
+  prompt: BasePromptTemplate,
+  output_parser: AgentOutputParser | None = None,
+  tools_renderer: ToolsRenderer = render_text_description,
+  *,
+  stop_sequence: bool | list[str] = True
+) -> Runnable from langchain_core.prompts import PromptTemplate
+
+template = '''Answer the following questions as best you can. You have access to the following tools:
+
+{tools}
+
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+
+Begin!
+
+Question: {input}
+Thought:{agent_scratchpad}'''
+
+prompt = PromptTemplate.from_template(template)  LangGraph create_react_agentne possède pas de fonctionnalité intégrée d'enchaînement d'outils ; il suit le modèle ReAct standard où le LLM détermine les outils à appeler. Cependant, il existe plusieurs façons d'implémenter l'enchaînement d'outils :
+
+Option 1 : Outil composite
+
+@tool
+def chained_tool(input: str) -> str:
+    """Automatically chains tool A and B"""
+    result_a = tool_a.invoke(input)
+    result_b = tool_b.invoke(result_a)
+    return result_b
+Option 2 : Agent personnalisé avec arêtes conditionnelles Créez un StateGraph personnalisé où create_react_agentvous pouvez définir des transitions explicites d’outil à outil à l’aide d’arêtes conditionnelles.
+
+Option 3 : Outil qui appelle d’autres outils Concevez votre outil principal pour qu’il appelle automatiquement les outils secondaires en fonction de sa logique, en renvoyant les résultats combinés à l’agent.
+
+Le modèle ReAct est intrinsèquement basé sur le LLM (Leadership Management Language), le chaînage automatique va donc à l'encontre de sa conception. Réfléchissez à la nécessité réelle de la flexibilité de ReAct ou si un flux de travail plus structuré serait plus adapté à votre cas d'utilisation.  la fonction `create_agent` construit un graphe d'états LangGraph qui implémente une boucle de type ReAct (modèle → outils → modèle…) et s'exécute jusqu'à ce qu'une condition d'arrêt soit remplie. La boucle est intégrée.
+
+Comment contrôler la boucle :
+
+Limitez les itérations via la configuration de l'exécuteur LangGraph recursion_limitlors de l'appel/du streaming de l'agent :
+assert app.invoke(
+    {"messages": [HumanMessage(content="what is weather in sf")]},
+    {"recursion_limit": 2},
+    debug=True,
+) == {
+    "messages": [
+        _AnyIdHumanMessage(content="what is weather in sf"),
+        _AnyIdAIMessage(content="Sorry, need more steps to process this request."),
+    ]
+}
+Quittez le programme prématurément lorsqu'un outil a terminé return_direct=Trueou lorsqu'un outil de sortie structurée a terminé (voir les extraits de code ci-dessus).
+Évitez complètement la boucle en ne passant aucun outil ; le graphe devient un modelnœud unique (pas de boucle d'appel d'outil).
+Contrôle programmatique avec middleware : à définir state["jump_to"]pour "model" | "tools" | "end"diriger ou terminer la boucle (voir _resolve_jumpet les bords conditionnels autour d’elle dans le même fichier).
+Mettez en pause/reprenez des nœuds spécifiques avec interrupt_before/ interrupt_after(utile pour les interfaces utilisateur avec intervention humaine) ; ceux-ci sont exposés dans create_agent(...).compile(...)les arguments.

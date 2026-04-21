@@ -38,3 +38,4 @@ langgraph-checkpoint-postgres
 psycopg[binary,pool]
 langchain_openrouter
 langchain-mcp-adapters
+langchain-groq

@@ -66,11 +66,6 @@ async def get_story_versions(
             "is_testable": v.is_testable,
             "testability_issues": v.testability_issues or [],
             "agent_status": v.agent_status.value if v.agent_status else "processing",
-            "model_used": v.model_used,
-            "llm_calls": v.llm_calls,
-            "prompt_tokens": v.prompt_tokens,
-            "completion_tokens": v.completion_tokens,
-            "duration": v.duration,
         }
         for v in versions
     ]
