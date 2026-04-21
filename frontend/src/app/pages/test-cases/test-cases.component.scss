@@ -1,0 +1,918 @@
+// test-cases.component.scss
+
+// ============================================
+// VARIABLES
+// ============================================
+$primary:        #4f46e5;
+$primary-dark:   #4338ca;
+$danger:         #ef4444;
+$danger-dark:    #dc2626;
+$success:        #16a34a;
+$warning:        #ea580c;
+$text-primary:   #0f172a;
+$text-secondary: #64748b;
+$border:         #e2e8f0;
+$bg-page:        #f1f5f9;
+$bg-card:        #ffffff;
+$radius-sm:      6px;
+$radius-md:      10px;
+$radius-lg:      14px;
+$transition:     0.2s ease;
+
+// ============================================
+// PAGE
+// ============================================
+.test-cases-page {
+  padding: 28px 36px;
+  max-width: 1600px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: $bg-page;
+}
+
+// ============================================
+// HEADER
+// ============================================
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  .header-left {
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: $text-primary;
+      margin: 0 0 4px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: $text-secondary;
+      margin: 0;
+    }
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 10px;
+  }
+}
+
+// ============================================
+// BUTTONS
+// ============================================
+.btn-primary, .btn-secondary, .btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: $radius-md;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition;
+  border: none;
+
+  svg { width: 15px; height: 15px; }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.btn-primary {
+  background: $primary;
+  color: white;
+  svg { fill: white; }
+  &:hover:not(:disabled) {
+    background: $primary-dark;
+    box-shadow: 0 4px 14px rgba($primary, 0.35);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-secondary {
+  background: white;
+  color: #374151;
+  border: 1px solid $border;
+  svg { fill: $text-secondary; }
+  &:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
+}
+
+.btn-danger {
+  background: $danger;
+  color: white;
+  svg { fill: white; }
+  &:hover:not(:disabled) { background: $danger-dark; }
+}
+
+// ============================================
+// FILTERS BAR
+// ============================================
+.filters-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  align-items: center;
+  
+  .filter-item {
+    flex: 0 0 auto;
+    
+    &.search-item {
+      flex: 1;
+      min-width: 200px;
+    }
+  }
+}
+
+// Uniformisation de tous les selects et filtres
+.filter-select,
+:host ::ng-deep .search-bar,
+:host ::ng-deep .filter-trigger {
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: white;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+  }
+  
+  &:hover {
+    border-color: #cbd5e1;
+  }
+}
+
+// Select spécifique
+.filter-select {
+  min-width: 160px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 18px;
+  padding-right: 36px;
+  
+  &:focus {
+    border-color: #4f46e5;
+  }
+}
+
+// Style pour le FilterBarComponent
+:host ::ng-deep {
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    height: 40px;
+  }
+  
+  .filter-dropdown {
+    position: relative;
+    height: 100%;
+  }
+  
+  .filter-trigger {
+    height: 40px;
+    padding: 0 14px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    
+    .filter-icon {
+      width: 16px;
+      height: 16px;
+      fill: #64748b;
+    }
+    
+    .chevron {
+      width: 16px;
+      height: 16px;
+      fill: #64748b;
+      transition: transform 0.2s ease;
+    }
+    
+    &:hover {
+      border-color: #cbd5e1;
+      background: #f8fafc;
+    }
+  }
+  
+  .filter-dropdown.open .filter-trigger {
+    border-color: #4f46e5;
+    background: #f8fafc;
+    
+    .chevron {
+      transform: rotate(180deg);
+    }
+  }
+  
+  .filter-dropdown.has-active .filter-trigger {
+    border-color: #4f46e5;
+    background: #eef2ff;
+    color: #4f46e5;
+    
+    .filter-icon {
+      fill: #4f46e5;
+    }
+  }
+  
+  .dropdown-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 200px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    overflow: hidden;
+  }
+  
+  .option-list {
+    list-style: none;
+    margin: 0;
+    padding: 8px 0;
+    
+    li {
+      padding: 0;
+    }
+  }
+  
+  .option-btn {
+    width: 100%;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: #374151;
+    transition: background 0.2s ease;
+    text-align: left;
+    
+    &:hover {
+      background: #f1f5f9;
+    }
+    
+    &.selected {
+      background: #eef2ff;
+      color: #4f46e5;
+    }
+    
+    .checkbox {
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 4px;
+      background: white;
+      
+      &.checked {
+        background: #4f46e5;
+        border-color: #4f46e5;
+        
+        svg {
+          width: 12px;
+          height: 12px;
+          fill: white;
+        }
+      }
+    }
+    
+    .option-label {
+      flex: 1;
+    }
+    
+    .option-count {
+      font-size: 11px;
+      color: #94a3b8;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 20px;
+    }
+    
+    &.selected .option-count {
+      background: #e0e7ff;
+      color: #4f46e5;
+    }
+  }
+  
+  .clear-all-btn {
+    height: 40px;
+    padding: 0 16px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #ef4444;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      background: #fef2f2;
+      border-color: #ef4444;
+    }
+  }
+}
+
+// Search Bar wrapper
+.search-wrapper {
+  flex: 1;
+  min-width: 200px;
+  
+  :host ::ng-deep .search-bar {
+    height: 40px;
+    width: 100%;
+    
+    input {
+      height: 100%;
+    }
+  }
+}
+
+
+// ============================================
+// BULK BAR
+// ============================================
+.bulk-bar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 48px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 12px 28px -5px rgba(0,0,0,0.25);
+  z-index: 200;
+
+  .bulk-count { font-size: 13px; font-weight: 500; }
+}
+
+// ============================================
+// LOADING & EMPTY STATES
+// ============================================
+.loading-state {
+  display: flex;
+  justify-content: center;
+  padding: 80px 0;
+}
+
+.empty-state, .no-results {
+  text-align: center;
+  padding: 64px 24px;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+
+  .empty-icon svg { width: 48px; height: 48px; color: #94a3b8; }
+
+  h3, h4 { font-size: 17px; font-weight: 600; color: $text-primary; margin: 16px 0 8px; }
+  p { font-size: 13px; color: $text-secondary; margin: 0 0 20px; }
+
+  svg { width: 40px; height: 40px; color: #94a3b8; }
+}
+
+// ============================================
+// GRID
+// ============================================
+.tc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+// ============================================
+// VIEW DETAILS BUTTON
+// ============================================
+.btn-view-details {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin: 0;
+  flex: 1;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  border: none;
+  border-radius: 6px;  // Plus petit
+  font-size: 11px;  // Plus petit
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: auto;  // Largeur automatique (pas de largeur fixe)
+  min-width: 100px;  // Largeur minimum optionnelle
+  max-width: 80%;  // Pour ne pas dépasser sur mobile
+  
+  svg {
+    width: 12px;  // Icône plus petite
+    height: 12px;
+    fill: white;
+    transition: transform 0.2s ease;
+  }
+  
+  &:hover {
+    background: linear-gradient(135deg, #4338ca, #4f46e5);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+    
+    svg {
+      transform: translateX(2px);
+    }
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+// Variante outline (plus discrète)
+.btn-view-details-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  margin: 0 16px 16px 16px;
+  background: transparent;
+  border: 1.5px solid #4f46e5;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4f46e5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: calc(100% - 32px);
+  justify-content: center;
+  
+  svg {
+    width: 14px;
+    height: 14px;
+    fill: #4f46e5;
+    transition: transform 0.2s ease;
+  }
+  
+  &:hover {
+    background: #4f46e5;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+    
+    svg {
+      fill: white;
+      transform: translateX(3px);
+    }
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// Variante glassmorphism (moderne)
+.btn-view-details-glass {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 0 16px 16px 16px;
+  background: rgba(79, 70, 229, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4f46e5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: calc(100% - 32px);
+  justify-content: center;
+  
+  svg {
+    width: 14px;
+    height: 14px;
+    fill: #4f46e5;
+    transition: transform 0.2s ease;
+  }
+  
+  &:hover {
+    background: rgba(79, 70, 229, 0.2);
+    border-color: rgba(79, 70, 229, 0.4);
+    transform: translateY(-2px);
+    
+    svg {
+      transform: translateX(3px);
+    }
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// Bouton compact (seulement l'icône)
+.btn-view-details-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0 16px 16px auto;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  svg {
+    width: 16px;
+    height: 16px;
+    fill: #64748b;
+    transition: all 0.2s ease;
+  }
+  
+  &:hover {
+    background: #4f46e5;
+    border-color: #4f46e5;
+    transform: scale(1.05);
+    
+    svg {
+      fill: white;
+    }
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+// ============================================
+// CARD
+// ============================================
+.tc-card {
+  position: relative;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  transition: box-shadow $transition, transform $transition, border-color $transition;
+  animation: fadeUp 0.25s ease-out both;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px -6px rgba(0,0,0,0.12);
+    border-color: #c7d2fe;
+  }
+
+  &.selected {
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba($primary, 0.12);
+  }
+
+  // Left accent stripe
+  &__accent {
+    height: 4px;
+    width: 100%;
+    background: #e2e8f0;
+
+    &.accent-critical { background: #ef4444; }
+    &.accent-high     { background: #f97316; }
+    &.accent-medium   { background: #6366f1; }
+    &.accent-low      { background: #22c55e; }
+  }
+
+  // Top row
+  &__top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px 0;
+  }
+
+  &__check {
+    flex-shrink: 0;
+    input {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: $primary;
+    }
+  }
+
+  .tc-code {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: $primary;
+    background: #eef2ff;
+    padding: 3px 9px;
+    border-radius: 20px;
+    letter-spacing: 0.02em;
+  }
+
+  .priority-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    text-transform: capitalize;
+  }
+
+  &__delete {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    padding: 5px;
+    border-radius: $radius-sm;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity $transition, background $transition;
+
+    svg { width: 15px; height: 15px; fill: #94a3b8; display: block; }
+
+    &:hover {
+      background: #fef2f2;
+      svg { fill: $danger; }
+    }
+  }
+
+  &:hover &__delete { opacity: 1; }
+
+  // Title
+  &__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 10px 16px 0;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  // Meta
+  &__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 16px 0;
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: $text-secondary;
+
+      svg { width: 13px; height: 13px; fill: #94a3b8; flex-shrink: 0; }
+
+      span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+
+  // Tags
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 10px 16px 0;
+
+    .tag {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 10px;
+      text-transform: lowercase;
+
+      &.tag-positive   { background: #f0fdf4; color: $success; }
+      &.tag-smoke      { background: #fff7ed; color: $warning; }
+      &.tag-regression { background: #fef2f2; color: $danger; }
+      &.tag-negative   { background: #fef2f2; color: $danger; }
+      &.tag-default    { background: #f1f5f9; color: #475569; }
+    }
+  }
+
+  // Footer
+  &__footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 12px 16px 14px;
+    padding-top: 10px;
+    border-top: 1px solid #f1f5f9;
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #cbd5e1;
+      flex-shrink: 0;
+
+      &.active { background: $success; }
+    }
+
+    .status-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+
+      &.active { color: $success; }
+    }
+  }
+
+  display: flex;
+  flex-direction: column;
+  
+  .btn-view-details,
+  .btn-view-details-outline,
+  .btn-view-details-glass {
+    margin-top: auto; // Pousse le bouton vers le bas
+  }
+}
+
+// Animation d'entrée pour le bouton
+.btn-view-details,
+.btn-view-details-outline,
+.btn-view-details-glass,
+.btn-view-details-icon {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// ============================================
+// PRIORITY BADGES (standalone use)
+// ============================================
+.priority-badge {
+  &.priority-critical { background: #fef2f2; color: $danger; }
+  &.priority-high     { background: #fff7ed; color: $warning; }
+  &.priority-medium   { background: #eef2ff; color: $primary; }
+  &.priority-low      { background: #f0fdf4; color: $success; }
+}
+
+// ============================================
+// PAGINATION
+// ============================================
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+// ============================================
+// CARD ACTIONS ROW
+// ============================================
+.tc-card__actions {
+  display: flex;
+  gap: 8px;
+  margin: 0 16px 16px;
+  flex-wrap: wrap;
+}
+
+// ============================================
+// GENERATE SCRIPT BUTTON
+// ============================================
+.btn-generate-script {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: $radius-sm;
+  background: #059669;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background $transition, transform $transition;
+  flex: 1;
+
+  svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  &:hover:not(:disabled) {
+    background: #047857;
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.spinner-inline {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// ============================================
+// RESPONSIVE
+// ============================================
+@media (max-width: 900px) {
+  .tc-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+}
+
+@media (max-width: 768px) {
+  .test-cases-page { padding: 16px 18px; }
+
+.filters-bar {
+    flex-direction: column;
+    
+    .filter-item {
+      width: 100%;
+      
+      &.search-item {
+        width: 100%;
+      }
+    }
+    
+    .filter-select {
+      width: 100%;
+    }
+    
+    :host ::ng-deep .filter-bar {
+      flex-wrap: wrap;
+    }
+  }
+
+  .tc-grid { grid-template-columns: 1fr; }
+
+  .page-header { flex-direction: column; align-items: flex-start; }
+
+  .bulk-bar { width: calc(100% - 32px); justify-content: space-between; bottom: 16px; }
+}
+
+// ============================================
+// ANIMATIONS
+// ============================================
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

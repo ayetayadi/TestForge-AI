@@ -11,7 +11,7 @@ load_dotenv()
 # ============================================================
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 LLM_TEMPERATURE = 0.3
-LLM_MODEL="openai/gpt-oss-20b"
+LLM_MODEL="openai/gpt-oss-120b"
 
 # ============================================================
 # Agent Configuration
@@ -19,6 +19,8 @@ LLM_MODEL="openai/gpt-oss-20b"
 MAX_ITERATIONS = 2
 MIN_SCORE_THRESHOLD = 0.8
 MIN_SIMILARITY_THRESHOLD = 0.65
+
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
 # ============================================================
 # Tool Configuration

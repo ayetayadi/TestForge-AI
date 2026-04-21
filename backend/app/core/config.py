@@ -99,5 +99,10 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     MAIL_FROM_NAME: str = "TestForge"
 
+    # =========================
+    # MCP / PLAYWRIGHT CONFIG
+    # =========================
+    TEST_APPLICATION_URL: str = "http://localhost:3000"
+
 
 settings = Settings()

@@ -26,7 +26,7 @@ export class PaginationComponent implements OnInit {
   showPageSizeSelector = input<boolean>(true);
 
   /** Available page sizes */
-  pageSizeOptions = input<number[]>([5, 10, 15, 20]);
+  pageSizeOptions = input<number[]>([10, 15, 20, 25, 50, 100]);
 
   /** Outputs */
   pageChange = output<number>();

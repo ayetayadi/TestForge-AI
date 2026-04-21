@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Project } from '../models';
+import { Project } from '../models/user_story.model';
 import { environment } from 'src/environments/environment';
 
 export interface JiraStatusResponse {

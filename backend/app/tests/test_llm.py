@@ -9,7 +9,7 @@ async def test_token_extraction():
     print("=" * 60)
     
     llm = ChatOpenRouter(
-        model="openai/gpt-oss-20b",
+        model="openai/gpt-oss-120b",
         temperature=0.3,
         api_key=settings.OPENROUTER_API_KEY,
     )

@@ -1,0 +1,247 @@
+[16:20:06]
+Retrieving Playwright TypeScript script...
+[16:20:06]
+Script v1 generated — 11 placeholders
+[16:20:06]
+Executing ReAct agent...
+[16:20:06]
+🚀 Starting execution — Browser: chromium | Headless: True
+[16:22:24]
+Completed — 0 passed / 0 failed
+INFO:     127.0.0.1:55368 - "GET /users/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:56115 - "GET /test-cases/326f1155-3a68-4d47-805f-c01e20f0f0da HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54386 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/scripts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54386 - "OPTIONS /playwright/generate-script HTTP/1.1" 200 OK
+2026-04-20 16:18:58,404 - app.services.playwright_service - INFO - Generating Script v1 for test_case 326f1155-3a68-4d47-805f-c01e20f0f0da
+[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=generation_started (buffered, no listeners)
+2026-04-20 16:18:58,410 - app.ai_agents_v2.playwright_e2e.script_generator - INFO - Generating TypeScript Playwright script for 1 test case(s)
+2026-04-20 16:18:58,430 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): api.smith.langchain.com:443
+2026-04-20 16:18:58,576 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:18:58,710 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "GET /info HTTP/1.1" 200 1102
+2026-04-20 16:18:58,731 - langsmith.client - DEBUG - Tracing control thread func compress parallel called
+2026-04-20 16:18:59,009 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:19:50,091 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:19:50,108 - app.ai_agents_v2.playwright_e2e.script_generator - INFO - TypeScript Playwright script generated — 11 placeholder(s)
+2026-04-20 16:19:50,145 - app.repositories.playwright_repository - INFO - Script saved: test_case=326f1155-3a68-4d47-805f-c01e20f0f0da, version=1, source=v1_draft, placeholders=11
+[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=generation_completed (buffered, no listeners)
+INFO:     127.0.0.1:54386 - "POST /playwright/generate-script HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51840 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/scripts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51840 - "OPTIONS /playwright/script/839821be-7951-487e-87e4-cb07b5ac8aef HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63168 - "OPTIONS /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/last-run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63168 - "GET /playwright/script/839821be-7951-487e-87e4-cb07b5ac8aef HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54386 - "GET /test-cases/326f1155-3a68-4d47-805f-c01e20f0f0da HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51840 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/last-run HTTP/1.1" 200 OK
+2026-04-20 16:19:50,641 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab79-2c78-78d0-ae05-e8a9a5a0ecb2,id=019dab79-2c78-78d0-ae05-e8a9a5a0ecb2
+2026-04-20 16:19:50,808 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+INFO:     127.0.0.1:55549 - "OPTIONS /playwright/execute-script HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55549 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/stream HTTP/1.1" 200 OK
+[SSE CONNECT] version=326f1155-3a68-4d47-805f-c01e20f0f0da
+INFO:     127.0.0.1:60579 - "POST /playwright/execute-script HTTP/1.1" 200 OK
+2026-04-20 16:20:06,973 - app.services.playwright_service - INFO - Executing script for test_case 326f1155-3a68-4d47-805f-c01e20f0f0da
+2026-04-20 16:20:06,993 - app.repositories.playwright_repository - INFO - TestRun created: 2019a815-6afb-4d45-966a-a5da0f95112b for script 839821be-7951-487e-87e4-cb07b5ac8aef
+[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=execution_started
+[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=agent_step
+2026-04-20 16:20:07,002 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: === AGENT RUN START ===
+2026-04-20 16:20:07,002 - app.ai_agents_v2.playwright_e2e.agent - INFO - PlaywrightReActAgent starting
+2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.agent - INFO - App URL: http://localhost:3000
+2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.agent - INFO - Placeholders found: 11
+2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: Creating MCP client...
+2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: === ENTERING MCP CLIENT ===
+2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Acquiring semaphore lock...
+2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.tools - INFO - Execution lock acquired (timeout=60s)
+2026-04-20 16:20:07,003 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Calling _connect_with_fallback...
+2026-04-20 16:20:07,539 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3852-7601-bca6-05bf1b969f10
+2026-04-20 16:20:07,742 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:20:08,133 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Connecting to SSE at http://localhost:8931/sse
+2026-04-20 16:20:08,354 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Session opened, loading tools...
+2026-04-20 16:20:08,423 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Got 21 raw tools from server
+2026-04-20 16:20:08,424 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Raw tool names: ['browser_close', 'browser_resize', 'browser_console_messages', 'browser_handle_dialog', 'browser_evaluate', 'browser_file_upload', 'browser_fill_form', 'browser_press_key', 'browser_type', 'browser_navigate', 'browser_navigate_back', 'browser_network_requests', 'browser_run_code', 'browser_take_screenshot', 'browser_snapshot', 'browser_click', 'browser_drag', 'browser_hover', 'browser_select_option', 'browser_tabs', 'browser_wait_for']
+2026-04-20 16:20:08,424 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Filtered to 9 tools
+2026-04-20 16:20:08,425 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Filtered tool names: ['browser_close', 'browser_press_key', 'browser_type', 'browser_navigate', 'browser_snapshot', 'browser_click', 'browser_select_option', 'browser_tabs', 'browser_wait_for']
+2026-04-20 16:20:08,425 - app.ai_agents_v2.playwright_e2e.tools - INFO - Tools loaded [SSE]: 9/21 active
+2026-04-20 16:20:08,425 - app.ai_agents_v2.playwright_e2e.tools - INFO - MCP Playwright SSE connected to http://localhost:8931 (attempt 1/3)
+2026-04-20 16:20:08,425 - app.ai_agents_v2.playwright_e2e.tools - INFO - ✅ Connection successful, transport=sse
+2026-04-20 16:20:08,426 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: Tools loaded = 9
+2026-04-20 16:20:08,427 - app.ai_agents_v2.playwright_e2e.tools - INFO - 🔍 DEBUG: === MCP CLIENT READY ===
+2026-04-20 16:20:08,427 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: MCP client created. Tools available: 9
+2026-04-20 16:20:08,427 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: Tool names: ['browser_close', 'browser_press_key', 'browser_type', 'browser_navigate', 'browser_snapshot', 'browser_click', 'browser_select_option', 'browser_tabs', 'browser_wait_for']
+2026-04-20 16:20:08,462 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: LLM created
+2026-04-20 16:20:08,498 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: ReAct agent created
+2026-04-20 16:20:08,498 - app.ai_agents_v2.playwright_e2e.agent - INFO - Invoking ReAct agent...
+2026-04-20 16:20:08,498 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: Calling agent.ainvoke...
+2026-04-20 16:20:08,524 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:20:09,076 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e3f-7f81-82d0-9a4eccd8b804; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e48-7a82-afc4-b26870a0f320; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4a-70b0-b325-3e6bbfc78b2d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4b-7111-ac55-7900c58a43f1; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4c-7620-b97a-6fd46f72cb63; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4c-7620-b97a-6fd46f72cb63; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4d-7011-9f00-924ad4b6f590
+2026-04-20 16:20:09,244 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:20:17,169 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:20:17,738 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4d-7011-9f00-924ad4b6f590; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4b-7111-ac55-7900c58a43f1; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e4a-70b0-b325-3e6bbfc78b2d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6020-7df2-a9a2-eaa9812ba95c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6020-7df2-a9a2-eaa9812ba95c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e48-7a82-afc4-b26870a0f320; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6025-7fe3-8482-227e3df2d769; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6027-7c21-9897-316d6918a30c
+2026-04-20 16:20:17,911 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:20:18,573 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:20:19,118 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6027-7c21-9897-316d6918a30c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6025-7fe3-8482-227e3df2d769; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6586-7580-a9d7-38f2f3e76839; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6587-75d0-a8cd-7ac76412b45c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658a-75f1-9cfb-e36476d2feb5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658b-7ab3-b1dd-1216e25b2217; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658b-7ab3-b1dd-1216e25b2217; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658e-7883-a450-f93d2fbf80f2
+2026-04-20 16:20:19,285 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:20:21,467 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:20:21,516 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:20:22,066 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658e-7883-a450-f93d2fbf80f2; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-658a-75f1-9cfb-e36476d2feb5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6587-75d0-a8cd-7ac76412b45c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e4-70e2-be57-5d80061f1001; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e4-70e2-be57-5d80061f1001; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-6586-7580-a9d7-38f2f3e76839; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e7-77d2-9549-83a426c22231; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e8-7010-b639-0867b7107828; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e8-7010-b639-0867b7107828; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-70e7-77d2-9549-83a426c22231; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7101-7610-ac9b-88c15bbe637d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7101-7610-ac9b-88ded27eabb3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7103-7c00-97c2-d9a09df33476; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7105-7e81-88c9-43612da1ae70; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7105-7e81-88c9-43612da1ae70; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7108-7043-96a5-4cf56f008914
+2026-04-20 16:20:22,249 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:20:25,183 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:20:25,250 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:20:25,808 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7108-7043-96a5-4cf56f008914; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7103-7c00-97c2-d9a09df33476; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7101-7610-ac9b-88ded27eabb3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f75-71c3-9813-7b1df57c7d2c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f75-71c3-9813-7b1df57c7d2c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7101-7610-ac9b-88c15bbe637d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f7b-7121-9553-f93b4a36b31a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f7d-7333-ab73-e6d2aaf88501; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f7d-7333-ab73-e6d2aaf88501; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f7b-7121-9553-f93b4a36b31a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f96-7862-b96c-e7fdec50fd97; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f97-7623-ab88-0c8794416f1d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9a-76f2-a6fa-e15ff53d0728; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9b-7d63-b8d1-9c52dd96d260; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9b-7d63-b8d1-9c52dd96d260; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9f-7783-9315-83e1bb364f87
+2026-04-20 16:20:25,991 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:20:39,865 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:20:40,033 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:20:40,532 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9f-7783-9315-83e1bb364f87; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f9a-76f2-a6fa-e15ff53d0728; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f97-7623-ab88-0c8794416f1d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c4-7332-98c5-f6f0118b2044; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c4-7332-98c5-f6f0118b2044; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-7f96-7862-b96c-e7fdec50fd97; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c8-7061-90ef-e81634c3a059; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c9-7b40-be9f-554f00d2f5b8; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c9-7b40-be9f-554f00d2f5b8; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b8c8-7061-90ef-e81634c3a059; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b95e-7803-9f4a-cc8d7fac0d0a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b95f-7780-837e-0414c9051523; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b961-7851-bac9-21f527476225; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b963-7343-8b11-82486d1189cb; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b963-7343-8b11-82486d1189cb; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b965-77d0-9b1c-d03eb931c14c
+2026-04-20 16:20:40,728 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:20:48,676 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:20:48,738 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:20:49,258 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b965-77d0-9b1c-d03eb931c14c; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b961-7851-bac9-21f527476225; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b95f-7780-837e-0414c9051523; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db2f-75d1-b348-c2897bb55291; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db2f-75d1-b348-c2897bb55291; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-b95e-7803-9f4a-cc8d7fac0d0a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db35-7f33-94c6-40caa44b2eb5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db37-7ee3-87c3-a8a5a4876f47; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db37-7ee3-87c3-a8a5a4876f47; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db35-7f33-94c6-40caa44b2eb5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db54-7250-8227-62364c5b5222; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db56-7e90-8220-3eb6a64dec85; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5a-7ce3-a5b1-197c4e708ee3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5c-7b93-b6c9-8b819952d80b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5c-7b93-b6c9-8b819952d80b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5f-75d1-a671-a29df7e4c15f
+2026-04-20 16:20:49,447 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:20:55,247 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:20:55,326 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:20:55,877 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5f-75d1-a671-a29df7e4c15f; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db5a-7ce3-a5b1-197c4e708ee3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db56-7e90-8220-3eb6a64dec85; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4da-7132-b9cc-52ce3a2f6c51; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4da-7132-b9cc-52ce3a2f6c51; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-db54-7250-8227-62364c5b5222; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4e0-7f23-b895-a71a4c584810; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4e2-7681-b345-b285bfecef4e; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4e2-7681-b345-b285bfecef4e; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f4e0-7f23-b895-a71a4c584810; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f518-7200-9fde-d6f5eaaa4723; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f519-7dd3-ad07-154782fbcc18; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51a-7931-ace3-6b6e6aa5ecd3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51b-72f1-a181-0099b6a3a4bb; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51b-72f1-a181-0099b6a3a4bb; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51c-7943-ab7d-23900b01d0a7
+2026-04-20 16:20:56,118 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:21:01,831 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:21:02,362 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51c-7943-ab7d-23900b01d0a7; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f51a-7931-ace3-6b6e6aa5ecd3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f519-7dd3-ad07-154782fbcc18; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e91-72c2-b933-11d62b4ccce5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e91-72c2-b933-11d62b4ccce5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-f518-7200-9fde-d6f5eaaa4723; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e97-7370-b083-bb994ffa7561; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e98-7301-8fc0-f4aed51c6c9b
+2026-04-20 16:21:02,595 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:21:03,971 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:21:04,510 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e98-7301-8fc0-f4aed51c6c9b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-0e97-7370-b083-bb994ffa7561; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16de-75c0-891b-df5b7d9a22a9; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16df-7d72-82da-7f9f012a1c0a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e1-7023-8205-6795fa54723d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e1-7023-8205-67a69aba894e; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e1-7023-8205-67a69aba894e; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e3-7271-896d-f919e83f680a
+2026-04-20 16:21:04,743 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:21:07,026 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:21:07,078 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:21:07,616 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e3-7271-896d-f919e83f680a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16e1-7023-8205-6795fa54723d; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16df-7d72-82da-7f9f012a1c0a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22db-7b90-bac5-78897d349d3f; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22db-7b90-bac5-78897d349d3f; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-16de-75c0-891b-df5b7d9a22a9; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22e0-7262-aa57-8eeb9c97693b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22e3-75a2-bf42-4864dd5aef41; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22e3-75a2-bf42-4864dd5aef41; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22e0-7262-aa57-8eeb9c97693b; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fc-7da2-b451-5ecffdbc6b35; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fd-7b91-ab64-e614f28f5bb7; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fe-76f3-b1e8-b6d53b558351; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22ff-7943-ad1f-94f4ef317202; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22ff-7943-ad1f-94f4ef317202; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-2301-7a43-9b5e-663f5dbedffd
+2026-04-20 16:21:07,853 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:21:12,864 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:21:12,924 - app.llm.llm_control - DEBUG - [LLM] Semaphore acquired, calling OpenRouter...
+2026-04-20 16:21:13,445 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-2301-7a43-9b5e-663f5dbedffd; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fe-76f3-b1e8-b6d53b558351; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fd-7b91-ab64-e614f28f5bb7; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39ab-7ed1-bd70-65c3cb3bb4ba; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39ab-7ed1-bd70-65c3cb3bb4ba; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-22fc-7da2-b451-5ecffdbc6b35; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39b6-7370-b12e-0790069dd7fe; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39b7-75a3-a0c1-e200afbeed68; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39b7-75a3-a0c1-e200afbeed68; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39b6-7370-b12e-0790069dd7fe; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d3-7c51-981a-3378171e8ce5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d3-7c51-981a-33895ffa0721; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d7-7d62-8d99-87fb822f0e2a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d9-7071-a58a-ad2314792fd3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d9-7071-a58a-ad2314792fd3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39db-76e3-a9eb-4085580cb4e3
+2026-04-20 16:21:13,684 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
+2026-04-20 16:22:12,925 - mcp.client.sse - ERROR - Error in sse_reader
+Traceback (most recent call last):
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_transports\default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_transports\default.py", line 271, in __aiter__
+    async for part in self._httpcore_stream:
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\connection_pool.py", line 407, in __aiter__
+    raise exc from None
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\connection_pool.py", line 403, in __aiter__
+    async for part in self._stream:
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\http11.py", line 342, in __aiter__
+    raise exc
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\http11.py", line 334, in __aiter__
+    async for chunk in self._connection._receive_response_body(**kwargs):
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\http11.py", line 203, in _receive_response_body
+    event = await self._receive_event(timeout=timeout)
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_async\http11.py", line 217, in _receive_event
+    data = await self._network_stream.read(
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_backends\anyio.py", line 32, in read
+    with map_exceptions(exc_map):
+  File "C:\Users\ayeta\AppData\Local\Programs\Python\Python310\lib\contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpcore\_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ReadTimeout
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\mcp\client\sse.py", line 81, in sse_reader
+    async for sse in event_source.aiter_sse():  # pragma: no branch
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx_sse\_api.py", line 42, in aiter_sse
+    async for line in lines:
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx_sse\_api.py", line 80, in _aiter_sse_lines
+    async for text in response.aiter_text():
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_models.py", line 1018, in aiter_text
+    async for byte_content in self.aiter_bytes():
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_models.py", line 997, in aiter_bytes
+    async for raw_bytes in self.aiter_raw():
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_models.py", line 1055, in aiter_raw
+    async for raw_stream_bytes in self.stream:
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_client.py", line 176, in __aiter__
+    async for chunk in self._stream:
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_transports\default.py", line 270, in __aiter__
+    with map_httpcore_exceptions():
+  File "C:\Users\ayeta\AppData\Local\Programs\Python\Python310\lib\contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\ayeta\Desktop\TestForge-AI\backend\venv\lib\site-packages\httpx\_transports\default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ReadTimeout
+2026-04-20 16:22:23,893 - app.llm.llm_control - DEBUG - [LLM] ✓ Response received from OpenRouter
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 DEBUG: Agent.ainvoke completed
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO - 🔍 FINAL STATE MESSAGES:
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 0: HumanMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: 
+Execute this TypeScript Playwright script and replace all placeholders with real locators.
+
+Script v1:
+import { test, expect } from '@playwright/test';
+
+test('Ajout utilisateur actif', async ({ page }) => {
+  // Ouvrir la page d'accueil
+  await page.goto('http://localhost:3000');
+
+  // Se connecter en tant qu'administrateur (pré-requis)
+  // (Supposé déjà connecté ou login automatisé ici)
+  // await page.locator("[TESTFORGEAI: admin login button]").click();
+
+  // Aller sur le dashboard
+  // (Su...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 1: AIMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 2: ToolMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': "### Ran Playwright code\n```js\nawait page.goto('http://localhost:3000');\n```\n### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n- [Snapshot](.playwright-mcp\\page-2026-04-20T15-20-18-533Z.yml)\n### Events\n- New console entries: .playwright-mcp\\console-2026-04-20T15-20-18-334Z.log#L1-L2", 'id': 'lc_c280f0ff-3a48-4a18-a853-50c69bc366a5'}]...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 3: AIMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 4: ToolMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e3]:\n  - heading "User Management System" [level=1] [ref=e4]\n  - heading "Login" [level=2] [ref=e5]\n  - generic [ref=e6]:\n    - generic [ref=e7]\n    - generic [ref=e10]\n    - button "Login" [ref=e13] [cursor=pointer]\n    - generic [ref=e14]\n```', 'id': 'lc_7d5d0c2b-bf15-4c49-8b02-cd7d430dca66'}]...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 5: AIMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 6: ToolMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e3]:\n  - heading "User Management System" [level=1] [ref=e4]\n  - heading "Login" [level=2] [ref=e5]\n  - generic [ref=e6]:\n    - generic [ref=e7]:\n      - generic [ref=e8]: "Email:"\n      - textbox "Email:" [ref=e9]\n    - generic [ref=e10]:\n      - generic [ref=e11]: "Password:"\n      - textbox "Pa...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 7: AIMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 8: ToolMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': "### Ran Playwright code\n```js\nawait page.getByTestId('email-input').fill('admin@test.com');\n```", 'id': 'lc_378f924c-c128-4c87-bc07-b0ede2d9986d'}]...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 9: AIMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 10: ToolMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e3]:\n  - heading "User Management System" [level=1] [ref=e4]\n  - heading "Login" [level=2] [ref=e5]\n  - generic [ref=e6]:\n    - generic [ref=e7]:\n      - generic [ref=e8]: "Email:"\n      - textbox "Email:" [active] [ref=e9]: admin@test.com\n    - generic [ref=e10]:\n      - generic [ref=e11]: "Passwo...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 11: AIMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 12: ToolMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': "### Ran Playwright code\n```js\nawait page.getByTestId('password-input').fill('Admin123!');\n```", 'id': 'lc_4094943e-2bad-4c29-bc2a-7e8cb49a41f3'}]...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 13: AIMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 14: ToolMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': "### Ran Playwright code\n```js\nawait page.getByTestId('login-button').click();\n```\n### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n- [Snapshot](.playwright-mcp\\page-2026-04-20T15-21-03-939Z.yml)", 'id': 'lc_ce82ff88-b541-4a79-9d1b-c41c50f44fbe'}]...
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 15: AIMessage
+2026-04-20 16:22:23,905 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,917 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 16: ToolMessage
+2026-04-20 16:22:23,917 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e18]:\n  - generic [ref=e19]:\n    - heading "User Management Dashboard" [level=1] [ref=e20]\n    - generic [ref=e21]\n  - generic [ref=e24]:\n    - heading "Add New User" [level=2] [ref=e25]\n    - generic [ref=e27]\n  - generic [ref=e42]:\n    - heading "Users List" [level=2] [ref=e43]\n    - table [ref=...
+2026-04-20 16:22:23,917 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 17: AIMessage
+2026-04-20 16:22:23,917 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ...
+2026-04-20 16:22:23,919 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 18: ToolMessage
+2026-04-20 16:22:23,919 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: [{'type': 'text', 'text': '### Page\n- Page URL: http://localhost:3000/\n- Page Title: User Management System - Test App\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e18]:\n  - generic [ref=e19]:\n    - heading "User Management Dashboard" [level=1] [ref=e20]\n    - generic [ref=e21]:\n      - generic [ref=e22]: Welcome, Administrator\n      - button "Logout" [ref=e23] [cursor=pointer]\n  - generic [ref=e24]:\n    - heading "Add New User" [level=2] [ref=e25]\n    - gene...
+2026-04-20 16:22:23,919 - app.ai_agents_v2.playwright_e2e.agent - INFO -   Message 19: AIMessage
+2026-04-20 16:22:23,919 - app.ai_agents_v2.playwright_e2e.agent - INFO -     Content: ```typescript
+import { test, expect } from '@playwright/test';
+
+test('Ajout utilisateur actif', async ({ page }) => {
+  // ✅ Step 1: Ouvrir la page d'accueil
+  await page.goto('http://localhost:3000');
+
+  // ✅ Step 2: Se connecter en tant qu'administrateur (pré‑requis)
+  await page.getByLabel('Email:').fill('admin@test.com');
+  await page.getByLabel('Password:').fill('Admin123!');
+  await page.getByRole('button', { name: 'Login' }).click();
+
+  // ✅ Step 3: Aller sur le dashboard (login redirige ...
+2026-04-20 16:22:23,921 - app.ai_agents_v2.playwright_e2e.agent - INFO - Script v2 ready — status=completed, remaining placeholders=0
+2026-04-20 16:22:23,921 - app.ai_agents_v2.playwright_e2e.tools - INFO - MCP connection closing - transport=sse, duration=136.92s, error=None
+2026-04-20 16:22:23,922 - app.ai_agents_v2.playwright_e2e.tools - INFO - MCP session context closed
+2026-04-20 16:22:23,922 - app.ai_agents_v2.playwright_e2e.tools - INFO - Execution lock released
+2026-04-20 16:22:23,940 - app.repositories.playwright_repository - INFO - TestRun 2019a815-6afb-4d45-966a-a5da0f95112b updated: {'status': <TestRunStatus.COMPLETED: 'completed'>, 'completed_at': datetime.datetime(2026, 4, 20, 15, 22, 23, 922819)}
+2026-04-20 16:22:23,953 - app.repositories.playwright_repository - INFO - Script saved: test_case=326f1155-3a68-4d47-805f-c01e20f0f0da, version=2, source=v2_corrected, placeholders=0
+2026-04-20 16:22:23,954 - app.repositories.playwright_repository - INFO - TestRun 2019a815-6afb-4d45-966a-a5da0f95112b updated: {'status': <TestRunStatus.COMPLETED: 'completed'>, 'completed_at': datetime.datetime(2026, 4, 20, 15, 22, 23, 954251)}
+2026-04-20 16:22:23,994 - app.repositories.playwright_repository - INFO - Added 19 steps to test_run 2019a815-6afb-4d45-966a-a5da0f95112b
+2026-04-20 16:22:24,003 - app.repositories.playwright_repository - INFO - TestResult saved: 2019a815-6afb-4d45-966a-a5da0f95112b → error
+[SSE PUSH] version=326f1155-3a68-4d47-805f-c01e20f0f0da event=completed
+INFO:     127.0.0.1:55549 - "GET /playwright/test-case/326f1155-3a68-4d47-805f-c01e20f0f0da/last-run HTTP/1.1" 200 OK
+2026-04-20 16:22:24,476 - langsmith.client - DEBUG - Sending compressed multipart request with context: trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39db-76e3-a9eb-4085580cb4e3; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d7-7d62-8d99-87fb822f0e2a; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d3-7c51-981a-33895ffa0721; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7c-4f21-79e3-897a-a64b79b53c01; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7c-4f21-79e3-897a-a64b79b53c01; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7b-39d3-7c51-981a-3378171e8ce5; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3e3f-7f81-82d0-9a4eccd8b804; trace=019dab7a-3852-7601-bca6-05bf1b969f10,id=019dab7a-3852-7601-bca6-05bf1b969f10
+2026-04-20 16:22:24,709 - urllib3.connectionpool - DEBUG - https://api.smith.langchain.com:443 "POST /runs/multipart HTTP/1.1" 202 34
