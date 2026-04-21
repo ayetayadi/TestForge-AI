@@ -1,8 +1,8 @@
 # test_iterations.py
 import asyncio
 import time
-from app.ai_workflows.user_story_refinement.agent import get_pipeline
-import backend.app.ai_workflows.user_story_refinement.config as config
+from app.ai_workflows.user_story_refinement.workflow import get_pipeline
+import app.ai_workflows.user_story_refinement.config as config
 
 async def test_with_iterations(iterations: int, story: str, ac: list):
     print(f"\n{'='*80}")
