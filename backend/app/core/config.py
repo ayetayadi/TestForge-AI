@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -54,6 +56,12 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str | None = None
 
     # =========================
+    # ATLAS CLOUD CONFIGURATION
+    # =========================
+    ATLAS_API_KEY: str = os.getenv("ATLAS_API_KEY", "")
+    ATLAS_BASE_URL: str = os.getenv("ATLAS_BASE_URL", "https://api.atlascloud.ai/v1")
+
+    # =========================
     # Hugging Face CONFIG
     # =========================
     HF_TOKEN: str | None = None
@@ -90,6 +98,9 @@ class Settings(BaseSettings):
     # WORKER CONFIG
     # =========================
     MAX_WORKERS: int = 3
+
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    GITHUB_MODEL: str = "gpt-4o"
 
     # =========================
     # MAIL CONFIG

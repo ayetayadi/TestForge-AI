@@ -11,7 +11,6 @@ import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.compon
 import { SearchBarComponent } from '../../components/search-bar/search-bar.component';
 import { FilterBarComponent, FilterGroup, ActiveFilters } from '../../components/filter-bar/filter-bar.component';
 import { PaginationComponent } from '../../components/pagination/pagination.component';
-import { StoryDetailModalComponent } from '../../components/story-detail-modal/story-detail-modal.component';
 import { ImportModalComponent } from '../../components/import-modal/import-modal.component';
 import { NavigationService } from '../../services/navigation.service';
 
@@ -26,7 +25,6 @@ import { NavigationService } from '../../services/navigation.service';
     SearchBarComponent,
     FilterBarComponent,
     PaginationComponent,
-    StoryDetailModalComponent,
     ImportModalComponent,
   ],
   templateUrl: './user-stories.component.html',
@@ -49,7 +47,6 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   stories = signal<StoryWithVersion[]>([]);
   loading = signal(true);
   pipelineLoading = signal(false);
-  selectedStory = signal<StoryWithVersion | null>(null);
 
   // Pagination
   page = signal(1);
@@ -345,7 +342,6 @@ private recoverVersionStates(): void {
                         generated_acceptance_criteria: versionData.acceptance_criteria || [],
                         initial_score: versionData.initial_score || 0,
                         final_score: versionData.final_score || 0,
-                        llm_calls: versionData.llm_calls || 1,
                         agent_status: versionData.agent_status || 'completed',
                         decision_status: versionData.decision_status || 'pending',
                         testability_score: versionData.testability_score,
@@ -363,7 +359,6 @@ private recoverVersionStates(): void {
                         },
                         agentStatus: versionData.agent_status,
                         versionScore: versionData.final_score,
-                        versionIteration: versionData.llm_calls,
                         has_processing: versionData.agent_status === 'processing',
                         versions_count: versionData.versions_count || 0,
                         // ✅ TOUJOURS définir display_version
@@ -546,14 +541,16 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
     this.loadStories();
   }
 
-  // ─── Modal ──────────────────────────────────────────────────────
+  // ─── Detail page navigation ──────────────────────────────────────
 
   openStoryDetail(story: StoryWithVersion): void {
-    this.selectedStory.set(story);
-  }
+    const qp: Record<string, string | number> = { page: this.page() };
+    const projectId = this.projectId();
+    const projectName = this.projectName();
+    if (projectId) qp['projectId'] = projectId;
+    if (projectName) qp['projectName'] = projectName;
 
-  closeModal(): void {
-    this.selectedStory.set(null);
+    this.router.navigate(['/user-stories', story.id], { queryParams: qp });
   }
 
   // ─── Selection ──────────────────────────────────────────────────
@@ -741,7 +738,6 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
                 generated_acceptance_criteria: data.generated_acceptance_criteria ?? [],
                 initial_score: data.initial_score ?? 0,
                 final_score: data.final_score ?? 0,
-                llm_calls: data.iteration ?? 1,
                 agent_status: 'completed',
                 decision_status: 'pending',
                 testability_score: data.testability_score,
@@ -807,7 +803,6 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
                   generated_acceptance_criteria: state.generated_acceptance_criteria ?? [],
                   initial_score: state.initial_score ?? 0,
                   final_score: state.final_score ?? 0,
-                  llm_calls: state.iteration ?? 1,
                   agent_status: 'completed',
                   decision_status: state.decision_status ?? 'pending',
                   testability_score: state.testability_score,

@@ -123,9 +123,6 @@ async def get_version_state(version_id: str, db: AsyncSession = Depends(get_db))
             if version.initial_score is not None and version.final_score is not None
             else 0
         ),
-        "model_used": version.model_used,
-        "llm_calls": version.llm_calls,
-        "duration": version.duration,
     }
 
 
@@ -320,8 +317,6 @@ async def get_story_versions(
             "final_score": v.final_score,
             "testability_score": v.testability_score,
             "is_testable": v.is_testable,
-            "iteration": v.llm_calls,
-            "duration": v.duration,
             "started_at": v.started_at,
             "completed_at": v.completed_at,
         }

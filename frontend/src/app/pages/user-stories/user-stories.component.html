@@ -249,6 +249,13 @@
                   <!-- Actions -->
                   <td class="col-actions" (click)="$event.stopPropagation()">
                     <div class="action-buttons">
+                      <button class="btn-icon details" title="View Details" (click)="openStoryDetail(story)">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M10 4.5c-3.5 0-6.5 2-8.5 5.5 2 3.5 5 5.5 8.5 5.5s6.5-2 8.5-5.5c-2-3.5-5-5.5-8.5-5.5zM10 14a4 4 0 110-8 4 4 0 010 8z"/>
+                          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                        </svg>
+                      </button>
+
                       @if (canRunPipeline(story) && !getDisplayVersion(story)) {
                         <button class="btn-icon run" title="Run Pipeline" (click)="runSinglePipeline(story)">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -292,10 +299,3 @@
   (imported)="onImported()"
 />
 
-<!-- Story Detail Modal -->
-<app-story-detail-modal
-  [story]="selectedStory()"
-  (closed)="closeModal()"
-  (runPipeline)="runSinglePipeline($event)"
-  (rerunPipeline)="rerunPipeline($event)"
-/>

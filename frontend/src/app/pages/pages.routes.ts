@@ -31,6 +31,13 @@ export const PagesRoutes: Routes = [
     data: { title: 'User Stories' },
   },
   {
+    path: 'user-stories/:storyId',
+    loadComponent: () =>
+      import('./user-story-detail/user-story-detail.component').then(m => m.UserStoryDetailComponent),
+    canActivate: [authGuard],
+    data: { title: 'User Story Detail' },
+  },
+  {
     path: 'review/:versionId',
     loadComponent: () =>
       import('./review/review.component').then(m => m.ReviewComponent),

@@ -44,7 +44,7 @@ from app.api.test_cases import router as test_cases_router
 from app.api.playwright import router as playwright_router
 from app.core.database import Base, engine
 from app.streaming.sse_manager import set_main_loop
-from app.core.embedding import preload_embedding_model
+from app.core.model_manager import preload_embedding_model
 from app.core.config import settings
 from app.workers.asyncio_workers import start_workers , stop_workers
 
@@ -67,34 +67,31 @@ def preload_models():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[STARTUP] Initializing application...")
-
+    
     # HF TOKEN
     if settings.HF_TOKEN:
         os.environ["HF_TOKEN"] = settings.HF_TOKEN
         print("[HF] Token loaded")
-
+    
     # DB
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("[DB] Tables ready!")
-
+    
     # SSE loop
     loop = asyncio.get_running_loop()
     set_main_loop(loop)
-
-    await asyncio.to_thread(preload_models)
+    
+    await asyncio.to_thread(preload_embedding_model)
     
     await start_workers()
     print("[STARTUP] Application ready!")
-
+    
     yield
-
-    # Arrêt
+    
     print("[SHUTDOWN] Stopping workers...")
     await stop_workers()
     print("[SHUTDOWN] Workers stopped")
-
-
 # =========================
 # APP
 # =========================

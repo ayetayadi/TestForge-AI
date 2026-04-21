@@ -1,0 +1,288 @@
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <button class="btn-back" (click)="goBack()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/>
+        </svg>
+        Back to User Stories
+      </button>
+    </div>
+    
+    <div class="header-right">
+      <button class="btn-test-case" (click)="generateTestCase()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3.5a.75.75 0 01.75.75v2.5a.75.75 0 01-1.5 0V4.25A.75.75 0 0110 3.5zM7.25 5.5a.75.75 0 01.75.75v.5a.75.75 0 01-1.5 0v-.5a.75.75 0 01.75-.75zm5.5 0a.75.75 0 01.75.75v.5a.75.75 0 01-1.5 0v-.5a.75.75 0 01.75-.75zM5 8.25a.75.75 0 01.75-.75h8.5a.75.75 0 01.75.75v7.5a.75.75 0 01-.75.75h-8.5a.75.75 0 01-.75-.75v-7.5zM8 10a1 1 0 100-2 1 1 0 000 2zm0 2.5a1 1 0 100-2 1 1 0 000 2zm0 2.5a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+        </svg>
+        Generate Test Case
+      </button>
+    </div>
+  </div>
+  
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="loading-container">
+      <app-spinner text="Loading story..." />
+    </div>
+  }
+
+  @if (!loading() && story(); as s) {
+    <div class="detail-layout">
+
+      <!-- Left column: story info -->
+      <div class="detail-main">
+
+        <!-- Story title card -->
+        <div class="card story-title-card">
+          <div class="story-key-row">
+            <span class="issue-key">{{ s.issue_key }}</span>
+            @if (s.priority) {
+              <span class="priority-badge" [attr.data-priority]="s.priority.toLowerCase()">{{ s.priority }}</span>
+            }
+            @if (isProcessing()) {
+              <span class="status-chip processing">
+                <app-spinner [size]="12" />
+                Processing...
+              </span>
+            } @else if (s.agentStatus === 'failed') {
+              <span class="status-chip failed">Failed</span>
+            } @else if (isApproved()) {
+              <span class="status-chip approved">Approved</span>
+            } @else if (isRejected()) {
+              <span class="status-chip rejected">Kept Original</span>
+            } @else if (hasVersion()) {
+              <span class="status-chip pending">Pending Review</span>
+            }
+          </div>
+          <h1>{{ s.title || 'User Story' }}</h1>
+        </div>
+
+        <!-- Score summary (when version exists) -->
+        @if (displayVersion(); as version) {
+          <div class="card score-card">
+            <div class="score-row">
+              <div class="score-item">
+                <span class="score-label">Original Score</span>
+                <app-score-badge [score]="version.initial_score" />
+              </div>
+              <span class="score-arrow">→</span>
+              <div class="score-item">
+                <span class="score-label">
+                  @if (isApproved()) { AI Score (Approved) }
+                  @else if (isRejected()) { Kept Original }
+                  @else { AI Suggestion }
+                </span>
+                <app-score-badge
+                  [score]="version.final_score"
+                  [delta]="version.final_score - version.initial_score"
+                />
+              </div>
+              @if (version.testability_score != null) {
+                <div class="score-item">
+                  <span class="score-label">Testability</span>
+                  <span class="testability-score" [class.testable]="version.is_testable" [class.not-testable]="!version.is_testable">
+                    {{ formatScore(version.testability_score) }}/10
+                    <span class="testability-label">{{ version.is_testable ? 'Testable' : 'Not Testable' }}</span>
+                  </span>
+                </div>
+              }
+            </div>
+
+            <div class="score-actions">
+              <button class="btn btn-primary" (click)="viewLatestVersion()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
+                  <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41z" clip-rule="evenodd"/>
+                </svg>
+                Review Results
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Original story -->
+        <div class="card">
+          <div class="section-header">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5z" clip-rule="evenodd"/>
+            </svg>
+            <h2>Original Story</h2>
+          </div>
+          <div class="story-content">
+            <p>{{ s.description || 'No description available' }}</p>
+          </div>
+        </div>
+
+        <!-- Improved story (when version exists and not rejected) -->
+        @if (displayVersion(); as version) {
+          @if (!isRejected() && version.improved_story) {
+            <div class="card improved-card">
+              <div class="section-header">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+                </svg>
+                <h2>AI-Improved Story</h2>
+              </div>
+              <div class="story-content improved">
+                <p>{{ version.improved_story }}</p>
+              </div>
+            </div>
+          }
+        }
+
+        <!-- Original AC -->
+        <div class="card">
+          <div class="section-header">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
+            </svg>
+            <h2>{{ hasVersion() ? 'Original Acceptance Criteria' : 'Acceptance Criteria' }}</h2>
+            <span class="count-badge">{{ getAcList(s).length }}</span>
+          </div>
+
+          @if (getAcList(s).length > 0) {
+            <ul class="ac-list">
+              @for (ac of getAcList(s); track $index) {
+                <li>
+                  <span class="ac-number">{{ $index + 1 }}</span>
+                  <span class="ac-text">{{ ac }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <div class="empty-state">No acceptance criteria defined</div>
+          }
+        </div>
+
+        <!-- Improved AC (when approved) -->
+        @if (displayVersion(); as version) {
+          @if (version.generated_acceptance_criteria.length) {
+            <div class="card improved-card">
+              <div class="section-header">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+                </svg>
+                <h2>Improved Acceptance Criteria</h2>
+                <span class="count-badge">{{ version.generated_acceptance_criteria.length }}</span>
+              </div>
+              <ul class="ac-list improved">
+                @for (ac of version.generated_acceptance_criteria; track $index) {
+                  <li>
+                    <span class="ac-number">{{ $index + 1 }}</span>
+                    <span class="ac-text">{{ ac }}</span>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Right column: sidebar -->
+      <aside class="detail-sidebar">
+
+        <!-- Pipeline actions -->
+        <div class="card action-card">
+          <h3 class="sidebar-section-title">AI Pipeline</h3>
+
+          @if (isProcessing()) {
+            <div class="processing-state">
+              <app-spinner [size]="20" />
+              <span>Processing your story...</span>
+            </div>
+          } @else {
+            <div class="action-buttons">
+              @if (!hasVersion() || isRejected()) {
+                <button class="btn btn-primary btn-full" (click)="runPipeline()" [disabled]="pipelineLoading()">
+                  @if (pipelineLoading()) { <app-spinner [size]="14" /> }
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                  </svg>
+                  Run AI Pipeline
+                </button>
+              }
+
+              @if (canRerunPipeline()) {
+                <button class="btn btn-secondary btn-full" (click)="runPipeline()" [disabled]="pipelineLoading()">
+                  @if (pipelineLoading()) { <app-spinner [size]="14" /> }
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
+                  </svg>
+                  Improve Again
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Metadata -->
+        @if (metadata().length > 0) {
+          <div class="card">
+            <h3 class="sidebar-section-title">Details</h3>
+            <div class="metadata-list">
+              @for (item of metadata(); track item.label) {
+                <div class="metadata-item">
+                  <span class="metadata-label">{{ item.label }}</span>
+                  <span class="metadata-value">{{ item.value }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Labels & Components -->
+        @if ((s.labels && s.labels.length > 0) || (s.components && s.components.length > 0)) {
+          <div class="card">
+            @if (s.labels && s.labels.length > 0) {
+              <div class="tags-row">
+                <span class="tags-label">Labels</span>
+                <div class="tags">
+                  @for (label of s.labels; track label) {
+                    <span class="tag">{{ label }}</span>
+                  }
+                </div>
+              </div>
+            }
+            @if (s.components && s.components.length > 0) {
+              <div class="tags-row">
+                <span class="tags-label">Components</span>
+                <div class="tags">
+                  @for (comp of s.components; track comp) {
+                    <span class="tag component">{{ comp }}</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Version history -->
+        @if (versions().length > 0) {
+          <div class="card">
+            <h3 class="sidebar-section-title">Version History</h3>
+            <div class="version-list">
+              @for (v of versions(); track v.id; let i = $index) {
+                <div class="version-item" (click)="viewVersion(v)">
+                  <div class="version-header">
+                    <span class="version-num">v{{ versions().length - i }}</span>
+                    <span class="decision-badge" [class]="v.decision_status">
+                      {{ v.decision_status }}
+                    </span>
+                  </div>
+                  <div class="version-scores">
+                    <app-score-badge [score]="v.initial_score" size="small" />
+                    <span class="arrow-small">→</span>
+                    <app-score-badge [score]="v.final_score" size="small" />
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+      </aside>
+    </div>
+  }
+</div>

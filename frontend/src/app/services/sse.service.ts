@@ -41,7 +41,7 @@ export class SseService {
       };
 
       // Types d'événements à écouter (simplifiés pour versions)
-      const eventTypes: string[] = ['processing', 'completed', 'failed', 'ping'];
+      const eventTypes: string[] = ['processing', 'completed', 'failed', 'ping', 'phase', 'version_created'];
 
       // Ajouter les listeners pour chaque type d'événement
       eventTypes.forEach(eventType => {
