@@ -63,6 +63,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
 
   // Processing step
   processingStep = signal<'processing' | 'done'>('done');
+  phaseMessage = signal<string>('');
 
   // Navigation context
   private navProjectId: string | null = null;
@@ -108,7 +109,6 @@ export class ReviewComponent implements OnInit, OnDestroy {
         generated_acceptance_criteria: state.generated_acceptance_criteria || [],
         initial_score: state.initial_score || 0,
         final_score: state.final_score || 0,
-        llm_calls: state.iteration || 0,
         agent_status: state.agent_status as AgentStatus || 'completed',
         decision_status: 'pending',
         testability_score: state.testability_score,
@@ -268,18 +268,25 @@ export class ReviewComponent implements OnInit, OnDestroy {
         switch (event.type) {
           case 'processing':
             this.processingStep.set('processing');
-            console.log("[SSE] Agent processing:", event.data?.message);
+            break;
+
+          case 'phase':
+            if (event.data?.message) {
+              this.phaseMessage.set(event.data.message);
+            }
             break;
 
           case 'completed':
             this.cleanupSSE();
             this.processingStep.set('done');
+            this.phaseMessage.set('');
             this.loadVersion(versionId);
             break;
 
           case 'failed':
             this.cleanupSSE();
             this.processingStep.set('done');
+            this.phaseMessage.set('');
             this.error.set('Pipeline failed');
             break;
         }
@@ -416,10 +423,6 @@ export class ReviewComponent implements OnInit, OnDestroy {
     const v = this.currentVersion();
     if (!v) return 0;
     return (v.final_score ?? 0) - (v.initial_score ?? 0);
-  }
-
-  getIteration(): number {
-    return this.currentVersion()?.llm_calls ?? this.state()?.iteration ?? 0;
   }
 
   getOriginalStory(): string {
@@ -731,6 +734,11 @@ private connectRelaunchSSE(versionId: string): void {
         next: (event: SSEEvent) => {
             console.log('[SSE EVENT]', event.type, event.data);
             
+            // Phase progress
+            if (event.type === 'phase' && event.data?.message) {
+                this.relaunchPhase.set(event.data.message);
+            }
+
             // Écouter "version_created"
             if (event.type === 'version_created') {
                 const newVersionId = event.data?.version_id;

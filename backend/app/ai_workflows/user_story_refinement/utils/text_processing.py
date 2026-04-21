@@ -1,3 +1,4 @@
+import asyncio
 import re
 import logging
 import html
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # IMPORT EXTERNAL SERVICES
 # ============================================================
-from app.core.embedding import cosine_similarity, embed
+from app.core.embedding_cache import cosine_similarity, embed
 
 
 def sanitize_story(raw: Union[str, List]) -> str:
@@ -29,7 +30,7 @@ def sanitize_story(raw: Union[str, List]) -> str:
     return text.strip()
 
 
-def compare_similarity(story1: str, story2: str) -> float:
+async def compare_similarity(story1: str, story2: str) -> float:
     """
     Compares similarity between two stories using embeddings.
     
@@ -64,8 +65,10 @@ def compare_similarity(story1: str, story2: str) -> float:
             return 0.5  # Default to neutral
         
         # Generate embeddings
-        emb1 = embed(story1)
-        emb2 = embed(story2)
+        emb1, emb2 = await asyncio.gather(
+            embed(story1),
+            embed(story2)
+        )
         
         # Check if embeddings are valid
         if emb1 is None or emb2 is None:
@@ -126,7 +129,7 @@ def clean_story_text(story: str) -> str:
         return story.strip()  # Return original but stripped
 
 
-def is_improvement_valid(
+async def is_improvement_valid(
     original: str,
     improved: str,
     min_similarity: float = 0.65
@@ -167,7 +170,7 @@ def is_improvement_valid(
     
     try:
         # Calculate similarity
-        similarity = compare_similarity(original, improved)
+        similarity = await compare_similarity(original, improved)
         
         # Check threshold
         is_valid = similarity >= min_similarity

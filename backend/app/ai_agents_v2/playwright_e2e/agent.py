@@ -103,7 +103,6 @@ class PlaywrightReActAgent:
                     "execution_status": "error",
                     "steps_passed": 0,
                     "steps_failed": 0,
-                    "model_used": LLM_MODEL,
                     "error": str(e),
                 }
 
@@ -138,7 +137,6 @@ class PlaywrightReActAgent:
             "steps_passed": steps_passed,
             "steps_failed": steps_failed,
             "remaining_placeholders": remaining_placeholders,
-            "model_used": LLM_MODEL,
             "error": None,
             "raw_messages": messages,
         }
@@ -177,7 +175,6 @@ class PlaywrightReActAgent:
             "steps_passed": 0,
             "steps_failed": 0,
             "remaining_placeholders": script_v1.count(f"[{PLACEHOLDER_PREFIX}:"),
-            "model_used": LLM_MODEL,
             "error": f"Agent returned no output: {reason}",
         }
 

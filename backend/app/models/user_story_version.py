@@ -54,17 +54,7 @@ class UserStoryVersion(Base):
         default=StoryDecision.PENDING,
         nullable=False
     )
-
-    # =========================
-    # LLM METRICS
-    # =========================
-    llm_calls: Mapped[Optional[int]] = mapped_column(Integer)
-    duration: Mapped[Optional[float]] = mapped_column(Float)
-
-    model_used: Mapped[Optional[str]] = mapped_column(String(100))
-    prompt_tokens: Mapped[Optional[int]] = mapped_column(Integer)
-    completion_tokens: Mapped[Optional[int]] = mapped_column(Integer)
-
+  
     # =========================
     # USER CUSTOMIZATION
     # =========================
@@ -92,10 +82,13 @@ class UserStoryVersion(Base):
 
     started_at: Mapped[datetime] = mapped_column(
         DateTime,
-        server_default=func.now()
+        default=datetime.now
     )
 
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)  # ← Pas de server_default!
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True
+        ) 
     
 
     # =========================

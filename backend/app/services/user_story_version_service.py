@@ -21,7 +21,7 @@ from app.repositories.user_story_version_repository import (
     reset_customization,
     update_version_content,
 )
-from app.ai_agents_v2.user_story_refinement.utils.text_processing import detect_language
+from app.ai_workflows.user_story_refinement.utils.text_processing import detect_language
 from app.workers.asyncio_workers import submit_version
 
 
@@ -355,9 +355,6 @@ async def get_versions_by_issue_keys(
             "testability_score": display_version.testability_score,
             "is_testable": display_version.is_testable,
             "testability_issues": display_version.testability_issues or [],
-            "model_used": display_version.model_used,
-            "llm_calls": display_version.llm_calls,
-            "duration": display_version.duration,
             "started_at": display_version.started_at.isoformat() if display_version.started_at else None,
             "completed_at": display_version.completed_at.isoformat() if display_version.completed_at else None,
             "has_processing": processing_version is not None,
