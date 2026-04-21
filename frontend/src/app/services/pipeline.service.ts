@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { RunPipelineRequest, PipelineResponse } from '../models';
+import { RunPipelineRequest, PipelineResponse } from '../models/user_story.model';
 @Injectable({
   providedIn: 'root'
 })

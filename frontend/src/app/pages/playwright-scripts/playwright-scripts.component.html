@@ -1,0 +1,284 @@
+<div class="playwright-page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="title-wrapper">
+        <h1>Playwright Scripts</h1>
+        <span class="lang-badge">TypeScript</span>
+      </div>
+      <p class="subtitle">Generate and run E2E test scripts for your test cases</p>
+    </div>
+    <div class="header-center">
+      <div class="stat-badge">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+        </svg>
+        <span>{{ totalScripts() }} / {{ totalRows() }} scripts generated</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-secondary" (click)="loadData()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
+        </svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Execution Config Card -->
+  <div class="config-card">
+    <div class="config-card__label">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+      </svg>
+      Execution Config
+    </div>
+    <div class="config-card__fields">
+      <div class="config-field">
+        <label>App URL</label>
+        <input
+          type="url"
+          class="form-input"
+          placeholder="http://localhost:4200"
+          [ngModel]="appUrl()"
+          (ngModelChange)="appUrl.set($event)"
+        />
+      </div>
+      <div class="config-field">
+        <label>Browser</label>
+        <select class="form-select" [ngModel]="browser()" (ngModelChange)="browser.set($event)">
+          @for (b of browsers; track b) {
+            <option [value]="b">{{ b }}</option>
+          }
+        </select>
+      </div>
+      <div class="config-field config-field--checkbox">
+        <input type="checkbox" id="headless-cfg" [ngModel]="headless()" (ngModelChange)="headless.set($event)" />
+        <label for="headless-cfg">Headless</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters Bar -->
+  <div class="filters-bar">
+    <div class="filter-item search-item">
+      <app-search-bar
+        placeholder="Search by code, title or story..."
+        [debounce]="300"
+        (searchChange)="onSearchChange($event)"
+      />
+    </div>
+    <div class="filter-item">
+      <select class="filter-select" [value]="selectedProjectId()" (change)="onProjectChange($event)">
+        <option value="">All Projects</option>
+        @for (project of projects(); track project.id) {
+          <option [value]="project.id">{{ project.project_name }}</option>
+        }
+      </select>
+    </div>
+    <div class="filter-item">
+      <app-filter-bar
+        [groups]="filterGroups()"
+        [activeFilters]="activeFilters()"
+        (filtersChange)="onFiltersChange($event)"
+      />
+    </div>
+  </div>
+
+  <!-- Loading -->
+  @if (isLoading()) {
+    <div class="loading-state">
+      <app-spinner text="Loading scripts..." />
+    </div>
+  }
+
+  <!-- Empty State -->
+  @if (!isLoading() && rows().length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+        </svg>
+      </div>
+      <h3>No test cases found</h3>
+      <p>Create test cases first to generate Playwright scripts</p>
+      <a routerLink="/test-cases" class="btn-primary">Go to Test Cases</a>
+    </div>
+  }
+
+  <!-- No Results After Filtering -->
+  @if (!isLoading() && rows().length > 0 && filteredRows().length === 0) {
+    <div class="no-results">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+      </svg>
+      <h4>No results match your filters</h4>
+      <p>Try different keywords or clear your filters</p>
+      <button class="btn-secondary" (click)="clearAllFilters()">Clear all filters</button>
+    </div>
+  }
+
+  <!-- Scripts Grid -->
+  @if (!isLoading() && paginatedRows().length > 0) {
+    <div class="scripts-grid">
+      @for (row of paginatedRows(); track row.testCase.id) {
+        <div class="script-card" [class.card--active]="isActiveTestCase(row.testCase.id)">
+
+          <!-- Accent bar -->
+          <div class="script-card__accent" [class]="getAccentClass(row.lastRunStatus)"></div>
+
+          <!-- Top row -->
+          <div class="script-card__top">
+            <span class="tc-code" (click)="goToDetail(row.testCase.id)">{{ row.testCase.tc_code }}</span>
+
+            @if (row.hasScript) {
+              <span class="badge badge-script">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+                  <path fill-rule="evenodd" d="M11.986 3H12a2 2 0 0 1 2 2v6a2 2 0 0 1-1.5 1.937V7A2.5 2.5 0 0 0 10 4.5H4.063A2 2 0 0 1 6 3h.014A2.25 2.25 0 0 1 8.25 1h1.5a2.25 2.25 0 0 1 2.236 2ZM10.5 4v-.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75V4h3Z" clip-rule="evenodd" />
+                  <path fill-rule="evenodd" d="M3 6a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H3Zm4 3.75a.75.75 0 0 1-1.5 0V8.56l-.22.22a.75.75 0 0 1-1.06-1.06l1.5-1.5a.75.75 0 0 1 1.06 0l1.5 1.5a.75.75 0 1 1-1.06 1.06l-.22-.22v1.19Z" clip-rule="evenodd" />
+                </svg>
+                v{{ row.activeScriptVersion }}
+              </span>
+            } @else {
+              <span class="badge badge-noscript">No Script</span>
+            }
+
+            @if (row.hasScript && row.placeholderCount > 0) {
+              <span class="badge badge-placeholder">⚠ {{ row.placeholderCount }}</span>
+            }
+
+            @if (row.lastRunStatus) {
+              <span class="badge" [class]="getRunStatusClass(row.lastRunStatus)">{{ row.lastRunStatus }}</span>
+            }
+          </div>
+
+          <!-- Title -->
+          <h3 class="script-card__title" (click)="goToDetail(row.testCase.id)">{{ row.testCase.title }}</h3>
+
+          <!-- Meta -->
+          <div class="script-card__meta">
+            @if (row.testCase.project_name) {
+              <div class="meta-item">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8.828a2 2 0 00-.586-1.414l-4.828-4.828A2 2 0 0011.172 2H4zm7 2.414L15.586 9H12a1 1 0 01-1-1V4.414z" clip-rule="evenodd"/>
+                </svg>
+                <span>{{ row.testCase.project_name }}</span>
+              </div>
+            }
+            @if (row.testCase.issue_key) {
+              <div class="meta-item">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/>
+                </svg>
+                <span>{{ row.testCase.issue_key }}</span>
+              </div>
+            }
+          </div>
+
+          <!-- Live SSE steps for active card -->
+          @if (isActiveTestCase(row.testCase.id) && executionSteps().length > 0) {
+            <div class="card-steps">
+              @for (step of executionSteps(); track step.order) {
+                <div class="step-item" [class]="'step-' + step.status">
+                  <span class="step-icon">{{ getStepIcon(step.type) }}</span>
+                  <span class="step-content">{{ step.content }}</span>
+                  @if (step.duration) {
+                    <span class="step-duration">{{ step.duration }}ms</span>
+                  }
+                </div>
+              }
+              @if (row.isRunning) {
+                <div class="step-item step-running">
+                  <span class="step-icon">⏳</span>
+                  <span class="step-content">Executing...</span>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Actions -->
+          <div class="script-card__actions">
+            <button class="btn-view" (click)="goToDetail(row.testCase.id)" title="View script details">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+              </svg>
+              View
+            </button>
+
+            <button
+              class="btn-generate"
+              [disabled]="row.isGenerating || row.isRunning"
+              (click)="generateScript(row)"
+              title="Generate Playwright script"
+            >
+              @if (row.isGenerating) {
+                <span class="spinner-inline"></span>
+                Generating...
+              } @else {
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+                {{ row.hasScript ? 'Regen' : 'Generate' }}
+              }
+            </button>
+
+            @if (row.hasScript) {
+              <button
+                class="btn-run"
+                [disabled]="row.isGenerating || row.isRunning"
+                (click)="executeOnly(row)"
+                title="Execute active script"
+              >
+                @if (row.isRunning) {
+                  <span class="spinner-inline"></span>
+                  Running...
+                } @else {
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+                  </svg>
+                  Run
+                }
+              </button>
+            } @else {
+              <button
+                class="btn-run btn-run--workflow"
+                [disabled]="row.isGenerating || row.isRunning"
+                (click)="runFullWorkflow(row)"
+                title="Generate then execute"
+              >
+                @if (row.isRunning) {
+                  <span class="spinner-inline"></span>
+                  Running...
+                } @else {
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+                  </svg>
+                  Full Run
+                }
+              </button>
+            }
+          </div>
+
+        </div>
+      }
+    </div>
+
+    <!-- Pagination -->
+    @if (totalPages() > 1) {
+      <div class="pagination-wrapper">
+        <app-pagination
+          [totalItems]="totalFiltered()"
+          [currentPage]="page()"
+          [pageSize]="pageSize()"
+          [pageSizeOptions]="[6, 12, 24]"
+          (pageChange)="onPageChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
+      </div>
+    }
+  }
+
+</div>

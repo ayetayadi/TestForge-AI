@@ -10,6 +10,20 @@
 # print("[LANGSMITH] PROJECT:", os.getenv("LANGSMITH_PROJECT"))
 # print("[LANGSMITH] API_KEY:", os.getenv("LANGSMITH_API_KEY", "")[:20] + "..." if os.getenv("LANGSMITH_API_KEY") else "NOT SET")
 
+# =========================
+# LOGGING CONFIGURATION
+# =========================
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Silence des logs trop verbeux
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("mcp").setLevel(logging.INFO)
 
 from contextlib import asynccontextmanager
 import asyncio
@@ -26,6 +40,8 @@ from app.api.projects import router as project_router
 from app.api.user_stories import router as story_router
 from app.api.pipeline import router as pipeline_router
 from app.api.versions import router as versions_router
+from app.api.test_cases import router as test_cases_router
+from app.api.playwright import router as playwright_router
 from app.core.database import Base, engine
 from app.streaming.sse_manager import set_main_loop
 from app.core.embedding import preload_embedding_model
@@ -111,6 +127,8 @@ app.include_router(project_router)
 app.include_router(story_router)
 app.include_router(pipeline_router)
 app.include_router(versions_router)
+app.include_router(test_cases_router)
+app.include_router(playwright_router)
 
 # =========================
 # HEALTH

@@ -27,13 +27,13 @@ class OpenRouterProvider(LLMProvider):
     OpenRouter LLM Provider with GPT-OSS-120B (FREE).
     
     ✅ Features:
-    - 100% FREE tier (openai/gpt-oss-20b)
+    - 100% FREE tier (openai/gpt-oss-120b)
     - Full tool calling support
     - OpenAI-compatible API
     - Automatic retry on rate limits
     """
 
-    def __init__(self, model: str = "openai/gpt-oss-20b"):
+    def __init__(self, model: str = "openai/gpt-oss-120b"):
         self.api_key = settings.OPENROUTER_API_KEY
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1"

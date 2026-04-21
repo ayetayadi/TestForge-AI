@@ -92,19 +92,21 @@
 
     <!-- Stories exist: show toolbar + table -->
     @if (!loading() && stories().length > 0) {
-      <!-- Toolbar: Search + Filters -->
+      <!-- Toolbar: Project Filter + Search + Filters -->
       <div class="toolbar">
-        <app-search-bar
-          placeholder="Search by issue key, title or description..."
-          [debounce]="300"
-          (searchChange)="onSearchChange($event)"
-        />
+        <div class="filters-row">
+          <app-search-bar
+            placeholder="Search by issue key, title or description..."
+            [debounce]="300"
+            (searchChange)="onSearchChange($event)"
+          />
 
-        <app-filter-bar
-          [groups]="filterGroups"
-          [activeFilters]="activeFilters()"
-          (filtersChange)="onFiltersChange($event)"
-        />
+          <app-filter-bar
+            [groups]="filterGroups"
+            [activeFilters]="activeFilters()"
+            (filtersChange)="onFiltersChange($event)"
+          />
+        </div>
       </div>
 
       <!-- No results after filtering -->
@@ -275,7 +277,7 @@
           [totalItems]="filteredStories().length"
           [currentPage]="page()"
           [pageSize]="pageSize()"
-          [pageSizeOptions]="[5, 10, 20, 50]"
+          [pageSizeOptions]="[10, 20, 50]"
           (pageChange)="onPageChange($event)"
           (pageSizeChange)="onPageSizeChange($event)"
         />

@@ -43,7 +43,7 @@ export interface UserStory {
 
   fix_version?: string;
 
-  current_score?: number;  // ← AJOUTÉ (dernier score)
+  current_score?: number;  
   selected_version_id?: string | null;
 }
 
@@ -72,12 +72,14 @@ export interface UserStoryVersion {
   prompt_tokens?: number;
   completion_tokens?: number;
 
-  agent_status: AgentStatus;  // ← AJOUTÉ
+  agent_status: AgentStatus;  
   decision_status: 'pending' | 'approved' | 'rejected';
 
-  started_at?: string;  // ← AJOUTÉ
-  completed_at?: string;  // ← AJOUTÉ
+  started_at?: string;  
+  completed_at?: string;  
   created_at?: string;
+    is_customized?: boolean;     
+  customized_at?: string | null;
 }
 
 // ==============================
@@ -113,20 +115,20 @@ export interface StoryWithVersion extends UserStory {
   selected_version?: UserStoryVersion | null;
   latest_version?: UserStoryVersion | null;
   display_version?: UserStoryVersion | null;
-  processing_version?: UserStoryVersion | null;  // ← AJOUTÉ
-  has_processing?: boolean;  // ← AJOUTÉ
-  versions_count?: number;  // ← AJOUTÉ
+  processing_version?: UserStoryVersion | null;  
+  has_processing?: boolean;  
+  versions_count?: number;  
 }
 
 // ==============================
 // Decision
 // ==============================
-export type DecisionChoice = 'approve' | 'reject_keep' | 'reject_relaunch';
+export type DecisionChoice = 'approve' | 'reject_keep' | 'relaunch';
 
 export type DecisionStatus = 'pending' | 'approved' | 'rejected';
 
 // ==============================
-// VersionState (remplace JobState)
+// VersionState
 // ==============================
 export interface VersionState {
   version_id: string;
@@ -176,6 +178,9 @@ export interface VersionState {
 
   has_new_version?: boolean;
   versions_count?: number;
+
+  is_customized?: boolean;    
+  customized_at?: string | null; 
 }
 
 export interface TraceEntry {
@@ -286,7 +291,7 @@ export interface SSEEvent {
     status?: AgentStatus;
     jira_id?: string;
     thread_id?: string;
-    version_id?: string;        // ← AJOUTÉ
+    version_id?: string;        
     
     // Au completion
     final_score?: number;
