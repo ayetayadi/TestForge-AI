@@ -21,7 +21,7 @@ from app.repositories.user_story_version_repository import (
     reset_customization,
     update_version_content,
 )
-from app.ai_agents_v2.user_story_refinement.utils.text_processing import detect_language
+from app.ai_workflows.user_story_refinement.utils.text_processing import detect_language
 from app.workers.asyncio_workers import submit_version
 
 
