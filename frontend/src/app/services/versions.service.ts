@@ -6,7 +6,7 @@ import { Observable, BehaviorSubject, interval, throwError } from 'rxjs';
 import { map, catchError, share, switchMap, takeWhile, filter } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { SseService } from './sse.service';
-import { ActiveVersion, AgentStatus, DecisionResponse, SSEEvent, UserStoryVersion, VersionState } from '../models/user_story.model';
+import { ActiveVersion, WorkflowStatus, DecisionResponse, SSEEvent, UserStoryVersion, VersionState } from '../models/user_story.model';
 
 @Injectable({
   providedIn: 'root'
@@ -125,7 +125,7 @@ export class VersionsService {
     ).pipe(catchError(this.handleError));
   }
 
-  getStoryVersions(storyId: string, limit: number = 50, status?: AgentStatus): Observable<UserStoryVersion[]> {
+  getStoryVersions(storyId: string, limit: number = 50, status?: WorkflowStatus): Observable<UserStoryVersion[]> {
     let url = `${this.baseUrl}/story/${storyId}?limit=${limit}`;
     if (status) {
       url += `&status=${status}`;
@@ -208,14 +208,14 @@ editVersion(versionId: string, improvedStory: string, acceptanceCriteria: string
       switchMap(() => this.getVersion(versionId)),
       takeWhile((state) => {
         attempts++;
-        const isProcessing = state.agent_status === 'processing';
+        const isProcessing = state.workflow_status === 'processing';
         const shouldContinue = isProcessing && attempts < maxAttempts;
         if (!shouldContinue && isProcessing) {
           console.warn(`Polling timeout for version ${versionId} after ${maxAttempts} attempts`);
         }
         return shouldContinue;
       }, true),
-      filter(state => state.agent_status !== 'processing')
+      filter(state => state.workflow_status !== 'processing')
     );
   }
 
@@ -224,15 +224,15 @@ editVersion(versionId: string, improvedStory: string, acceptanceCriteria: string
   // ==============================
 
   isProcessing(version: UserStoryVersion | VersionState): boolean {
-    return version?.agent_status === 'processing';
+    return version?.workflow_status === 'processing';
   }
 
   isCompleted(version: UserStoryVersion | VersionState): boolean {
-    return version?.agent_status === 'completed';
+    return version?.workflow_status === 'completed';
   }
 
   isFailed(version: UserStoryVersion | VersionState): boolean {
-    return version?.agent_status === 'failed';
+    return version?.workflow_status === 'failed';
   }
 
   isCustomized(version: UserStoryVersion | VersionState): boolean {
@@ -246,8 +246,8 @@ editVersion(versionId: string, improvedStory: string, acceptanceCriteria: string
     return 0;
   }
 
-  getStatusLabel(status: AgentStatus): string {
-    const labels: Record<AgentStatus, string> = {
+  getStatusLabel(status: WorkflowStatus): string {
+    const labels: Record<WorkflowStatus, string> = {
       'processing': 'En cours',
       'completed': 'Terminé',
       'failed': 'Échoué',
@@ -256,8 +256,8 @@ editVersion(versionId: string, improvedStory: string, acceptanceCriteria: string
     return labels[status] || status;
   }
 
-  getStatusClass(status: AgentStatus): string {
-    const classes: Record<AgentStatus, string> = {
+  getStatusClass(status: WorkflowStatus): string {
+    const classes: Record<WorkflowStatus, string> = {
       'processing': 'status-processing',
       'completed': 'status-completed',
       'failed': 'status-failed',
