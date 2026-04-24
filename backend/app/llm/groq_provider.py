@@ -76,9 +76,9 @@ class GroqProvider:
                         "is_testable": {"type": "boolean"},
                         "testability_issues": {"type": "array", "items": {"type": "string"}},
                         "violations": {"type": "array", "items": {"type": "string"}},
-                        "agent_status": {"type": "string"}
+                        "workflow_status": {"type": "string"}
                     },
-                    "required": ["improved_story", "acceptance_criteria", "reasoning", "iterations", "agent_status"]
+                    "required": ["improved_story", "acceptance_criteria", "reasoning", "iterations", "workflow_status"]
                 }
             }
         }

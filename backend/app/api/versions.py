@@ -31,7 +31,7 @@ from app.repositories.user_story_version_repository import (
 )
 from app.repositories.user_story_repository import get_user_story_by_id, get_user_story_by_issue_key
 from app.streaming.sse_manager import event_generator
-from app.models.enums import AgentStatus
+from app.models.enums import WorkflowStatus
 from app.workers.asyncio_workers import submit_version
 
 
@@ -99,7 +99,7 @@ async def get_version_state(version_id: str, db: AsyncSession = Depends(get_db))
 
     return {
         "version_id": version.id,
-        "agent_status": version.agent_status.value if version.agent_status else None,
+        "workflow_status": version.workflow_status.value if version.workflow_status else None,
         "decision_status": version.decision_status.value if version.decision_status else "pending",
         "started_at": version.started_at,
         "completed_at": version.completed_at,
@@ -144,7 +144,7 @@ async def get_active_versions(db: AsyncSession = Depends(get_db)):
     
     result = await db.execute(
         select(UserStoryVersion)
-        .where(UserStoryVersion.agent_status == AgentStatus.PROCESSING)
+        .where(UserStoryVersion.workflow_status == WorkflowStatus.PROCESSING)
         .order_by(UserStoryVersion.started_at.desc())
     )
     versions = result.scalars().all()
@@ -152,7 +152,7 @@ async def get_active_versions(db: AsyncSession = Depends(get_db)):
     return [
         {
             "version_id": v.id,
-            "agent_status": v.agent_status.value,
+            "workflow_status": v.workflow_status.value,
             "started_at": v.started_at,
             "user_story_id": v.user_story_id,
         }
@@ -280,7 +280,7 @@ async def get_versions_by_issue_keys_endpoint(
 async def get_story_versions(
     story_id: str,
     limit: int = Query(50, ge=1, le=200),
-    status: Optional[AgentStatus] = Query(None, description="Filter by agent status"),
+    status: Optional[WorkflowStatus] = Query(None, description="Filter by agent status"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -302,14 +302,14 @@ async def get_story_versions(
     versions = await get_versions_by_story_id(db, story_id)
     
     if status:
-        versions = [v for v in versions if v.agent_status == status]
+        versions = [v for v in versions if v.workflow_status == status]
     
     versions = versions[:limit]
     
     return [
         {
             "id": v.id,
-            "agent_status": v.agent_status.value,
+            "workflow_status": v.workflow_status.value,
             "decision_status": v.decision_status.value,
             "improved_story": v.improved_story,
             "generated_acceptance_criteria": v.generated_acceptance_criteria,
@@ -356,7 +356,7 @@ async def get_latest_version_by_issue_key(
     return {
         "version_id": latest.id,
         "issue_key": story.issue_key,
-        "agent_status": latest.agent_status.value,
+        "workflow_status": latest.workflow_status.value,
         "decision_status": latest.decision_status.value,
         "improved_story": latest.improved_story,
         "generated_acceptance_criteria": latest.generated_acceptance_criteria,

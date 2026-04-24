@@ -33,7 +33,7 @@ async def test_with_iterations(iterations: int, story: str, ac: list):
         print(f"  📈 Amélioration: {(result.get('final_score', 0) - result.get('initial_score', 0)):+.3f}")
         print(f"  🎯 Is testable: {result.get('is_testable', False)}")
         print(f"  🔄 Itérations réelles: {result.get('iterations', 0)}")
-        print(f"  ✅ Status: {result.get('agent_status', 'unknown')}")
+        print(f"  ✅ Status: {result.get('workflow_status', 'unknown')}")
         print(f"  📝 Similarité: {result.get('similarity', 0):.3f}")
         print(f"  🔧 Story améliorée: {'✅ Oui' if result.get('is_improved', False) else '❌ Non'}")
         

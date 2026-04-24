@@ -1,7 +1,7 @@
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user_story_version import UserStoryVersion
-from app.models.enums import StoryDecision, AgentStatus
+from app.models.enums import StoryDecision, WorkflowStatus
 from datetime import datetime
 from typing import List, Optional
 
@@ -105,7 +105,7 @@ async def get_processing_versions(
     """Récupère toutes les versions en cours de traitement"""
     result = await db.execute(
         select(UserStoryVersion)
-        .where(UserStoryVersion.agent_status == AgentStatus.PROCESSING)
+        .where(UserStoryVersion.workflow_status == WorkflowStatus.PROCESSING)
         .order_by(UserStoryVersion.started_at)
     )
     return result.scalars().all()
@@ -121,7 +121,7 @@ async def create_version(
     testability_score: float,
     is_testable: bool,
     testability_issues: List[str],
-    agent_status: AgentStatus,
+    workflow_status: WorkflowStatus,
     started_at: datetime,
     completed_at: datetime = None,  # ← Optional
     decision_status: StoryDecision = StoryDecision.PENDING,  # ← Default PENDING
@@ -138,7 +138,7 @@ async def create_version(
         testability_score=testability_score,
         is_testable=is_testable,
         testability_issues=testability_issues,
-        agent_status=agent_status,
+        workflow_status=workflow_status,
         started_at=started_at,
         completed_at=completed_at,
         decision_status=decision_status,
@@ -154,7 +154,7 @@ async def create_version(
 async def update_version_status(
     db: AsyncSession,
     version_id: str,
-    agent_status: AgentStatus,
+    workflow_status: WorkflowStatus,
     completed_at: datetime = None,
     error: str = None
 ) -> UserStoryVersion | None:
@@ -163,11 +163,11 @@ async def update_version_status(
     if not version:
         return None
     
-    version.agent_status = agent_status
+    version.workflow_status = workflow_status
     
     if completed_at:
         version.completed_at = completed_at
-    elif agent_status in [AgentStatus.COMPLETED, AgentStatus.FAILED]:
+    elif workflow_status in [WorkflowStatus.COMPLETED, WorkflowStatus.FAILED]:
         version.completed_at = datetime.utcnow()
     
     if error:

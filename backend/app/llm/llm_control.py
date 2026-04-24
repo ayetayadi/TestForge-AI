@@ -89,7 +89,7 @@ def create_llm(temperature: float = 0.3, model: str = "openai/gpt-oss-120b"):
         groq_api_key=settings.GROQ_API_KEY,
         model=model,
         temperature=temperature,
-        max_tokens=1500,
+        max_tokens=800,
     )
 # # # import asyncio
 # # # import logging
