@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 from typing import Dict, Any, Optional
 
 from langgraph.prebuilt import create_react_agent
@@ -25,6 +26,7 @@ class PlaywrightReActAgent:
         Execute Script v1 against the real app and produce Script v2.
         """
 
+        start_time = time.time()
         actual_headless = headless if headless is not None else True
         actual_browser = browser if browser is not None else "chromium"
         
@@ -94,7 +96,9 @@ class PlaywrightReActAgent:
                     logger.info(f"  Message {i}: {type(msg).__name__}")
                     if hasattr(msg, "content"):
                         logger.info(f"    Content: {str(msg.content)[:500]}...")
-                return self._process_result(final_state, script_v1)
+                result = self._process_result(final_state, script_v1)
+                result["duration"] = time.time() - start_time
+                return result
 
             except Exception as e:
                 logger.error(f"ReAct agent failed: {e}", exc_info=True)
@@ -121,9 +125,14 @@ class PlaywrightReActAgent:
         script_v2 = self._extract_script(content) or script_v1
         remaining_placeholders = script_v2.count(f"[{PLACEHOLDER_PREFIX}:")
 
-        # Count PASSED/FAILED markers in comments
-        steps_passed = len(re.findall(r"//.*PASSED|/\*.*PASSED.*\*/", script_v2, re.DOTALL))
-        steps_failed = len(re.findall(r"//.*FAILED|/\*.*FAILED.*\*/", script_v2, re.DOTALL))
+        # Count steps from actual tool results (browser interactions)
+        _error_kw = ("### error", "exception", "timeouterror", "unable to", "not found", "error:")
+        tool_messages = [m for m in messages if type(m).__name__ == "ToolMessage"]
+        steps_failed = sum(
+            1 for m in tool_messages
+            if any(kw in str(m.content).lower() for kw in _error_kw)
+        )
+        steps_passed = len(tool_messages) - steps_failed
 
         status = "passed" if steps_failed == 0 and steps_passed > 0 else (
             "failed" if steps_failed > 0 else "completed"

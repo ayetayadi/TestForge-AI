@@ -40,6 +40,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
   selector: 'app-jira-connect',
   standalone: true,
   templateUrl: './jira-connect.component.html',
+  styleUrls: ['./jira-connect.component.scss'],
   imports: [
     CommonModule,
     ReactiveFormsModule,

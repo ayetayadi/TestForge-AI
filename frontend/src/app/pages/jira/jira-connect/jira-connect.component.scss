@@ -1,0 +1,752 @@
+// jira-connect.component.scss - Design moderne et aéré
+
+// ============================================
+// DESIGN SYSTEM - Tailles agrandies
+// ============================================
+
+// Espacements
+$spacing-xs: 8px;
+$spacing-sm: 12px;
+$spacing-md: 20px;
+$spacing-lg: 28px;
+$spacing-xl: 40px;
+
+// Tailles de texte (plus grandes)
+$text-xs: 0.75rem;   // 12px
+$text-sm: 0.875rem;  // 14px
+$text-base: 1rem;    // 16px
+$text-lg: 1.125rem;  // 18px
+$text-xl: 1.25rem;   // 20px
+$text-2xl: 1.5rem;   // 24px
+
+// Couleurs modernes
+$primary: #6366f1;
+$primary-dark: #4f46e5;
+$primary-light: #818cf8;
+$success: #10b981;
+$warning: #f59e0b;
+$error: #ef4444;
+$error-light: #fef2f2;
+
+// Neutres
+$gray-50: #f9fafb;
+$gray-100: #f3f4f6;
+$gray-200: #e5e7eb;
+$gray-300: #d1d5db;
+$gray-400: #9ca3af;
+$gray-500: #6b7280;
+$gray-600: #4b5563;
+$gray-700: #374151;
+$gray-800: #1f2937;
+$gray-900: #111827;
+
+// Ombres modernes
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+// Transitions
+$transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+// ============================================
+// LAYOUT PRINCIPAL
+// ============================================
+
+:host {
+  display: block;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: $spacing-xl;
+  
+  @media (max-width: 768px) {
+    padding: $spacing-lg;
+  }
+  
+  @media (max-width: 640px) {
+    padding: $spacing-md;
+  }
+}
+
+// ============================================
+// CARDS - Design moderne
+// ============================================
+
+.card {
+  background: white;
+  border-radius: 20px;
+  box-shadow: $shadow-lg;
+  overflow: hidden;
+  margin-bottom: $spacing-xl;
+  transition: transform $transition, box-shadow $transition;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-xl;
+  }
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.card-header {
+  padding: $spacing-lg $spacing-xl;
+  border-bottom: 2px solid $gray-100;
+  background: white;
+  
+  h2 {
+    font-size: $text-2xl;
+    font-weight: 700;
+    margin: 0;
+    color: $gray-900;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    
+    &::before {
+      content: '';
+      width: 4px;
+      height: 28px;
+      background: $primary;
+      border-radius: 2px;
+    }
+  }
+  
+  @media (max-width: 640px) {
+    padding: $spacing-lg;
+    
+    h2 {
+      font-size: $text-xl;
+    }
+  }
+}
+
+.card-body {
+  padding: $spacing-xl;
+  
+  @media (max-width: 640px) {
+    padding: $spacing-lg;
+  }
+}
+
+// ============================================
+// CONNECTION SECTION - Design épuré
+// ============================================
+
+.connection-card {
+  .connection-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: $spacing-lg;
+  }
+  
+  .connection-info {
+    display: flex;
+    align-items: center;
+    gap: $spacing-lg;
+    flex: 1;
+    
+    .jira-logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, $gray-50, white);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: $shadow-sm;
+      
+      img {
+        width: 40px;
+        height: 40px;
+      }
+    }
+    
+    .info-text {
+      h3 {
+        font-size: $text-lg;
+        font-weight: 600;
+        margin: 0 0 $spacing-xs 0;
+        color: $gray-900;
+      }
+      
+      p {
+        font-size: $text-sm;
+        margin: 0;
+        color: $gray-500;
+      }
+    }
+  }
+  
+  .connection-status {
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+    flex-wrap: wrap;
+  }
+}
+
+// ============================================
+// STATUS BADGES - Design moderne
+// ============================================
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-xs;
+  padding: 8px 16px;
+  border-radius: 100px;
+  font-size: $text-sm;
+  font-weight: 600;
+  
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  
+  &.connected {
+    background: rgba(16, 185, 129, 0.1);
+    color: $success;
+    
+    &::before {
+      background: $success;
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+      animation: pulse 2s infinite;
+    }
+  }
+  
+  &.disconnected {
+    background: $gray-100;
+    color: $gray-500;
+    
+    &::before {
+      background: $gray-400;
+    }
+  }
+}
+
+// ============================================
+// BOUTONS - Grands et cliquables
+// ============================================
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-sm;
+  padding: 10px 24px;
+  font-size: $text-sm;
+  font-weight: 600;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all $transition;
+  letter-spacing: 0.01em;
+  
+  &:hover {
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+  
+  svg, mat-icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.btn-primary {
+  background: $primary;
+  color: white;
+  box-shadow: $shadow-sm;
+  
+  &:hover:not(:disabled) {
+    background: $primary-dark;
+    box-shadow: $shadow-md;
+  }
+}
+
+.btn-secondary {
+  background: white;
+  color: $gray-700;
+  border: 1px solid $gray-300;
+  
+  &:hover:not(:disabled) {
+    background: $gray-50;
+    border-color: $gray-400;
+  }
+}
+
+.btn-danger {
+  background: white;
+  color: $error;
+  border: 1px solid $error;
+  
+  &:hover:not(:disabled) {
+    background: $error-light;
+  }
+}
+
+.btn-block {
+  width: 100%;
+  justify-content: center;
+}
+
+// ============================================
+// FORMULAIRES - Design aéré
+// ============================================
+
+.form-group {
+  margin-bottom: $spacing-xl;
+  
+  label {
+    display: block;
+    font-size: $text-sm;
+    font-weight: 600;
+    color: $gray-700;
+    margin-bottom: $spacing-sm;
+  }
+}
+
+.form-control {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: $text-base;
+  border: 2px solid $gray-200;
+  border-radius: 12px;
+  transition: all $transition;
+  background: white;
+  
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+  
+  &:hover:not(:focus) {
+    border-color: $gray-300;
+  }
+  
+  &::placeholder {
+    color: $gray-400;
+  }
+}
+
+.password-input {
+  position: relative;
+  
+  .toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: $gray-400;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color $transition;
+    
+    &:hover {
+      color: $gray-600;
+    }
+    
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+  }
+}
+
+// ============================================
+// SELECT PROJECT - Design moderne
+// ============================================
+
+.project-selector {
+  margin-bottom: $spacing-xl;
+  
+  label {
+    display: block;
+    font-size: $text-sm;
+    font-weight: 600;
+    color: $gray-700;
+    margin-bottom: $spacing-sm;
+  }
+  
+  select {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: $text-base;
+    border: 2px solid $gray-200;
+    border-radius: 12px;
+    background: white;
+    cursor: pointer;
+    transition: all $transition;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-size: 20px;
+    
+    &:focus {
+      outline: none;
+      border-color: $primary;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    
+    &:hover {
+      border-color: $gray-300;
+    }
+    
+    &:disabled {
+      background-color: $gray-50;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// ============================================
+// STORIES LIST - Design moderne
+// ============================================
+
+.stories-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-lg;
+  flex-wrap: wrap;
+  gap: $spacing-md;
+  
+  h3 {
+    font-size: $text-lg;
+    font-weight: 600;
+    margin: 0;
+    color: $gray-800;
+  }
+  
+  .story-count {
+    background: $gray-100;
+    padding: 6px 12px;
+    border-radius: 100px;
+    font-size: $text-sm;
+    font-weight: 500;
+    color: $gray-600;
+  }
+}
+
+.stories-grid {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-md;
+}
+
+.story-card {
+  background: white;
+  border: 1px solid $gray-200;
+  border-radius: 16px;
+  padding: $spacing-lg;
+  transition: all $transition;
+  cursor: pointer;
+  
+  &:hover {
+    border-color: $primary-light;
+    box-shadow: $shadow-md;
+    transform: translateX(4px);
+  }
+  
+  .story-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: $spacing-md;
+    
+    input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      margin-top: 2px;
+      cursor: pointer;
+      accent-color: $primary;
+    }
+  }
+  
+  .story-content {
+    flex: 1;
+    
+    .story-header {
+      display: flex;
+      align-items: center;
+      gap: $spacing-sm;
+      flex-wrap: wrap;
+      margin-bottom: $spacing-sm;
+      
+      .story-key {
+        font-family: monospace;
+        font-size: $text-sm;
+        font-weight: 700;
+        color: $primary;
+        background: rgba(99, 102, 241, 0.1);
+        padding: 4px 10px;
+        border-radius: 8px;
+      }
+    }
+    
+    .story-title {
+      font-size: $text-base;
+      font-weight: 600;
+      color: $gray-800;
+      margin: 0 0 $spacing-sm 0;
+      line-height: 1.4;
+    }
+    
+    .story-description {
+      font-size: $text-sm;
+      color: $gray-500;
+      margin: 0;
+      line-height: 1.5;
+    }
+  }
+  
+  .priority-badge {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: $text-sm;
+    font-weight: 600;
+    white-space: nowrap;
+    
+    &.priority-highest,
+    &.priority-critical {
+      background: rgba(239, 68, 68, 0.1);
+      color: #dc2626;
+    }
+    
+    &.priority-high {
+      background: rgba(245, 158, 11, 0.1);
+      color: #d97706;
+    }
+    
+    &.priority-medium {
+      background: rgba(99, 102, 241, 0.1);
+      color: $primary;
+    }
+    
+    &.priority-low,
+    &.priority-lowest {
+      background: rgba(16, 185, 129, 0.1);
+      color: $success;
+    }
+  }
+}
+
+// ============================================
+// LOADING & EMPTY STATES
+// ============================================
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-xl * 2;
+  text-align: center;
+  
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid $gray-200;
+    border-top-color: $primary;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: $spacing-lg;
+  }
+  
+  p {
+    font-size: $text-base;
+    color: $gray-500;
+    margin: 0;
+  }
+}
+
+.empty-state {
+  text-align: center;
+  padding: $spacing-xl * 2;
+  
+  .empty-icon {
+    font-size: 64px;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto $spacing-lg;
+    background: $gray-100;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    mat-icon {
+      font-size: 32px;
+      width: 32px;
+      height: 32px;
+      color: $gray-400;
+    }
+  }
+  
+  h4 {
+    font-size: $text-lg;
+    font-weight: 600;
+    color: $gray-800;
+    margin: 0 0 $spacing-sm 0;
+  }
+  
+  p {
+    font-size: $text-sm;
+    color: $gray-500;
+    margin: 0;
+  }
+}
+
+// ============================================
+// ERROR MESSAGE
+// ============================================
+
+.alert {
+  padding: $spacing-md $spacing-lg;
+  border-radius: 12px;
+  margin-bottom: $spacing-lg;
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  
+  &.alert-error {
+    background: $error-light;
+    border-left: 4px solid $error;
+    
+    mat-error {
+      margin: 0;
+      font-size: $text-sm;
+      color: $error;
+    }
+  }
+}
+
+// ============================================
+// BOUTON DE CHANGEMENT DE MOT DE PASSE
+// ============================================
+
+.form-actions {
+  margin-top: $spacing-xl;
+  padding-top: $spacing-lg;
+  border-top: 1px solid $gray-200;
+}
+
+// ============================================
+// ANIMATIONS
+// ============================================
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  animation: slideIn 0.4s ease-out;
+}
+
+// ============================================
+// RESPONSIVE
+// ============================================
+
+@media (max-width: 768px) {
+  .connection-card .connection-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .story-card {
+    padding: $spacing-md;
+    
+    .story-card .story-checkbox {
+      flex-direction: column;
+    }
+    
+    .priority-badge {
+      align-self: flex-start;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .story-card .story-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .btn {
+    padding: 10px 20px;
+  }
+}
+
+// ============================================
+// ACCESSIBILITÉ
+// ============================================
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .btn:hover,
+  .story-card:hover,
+  .card:hover {
+    transform: none;
+  }
+}
+
+// ============================================
+// SELECTION TEXTE
+// ============================================
+
+::selection {
+  background: rgba(99, 102, 241, 0.2);
+  color: $primary;
+}

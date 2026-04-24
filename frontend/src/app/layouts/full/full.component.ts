@@ -1,80 +1,87 @@
-import { BreakpointObserver, MediaMatcher } from '@angular/cdk/layout';
-import { Component, OnInit, ViewChild, ViewEncapsulation } from '@angular/core';
-import { Subscription } from 'rxjs';
-import { MatSidenav, MatSidenavContent } from '@angular/material/sidenav';
-import { CoreService } from 'src/app/services/core.service';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { Component, ViewChild, ViewEncapsulation, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
+import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { filter } from 'rxjs/operators';
-import { NavigationEnd, Router } from '@angular/router';
-import { RouterModule } from '@angular/router';
-import { MaterialModule } from 'src/app/material.module';
+import { CommonModule } from '@angular/common';
 import { NgScrollbarModule } from 'ngx-scrollbar';
-import { TablerIconsModule } from 'angular-tabler-icons';
-import { HeaderComponent } from './header/header.component';
-import { SidebarComponent } from './sidebar/sidebar.component';
-import { AppNavItemComponent } from './sidebar/nav-item/nav-item.component';
+import { MatListModule } from '@angular/material/list';
+import { Subscription } from 'rxjs';
+
 import { navItems } from './sidebar/sidebar-data';
 import { NavItem } from './sidebar/nav-item/nav-item';
 import { AuthService } from 'src/app/services/auth.service';
 import { jwtDecode } from 'jwt-decode';
-
-const MOBILE_VIEW = 'screen and (max-width: 768px)';
-const TABLET_VIEW = 'screen and (min-width: 769px) and (max-width: 1024px)';
+import { HeaderComponent } from './header/header.component';
+import { SidebarComponent } from './sidebar/sidebar.component';
+import { AppNavItemComponent } from './sidebar/nav-item/nav-item.component';
 
 @Component({
   selector: 'app-full',
+  standalone: true,
   imports: [
+    CommonModule,
     RouterModule,
-    AppNavItemComponent,
-    MaterialModule,
-    SidebarComponent,
+    MatSidenavModule,
+    MatListModule,
     NgScrollbarModule,
-    TablerIconsModule,
     HeaderComponent,
+    SidebarComponent,
+    AppNavItemComponent,
   ],
   templateUrl: './full.component.html',
-  styleUrls: [],
+  styleUrls: ['./full.component.scss'],
   encapsulation: ViewEncapsulation.None,
 })
-export class FullComponent implements OnInit {
+export class FullComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild('sidenav') sidenav!: MatSidenav;
+  
+  sidebarOpened = true;
+  isMobile = false;
+  isCollapsed = false;
   navItems: NavItem[] = [];
 
-  @ViewChild('leftsidenav')
-  public sidenav: MatSidenav;
-  resView = false;
-
-  @ViewChild('content', { static: true }) content!: MatSidenavContent;
-  options = this.settings.getOptions();
-  private layoutChangesSubscription = Subscription.EMPTY;
-  private isMobileScreen = false;
-  private isContentWidthFixed = true;
-  private isCollapsedWidthFixed = false;
-  private htmlElement!: HTMLHtmlElement;
-
-  get isOver(): boolean {
-    return this.isMobileScreen;
-  }
+  private readonly COLLAPSED_KEY = 'sidebar_collapsed';
+  private subscriptions: Subscription[] = [];
 
   constructor(
-    private settings: CoreService,
     private router: Router,
     private breakpointObserver: BreakpointObserver,
-    private authService: AuthService,         // ← inject AuthService
+    private authService: AuthService
   ) {
-    this.htmlElement = document.querySelector('html')!;
-    this.layoutChangesSubscription = this.breakpointObserver
-      .observe([MOBILE_VIEW, TABLET_VIEW])
-      .subscribe((state) => {
-        this.options.sidenavOpened = true;
-        this.isMobileScreen = state.breakpoints[MOBILE_VIEW];
-        if (this.options.sidenavCollapsed == false) {
-          this.options.sidenavCollapsed = state.breakpoints[TABLET_VIEW];
+    const savedState = localStorage.getItem(this.COLLAPSED_KEY);
+    if (savedState !== null) {
+      this.isCollapsed = savedState === 'true';
+    }
+
+    this.breakpointObserver.observe(['(max-width: 768px)']).subscribe(result => {
+      this.isMobile = result.matches;
+      
+      if (this.isMobile) {
+        this.sidebarOpened = false;
+        this.isCollapsed = false;
+        if (this.sidenav) {
+          this.sidenav.close();
+          this.removeBackdrop();
         }
-      });
+      } else {
+        this.sidebarOpened = !this.isCollapsed;
+        if (this.sidenav && this.sidebarOpened) {
+          this.sidenav.open();
+        }
+      }
+    });
 
     this.router.events
-      .pipe(filter((event) => event instanceof NavigationEnd))
-      .subscribe((e) => {
-        this.content.scrollTo({ top: 0 });
+      .pipe(filter(event => event instanceof NavigationEnd))
+      .subscribe(() => {
+        const content = document.querySelector('.mat-sidenav-content');
+        content?.scrollTo({ top: 0 });
+        if (this.isMobile && this.sidenav) {
+          this.sidenav.close();
+          this.sidebarOpened = false;
+          this.removeBackdrop();
+        }
       });
   }
 
@@ -82,8 +89,44 @@ export class FullComponent implements OnInit {
     this.buildNav();
   }
 
+  ngAfterViewInit(): void {
+    this.removeBackdrop();
+    
+    // CORRECTION: Utiliser openedStart et _animationFinished ou simplement setTimeout
+    if (this.sidenav) {
+      // Écouter l'ouverture
+      this.subscriptions.push(
+        this.sidenav.openedStart.subscribe(() => {
+          setTimeout(() => this.removeBackdrop(), 10);
+        })
+      );
+      
+      // Écouter la fermeture via openedChange (false = fermé)
+      this.subscriptions.push(
+        this.sidenav.openedChange.subscribe((isOpen) => {
+          if (!isOpen) {
+            setTimeout(() => this.removeBackdrop(), 10);
+          }
+        })
+      );
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
+
+  private removeBackdrop(): void {
+    setTimeout(() => {
+      const backdrops = document.querySelectorAll('.mat-drawer-backdrop, .cdk-overlay-backdrop');
+      backdrops.forEach(backdrop => {
+        backdrop.setAttribute('style', 'display: none !important; opacity: 0 !important; background: transparent !important; visibility: hidden !important; pointer-events: none !important;');
+      });
+    }, 10);
+  }
+
   buildNav(): void {
-    const token = this.authService.getToken();
+    const token = this.authService.getAccessToken();
     let isAdmin = false;
 
     if (token) {
@@ -93,7 +136,6 @@ export class FullComponent implements OnInit {
       } catch {}
     }
 
-    // Filter items based on role
     this.navItems = navItems.filter(item => {
       if (item.adminOnly && !isAdmin) return false;
       if (item.userOnly && isAdmin) return false;
@@ -101,26 +143,30 @@ export class FullComponent implements OnInit {
     });
   }
 
-  ngOnDestroy() {
-    this.layoutChangesSubscription.unsubscribe();
+  toggleSidebar(): void {
+    this.removeBackdrop();
+    
+    if (this.isMobile) {
+      if (this.sidebarOpened) {
+        this.sidenav.close();
+        this.sidebarOpened = false;
+      } else {
+        this.sidenav.open();
+        this.sidebarOpened = true;
+        setTimeout(() => this.removeBackdrop(), 50);
+      }
+    } else {
+      this.isCollapsed = !this.isCollapsed;
+      this.sidebarOpened = !this.isCollapsed;
+      localStorage.setItem(this.COLLAPSED_KEY, String(this.isCollapsed));
+    }
   }
 
-  toggleCollapsed() {
-    this.isContentWidthFixed = false;
-    this.options.sidenavCollapsed = !this.options.sidenavCollapsed;
-    this.resetCollapsedState();
-  }
-
-  resetCollapsedState(timer = 400) {
-    setTimeout(() => this.settings.setOptions(this.options), timer);
-  }
-
-  onSidenavClosedStart() {
-    this.isContentWidthFixed = false;
-  }
-
-  onSidenavOpenedChange(isOpened: boolean) {
-    this.isCollapsedWidthFixed = !this.isOver;
-    this.options.sidenavOpened = isOpened;
+  closeSidebarOnMobile(): void {
+    if (this.isMobile && this.sidebarOpened) {
+      this.sidenav.close();
+      this.sidebarOpened = false;
+      this.removeBackdrop();
+    }
   }
 }

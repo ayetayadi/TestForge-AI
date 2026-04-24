@@ -289,7 +289,7 @@ private scrollToStory(issueKey: string): void {
         const storiesWithVersion: StoryWithVersion[] = stories.map(s => ({
           ...s,
           version: undefined,
-          agentStatus: undefined,
+          WorkflowStatus: undefined,
           versionScore: undefined,
           versionIteration: undefined,
           versions: [],
@@ -328,7 +328,7 @@ private recoverVersionStates(): void {
                     if (!versionData) {
                         updatedStories.push({
                             ...s,
-                            agentStatus: 'idle',
+                            WorkflowStatus: 'idle',
                             has_processing: false,
                         });
                         continue;
@@ -342,7 +342,7 @@ private recoverVersionStates(): void {
                         generated_acceptance_criteria: versionData.acceptance_criteria || [],
                         initial_score: versionData.initial_score || 0,
                         final_score: versionData.final_score || 0,
-                        agent_status: versionData.agent_status || 'completed',
+                        workflow_status: versionData.workflow_status || 'completed',
                         decision_status: versionData.decision_status || 'pending',
                         testability_score: versionData.testability_score,
                         is_testable: versionData.is_testable,
@@ -357,9 +357,9 @@ private recoverVersionStates(): void {
                             version_id: versionData.version_id,
                             issue_key: s.issue_key,
                         },
-                        agentStatus: versionData.agent_status,
+                        WorkflowStatus: versionData.workflow_status,
                         versionScore: versionData.final_score,
-                        has_processing: versionData.agent_status === 'processing',
+                        has_processing: versionData.workflow_status === 'processing',
                         versions_count: versionData.versions_count || 0,
                         // ✅ TOUJOURS définir display_version
                         display_version: displayVersion,
@@ -372,7 +372,7 @@ private recoverVersionStates(): void {
                         updated.selected_version = displayVersion;
                     }
 
-                    if (versionData.agent_status === 'processing') {
+                    if (versionData.workflow_status === 'processing') {
                         this.reconnectSSE(s.issue_key, versionData.version_id);
                     }
 
@@ -421,11 +421,11 @@ private recoverVersionStates(): void {
   // ─── Utils ──────────────────────────────────────────────────────
 
   isProcessing(story: StoryWithVersion): boolean {
-    return story.agentStatus === 'processing';
+    return story.WorkflowStatus === 'processing';
   }
 
 getStatusLabel(story: StoryWithVersion): string {
-    switch (story.agentStatus) {
+    switch (story.WorkflowStatus) {
         case 'processing':
             return 'Processing...';
         case 'completed':
@@ -471,26 +471,26 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
   }
 
   private getPipelineStatus(story: StoryWithVersion): string {
-    if (story.agentStatus === 'failed') return 'failed';
-    if (story.agentStatus === 'processing') return 'processing';
+    if (story.WorkflowStatus === 'failed') return 'failed';
+    if (story.WorkflowStatus === 'processing') return 'processing';
     if (story.display_version) return 'completed';
     return 'idle';
   }
 
   isCompleted(story: StoryWithVersion): boolean {
-    if (story.agentStatus === 'processing') return false;
-    if (story.agentStatus === 'failed') return true;
+    if (story.WorkflowStatus === 'processing') return false;
+    if (story.WorkflowStatus === 'failed') return true;
     return this.getDisplayVersion(story) !== null;
   }
 
   canRunPipeline(story: StoryWithVersion): boolean {
-    if (story.agentStatus === 'processing') return false;
+    if (story.WorkflowStatus === 'processing') return false;
     if (!story.version) return true;
-    return ['completed', 'failed'].includes(story.agentStatus ?? '');
+    return ['completed', 'failed'].includes(story.WorkflowStatus ?? '');
   }
 
   canRerunPipeline(story: StoryWithVersion): boolean {
-    if (story.agentStatus === 'processing') return false;
+    if (story.WorkflowStatus === 'processing') return false;
     return this.getDisplayVersion(story) !== null && this.canRunPipeline(story);
   }
 
@@ -638,7 +638,7 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
                         version_id: version.version_id,
                         issue_key: version.issue_key,
                       },
-                      agentStatus: 'processing',
+                      WorkflowStatus: 'processing',
                       versionIteration: 0,
                       versionScore: undefined,
                       has_processing: true,
@@ -707,7 +707,7 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
             s.issue_key === issueKey
               ? {
                   ...s,
-                  agentStatus: 'processing',
+                  WorkflowStatus: 'processing',
                   has_processing: true,
                 }
               : s
@@ -727,7 +727,7 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
 
             return {
               ...s,
-              agentStatus: 'completed',
+              WorkflowStatus: 'completed',
               versionIteration: data.iteration ?? 1,
               versionScore: data.final_score,
               has_processing: false,
@@ -738,7 +738,7 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
                 generated_acceptance_criteria: data.generated_acceptance_criteria ?? [],
                 initial_score: data.initial_score ?? 0,
                 final_score: data.final_score ?? 0,
-                agent_status: 'completed',
+                workflow_status: 'completed',
                 decision_status: 'pending',
                 testability_score: data.testability_score,
                 is_testable: data.is_testable,
@@ -760,7 +760,7 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
             s.issue_key === issueKey
               ? {
                   ...s,
-                  agentStatus: 'failed',
+                  WorkflowStatus: 'failed',
                   has_processing: false,
                 }
               : s
@@ -788,11 +788,11 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
           stories.map(s => {
             if (s.issue_key !== issueKey) return s;
 
-            if (state.agent_status === 'completed') {
+            if (state.workflow_status === 'completed') {
               return {
                 ...s,
                 version: { version_id: versionId, issue_key: issueKey },
-                agentStatus: 'completed',
+                WorkflowStatus: 'completed',
                 versionIteration: state.iteration ?? 0,
                 versionScore: state.final_score,
                 has_processing: false,
@@ -803,7 +803,7 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
                   generated_acceptance_criteria: state.generated_acceptance_criteria ?? [],
                   initial_score: state.initial_score ?? 0,
                   final_score: state.final_score ?? 0,
-                  agent_status: 'completed',
+                  workflow_status: 'completed',
                   decision_status: state.decision_status ?? 'pending',
                   testability_score: state.testability_score,
                   is_testable: state.is_testable,
@@ -814,23 +814,23 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
               };
             }
 
-            if (state.agent_status === 'failed') {
+            if (state.workflow_status === 'failed') {
               return {
                 ...s,
                 version: { version_id: versionId, issue_key: issueKey },
-                agentStatus: 'failed',
+                WorkflowStatus: 'failed',
                 has_processing: false,
               };
             }
 
-            if (state.agent_status === 'processing') {
+            if (state.workflow_status === 'processing') {
               if (!this.versionsService.isVersionConnected(versionId) && !this.sseSubscriptions.has(versionId)) {
                 this.connectSSE(versionId, issueKey);
               }
               return {
                 ...s,
                 version: { version_id: versionId, issue_key: issueKey },
-                agentStatus: 'processing',
+                WorkflowStatus: 'processing',
                 versionIteration: state.iteration ?? 0,
                 has_processing: true,
               };

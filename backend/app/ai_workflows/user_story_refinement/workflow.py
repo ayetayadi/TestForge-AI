@@ -205,7 +205,7 @@ class UserStoryRefinementPipeline:
                 "original_actor": original_actor or "",
                 "improved_actor": "",
                 "iterations": 0,
-                "agent_status": "error",
+                "workflow_status": "error",
                 "stop_reason": "error",
                 "violations": [],
                 "thought_log": [],
@@ -268,7 +268,7 @@ class UserStoryRefinementPipeline:
             "original_actor": original_actor or "",
             "improved_actor": improved_actor or "",
             "iterations": iterations,
-            "agent_status": status,
+            "workflow_status": status,
             "stop_reason": status,
             "violations": violations,
             "thought_log": [reasoning] if reasoning else [],
@@ -281,7 +281,7 @@ class UserStoryRefinementPipeline:
             f"[RESULT] jira={result['jira_id']} "
             f"score {result['initial_score']:.3f} → {result['final_score']:.3f} ({delta:+.3f}) "
             f"testability={result['testability_score']:.3f} "
-            f"status={result['agent_status']} iter={result['iterations']}"
+            f"status={result['workflow_status']} iter={result['iterations']}"
         )
 
 
