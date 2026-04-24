@@ -67,13 +67,9 @@ async def get_all_test_cases(
         elif archived_filter and not active_filter:
             query = query.where(TestCase.is_active == False)
     
-    # Filtre priority (via tags)
+    # Filtre priority (via priority column)
     if priority:
-        priority_conditions = []
-        for p in priority:
-            priority_conditions.append(TestCase.tags.contains([p]))
-        if priority_conditions:
-            query = query.where(or_(*priority_conditions))
+        query = query.where(TestCase.priority.in_([p.lower() for p in priority]))
     
     # Filtre tags
     if tags:
@@ -189,11 +185,7 @@ async def count_all_test_cases(
             query = query.where(TestCase.is_active == False)
     
     if priority:
-        priority_conditions = []
-        for p in priority:
-            priority_conditions.append(TestCase.tags.contains([p]))
-        if priority_conditions:
-            query = query.where(or_(*priority_conditions))
+        query = query.where(TestCase.priority.in_([p.lower() for p in priority]))
     
     if tags:
         tag_conditions = []

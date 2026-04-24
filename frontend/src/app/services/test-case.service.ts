@@ -103,6 +103,23 @@ export class TestCaseService {
     return this.http.delete<{ message: string }>(`${this.apiUrl}/${id}`);
   }
 
+  /**
+   * Run AI test case generator for a user story and persist results
+   * POST /ai-generate/test-cases/{userStoryId}
+   */
+  generateTestCases(userStoryId: string): Observable<{
+    generated_count: number;
+    quality_score: number;
+    flagged_for_human: boolean;
+    user_story_analysis: Record<string, any> | null;
+    test_cases: TestCase[];
+  }> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/ai-generate/test-cases/${userStoryId}`,
+      {}
+    );
+  }
+
   // ============================================================
   // MÉTHODES UTILITAIRES
   // ============================================================

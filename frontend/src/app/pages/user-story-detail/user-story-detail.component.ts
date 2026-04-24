@@ -7,6 +7,7 @@ import {
   UserStory, UserStoryVersion, SSEEvent, PipelineResponse, StoryWithVersion
 } from '../../models/user_story.model';
 import { StoriesService, PipelineService, VersionsService, ToastService } from '../../services';
+import { TestCaseService } from '../../services/test-case.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
 
@@ -24,11 +25,17 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
   private versionsService = inject(VersionsService);
   private pipelineService = inject(PipelineService);
   private toastService = inject(ToastService);
+  private testCaseService = inject(TestCaseService);
 
   story = signal<StoryWithVersion | null>(null);
   versions = signal<UserStoryVersion[]>([]);
   loading = signal(true);
   pipelineLoading = signal(false);
+
+  tcGenerating = signal(false);
+  generatedCount = signal<number | null>(null);
+  generatedQualityScore = signal<number | null>(null);
+  tcFlaggedForHuman = signal(false);
 
   private sseSubscription?: Subscription;
   private currentVersionId?: string;
@@ -50,16 +57,38 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
   isProcessing = computed(() => this.story()?.agentStatus === 'processing');
 
 
-    generateTestCase(): void {
+  generateTestCase(): void {
     const s = this.story();
-    if (!s) {
-      this.toastService.warning('No story loaded');
-      return;
-    }
+    if (!s || this.tcGenerating()) return;
 
-    // TODO: Implement test case generation logic
-    console.log('Generate test case for story:', s.issue_key);
-    this.toastService.info('Test case generation will be implemented soon');
+    this.tcGenerating.set(true);
+    this.generatedCount.set(null);
+    this.generatedQualityScore.set(null);
+    this.tcFlaggedForHuman.set(false);
+
+    this.testCaseService.generateTestCases(s.id).subscribe({
+      next: (result) => {
+        this.tcGenerating.set(false);
+        this.generatedCount.set(result.generated_count);
+        this.generatedQualityScore.set(result.quality_score ?? null);
+        this.tcFlaggedForHuman.set(result.flagged_for_human ?? false);
+        this.toastService.success(
+          'Test Cases Generated',
+          `${result.generated_count} test case${result.generated_count !== 1 ? 's' : ''} created successfully`
+        );
+      },
+      error: (err) => {
+        this.tcGenerating.set(false);
+        const msg = err?.error?.detail ?? err?.message ?? 'Generation failed';
+        this.toastService.error('Generation failed', msg);
+      },
+    });
+  }
+
+  viewTestCases(): void {
+    const s = this.story();
+    if (!s) return;
+    this.router.navigate(['/test-cases']);
   }
   canRunPipeline = computed(() => {
     const s = this.story();
