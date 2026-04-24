@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 async def get_all_test_cases(
     db: AsyncSession,
     project_id: Optional[str] = None,
+    user_story_id: Optional[str] = None,
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
     priority: Optional[List[str]] = None,
@@ -29,12 +30,13 @@ async def get_all_test_cases(
     items = await repo.get_all_test_cases(
         db,
         project_id=project_id,
+        user_story_id=user_story_id,
         search=search,
         status=status,
         priority=priority,
         tags=tags,
         has_script=has_script,
-        limit=1000,  # ← Prendre beaucoup d'items
+        limit=1000,
         offset=0
     )
     

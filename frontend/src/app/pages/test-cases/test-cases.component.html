@@ -68,6 +68,21 @@
     </select>
   </div>
 
+  <!-- User Story Filter -->
+  <div class="filter-item">
+    <select
+      class="filter-select"
+      [value]="selectedUserStoryId()"
+      (change)="onUserStoryChange($event)"
+      [disabled]="availableStories().length === 0"
+    >
+      <option value="">All User Stories</option>
+      @for (story of availableStories(); track story.id) {
+        <option [value]="story.id">{{ story.label }}</option>
+      }
+    </select>
+  </div>
+
   <!-- Status & Priority Filters -->
   <div class="filter-item">
     <app-filter-bar

@@ -1,102 +1,153 @@
 <div class="dashboard-container">
   <div class="dashboard-header">
     <h1>Dashboard</h1>
-    <p>Vue d'ensemble de vos activités de test</p>
+    <p>Overview of your testing activities</p>
   </div>
 
-  <!-- Top Cards -->
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-info">
-        <h3>User Stories</h3>
-        <h2>{{ stats.userStories }}</h2>
-        <span class="positive">+{{ stats.userStoriesWeekly }} cette semaine</span>
-      </div>
-      <div class="stat-icon">📘</div>
+  <!-- Loading skeleton -->
+  <ng-container *ngIf="loading">
+    <div class="stats-grid">
+      <div class="stat-card skeleton" *ngFor="let i of skeletonItems"></div>
     </div>
+    <div class="charts-grid">
+      <div class="chart-card large skeleton tall"></div>
+      <div class="chart-card small skeleton tall"></div>
+    </div>
+    <div class="recent-activity-card skeleton tall"></div>
+  </ng-container>
 
-    <div class="stat-card">
-      <div class="stat-info">
-        <h3>Cas de Test</h3>
-        <h2>{{ stats.testCases }}</h2>
-        <span class="positive">+{{ stats.testCasesWeekly }} cette semaine</span>
-      </div>
-      <div class="stat-icon">🧪</div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-info">
-        <h3>Taux de Réussite</h3>
-        <h2>{{ stats.successRate }}%</h2>
-        <span class="positive">+{{ stats.successRateWeekly }}% vs semaine dern.</span>
-      </div>
-      <div class="stat-icon">✅</div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-info">
-        <h3>Score Qualité Moyen</h3>
-        <h2>{{ stats.qualityScore }}/100</h2>
-        <span class="negative">{{ stats.qualityScoreWeekly }} vs semaine dern.</span>
-      </div>
-      <div class="stat-icon">⚠️</div>
-    </div>
+  <!-- Error banner -->
+  <div class="error-banner" *ngIf="error">
+    <span>⚠ {{ error }}</span>
   </div>
 
-  <!-- Charts section -->
-  <div class="charts-grid">
-    <div class="chart-card large">
-      <div class="card-header">
-        <h2>Couverture de Test par Catégorie</h2>
+  <!-- Data -->
+  <ng-container *ngIf="!loading && stats">
+
+    <!-- Top KPI Cards -->
+    <div class="stats-grid">
+
+      <div class="stat-card">
+        <div class="stat-info">
+          <h3>User Stories</h3>
+          <h2>{{ stats.user_stories_count }}</h2>
+          <span [ngClass]="weeklyClass(stats.user_stories_this_week)">
+            +{{ stats.user_stories_this_week }} this week
+          </span>
+        </div>
+        <div class="stat-icon">📘</div>
       </div>
 
-      <div class="bar-chart">
-        <div class="bar-item" *ngFor="let item of coverageByCategory">
-          <div class="bar-wrapper">
-            <div class="bar" [style.height.%]="item.value"></div>
-          </div>
-          <span class="bar-label">{{ item.label }}</span>
+      <div class="stat-card">
+        <div class="stat-info">
+          <h3>Test Cases</h3>
+          <h2>{{ stats.test_cases_count }}</h2>
+          <span [ngClass]="weeklyClass(stats.test_cases_this_week)">
+            +{{ stats.test_cases_this_week }} this week
+          </span>
         </div>
+        <div class="stat-icon">🧪</div>
       </div>
+
+      <div class="stat-card">
+        <div class="stat-info">
+          <h3>BDD Coverage</h3>
+          <h2>{{ stats.gherkin_coverage }}%</h2>
+          <span class="neutral">tests with Gherkin scenario</span>
+        </div>
+        <div class="stat-icon">✅</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-info">
+          <h3>Average Quality Score</h3>
+          <h2>{{ stats.quality_score }}<span class="score-unit">/100</span></h2>
+          <span class="neutral">{{ stats.projects_count }} project(s) analyzed</span>
+        </div>
+        <div class="stat-icon">⭐</div>
+      </div>
+
     </div>
 
-    <div class="chart-card small">
-      <div class="card-header">
-        <h2>Statut des Tests</h2>
-      </div>
+    <!-- Charts -->
+    <div class="charts-grid">
 
-      <div class="status-section">
-        <div class="donut-placeholder">
-          <div class="donut-center"></div>
+      <!-- Bar chart: test type coverage -->
+      <div class="chart-card large">
+        <div class="card-header">
+          <h2>Coverage by Test Type</h2>
         </div>
 
-        <div class="legend">
-          <div class="legend-item" *ngFor="let item of testStatus">
-            <div class="legend-left">
-              <span class="dot" [ngClass]="item.colorClass"></span>
-              <span>{{ item.label }}</span>
+        <div class="bar-chart" *ngIf="coverageItems.length > 0">
+          <div class="bar-item" *ngFor="let item of coverageItems">
+            <div class="bar-wrapper">
+              <div class="bar" [style.height.%]="item.value">
+                <span class="bar-tooltip">{{ item.value }}%</span>
+              </div>
             </div>
-            <strong>{{ item.value }}</strong>
+            <span class="bar-label">{{ item.label }}</span>
+          </div>
+        </div>
+
+        <div class="empty-chart" *ngIf="coverageItems.length === 0">
+          No test cases yet
+        </div>
+      </div>
+
+      <!-- Donut: priority distribution -->
+      <div class="chart-card small">
+        <div class="card-header">
+          <h2>Test Priority</h2>
+        </div>
+
+        <div class="status-section">
+          <div class="donut-placeholder"
+               [style.background]="'conic-gradient(' + donutGradient + ')'">
+            <div class="donut-center">
+              <span class="donut-total">{{ stats.test_cases_count }}</span>
+              <small>tests</small>
+            </div>
+          </div>
+
+          <div class="legend">
+            <div class="legend-item" *ngFor="let item of priorityItems">
+              <div class="legend-left">
+                <span class="dot" [ngClass]="item.color_class"></span>
+                <span>{{ item.label }}</span>
+              </div>
+              <strong>{{ item.value }}</strong>
+            </div>
+            <div class="empty-chart" *ngIf="!priorityItems.length">
+              No data
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Recent activity -->
-  <div class="recent-activity-card">
-    <div class="card-header">
-      <h2>Activité Récente</h2>
     </div>
 
-    <div class="activity-list">
-      <div class="activity-item" *ngFor="let activity of recentActivities">
-        <div class="activity-icon">•</div>
-        <div class="activity-content">
-          <p>{{ activity.message }}</p>
-          <span>{{ activity.time }}</span>
+    <!-- Activity feed -->
+    <div class="recent-activity-card">
+      <div class="card-header">
+        <h2>Recent Activity</h2>
+      </div>
+
+      <div class="activity-list" *ngIf="activities.length > 0">
+        <div class="activity-item" *ngFor="let activity of activities">
+          <div class="activity-icon">
+            {{ activity.kind === 'test_case' ? '🧪' : '📘' }}
+          </div>
+          <div class="activity-content">
+            <p>{{ activity.message }}</p>
+            <span>{{ activity.time }}</span>
+          </div>
         </div>
       </div>
+
+      <div class="empty-activity" *ngIf="activities.length === 0">
+        No recent activity
+      </div>
     </div>
-  </div>
+
+  </ng-container>
 </div>

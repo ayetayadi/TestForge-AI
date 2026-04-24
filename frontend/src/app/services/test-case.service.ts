@@ -24,6 +24,7 @@ export class TestCaseService {
    */
   getTestCases(filters?: {
     project_id?: string;
+    user_story_id?: string;
     search?: string;
     status?: TestCaseStatus[];
     priority?: Priority[];
@@ -31,9 +32,10 @@ export class TestCaseService {
     hasScript?: boolean;
   }): Observable<TestCase[]> {
     let params = new HttpParams();
-    
+
     if (filters) {
       if (filters.project_id) params = params.set('project_id', filters.project_id);
+      if (filters.user_story_id) params = params.set('user_story_id', filters.user_story_id);
       if (filters.search) params = params.set('search', filters.search);
       if (filters.hasScript !== undefined) params = params.set('has_script', filters.hasScript.toString());
       

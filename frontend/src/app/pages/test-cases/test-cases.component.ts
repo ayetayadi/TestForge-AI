@@ -21,6 +21,9 @@ interface TestCaseDisplay {
   tc_code: string;
   title: string;
   issue_key: string | null;
+  user_story_id: string | null;
+  user_story_title: string | null;
+  project_id: string | null;
   project_name: string | null;
   tags: string[] | null;
   priority: string | null;
@@ -62,6 +65,7 @@ export class TestCasesComponent implements OnInit {
   // Filters
   searchQuery = signal('');
   selectedProjectId = signal<string>('');
+  selectedUserStoryId = signal<string>('');
   selectedStatus = signal<string>('all');
   selectedPriority = signal<string>('all');
   selectedPriorities = signal<string[]>([]);
@@ -79,7 +83,24 @@ export class TestCasesComponent implements OnInit {
   // =========================
   // COMPUTED - FILTRAGE
   // =========================
-  
+
+  /** Unique user stories derived from the loaded test cases, optionally scoped to the selected project. */
+  availableStories = computed(() => {
+    const projectId = this.selectedProjectId();
+    const seen = new Map<string, { id: string; label: string }>();
+
+    for (const tc of this.allTestCases()) {
+      if (!tc.user_story_id) continue;
+      if (projectId && tc.project_id !== projectId) continue;
+      if (!seen.has(tc.user_story_id)) {
+        const key = tc.issue_key ?? tc.user_story_id;
+        const title = tc.user_story_title ? ` – ${tc.user_story_title.substring(0, 45)}` : '';
+        seen.set(tc.user_story_id, { id: tc.user_story_id, label: `${key}${title}` });
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label));
+  });
+
   filteredTestCases = computed(() => {
     let items = this.allTestCases();
     
@@ -109,12 +130,18 @@ export class TestCasesComponent implements OnInit {
       items = items.filter(tc => tc.is_active === (status === 'active'));
     }
     
+    // Filtre par user story
+    const userStoryId = this.selectedUserStoryId();
+    if (userStoryId) {
+      items = items.filter(tc => tc.user_story_id === userStoryId);
+    }
+
     // Filtre par priorité
     const priorities = this.selectedPriorities();
     if (priorities.length > 0) {
       items = items.filter(tc => priorities.includes((tc.priority || 'medium').toLowerCase()));
     }
-    
+
     return items;
   });
 
@@ -201,10 +228,13 @@ export class TestCasesComponent implements OnInit {
           tc_code: tc.tc_code,
           title: tc.title,
           issue_key: tc.issue_key,
+          user_story_id: tc.user_story_id ?? null,
+          user_story_title: tc.user_story_title ?? null,
+          project_id: tc.project_id ?? null,
           project_name: tc.project_name,
           tags: tc.tags,
           priority: (tc.priority || 'medium').toLowerCase(),
-          is_active: tc.is_active
+          is_active: tc.is_active,
         }));
         this.allTestCases.set(testCases);
         this.loading.set(false);
@@ -225,8 +255,15 @@ export class TestCasesComponent implements OnInit {
   onProjectChange(event: Event): void {
     const select = event.target as HTMLSelectElement;
     this.selectedProjectId.set(select.value);
+    this.selectedUserStoryId.set('');  // reset story when project changes
     this.page.set(1);
     this.loadTestCases();
+  }
+
+  onUserStoryChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    this.selectedUserStoryId.set(select.value);
+    this.page.set(1);
   }
 
   onStatusChange(event: Event): void {
@@ -306,6 +343,7 @@ onFiltersChange(filters: ActiveFilters): void {
   clearAllFilters(): void {
     this.searchQuery.set('');
     this.selectedProjectId.set('');
+    this.selectedUserStoryId.set('');
     this.selectedStatus.set('all');
     this.selectedPriorities.set([]);
     this.activeFilters.set({});
