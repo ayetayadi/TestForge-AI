@@ -30,7 +30,7 @@ async def test():
     print(f"📊 Testabilité: {result.get('testability_score', 0):.3f}")
     print(f"🎯 Is testable: {result.get('is_testable', False)}")
     print(f"🔄 Itérations: {result.get('iterations', 0)}")
-    print(f"✅ Status: {result.get('agent_status', 'unknown')}")
+    print(f"✅ Status: {result.get('workflow_status', 'unknown')}")
     print(f"📝 Similarité: {result.get('similarity', 0):.3f}")
     print(f"🌐 Langue cohérente: {result.get('language_consistent', False)}")
     print(f"👤 Rôle préservé: {result.get('role_preserved', False)}")

@@ -1,121 +1,258 @@
-@use "../variables" as *;
+// ── Sidebar Variables ─────────────────────────────────────────────────────────
+$bg-card: #ffffff !default;
+$border: #e2e8f0 !default;
+$radius-md: 6px !default;
+$bg-page: #f8fafc !default;
+$text-secondary: #64748b !default;
+$text-primary: #1e293b !default;
+$primary: #4f46e5 !default;
+$primary-dark: #4338ca !default;
 
+$sidebar-item-radius: 8px;
+$sidebar-width: 260px;
+$sidebar-bg: $bg-card;
+$sidebar-border: 1px solid $border;
+$-item-radius: $radius-md;
+$sidebar-icon-size: 18px;
+$sidebar-font-size: 13px;
+
+// ── Sidebar Container ─────────────────────────────────────────────────────────
 .mat-drawer.sidebarNav {
-  width: $sidenav-desktop;
+  width: $sidebar-width;
+  background: $sidebar-bg;
+  border-right: $sidebar-border;
   flex-shrink: 0;
-  transition: width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
   position: absolute;
   z-index: 1 !important;
   overflow-x: hidden;
-  border-right-width: 0;
 }
 
+// ── Branding / Logo Area ──────────────────────────────────────────────────────
 .branding {
-  padding: 11px 20px;
+  padding: 16px 20px;
+  border-bottom: 1px solid $bg-page;
+  margin-bottom: 8px;
+  
+  img {
+    max-height: 32px;
+    width: auto;
+  }
 }
 
+// ── Bouton Toggle ─────────────────────────────────────────────────────────────
+.sidebar-toggle-btn {
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  margin-right: 8px;
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+}
+
+// ── Sidebar Collapsed State (Mode Mini 72px) ──────────────────────────────────
+.sidebarNav-collapsed {
+  &.mat-drawer {
+    width: 72px !important;
+  }
+  
+  .branding {
+    padding: 16px 12px;
+    text-align: center;
+    
+    img {
+      transform: scale(0.85);
+      margin: 0 auto;
+    }
+  }
+  
+  .sidebar-list.mdc-list {
+    padding: 0 8px;
+    width: 72px;
+    
+    .mdc-list-group__subheader {
+      text-align: center;
+      padding: 12px 0 4px;
+      
+      .caption-text {
+        display: none;
+      }
+    }
+    
+    .menu-list-item {
+      justify-content: center;
+      padding: 0 !important;
+      
+      .mdc-list-item__start {
+        margin-right: 0 !important;
+      }
+      
+      .mdc-list-item__primary-text,
+      .arrow-icon {
+        display: none;
+      }
+    }
+    
+    .sub-menu {
+      display: none !important;
+    }
+  }
+  
+  .side-img {
+    display: none;
+  }
+}
+
+// ── Sidebar List Container ────────────────────────────────────────────────────
 .sidebar-list {
   &.mdc-list {
-    padding: 0 18px;
-    width: $sidenav-desktop;
-    .sub-item-icon {
-      width: 16px !important;
-      height: 16px !important;
-      opacity: 0.8;
-      margin-inline-end: 13px;
-    }
-
+    padding: 0 12px;
+    width: $sidebar-width;
+    
     .mdc-list-group__subheader {
-      margin: 0;
+      margin: 8px 0 4px;
+      padding: 8px 12px 4px;
+      font-size: 10px;
+      font-weight: 700;
       text-transform: uppercase;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 1.5px;
-      padding: 7px 0;
-      line-height: 26px;
-
+      letter-spacing: 0.07em;
+      color: $text-secondary;
+      line-height: 1.4;
+      
       .caption-icon {
         display: none;
       }
+      
       .caption-text {
         display: inline;
       }
     }
-
+    
     .sidebar-divider {
-      height: 0.5px;
-      display: block;
-      margin: 12px 0;
-      background: var(--mat-sys-outline);
-      width: 100%;
+      height: 1px;
+      background: $bg-page;
+      margin: 12px 8px;
     }
-
+    
     .menu-list-item {
-      border-radius: $border-radius;
-      height: 45px;
-      padding: 11px 16px !important;
-      margin-bottom: 4px;
-      width: 100%;
-      &.twoline {
-        height: 60px;
-        align-items: center;
-      }
-
-      &:before,
-      &:focus {
-        z-index: -1;
-      }
-
-      &.disabled {
-        opacity: 0.38;
-      }
-
-      .item-chip {
-        height: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 10px;
-      }
-
-      &.activeMenu {
-        background-color: var(--mat-sys-primary);
-        box-shadow: 0 17px 20px -8px rgba(77, 91, 236, 0.231372549);
-
+      border-radius: $sidebar-item-radius;
+      height: 40px;
+      padding: 0 12px !important;
+      margin-bottom: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      
+      &:hover {
+        background: $bg-page;
+        
         .mdc-list-item__primary-text {
-          color: $white !important;
+          color: $text-primary;
         }
-
+        
+        .mdc-list-item__start {
+          color: $primary;
+          fill: $primary;
+        }
+      }
+      
+      &.disabled {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      
+      &.activeMenu {
+        background: #eef2ff;
+        
+        .mdc-list-item__primary-text {
+          color: $primary !important;
+          font-weight: 600;
+        }
+        
         .mat-mdc-list-item-icon {
-          color: $white !important;
+          color: $primary !important;
+          fill: $primary !important;
         }
       }
-
+      
       .mdc-list-item__start {
-        margin-right: 10px;
+        margin-right: 12px;
         margin-left: 0 !important;
-        width: 18px;
-        height: 18px;
-        line-height: 0px;
-        fill: transparent !important;
-        color: var(--mat-sys-on-background);
+        width: $sidebar-icon-size;
+        height: $sidebar-icon-size;
+        line-height: 0;
+        color: $text-secondary;
+        fill: $text-secondary;
+        transition: all 0.18s ease;
       }
-
+      
       .mdc-list-item__primary-text {
         display: flex;
         align-items: center;
         justify-content: space-between;
-
+        font-size: $sidebar-font-size;
+        font-weight: 500;
+        color: $text-primary;
+        transition: color 0.18s ease;
+        
         .arrow-icon {
           display: flex;
-
+          
           .mat-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: $text-secondary;
+            transition: transform 0.2s ease;
+          }
+        }
+      }
+      
+      .item-chip {
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 8px;
+        font-size: 9px;
+        font-weight: 600;
+        border-radius: 20px;
+        background: $bg-page;
+        color: $text-secondary;
+        margin-left: 8px;
+      }
+    }
+    
+    .sub-menu {
+      padding-left: 28px;
+      margin-bottom: 4px;
+      
+      .menu-list-item {
+        height: 36px;
+        padding-left: 12px !important;
+        
+        .mdc-list-item__start {
+          width: 14px;
+          height: 14px;
+          margin-right: 10px;
+        }
+        
+        .mdc-list-item__primary-text {
+          font-size: 12px;
+          font-weight: 400;
+        }
+        
+        &.activeMenu {
+          background: transparent;
+          color: $primary;
+          
+          .mdc-list-item__primary-text {
+            color: $primary !important;
+            font-weight: 500;
           }
         }
       }
@@ -123,12 +260,48 @@
   }
 }
 
+// ── Layout Flex Container ─────────────────────────────────────────────────────
 .flex-layout {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  background: $sidebar-bg;
 }
 
+// ── Scrollbar Styling ─────────────────────────────────────────────────────────
+.sidebar-scroll-container {
+  height: calc(100vh - 80px);
+  overflow-y: auto;
+  
+  // Cacher le scrollbar complètement
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  
+  &::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Opera */
+  }
+}
+
+// ── Mobile Overlay Sidebar ────────────────────────────────────────────────────
+@media (max-width: 768px) {
+  .mat-drawer.sidebarNav {
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.05);
+  }
+}
+
+// ── Sidebar Footer Image ──────────────────────────────────────────────────────
 .side-img {
-  margin-right: -30px;
+  margin-top: auto;
+  padding: 20px 16px;
+  text-align: center;
+  
+  img {
+    max-width: 100%;
+    opacity: 0.7;
+    transition: opacity 0.18s ease;
+    
+    &:hover {
+      opacity: 1;
+    }
+  }
 }

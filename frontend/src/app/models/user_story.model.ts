@@ -50,7 +50,7 @@ export interface UserStory {
 // ==============================
 // Version (résultat d'une exécution IA)
 // ==============================
-export type AgentStatus = 'processing' | 'completed' | 'failed' | 'idle';
+export type WorkflowStatus = 'processing' | 'completed' | 'failed' | 'idle';
 
 export interface UserStoryVersion {
   id: string;
@@ -66,7 +66,7 @@ export interface UserStoryVersion {
   is_testable?: boolean;
   testability_issues?: string[];
 
-  agent_status: AgentStatus;  
+  workflow_status: WorkflowStatus;  
   decision_status: 'pending' | 'approved' | 'rejected';
 
   started_at?: string;  
@@ -82,7 +82,7 @@ export interface UserStoryVersion {
 export interface StoryVersion {
   version_id: string;
   issue_key: string;
-  status: AgentStatus;
+  status: WorkflowStatus;
   started_at?: string;
 }
 
@@ -96,8 +96,8 @@ export interface StoryWithVersion extends UserStory {
     issue_key: string;
   };
 
-  agentStatus?: AgentStatus;
-  versionStatus?: AgentStatus;
+  WorkflowStatus?: WorkflowStatus;
+  versionStatus?: WorkflowStatus;
   
   versionScore?: number;
   versionIteration?: number;
@@ -126,7 +126,7 @@ export type DecisionStatus = 'pending' | 'approved' | 'rejected';
 // ==============================
 export interface VersionState {
   version_id: string;
-  agent_status: AgentStatus | 'not_found';
+  workflow_status: WorkflowStatus | 'not_found';
   iteration: number;
 
   // Story info
@@ -191,7 +191,7 @@ export interface ActiveVersion {
   version_id: string;
   jira_id: string;
   issue_key: string;
-  agent_status: AgentStatus;
+  workflow_status: WorkflowStatus;
   current_score?: number;
   final_score?: number;
   iteration: number;
@@ -204,7 +204,7 @@ export interface ActiveVersion {
 export interface RunningVersion {
   version_id: string;
   issue_key: string;
-  agent_status: AgentStatus;
+  workflow_status: WorkflowStatus;
   current_step?: string;
   iteration: number;
 }
@@ -215,7 +215,7 @@ export interface RunningVersion {
 export interface PendingVersion {
   version_id: string;
   issue_key: string;
-  agent_status: AgentStatus;
+  workflow_status: WorkflowStatus;
   iteration: number;
   improved_story?: string;
   generated_acceptance_criteria?: string[];
@@ -282,7 +282,7 @@ export interface SSEEvent {
     score?: number;             // score at that phase
     issues?: string[];
     violations?: string[];
-    status?: AgentStatus;
+    status?: WorkflowStatus;
     jira_id?: string;
     thread_id?: string;
     version_id?: string;

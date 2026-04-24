@@ -19,7 +19,7 @@ PLACEHOLDER_PREFIX = "TESTFORGEAI"
 # ============================================================
 # ReAct Agent Configuration
 # ============================================================
-MAX_REACT_ITERATIONS = 50
+MAX_REACT_ITERATIONS = 20
 
 # ============================================================
 # MCP Playwright Configuration

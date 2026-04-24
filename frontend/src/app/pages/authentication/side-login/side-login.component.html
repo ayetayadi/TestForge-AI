@@ -4,80 +4,87 @@
       <mat-card class="cardWithShadow boxed-auth">
         <mat-card-content class="p-32">
 
-          <div class="text-center" style="margin-top: auto; margin-bottom: 16px;">
-            <img src="./assets/images/logos/logo.png" style="
-              max-width: 300px;
-              min-width: 120px;
-              height: auto;
-              object-fit: contain;
-              display: block;
-              margin: 0 auto;
-            "/>
+          <!-- BRANDING SECTION -->
+          <div class="branding-section">
+            <div class="logo-container">
+              <img 
+                src="./assets/images/logos/logo-testforge-ai.png" 
+                alt="TestForge AI" 
+                class="login-logo" />
+            </div>
+            
+            <div class="brand-title-wrapper">
+              <span class="brand-name">TestForge</span>
+              <span class="brand-ai">AI</span>
+            </div>
+            
+            <p class="brand-subtitle">AUTOMATION TEST INTELLIGENT</p>
           </div>
 
-          <div class="or-border m-t-16">Sign in with your credentials</div>
+          <div class="or-border">Sign in with your credentials</div>
 
-          <mat-error *ngIf="errorMessage" class="d-block text-center m-t-16">
-            {{ errorMessage }}
-          </mat-error>
+          <!-- Erreur globale -->
+          <div *ngIf="errorMessage" class="global-error">
+            <mat-icon>error_outline</mat-icon>
+            <span>{{ errorMessage }}</span>
+          </div>
 
-          <form [formGroup]="form" (ngSubmit)="submit()" class="m-t-30"
-                style="max-width: 320px; margin-left: auto; margin-right: auto;">
+          <form [formGroup]="form" (ngSubmit)="submit()" class="login-form">
 
-            <mat-label class="f-s-14 f-w-600 m-b-12 d-block">Email</mat-label>
-            <mat-form-field appearance="outline" class="w-100" color="primary">
-              <input matInput formControlName="email" type="email" placeholder="you@example.com" />
-              <mat-error *ngIf="f['email'].hasError('required')">Email is required</mat-error>
-              <mat-error *ngIf="f['email'].hasError('email')">Enter a valid email</mat-error>
-            </mat-form-field>
+            <!-- Champ Email -->
+              <div class="form-field-wrapper">
+                <label class="form-label">Email</label>
+                <mat-form-field appearance="outline" class="custom-form-field" color="primary">
+                  <input matInput formControlName="email" type="email" placeholder="you@example.com" />
+                </mat-form-field>
+                <div class="field-error" *ngIf="f['email'].touched && f['email'].invalid">
+                  <span *ngIf="f['email'].hasError('required')">Email is required</span>
+                  <span *ngIf="f['email'].hasError('email')">Enter a valid email</span>
+                </div>
+              </div>
 
-            <mat-label class="f-s-14 f-w-600 m-b-12 d-block">Password</mat-label>
-            
-            <mat-form-field appearance="outline" class="w-100" color="primary">
-  <input
-    matInput
-    [type]="hidePassword ? 'password' : 'text'"
-    formControlName="password"
-    placeholder="••••••••"
-  />
-
-  <!-- 👁 ICON -->
-  <button
-    mat-icon-button
-    matSuffix
-    type="button"
-    (click)="hidePassword = !hidePassword"
-    [attr.aria-label]="'Toggle password visibility'"
-    (mousedown)="$event.preventDefault()"
-  >
-    <mat-icon>
-      {{ hidePassword ? 'visibility_off' : 'visibility' }}
-    </mat-icon>
-  </button>
-
-  <mat-error *ngIf="f['password'].hasError('required')">
-    Password is required
-  </mat-error>
-            </mat-form-field>
-
-            <!-- ← ADD THIS -->
-            <div class="text-end m-b-16">
-              <a routerLink="/authentication/forgot-password"
-                 class="f-s-13"
-                 style="color: #5d87ff; text-decoration: none;">
-                Forgot password?
-              </a>
+            <!-- Champ Password -->
+            <div class="form-field-wrapper">
+              <label class="form-label">Password</label>
+              <mat-form-field appearance="outline" class="custom-form-field" color="primary">
+                <input
+                  matInput
+                  [type]="hidePassword ? 'password' : 'text'"
+                  formControlName="password"
+                  placeholder="••••••••"
+                />
+                <button
+                  mat-icon-button
+                  matSuffix
+                  type="button"
+                  (click)="hidePassword = !hidePassword"
+                  [attr.aria-label]="'Toggle password visibility'"
+                >
+                  <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
+              </mat-form-field>
+              <div class="field-error" *ngIf="f['password'].touched && f['password'].invalid">
+                <span *ngIf="f['password'].hasError('required')">Password is required</span>
+              </div>
             </div>
 
-            <button
-              mat-flat-button
-              color="primary"
-              class="w-100 m-t-8"
-              type="submit"
-              [disabled]="form.invalid || loading"
-            >
-              {{ loading ? 'Signing in...' : 'Sign In' }}
-            </button>
+            <!-- Forgot Password -->
+            <div class="text-end forgot-link">
+              <a routerLink="/authentication/forgot-password">Forgot password?</a>
+            </div>
+
+            <!-- Submit Button - Centré -->
+            <div class="button-wrapper">
+              <button
+                mat-flat-button
+                color="primary"
+                class="submit-btn"
+                type="submit"
+                [disabled]="form.invalid || loading"
+              >
+                {{ loading ? 'Signing in...' : 'Sign In' }}
+              </button>
+            </div>
 
           </form>
 

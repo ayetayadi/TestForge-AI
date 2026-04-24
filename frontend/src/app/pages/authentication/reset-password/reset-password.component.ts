@@ -22,6 +22,7 @@ function passwordMatchValidator(control: AbstractControl) {
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, MaterialModule, RouterModule],
   templateUrl: './reset-password.component.html',
+  styleUrls: ['./reset-password.component.scss'],
 })
 export class ResetPasswordComponent implements OnInit {
   loading        = false;
@@ -29,6 +30,9 @@ export class ResetPasswordComponent implements OnInit {
   successMessage = '';
   invalidToken   = false;
   token          = '';
+
+  hideNewPassword = true;
+  hideConfirmPassword = true;
 
   form = new FormGroup({
     new_password:     new FormControl('', [Validators.required, Validators.minLength(6)]),

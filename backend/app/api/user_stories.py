@@ -65,7 +65,7 @@ async def get_story_versions(
             "testability_score": v.testability_score,
             "is_testable": v.is_testable,
             "testability_issues": v.testability_issues or [],
-            "agent_status": v.agent_status.value if v.agent_status else "processing",
+            "workflow_status": v.workflow_status.value if v.workflow_status else "processing",
         }
         for v in versions
     ]
