@@ -34,7 +34,8 @@ python-jose[cryptography]
 cryptography
 httpx
 fastapi-mail
-langgraph-checkpoint-postgres 
+langgraph
+langgraph-checkpoint-postgres
 psycopg[binary,pool]
 langchain_openrouter
 langchain-mcp-adapters

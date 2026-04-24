@@ -597,3 +597,141 @@ $border: 1px solid #e5e7eb;
     }
   }
 }
+
+// ─── btn-test-case loading state ──────────────────────────────────
+
+.btn-test-case--loading {
+  opacity: 0.75;
+  cursor: not-allowed;
+
+  &:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+// ─── TC Generating card ───────────────────────────────────────────
+
+.tc-generating-card {
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+
+  .tc-generating-body {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .tc-generating-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .tc-generating-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #1d4ed8;
+  }
+
+  .tc-generating-sub {
+    font-size: 0.72rem;
+    color: #3b82f6;
+  }
+}
+
+// ─── TC Result card ───────────────────────────────────────────────
+
+.tc-result-card {
+  border-color: #a7f3d0;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+
+  .tc-result-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #059669;
+
+    svg {
+      width: 18px;
+      height: 18px;
+      color: #059669;
+      flex-shrink: 0;
+    }
+  }
+
+  .tc-result-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+
+  .tc-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: white;
+    border-radius: $radius;
+    padding: 10px 16px;
+    flex: 1;
+    border: 1px solid #d1fae5;
+    gap: 4px;
+  }
+
+  .tc-stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #065f46;
+    line-height: 1;
+  }
+
+  .tc-quality-score {
+    font-size: 1.1rem;
+  }
+
+  .tc-quality-high { color: #059669; }
+  .tc-quality-mid  { color: #d97706; }
+  .tc-quality-low  { color: #dc2626; }
+
+  .tc-stat-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .tc-flag-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: $radius;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #92400e;
+    margin-bottom: 12px;
+
+    svg {
+      width: 16px;
+      height: 16px;
+      color: #d97706;
+      flex-shrink: 0;
+    }
+  }
+
+  .tc-view-btn {
+    margin-top: 4px;
+    background: #059669;
+
+    &:hover:not(:disabled) {
+      background: #047857;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+    }
+  }
+}

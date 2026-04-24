@@ -8,6 +8,30 @@
       <p class="subtitle">Manage your end-to-end test scenarios</p>
     </div>
     <div class="header-actions">
+      <!-- View toggle -->
+      <div class="view-toggle">
+        <button
+          class="view-toggle__btn"
+          [class.active]="viewMode() === 'cards'"
+          (click)="setViewMode('cards')"
+          title="Card view"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+        </button>
+        <button
+          class="view-toggle__btn"
+          [class.active]="viewMode() === 'table'"
+          (click)="setViewMode('table')"
+          title="Table view"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M.99 5.24A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25l.01 9.5A2.25 2.25 0 0116.76 17H3.26A2.272 2.272 0 011 14.74l-.01-9.5zm8.26 9.52v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75v.615c0 .414.336.75.75.75h5.373a.75.75 0 00.627-.74zm1.5 0a.75.75 0 00.627.74h5.373a.75.75 0 00.75-.75v-.615a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75v.625zm6.75-3.63v-.625a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75v.625c0 .414.336.75.75.75h5.25a.75.75 0 00.75-.75zm-8.25 0v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75v.625c0 .414.336.75.75.75H8.5a.75.75 0 00.75-.75zM17.5 7.5v-.625a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75V7.5c0 .414.336.75.75.75h5.25a.75.75 0 00.75-.75zm-8.25 0v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75V7.5c0 .414.336.75.75.75H8.5a.75.75 0 00.75-.75z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+      </div>
+
       <button class="btn-secondary" (click)="refresh()">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
@@ -101,31 +125,20 @@
     </div>
   }
 
-  <!-- Test Cases Grid -->
-  @if (!loading() && filteredTestCases().length > 0) {
+  <!-- Test Cases: Card View -->
+  @if (!loading() && filteredTestCases().length > 0 && viewMode() === 'cards') {
     <div class="tc-grid">
       @for (testCase of paginatedTestCases(); track testCase.id) {
-        <div class="tc-card" [class.selected]="selectedTestCases().has(testCase.id)" >
+        <div class="tc-card" [class.selected]="selectedTestCases().has(testCase.id)">
 
-          <!-- Accent bar based on priority -->
           <div class="tc-card__accent" [class]="'accent-' + (testCase.priority ? testCase.priority.toLowerCase() : '')"></div>
 
-          <!-- Top row: checkbox + code + priority + delete -->
           <div class="tc-card__top">
             <div class="tc-card__check" (click)="$event.stopPropagation()">
-              <input
-                type="checkbox"
-                [checked]="selectedTestCases().has(testCase.id)"
-                (change)="toggleSelect(testCase)"
-              />
+              <input type="checkbox" [checked]="selectedTestCases().has(testCase.id)" (change)="toggleSelect(testCase)" />
             </div>
-
             <span class="tc-code">{{ testCase.tc_code }}</span>
-
-            <span class="priority-badge" [class]="getPriorityClass(testCase.priority)">
-              {{ testCase.priority }}
-            </span>
-
+            <span class="priority-badge" [class]="getPriorityClass(testCase.priority)">{{ testCase.priority }}</span>
             <button class="tc-card__delete" (click)="deleteTestCase(testCase.id, $event)" title="Delete">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
@@ -133,28 +146,23 @@
             </button>
           </div>
 
-          <!-- Title -->
           <h3 class="tc-card__title">{{ testCase.title }}</h3>
 
-          <!-- Meta info -->
           <div class="tc-card__meta">
-             <div class="meta-item">
+            <div class="meta-item">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8.828a2 2 0 00-.586-1.414l-4.828-4.828A2 2 0 0011.172 2H4zm7 2.414L15.586 9H12a1 1 0 01-1-1V4.414z" clip-rule="evenodd"/>
               </svg>
               <span>Project: {{ testCase.project_name || 'No project' }}</span>
             </div>
-            
-
             <div class="meta-item">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.38 2H4.5zm4.75 6.75a.75.75 0 011.5 0v2.546l.943-1.048a.75.75 0 111.114 1.004l-2.25 2.5a.75.75 0 01-1.114 0l-2.25-2.5a.75.75 0 111.114-1.004l.943 1.048V8.75z" clip-rule="evenodd"/>
               </svg>
-              <span>User Story Issue Key: {{ testCase.issue_key || 'No story' }}</span>
+              <span>Story: {{ testCase.issue_key || 'No story' }}</span>
             </div>
-            </div>
+          </div>
 
-          <!-- Tags -->
           @if (testCase.tags && testCase.tags.length > 0) {
             <div class="tc-card__tags">
               @for (tag of testCase.tags; track tag) {
@@ -163,45 +171,35 @@
             </div>
           }
 
-          <!-- Footer: status -->
           <div class="tc-card__footer">
             <span class="status-dot" [class.active]="testCase.is_active"></span>
-            <span class="status-label" [class.active]="testCase.is_active">
-              {{ getStatusLabel(testCase.is_active) }}
-            </span>
+            <span class="status-label" [class.active]="testCase.is_active">{{ getStatusLabel(testCase.is_active) }}</span>
           </div>
 
-        <div class="tc-card__actions">
-          <button class="btn-view-details" (click)="viewTestCase(testCase.id, $event)" title="View details">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-              <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
-            </svg>
-            View Details
-          </button>
-
-          <button
-            class="btn-generate-script"
-            (click)="generateScript(testCase.id, $event)"
-            [disabled]="generatingIds().has(testCase.id)"
-            title="Generate Playwright script"
-          >
-            @if (generatingIds().has(testCase.id)) {
-              <span class="spinner-inline"></span>
-              Generating...
-            } @else {
+          <div class="tc-card__actions">
+            <button class="btn-view-details" (click)="viewTestCase(testCase.id, $event)" title="View details">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd" />
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
               </svg>
-              Generate Script
-            }
-          </button>
-        </div>
+              View Details
+            </button>
+            <button class="btn-generate-script" (click)="generateScript(testCase.id, $event)" [disabled]="generatingIds().has(testCase.id)" title="Generate Playwright script">
+              @if (generatingIds().has(testCase.id)) {
+                <span class="spinner-inline"></span>
+                Generating...
+              } @else {
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+                </svg>
+                Generate Script
+              }
+            </button>
+          </div>
         </div>
       }
     </div>
 
-    <!-- Pagination -->
     @if (totalPages() > 1) {
       <div class="pagination-wrapper">
         <app-pagination
@@ -209,6 +207,104 @@
           [currentPage]="page()"
           [pageSize]="pageSize()"
           [pageSizeOptions]="[6, 12, 24]"
+          (pageChange)="onPageChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
+      </div>
+    }
+  }
+
+  <!-- Test Cases: Table View -->
+  @if (!loading() && filteredTestCases().length > 0 && viewMode() === 'table') {
+    <div class="tc-table-wrap">
+      <table class="tc-table">
+        <thead>
+          <tr>
+            <th class="col-check">
+              <input type="checkbox" [checked]="allSelected()" (change)="toggleSelectAll()" />
+            </th>
+            <th class="col-code">Code</th>
+            <th class="col-title">Title</th>
+            <th class="col-priority">Priority</th>
+            <th class="col-tags">Tags</th>
+            <th class="col-project">Project</th>
+            <th class="col-story">Story</th>
+            <th class="col-status">Status</th>
+            <th class="col-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (testCase of paginatedTestCases(); track testCase.id) {
+            <tr [class.selected]="selectedTestCases().has(testCase.id)">
+              <td class="col-check" (click)="$event.stopPropagation()">
+                <input type="checkbox" [checked]="selectedTestCases().has(testCase.id)" (change)="toggleSelect(testCase)" />
+              </td>
+              <td class="col-code">
+                <span class="tc-code">{{ testCase.tc_code }}</span>
+              </td>
+              <td class="col-title">{{ testCase.title }}</td>
+              <td class="col-priority">
+                <span class="priority-badge" [class]="getPriorityClass(testCase.priority)">{{ testCase.priority }}</span>
+              </td>
+              <td class="col-tags">
+                @if (testCase.tags && testCase.tags.length > 0) {
+                  <div class="tag-list">
+                    @for (tag of testCase.tags.slice(0, 3); track tag) {
+                      <span class="tag" [class]="getTagClass(tag)">{{ tag }}</span>
+                    }
+                    @if (testCase.tags.length > 3) {
+                      <span class="tag tag-default">+{{ testCase.tags.length - 3 }}</span>
+                    }
+                  </div>
+                } @else {
+                  <span class="tc-table__empty-cell">—</span>
+                }
+              </td>
+              <td class="col-project">{{ testCase.project_name || '—' }}</td>
+              <td class="col-story">{{ testCase.issue_key || '—' }}</td>
+              <td class="col-status">
+                <span class="tc-status-pill" [class.active]="testCase.is_active">
+                  <span class="status-dot" [class.active]="testCase.is_active"></span>
+                  {{ getStatusLabel(testCase.is_active) }}
+                </span>
+              </td>
+              <td class="col-actions">
+                <div class="tc-row-actions">
+                  <button class="row-action-btn row-action-view" (click)="viewTestCase(testCase.id, $event)" title="View details">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                      <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                    </svg>
+                  </button>
+                  <button class="row-action-btn row-action-script" (click)="generateScript(testCase.id, $event)" [disabled]="generatingIds().has(testCase.id)" title="Generate script">
+                    @if (generatingIds().has(testCase.id)) {
+                      <span class="spinner-inline"></span>
+                    } @else {
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+                      </svg>
+                    }
+                  </button>
+                  <button class="row-action-btn row-action-delete" (click)="deleteTestCase(testCase.id, $event)" title="Delete">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPages() > 1) {
+      <div class="pagination-wrapper">
+        <app-pagination
+          [totalItems]="totalFiltered()"
+          [currentPage]="page()"
+          [pageSize]="pageSize()"
+          [pageSizeOptions]="[10, 25, 50]"
           (pageChange)="onPageChange($event)"
           (pageSizeChange)="onPageSizeChange($event)"
         />

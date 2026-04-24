@@ -64,6 +64,7 @@ export class TestCasesComponent implements OnInit {
   selectedProjectId = signal<string>('');
   selectedStatus = signal<string>('all');
   selectedPriority = signal<string>('all');
+  selectedPriorities = signal<string[]>([]);
   
   // Selection
   selectedTestCases = signal<Set<string>>(new Set());
@@ -72,6 +73,8 @@ export class TestCasesComponent implements OnInit {
   generatingIds = signal<Set<string>>(new Set());
 
   activeFilters = signal<ActiveFilters>({});
+
+  viewMode = signal<'cards' | 'table'>('cards');
 
   // =========================
   // COMPUTED - FILTRAGE
@@ -107,9 +110,9 @@ export class TestCasesComponent implements OnInit {
     }
     
     // Filtre par priorité
-    const priority = this.selectedPriority();
-    if (priority !== 'all') {
-      items = items.filter(tc => tc.priority === priority);
+    const priorities = this.selectedPriorities();
+    if (priorities.length > 0) {
+      items = items.filter(tc => priorities.includes((tc.priority || 'medium').toLowerCase()));
     }
     
     return items;
@@ -185,8 +188,9 @@ export class TestCasesComponent implements OnInit {
     }
     
     // ✅ CORRECTION: Convertir string en Priority
-    if (this.selectedPriority() !== 'all') {
-      filters.priority = [this.selectedPriority() as Priority];
+    const priorities = this.selectedPriorities();
+    if (priorities.length > 0) {
+      filters.priority = priorities as Priority[];
     }
     
     this.testCaseService.getTestCases(filters).subscribe({
@@ -199,7 +203,7 @@ export class TestCasesComponent implements OnInit {
           issue_key: tc.issue_key,
           project_name: tc.project_name,
           tags: tc.tags,
-          priority: tc.priority || 'medium',
+          priority: (tc.priority || 'medium').toLowerCase(),
           is_active: tc.is_active
         }));
         this.allTestCases.set(testCases);
@@ -290,9 +294,9 @@ onFiltersChange(filters: ActiveFilters): void {
   }
   
   if (priorityFilter && priorityFilter.length > 0) {
-    this.selectedPriority.set(priorityFilter[0]);
+    this.selectedPriorities.set(priorityFilter);
   } else {
-    this.selectedPriority.set('all');
+    this.selectedPriorities.set([]);
   }
   
   this.page.set(1);
@@ -303,7 +307,7 @@ onFiltersChange(filters: ActiveFilters): void {
     this.searchQuery.set('');
     this.selectedProjectId.set('');
     this.selectedStatus.set('all');
-    this.selectedPriority.set('all');
+    this.selectedPriorities.set([]);
     this.activeFilters.set({});
     this.page.set(1);
     this.loadTestCases();
@@ -447,6 +451,10 @@ getPriorityClass(priority: string | null): string {
 
   getStatusLabel(isActive: boolean): string {
     return isActive ? 'Active' : 'Archived';
+  }
+
+  setViewMode(mode: 'cards' | 'table'): void {
+    this.viewMode.set(mode);
   }
 
   getTagClass(tag: string): string {
