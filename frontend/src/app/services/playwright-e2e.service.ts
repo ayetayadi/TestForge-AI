@@ -577,71 +577,55 @@ private handleSSEEvent(event: PlaywrightSSEEvent): void {
  * Construit un rapport d'exécution détaillé
  */
 private buildExecutionReport(data: any): ExecutionReport {
-  const steps = data.execution_steps || [];
-  const passedSteps = steps.filter((s: any) => s.status === 'success').length;
-  const failedSteps = steps.filter((s: any) => s.status === 'failed').length;
-  const totalSteps = steps.length;
-  
+  const passedSteps = data.steps_passed || 0;
+  const failedSteps = data.steps_failed || 0;
+  const totalSteps = passedSteps + failedSteps;
+  const executionStatus = data.execution_status;
+
+  let status: 'passed' | 'failed' | 'partial';
+  if (executionStatus === 'passed') {
+    status = 'passed';
+  } else if (executionStatus === 'failed') {
+    status = passedSteps > 0 ? 'partial' : 'failed';
+  } else {
+    status = failedSteps === 0 && passedSteps > 0 ? 'passed' : (passedSteps > 0 ? 'partial' : 'failed');
+  }
+
   return {
-    status: failedSteps === 0 ? 'passed' : (passedSteps > 0 ? 'partial' : 'failed'),
+    status,
     totalSteps,
     passedSteps,
     failedSteps,
     successRate: totalSteps > 0 ? (passedSteps / totalSteps) * 100 : 0,
     duration: data.duration || 0,
-    steps: steps.map((s: any, idx: number) => ({
-      order: idx + 1,
-      type: s.type || 'act',
-      description: s.content || s.description || '',
-      status: s.status === 'success' ? 'success' : 'failed',
-      error: s.error,
-      duration: s.duration || 0
-    })),
+    steps: [],
     placeholdersResolved: data.placeholders_resolved || [],
-    recommendations: this.generateRecommendations(steps, data)
+    recommendations: this.generateRecommendations(passedSteps, failedSteps, data)
   };
 }
 
 /**
  * Génère des recommandations basées sur les résultats
  */
-private generateRecommendations(steps: any[], data: any): string[] {
+private generateRecommendations(passedSteps: number, failedSteps: number, data: any): string[] {
   const recommendations: string[] = [];
-  const failedSteps = steps.filter(s => s.status === 'failed');
-  
-  if (failedSteps.length > 0) {
-    recommendations.push(`🔧 Fix ${failedSteps.length} failed step(s) before re-running`);
-    
-    // Détecter les problèmes courants
-    failedSteps.forEach(step => {
-      const content = (step.content || '').toLowerCase();
-      if (content.includes('timeout')) {
-        recommendations.push('⏱️ Increase timeout or check if element is visible');
-      }
-      if (content.includes('selector') || content.includes('locator')) {
-        recommendations.push('🎯 Review selectors - they might be outdated or incorrect');
-      }
-      if (content.includes('not found')) {
-        recommendations.push('🔍 Element not found - verify the page structure');
-      }
-      if (content.includes('navigation')) {
-        recommendations.push('🌐 Navigation issue - check if URL is accessible');
-      }
-    });
+
+  if (failedSteps > 0) {
+    recommendations.push(`🔧 Fix ${failedSteps} failed step(s) before re-running`);
   }
-  
-  if (steps.length === 0) {
+
+  if (passedSteps === 0 && failedSteps === 0) {
     recommendations.push('📝 No steps were executed - check script generation');
   }
-  
+
   if (data.placeholders_resolved && data.placeholders_resolved.length > 0) {
     recommendations.push(`✅ ${data.placeholders_resolved.length} placeholder(s) resolved successfully`);
   }
-  
+
   if (data.script_v2) {
     recommendations.push('✨ A corrected script v2 has been generated - check the Script tab');
   }
-  
+
   return recommendations;
 }
 

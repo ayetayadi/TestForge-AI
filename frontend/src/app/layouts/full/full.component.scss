@@ -1,0 +1,212 @@
+// Sidebar Variables
+$sidebar-width: 260px;
+$sidebar-collapsed-width: 72px;
+$transition-duration: 0.25s;
+$bg-card: #ffffff;
+$border: #e2e8f0;
+$bg-page: #f8fafc;
+
+// Sidenav Container
+mat-sidenav-container {
+  height: 100vh;
+  background: $bg-page;
+}
+
+// Sidebar styles
+.mat-drawer.sidebarNav {
+  width: $sidebar-width;
+  background: $bg-card;
+  border-right: 1px solid $border;
+  transition: width $transition-duration cubic-bezier(0.4, 0, 0.2, 1) !important;
+  overflow-x: hidden;
+  
+  &.sidebarNav-collapsed {
+    width: $sidebar-collapsed-width !important;
+    
+    .branding {
+      padding: 16px 12px;
+      text-align: center;
+      
+      img {
+        transform: scale(0.85);
+      }
+    }
+    
+    .sidebar-list.mdc-list {
+      padding: 0 8px;
+      
+      .mdc-list-group__subheader {
+        text-align: center;
+        padding: 12px 0 4px;
+        
+        .caption-text {
+          display: none;
+        }
+      }
+      
+      .menu-list-item {
+        justify-content: center;
+        padding: 0 !important;
+        
+        .routeIcon {
+          margin: 0 auto;
+          font-size: 22px !important; // Agrandir l'icône en mode collapsed
+        }
+        
+        .hide-menu,
+        .arrow-icon {
+          display: none;
+        }
+      }
+      
+      .sub-menu {
+        display: none !important;
+      }
+    }
+  }
+  
+  &.mat-drawer-over {
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+  }
+}
+
+// Branding
+.branding {
+  padding: 16px 20px;
+  border-bottom: 1px solid $bg-page;
+  margin-bottom: 8px;
+  
+  img {
+    max-height: 40px; // Augmenter la taille du logo
+    width: auto;
+  }
+}
+
+// Sidebar list - AGRANDIR LE TEXTE
+.sidebar-list.mdc-list {
+  padding: 0 12px;
+  
+  .mdc-list-group__subheader {
+    margin: 12px 0 8px;
+    padding: 8px 12px 4px;
+    font-size: 12px !important; // Agrandi de 10px à 12px
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #64748b;
+  }
+  
+  .sidebar-divider {
+    height: 1px;
+    background: $bg-page;
+    margin: 16px 8px;
+  }
+  
+  .menu-list-item {
+    border-radius: 8px;
+    height: 48px !important; // Augmenté de 40px à 48px
+    padding: 0 12px !important;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    
+    &:hover {
+      background: $bg-page;
+    }
+    
+    &.activeMenu {
+      background: #eef2ff;
+      
+      .routeIcon {
+        color: #4f46e5 !important;
+      }
+      
+      .hide-menu {
+        color: #4f46e5 !important;
+        font-weight: 600;
+      }
+    }
+    
+    .routeIcon {
+      margin-right: 12px;
+      color: #64748b;
+      font-size: 20px !important; // Agrandir les icônes
+    }
+    
+    .hide-menu {
+      font-size: 14px !important; // Agrandi de 13px à 14px
+      font-weight: 500;
+      color: #1e293b;
+    }
+  }
+}
+
+.flex-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: $bg-card;
+}
+
+.contentWrapper {
+  background: $bg-page;
+}
+
+.sidebar-scroll-container {
+  height: calc(100vh - 80px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.pageWrapper {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+::ng-deep .mat-drawer-backdrop,
+::ng-deep .cdk-overlay-backdrop,
+::ng-deep .mat-drawer-backdrop.mat-drawer-shown {
+  display: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+::ng-deep .mat-drawer.mat-drawer-over {
+  box-shadow: none !important;
+}
+
+::ng-deep .mat-drawer-content {
+  position: relative;
+  z-index: 1;
+}
+
+::ng-deep .mat-drawer.mat-drawer-over {
+  z-index: 2;
+}
+
+@media (max-width: 768px) {
+  .mat-drawer.sidebarNav {
+    width: 260px !important;
+    
+    &.sidebarNav-collapsed {
+      width: 260px !important;
+    }
+  }
+}

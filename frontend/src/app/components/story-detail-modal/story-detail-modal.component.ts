@@ -70,7 +70,7 @@ export class StoryDetailModalComponent {
    */
   isProcessing = computed(() => {
     const story = this.story();
-    return story?.agentStatus === 'processing';
+    return story?.WorkflowStatus === 'processing';
   });
 
   /**
@@ -78,7 +78,7 @@ export class StoryDetailModalComponent {
    */
   isCompleted = computed(() => {
     const story = this.story();
-    return story?.agentStatus === 'completed';
+    return story?.WorkflowStatus === 'completed';
   });
 
   /**
@@ -88,7 +88,7 @@ export class StoryDetailModalComponent {
     const story = this.story();
     if (!story) return false;
     if (this.isProcessing()) return false;
-    return !story.version || ['completed', 'failed'].includes(story.agentStatus ?? '');
+    return !story.version || ['completed', 'failed'].includes(story.WorkflowStatus ?? '');
   });
 
   /**
@@ -205,7 +205,7 @@ export class StoryDetailModalComponent {
     if (story.reporter) meta.push({ label: 'Reporter', value: story.reporter });
     if (story.epic_key) meta.push({ label: 'Epic', value: story.epic_key });
     if (story.fix_version) meta.push({ label: 'Fix Version', value: story.fix_version });
-    if (story.agentStatus) meta.push({ label: 'Pipeline Status', value: this.getStatusLabel(story.agentStatus) });
+    if (story.WorkflowStatus) meta.push({ label: 'Pipeline Status', value: this.getStatusLabel(story.WorkflowStatus) });
 
     return meta;
   }

@@ -54,7 +54,7 @@ def _version_to_dict(version):
         "started_at": version.started_at.isoformat() if version.started_at else None,
         "completed_at": version.completed_at.isoformat() if version.completed_at else None,
         "decision_status": version.decision_status.value if version.decision_status else "pending",
-        "agent_status": version.agent_status.value if version.agent_status else "processing",
+        "workflow_status": version.workflow_status.value if version.workflow_status else "processing",
     }
 
 

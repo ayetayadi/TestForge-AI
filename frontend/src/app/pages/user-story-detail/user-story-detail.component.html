@@ -46,7 +46,7 @@
                 <app-spinner [size]="12" />
                 Processing...
               </span>
-            } @else if (s.agentStatus === 'failed') {
+            } @else if (s.WorkflowStatus === 'failed') {
               <span class="status-chip failed">Failed</span>
             } @else if (isApproved()) {
               <span class="status-chip approved">Approved</span>

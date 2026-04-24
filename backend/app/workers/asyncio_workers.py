@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime
 
-from app.models.enums import AgentStatus, StoryDecision
+from app.models.enums import WorkflowStatus, StoryDecision
 from app.repositories.user_story_version_repository import get_best_version
 from app.repositories.user_story_repository import get_user_story_by_id
 from app.core.config import settings
@@ -66,12 +66,12 @@ async def save_ai_version(
     testability_issues = result.get("testability_issues", [])
     iterations = result.get("iterations", 0)
     duration = result.get("duration_seconds", 0.0)
-    agent_status_str = result.get("agent_status", "success")
+    workflow_status_str = result.get("workflow_status", "success")
 
-    agent_status = (
-        AgentStatus.FAILED
-        if agent_status_str == "error"
-        else AgentStatus.COMPLETED
+    workflow_status = (
+        WorkflowStatus.FAILED
+        if workflow_status_str == "error"
+        else WorkflowStatus.COMPLETED
     )
 
     version = UserStoryVersion(
@@ -84,7 +84,7 @@ async def save_ai_version(
         testability_score=testability_score,
         is_testable=is_testable,
         testability_issues=testability_issues,
-        agent_status=agent_status,
+        workflow_status=workflow_status,
         started_at=datetime.now(),
         completed_at=datetime.now(),
         decision_status=StoryDecision.PENDING,
@@ -159,14 +159,14 @@ async def async_worker(worker_id: int) -> None:
                     raise TimeoutError(f"Agent timeout after {WORKFLOW_TIMEOUT}s")
 
                 # errors are returned as a result dict, not raised
-                if result.get("agent_status") == "error":
+                if result.get("workflow_status") == "error":
                     logger.error(f"Agent reported error: {result.get('error')}")
                     failed_version = UserStoryVersion(
                         id=version_id,
                         user_story_id=state["user_story_id"],
                         improved_story=state["raw_story"],
                         generated_acceptance_criteria=state.get("acceptance_criteria", []),
-                        agent_status=AgentStatus.FAILED,
+                        workflow_status=WorkflowStatus.FAILED,
                         started_at=datetime.now(),
                         completed_at=datetime.now(),
                         decision_status=StoryDecision.PENDING,
@@ -188,14 +188,14 @@ async def async_worker(worker_id: int) -> None:
                 testability_score = float(result.get("testability_score", 0.0))
                 is_testable = result.get("is_testable", False)
                 iterations = result.get("iterations", 0)
-                agent_status = result.get("agent_status", "unknown")
+                workflow_status = result.get("workflow_status", "unknown")
                 duration = result.get("duration_seconds", 0.0)
 
                 logger.info(
                     f"Agent result: initial={initial_score:.3f}, final={final_score:.3f}, "
                     f"delta={final_score - initial_score:+.3f}, "
                     f"testability={testability_score:.3f}, iterations={iterations}, "
-                    f"status={agent_status}"
+                    f"status={workflow_status}"
                 )
 
                 # ============================================================
@@ -235,7 +235,7 @@ async def async_worker(worker_id: int) -> None:
                     "improved_story": new_story,
                     "acceptance_criteria": new_ac,
                     "iteration": iterations,
-                    "agent_status": agent_status,
+                    "workflow_status": workflow_status,
                     "duration": duration,
                     "version_id": version.id,
                     "has_new_version": True,
@@ -320,7 +320,7 @@ async def async_worker(worker_id: int) -> None:
                     #     "improved_story": new_story,
                     #     "acceptance_criteria": new_ac,
                     #     "iteration": iterations,
-                    #     "agent_status": agent_status,
+                    #     "workflow_status": workflow_status,
                     #     "duration": duration,
                     #     "version_id": version.id,
                     #     "has_new_version": True,
@@ -345,7 +345,7 @@ async def async_worker(worker_id: int) -> None:
                         user_story_id=state["user_story_id"],
                         improved_story=state["raw_story"],
                         generated_acceptance_criteria=state.get("acceptance_criteria", []),
-                        agent_status=AgentStatus.FAILED,
+                        workflow_status=WorkflowStatus.FAILED,
                         started_at=datetime.now(),
                         completed_at=datetime.now(),
                         decision_status=StoryDecision.PENDING,
@@ -366,7 +366,7 @@ async def async_worker(worker_id: int) -> None:
                         user_story_id=state["user_story_id"],
                         improved_story=state["raw_story"],
                         generated_acceptance_criteria=state.get("acceptance_criteria", []),
-                        agent_status=AgentStatus.FAILED,
+                        workflow_status=WorkflowStatus.FAILED,
                         started_at=datetime.now(),
                         completed_at=datetime.now(),
                         decision_status=StoryDecision.PENDING,

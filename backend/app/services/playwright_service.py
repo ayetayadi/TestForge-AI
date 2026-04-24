@@ -167,6 +167,7 @@ async def execute_script(
             "remaining_placeholders": exec_result.get("remaining_placeholders", 0),
             "script_version_id": exec_result["script_version_id"],
             "script_v2": exec_result.get("script_v2"),
+            "duration": exec_result.get("duration", 0),
         })
 
         return exec_result

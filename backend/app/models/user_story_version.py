@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 
 from app.core.database import Base
-from app.models.enums import AgentStatus, StoryDecision
+from app.models.enums import StoryDecision, WorkflowStatus
 
 class UserStoryVersion(Base):
     __tablename__ = "user_story_versions"
@@ -74,9 +74,9 @@ class UserStoryVersion(Base):
     # META
     # =========================
 
-    agent_status: Mapped[AgentStatus] = mapped_column(
-        SqlEnum(AgentStatus),
-        default=AgentStatus.PROCESSING,
+    workflow_status: Mapped[WorkflowStatus] = mapped_column(
+        SqlEnum(WorkflowStatus),
+        default=WorkflowStatus.PROCESSING,
         nullable=False
     )
 
@@ -109,7 +109,7 @@ class UserStoryVersion(Base):
         Index("idx_version_user_story_id", "user_story_id"),
         
         # Pour filtrer par statut (dashboard, monitoring)
-        Index("idx_version_agent_status", "agent_status"),
+        Index("idx_version_workflow_status", "workflow_status"),
         
         # Pour trier par date (historique, timeline)
         Index("idx_version_started_at", "started_at"),
@@ -119,12 +119,12 @@ class UserStoryVersion(Base):
         
         # INDEX COMPOSITE 🔥 Le plus important !
         # Pour trouver rapidement la dernière version d'une story
-        Index("idx_version_story_agent_status_date", 
-              "user_story_id", "agent_status", "started_at"),
+        Index("idx_version_story_workflow_status_date", 
+              "user_story_id", "workflow_status", "started_at"),
         
         # Pour les analyses de performance
         Index("idx_version_score", "final_score"),
         
         # Pour le workflow d'approbation
-        Index("idx_version_decision", "decision_status", "agent_status"),
+        Index("idx_version_decision", "decision_status", "workflow_status"),
     )
