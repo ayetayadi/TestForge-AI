@@ -9,6 +9,7 @@ from app.models.user_story_version import UserStoryVersion
 async def get_all_test_cases(
     db: AsyncSession,
     project_id: Optional[str] = None,
+    user_story_id: Optional[str] = None,
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
     priority: Optional[List[str]] = None,
@@ -42,7 +43,11 @@ async def get_all_test_cases(
     # Filtre par project_id
     if project_id:
         query = query.where(UserStory.project_id == project_id)
-    
+
+    # Filtre par user_story_id
+    if user_story_id:
+        query = query.where(TestCase.user_story_id == user_story_id)
+
     # Filtre search
     if search:
         query = query.where(

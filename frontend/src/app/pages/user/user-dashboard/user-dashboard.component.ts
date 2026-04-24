@@ -1,44 +1,82 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import {
+  DashboardService,
+  DashboardStats,
+  CoverageItem,
+  PriorityItem,
+  ActivityItem,
+} from '../../../services/dashboard.service';
 
 @Component({
   selector: 'app-user-dashboard',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './user-dashboard.component.html',
-  styleUrls: ['./user-dashboard.component.scss']
+  styleUrls: ['./user-dashboard.component.scss'],
 })
-export class UserDashboardComponent {
-  stats = {
-    userStories: 47,
-    userStoriesWeekly: 8,
-    testCases: 180,
-    testCasesWeekly: 23,
-    successRate: 87,
-    successRateWeekly: 3.2,
-    qualityScore: 74,
-    qualityScoreWeekly: -2
-  };
+export class UserDashboardComponent implements OnInit {
+  loading = true;
+  error: string | null = null;
+  stats: DashboardStats | null = null;
 
-  coverageByCategory = [
-    { label: 'Fonctionnel', value: 85 },
-    { label: 'Régression', value: 60 },
-    { label: 'Performance', value: 30 },
-    { label: 'Sécurité', value: 45 },
-    { label: 'UI/UX', value: 70 }
-  ];
+  constructor(private dashboardService: DashboardService) {}
 
-  testStatus = [
-    { label: 'Réussi', value: 124, colorClass: 'green' },
-    { label: 'Échoué', value: 18, colorClass: 'red' },
-    { label: 'Bloqué', value: 7, colorClass: 'orange' },
-    { label: 'En attente', value: 31, colorClass: 'gray' }
-  ];
+  ngOnInit(): void {
+    this.dashboardService.getStats().subscribe({
+      next: (data) => {
+        this.stats = data;
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error('[Dashboard] Failed to load stats:', err);
+        this.error = 'Failed to load dashboard data.';
+        this.loading = false;
+      },
+    });
+  }
 
-  recentActivities = [
-    { message: '5 nouveaux cas de test générés à partir de Jira', time: 'Il y a 2 heures' },
-    { message: 'Une user story a été synchronisée depuis Jira', time: 'Il y a 4 heures' },
-    { message: 'Le script Playwright a été généré avec succès', time: 'Hier' },
-    { message: 'Export des cas de test vers Squash TM effectué', time: 'Hier' }
-  ];
+  get coverageItems(): CoverageItem[] {
+    return this.stats?.test_type_coverage ?? [];
+  }
+
+  get priorityItems(): PriorityItem[] {
+    return this.stats?.priority_distribution ?? [];
+  }
+
+  get activities(): ActivityItem[] {
+    return this.stats?.recent_activities ?? [];
+  }
+
+  /** Builds the conic-gradient CSS value from the priority distribution data. */
+  get donutGradient(): string {
+    const items = this.priorityItems;
+    const total = items.reduce((s, i) => s + i.value, 0);
+    if (!total) return '#e2e8f0 0deg 360deg';
+
+    const colorMap: Record<string, string> = {
+      red:    '#ef4444',
+      orange: '#f59e0b',
+      teal:   '#14b8a6',
+      gray:   '#94a3b8',
+    };
+
+    let deg = 0;
+    return items
+      .map((item) => {
+        const span = (item.value / total) * 360;
+        const color = colorMap[item.color_class] ?? '#94a3b8';
+        const segment = `${color} ${deg}deg ${deg + span}deg`;
+        deg += span;
+        return segment;
+      })
+      .join(', ');
+  }
+
+  /** Returns 'positive', 'negative', or 'neutral' class for weekly delta badges. */
+  weeklyClass(count: number): string {
+    return count > 0 ? 'positive' : 'neutral';
+  }
+
+  skeletonItems = [1, 2, 3, 4];
 }

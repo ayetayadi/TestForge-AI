@@ -66,6 +66,10 @@
   color: #ef4444;
 }
 
+.neutral {
+  color: #64748b;
+}
+
 .stat-icon {
   width: 52px;
   height: 52px;
@@ -120,10 +124,20 @@
 }
 
 .bar {
+  position: relative;
   width: 100%;
   max-width: 80px;
   background: #14b8a6;
   border-radius: 10px 10px 0 0;
+  transition: filter 0.15s;
+
+  &:hover {
+    filter: brightness(1.1);
+
+    .bar-tooltip {
+      opacity: 1;
+    }
+  }
 }
 
 .bar-label {
@@ -144,15 +158,10 @@
   width: 220px;
   height: 220px;
   border-radius: 50%;
-  background: conic-gradient(
-      #22c55e 0deg 250deg,
-      #ef4444 250deg 285deg,
-      #f59e0b 285deg 300deg,
-      #64748b 300deg 360deg
-  );
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.4s ease;
 }
 
 .donut-center {
@@ -160,6 +169,23 @@
   height: 110px;
   background: white;
   border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.donut-total {
+  font-size: 26px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.donut-center small {
+  font-size: 12px;
+  color: #64748b;
 }
 
 .legend {
@@ -202,6 +228,10 @@
   background: #64748b;
 }
 
+.teal {
+  background: #14b8a6;
+}
+
 .activity-list {
   display: flex;
   flex-direction: column;
@@ -232,6 +262,64 @@
   margin-top: 6px;
   color: #64748b;
   font-size: 14px;
+}
+
+.score-unit {
+  font-size: 22px;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.bar-tooltip {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.empty-chart,
+.empty-activity {
+  padding: 40px 0;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 15px;
+}
+
+.error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  color: #b91c1c;
+  font-size: 15px;
+}
+
+// Skeleton loading
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 16px;
+  min-height: 110px;
+
+  &.tall {
+    min-height: 280px;
+  }
 }
 
 @media (max-width: 1200px) {

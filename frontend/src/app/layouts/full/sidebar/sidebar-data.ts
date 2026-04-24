@@ -57,7 +57,7 @@ export const navItems: NavItem[] = [
     userOnly: true,
   },
   {
-    displayName: 'Paramètres',
+    displayName: 'Settings',
     iconName: 'solar:link-circle-line-duotone',
     route: '/jira',
     userOnly: true,

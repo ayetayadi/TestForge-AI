@@ -80,6 +80,7 @@ class UpdateTestCaseRequest(BaseModel):
 async def get_all_test_cases_endpoint(
     db: AsyncSession = Depends(get_db),
     project_id: Optional[str] = Query(None, description="Filtrer par ID du projet"),
+    user_story_id: Optional[str] = Query(None, description="Filtrer par ID de la user story"),
     search: Optional[str] = Query(None, description="Rechercher dans le titre ou le code"),
     status: Optional[List[str]] = Query(None, description="Filtrer par statut (active/archived)"),
     priority: Optional[List[str]] = Query(None, description="Filtrer par priorité"),
@@ -94,6 +95,7 @@ async def get_all_test_cases_endpoint(
         result = await test_case_service.get_all_test_cases(
             db,
             project_id=project_id,
+            user_story_id=user_story_id,
             search=search,
             status=status,
             priority=priority,
