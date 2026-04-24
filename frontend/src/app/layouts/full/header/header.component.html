@@ -1,53 +1,65 @@
-<mat-toolbar class="topbar gap-8">
-  <!-- Mobile Menu -->
-  @if(!showToggle) {
-  <button mat-icon-button (click)="toggleMobileNav.emit()" class="d-flex justify-content-center">
-    <i class="iconify icon-20 d-flex" data-icon="solar:hamburger-menu-line-duotone"></i>
-  </button>
-  }
-  <!-- --------------------------------------------------------------- -->
-  <!-- Notification Dropdown -->
-  <!-- --------------------------------------------------------------- -->
-  <button mat-icon-button aria-label="Notifications" [matMenuTriggerFor]="menu" class="d-flex align-items-center justify-content-center">
-    <div matBadge="2" matBadgeSize="small" matBadgeOverlap="false" class="demo-section">
-      <i class="iconify icon-20 d-flex" data-icon="solar:bell-line-duotone"></i>
+<mat-toolbar class="topbar">
+  
+  <!-- À GAUCHE -->
+  <div class="left-content">
+    <button 
+      mat-icon-button 
+      (click)="toggleSidebar.emit()"
+      class="toggle-btn">
+      <mat-icon>{{ isSidebarCollapsed ? 'menu' : 'chevron_left' }}</mat-icon>
+    </button>
+    
+    <div class="search-bar">
+      <mat-icon>search</mat-icon>
+      <input type="text" placeholder="Search...">
+      <kbd>⌘K</kbd>
     </div>
-  </button>
-  <mat-menu #menu="matMenu">
-    <button mat-menu-item>Item 1</button>
-    <button mat-menu-item>Item 2</button>
-  </mat-menu>
-
-  <span class="flex-1-auto"></span>
-
-
-  <!-- --------------------------------------------------------------- -->
-  <!-- profile Dropdown -->
-  <!-- --------------------------------------------------------------- -->
-  <div class="p-x-16 p-y-8">
-    <div class="f-s-14 f-w-600">{{ username }}</div>
-    <div class="f-s-12 text-muted">{{ role }}</div>
   </div>
-  <button mat-icon-button extended [matMenuTriggerFor]="profilemenu" aria-label="Notifications"
-    class="d-flex align-items-center justify-content-center profile-btn-dd">
-    <img src="/assets/images/profile/user-1.jpg" class="rounded-circle object-cover icon-35 profile-dd" width="35" />
-  </button>
-  <mat-menu #profilemenu="matMenu" class="topbar-dd cardWithShadow">
-    <button mat-menu-item routerLink="/profile">
-      <mat-icon class="d-flex align-items-center"><i data-icon="solar:shield-user-line-duotone"
-          class="iconify icon-22"></i></mat-icon>My Profile
-    </button>
-    <button mat-menu-item>
-      <mat-icon class="d-flex align-items-center"><i data-icon="solar:user-id-line-duotone"
-          class="iconify icon-22"></i></mat-icon>My Account
-    </button>
-    <button mat-menu-item>
-      <mat-icon class="d-flex align-items-center"><i data-icon="solar:checklist-minimalistic-line-duotone"
-          class="iconify icon-22"></i> </mat-icon>My Task
-    </button>
 
-    <div class="p-x-12 m-t-12">
-      <button mat-stroked-button class="w-100" (click)="logout()">Logout</button>
+  <!-- À DROITE - Position absolute -->
+  <div class="right-content">
+    <div class="user-menu" [matMenuTriggerFor]="userMenu">
+      <div class="user-info">
+        <div class="user-details">
+          <span class="user-name">{{ username || 'User' }}</span>
+          <span class="user-role">{{ role || 'Role' }}</span>
+        </div>
+        <div class="user-avatar">
+          <span class="avatar-initials">{{ getInitials() }}</span>
+        </div>
+      </div>
     </div>
-  </mat-menu>
+    
+    <mat-menu #userMenu="matMenu" class="user-dropdown">
+      <div class="dropdown-header">
+        <div class="dropdown-avatar">
+          <span>{{ getInitials() }}</span>
+        </div>
+        <div class="dropdown-info">
+          <div class="dropdown-name">{{ username || 'User' }}</div>
+          <div class="dropdown-role">{{ role || 'Role' }}</div>
+        </div>
+      </div>
+      
+      <mat-divider></mat-divider>
+      
+      <button mat-menu-item routerLink="/profile">
+        <mat-icon>person_outline</mat-icon>
+        <span>Profile</span>
+      </button>
+      
+      <button mat-menu-item routerLink="/settings">
+        <mat-icon>settings_outline</mat-icon>
+        <span>Settings</span>
+      </button>
+      
+      <mat-divider></mat-divider>
+      
+      <button mat-menu-item (click)="logout()" class="logout-btn">
+        <mat-icon>logout</mat-icon>
+        <span>Logout</span>
+      </button>
+    </mat-menu>
+  </div>
+  
 </mat-toolbar>

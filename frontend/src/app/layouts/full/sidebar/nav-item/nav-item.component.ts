@@ -9,25 +9,24 @@ import {
 import { NavItem } from './nav-item';
 import { Router } from '@angular/router';
 import { NavService } from '../../../../services/nav.service';
-
 import { TranslateModule } from '@ngx-translate/core';
 import { TablerIconsModule } from 'angular-tabler-icons';
 import { MaterialModule } from 'src/app/material.module';
 import { CommonModule } from '@angular/common';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
   selector: 'app-nav-item',
-  imports: [TranslateModule, TablerIconsModule, MaterialModule, CommonModule],
+  imports: [TranslateModule, TablerIconsModule, MaterialModule, CommonModule, MatTooltipModule],
   templateUrl: './nav-item.component.html',
-  styleUrls: [],
+  styleUrls: ['./nav-item.component.scss'],
 })
 export class AppNavItemComponent implements OnChanges {
   @Output() notify: EventEmitter<boolean> = new EventEmitter<boolean>();
-
   @Input() item: NavItem | any;
+  @Input() isCollapsed = false;
 
   expanded: any = false;
-
   @HostBinding('attr.aria-expanded') ariaExpanded = this.expanded;
   @Input() depth: any;
 
@@ -35,7 +34,7 @@ export class AppNavItemComponent implements OnChanges {
 
   ngOnChanges() {
     const url = this.navService.currentUrl();
-    if (this.item.route && url) {
+    if (this.item?.route && url) {
       this.expanded = url.indexOf(`/${this.item.route}`) === 0;
       this.ariaExpanded = this.expanded;
     }
@@ -44,20 +43,18 @@ export class AppNavItemComponent implements OnChanges {
   onItemSelected(item: NavItem) {
     if (!item.children || !item.children.length) {
       this.router.navigate([item.route]);
+      if (window.innerWidth < 768) {
+        this.notify.emit(true);
+      }
     }
     if (item.children && item.children.length) {
       this.expanded = !this.expanded;
     }
-    //scroll
-    window.scroll({
-      top: 0,
-      left: 0,
-      behavior: 'smooth',
-    });
-    if (!this.expanded) {
-      if (window.innerWidth < 1024) {
-        this.notify.emit();
-      }
+    
+    window.scroll({ top: 0, left: 0, behavior: 'smooth' });
+    
+    if (!this.expanded && window.innerWidth < 1024) {
+      this.notify.emit(true);
     }
   }
 
@@ -70,7 +67,7 @@ export class AppNavItemComponent implements OnChanges {
   onSubItemSelected(item: NavItem) {
     if (!item.children || !item.children.length) {
       if (this.expanded && window.innerWidth < 1024) {
-        this.notify.emit();
+        this.notify.emit(true);
       }
     }
   }

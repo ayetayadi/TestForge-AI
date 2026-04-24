@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
 import { VersionsService, ToastService, PipelineService, SseService } from '../../services';
-import { DecisionChoice, VersionState, SSEEvent, TraceEntry, UserStoryVersion, AgentStatus } from '../../models/user_story.model';
+import { DecisionChoice, VersionState, SSEEvent, TraceEntry, UserStoryVersion, WorkflowStatus } from '../../models/user_story.model';
 import { environment } from '../../../environments/environment';
 import { NavigationService } from '../../services/navigation.service';
 
@@ -109,7 +109,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
         generated_acceptance_criteria: state.generated_acceptance_criteria || [],
         initial_score: state.initial_score || 0,
         final_score: state.final_score || 0,
-        agent_status: state.agent_status as AgentStatus || 'completed',
+        workflow_status: state.workflow_status as WorkflowStatus || 'completed',
         decision_status: 'pending',
         testability_score: state.testability_score,
         is_testable: state.is_testable,
@@ -165,7 +165,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
   canMakeDecision = computed(() => {
     const s = this.state();
     
-    if (!s || s.agent_status !== 'completed') return false;
+    if (!s || s.workflow_status !== 'completed') return false;
     if (this.relaunching()) return false;
     if (this.decisionMade()) return false;
 
@@ -310,7 +310,7 @@ export class ReviewComponent implements OnInit, OnDestroy {
       next: (versionState) => {
         console.log("[LOAD VERSION] Full response:", JSON.stringify(versionState, null, 2));
 
-        if (versionState.agent_status === 'not_found') {
+        if (versionState.workflow_status === 'not_found') {
           this.error.set('Version not found');
           this.loading.set(false);
           return;
@@ -328,9 +328,9 @@ export class ReviewComponent implements OnInit, OnDestroy {
           this.loading.set(false);
         }
 
-        const agentStatus = versionState.agent_status;
+        const WorkflowStatus = versionState.workflow_status;
 
-        if (agentStatus === 'processing') {
+        if (WorkflowStatus === 'processing') {
           this.processingStep.set('processing');
           this.listenToStream(versionId);
         } else {
@@ -831,15 +831,15 @@ private navigateToStories(): void {
   }
 
   isVersionCompleted(): boolean {
-    return this.state()?.agent_status === 'completed';
+    return this.state()?.workflow_status === 'completed';
   }
 
   isVersionFailed(): boolean {
-    return this.state()?.agent_status === 'failed';
+    return this.state()?.workflow_status === 'failed';
   }
 
   isVersionProcessing(): boolean {
-    return this.state()?.agent_status === 'processing';
+    return this.state()?.workflow_status === 'processing';
   }
 
 formatDate(date: string | undefined | null): string {

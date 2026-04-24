@@ -47,7 +47,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
   isApproved = computed(() => this.displayVersion()?.decision_status === 'approved');
   isRejected = computed(() => this.displayVersion()?.decision_status === 'rejected');
   isPending = computed(() => this.displayVersion()?.decision_status === 'pending');
-  isProcessing = computed(() => this.story()?.agentStatus === 'processing');
+  isProcessing = computed(() => this.story()?.WorkflowStatus === 'processing');
 
 
     generateTestCase(): void {
@@ -64,7 +64,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
   canRunPipeline = computed(() => {
     const s = this.story();
     if (!s || this.isProcessing()) return false;
-    return !s.version || ['completed', 'failed'].includes(s.agentStatus ?? '');
+    return !s.version || ['completed', 'failed'].includes(s.WorkflowStatus ?? '');
   });
 
   canRerunPipeline = computed(() => {
@@ -113,7 +113,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
           latest_version: raw.latest_version ?? null,
           display_version: raw.display_version ?? raw.selected_version ?? raw.latest_version ?? null,
           versions: raw.versions ?? [],
-          agentStatus: raw.processing_version ? 'processing' :
+          WorkflowStatus: raw.processing_version ? 'processing' :
                        (raw.selected_version || raw.latest_version) ? 'completed' : 'idle',
           version: raw.latest_version ? {
             version_id: raw.latest_version.id,
@@ -184,7 +184,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
     const data = event.data || {};
     switch (event.type) {
       case 'processing':
-        this.story.update(s => s ? { ...s, agentStatus: 'processing', has_processing: true } : s);
+        this.story.update(s => s ? { ...s, WorkflowStatus: 'processing', has_processing: true } : s);
         break;
 
       case 'completed':
@@ -197,7 +197,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
             generated_acceptance_criteria: data.generated_acceptance_criteria ?? [],
             initial_score: data.initial_score ?? 0,
             final_score: data.final_score ?? 0,
-            agent_status: 'completed',
+            workflow_status: 'completed',
             decision_status: 'pending',
             testability_score: data.testability_score,
             is_testable: data.is_testable,
@@ -205,7 +205,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
           };
           return {
             ...s,
-            agentStatus: 'completed',
+            WorkflowStatus: 'completed',
             has_processing: false,
             latest_version: newVersion,
             display_version: newVersion,
@@ -216,7 +216,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
         break;
 
       case 'failed':
-        this.story.update(s => s ? { ...s, agentStatus: 'failed', has_processing: false } : s);
+        this.story.update(s => s ? { ...s, WorkflowStatus: 'failed', has_processing: false } : s);
         break;
     }
   }
@@ -247,7 +247,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
           const v = response.versions[0];
           this.story.update(current => current ? {
             ...current,
-            agentStatus: 'processing',
+            WorkflowStatus: 'processing',
             has_processing: true,
             version: { version_id: v.version_id, issue_key: v.issue_key },
           } : current);

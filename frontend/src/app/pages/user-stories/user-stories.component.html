@@ -149,7 +149,7 @@
               @for (story of paginatedStories(); track story.issue_key) {
                 <tr
                   [id]="'story-' + story.issue_key"
-                  [class.processing]="story.agentStatus === 'processing'"
+                  [class.processing]="story.WorkflowStatus === 'processing'"
                   [class.row-completed]="isCompleted(story)"
                   (click)="openStoryDetail(story)"
                 >
@@ -205,7 +205,7 @@
                         <span>Processing ...</span>
                       </div>
                     }
-                    @else if (story.agentStatus === 'failed') {
+                    @else if (story.WorkflowStatus === 'failed') {
                       <div class="pipeline-status failed">
                         <span>Failed</span>
                       </div>  

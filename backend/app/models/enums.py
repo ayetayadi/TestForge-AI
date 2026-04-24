@@ -5,7 +5,7 @@ class StoryDecision(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
 
-class AgentStatus(str, Enum):
+class WorkflowStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"

@@ -1,0 +1,15 @@
+- generic [ref=e3]:
+  - heading "User Management System" [level=1] [ref=e4]
+  - heading "Login" [level=2] [ref=e5]
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - generic [ref=e8]: "Email:"
+      - textbox "Email:" [active] [ref=e9]
+    - generic [ref=e10]:
+      - generic [ref=e11]: "Password:"
+      - textbox "Password:" [ref=e12]
+    - button "Login" [ref=e13] [cursor=pointer]
+    - generic [ref=e14]:
+      - paragraph [ref=e15]: "Test credentials:"
+      - paragraph [ref=e16]: "Admin: admin@test.com / Admin123!"
+      - paragraph [ref=e17]: "Demo: demo@test.com / Demo123!"

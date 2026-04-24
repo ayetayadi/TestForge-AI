@@ -3,7 +3,7 @@ from .jira_connection import JiraConnection
 from .jira_project import JiraProject
 from .user_story import UserStory
 from .user_story_version import UserStoryVersion
-from .enums import StoryDecision, AgentStatus, TestRunStatus, TestResultStatus, StepType, StepStatus, ScriptValidationStatus, ScriptSource
+from .enums import StoryDecision, WorkflowStatus, TestRunStatus, TestResultStatus, StepType, StepStatus, ScriptValidationStatus, ScriptSource
 from .test_case import TestCase
 from .playwright_script_version import PlaywrightScriptVersion
 from .test_run import TestRun
@@ -17,7 +17,7 @@ __all__ = [
     "UserStory",
     "UserStoryVersion",
     "StoryDecision",
-    "AgentStatus",
+    "WorkflowStatus",
 
     "TestRunStatus",
     "TestResultStatus",

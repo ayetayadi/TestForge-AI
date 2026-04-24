@@ -1,18 +1,133 @@
-<div class="profile-container">
-  <h2>My Profile</h2>
+<div class="profile-page">
+  <div class="profile-container">
+    
+    <!-- Header -->
+    <div class="profile-header">
+      <div class="header-content">
+        <div class="header-icon">
+          <mat-icon>account_circle</mat-icon>
+        </div>
+        <div class="header-text">
+          <h1>My Profile</h1>
+          <p>View and manage your account information</p>
+        </div>
+      </div>
+    </div>
 
-  <div *ngIf="loading">Loading...</div>
+    <!-- Loading State -->
+    <div *ngIf="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading your profile...</p>
+    </div>
 
-  <div *ngIf="errorMessage" class="error">
-    {{ errorMessage }}
-  </div>
+    <!-- Error State -->
+    <div *ngIf="errorMessage" class="error-state">
+      <mat-icon>error_outline</mat-icon>
+      <div class="error-content">
+        <h4>Something went wrong</h4>
+        <p>{{ errorMessage }}</p>
+      </div>
+      <button mat-stroked-button color="primary" (click)="loadProfile()" class="retry-btn">
+        <mat-icon>refresh</mat-icon>
+        Try again
+      </button>
+    </div>
 
-  <div *ngIf="user && !loading" class="profile-card">
-    <p><strong>Username:</strong> {{ user.username }}</p>
-    <p><strong>Email:</strong> {{ user.email }}</p>
-    <p><strong>Admin:</strong> {{ user.is_admin ? 'Yes' : 'No' }}</p>
-    <p><strong>Active:</strong> {{ user.is_active ? 'Yes' : 'No' }}</p>
-    <p><strong>Jira Connected:</strong> {{ user.jira_connected ? 'Yes' : 'No' }}</p>
-    <p><strong>Created At:</strong> {{ user.created_at }}</p>
+    <!-- Profile Content -->
+    <div *ngIf="user && !loading" class="profile-content">
+      
+      <!-- Avatar Section -->
+      <div class="avatar-section">
+        <div class="avatar-wrapper">
+          <div class="avatar-circle">
+            <span class="avatar-initials">{{ getInitials() }}</span>
+          </div>
+          <div class="avatar-status" [class.online]="user.is_active"></div>
+        </div>
+        <div class="avatar-info">
+          <h3>{{ user.username }}</h3>
+          <p>{{ user.is_admin ? 'Administrator' : 'Team Member' }}</p>
+        </div>
+      </div>
+
+      <!-- Info Grid -->
+      <div class="info-grid">
+        
+        <div class="info-card">
+          <div class="info-label">
+            <mat-icon>person_outline</mat-icon>
+            <span>Username</span>
+          </div>
+          <div class="info-value">{{ user.username }}</div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-label">
+            <mat-icon>email_outline</mat-icon>
+            <span>Email Address</span>
+          </div>
+          <div class="info-value">{{ user.email }}</div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-label">
+            <mat-icon>admin_panel_settings</mat-icon>
+            <span>Role</span>
+          </div>
+          <div class="info-value">
+            <span class="role-badge" [class.admin]="user.is_admin">
+              {{ user.is_admin ? 'Administrator' : 'User' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-label">
+            <mat-icon>verified_user</mat-icon>
+            <span>Status</span>
+          </div>
+          <div class="info-value">
+            <span class="status-badge" [class.active]="user.is_active">
+              {{ user.is_active ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-label">
+            <mat-icon>link</mat-icon>
+            <span>Jira Integration</span>
+          </div>
+          <div class="info-value">
+            <span class="jira-badge" [class.connected]="user.jira_connected">
+              {{ user.jira_connected ? 'Connected' : 'Not Connected' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-label">
+            <mat-icon>calendar_today</mat-icon>
+            <span>Member Since</span>
+          </div>
+          <div class="info-value">{{ formatDate(user.created_at) }}</div>
+        </div>
+
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="profile-actions">
+        <button mat-flat-button color="primary" class="action-btn" (click)="editProfile()">
+          <mat-icon>edit</mat-icon>
+          Edit Profile
+        </button>
+        <button mat-stroked-button class="action-btn" (click)="changePassword()">
+          <mat-icon>lock_outline</mat-icon>
+          Change Password
+        </button>
+      </div>
+
+    </div>
+
   </div>
 </div>

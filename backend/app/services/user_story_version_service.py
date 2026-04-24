@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.user_story import UserStory
 from app.models.user_story_version import UserStoryVersion
-from app.models.enums import AgentStatus, StoryDecision
+from app.models.enums import WorkflowStatus, StoryDecision
 from app.repositories.user_story_repository import get_user_story_by_id
 from app.repositories.user_story_version_repository import (
     create_version,
@@ -327,7 +327,7 @@ async def get_versions_by_issue_keys(
         
         # Version en cours de traitement
         processing_version = next(
-            (v for v in story_versions if v.agent_status == AgentStatus.PROCESSING),
+            (v for v in story_versions if v.workflow_status == WorkflowStatus.PROCESSING),
             None
         )
 
@@ -340,7 +340,7 @@ async def get_versions_by_issue_keys(
             "title": story.title,
             "current_score": story.current_score,
             "version_id": display_version.id,
-            "agent_status": display_version.agent_status.value,
+            "workflow_status": display_version.workflow_status.value,
             "decision_status": display_version.decision_status.value,
             "improved_story": display_version.improved_story,
             "acceptance_criteria": display_version.generated_acceptance_criteria or [],

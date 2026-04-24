@@ -38,8 +38,8 @@ ALLOWED_TOOLS = {
     # browser_take_screenshot excluded: returns MCP image format incompatible with OpenRouter SDK
 }
 
-_MAX_SSE_RETRIES = 3
-_RETRY_BASE_DELAY = 1.0
+_MAX_SSE_RETRIES = 2
+_RETRY_BASE_DELAY = 0.5
 
 
 # ============================================================
