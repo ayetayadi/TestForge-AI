@@ -15,7 +15,6 @@ import {
   withInMemoryScrolling,
 } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { provideClientHydration } from '@angular/platform-browser';
 
 // icons
 import { TablerIconsModule } from 'angular-tabler-icons';
@@ -42,7 +41,6 @@ export const appConfig: ApplicationConfig = {
       withComponentInputBinding()
     ),
     provideHttpClient(withInterceptors([authInterceptor])),  // ← changed
-    provideClientHydration(),
     provideAnimationsAsync(),
     importProvidersFrom(
       FormsModule,
