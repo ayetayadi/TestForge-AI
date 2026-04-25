@@ -2,7 +2,8 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { switchMap, tap, catchError, map, filter, take } from 'rxjs/operators';
-import { Observable, BehaviorSubject, throwError, timeout } from 'rxjs';
+import { Observable, BehaviorSubject, throwError, of } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import { jwtDecode } from 'jwt-decode';
 import { environment } from 'src/environments/environment';
 import { UserService } from './user.service';
@@ -149,6 +150,28 @@ export class AuthService {
 
   private setAccessToken(token: string): void {
     localStorage.setItem('access_token', token);
+  }
+
+  tryAutoLogin(): Observable<boolean> {
+    if (this.isLoggedIn()) {
+      return of(true);
+    }
+
+    return this.http.post<TokenResponse>(
+      `${this.apiUrl}/refresh`,
+      {},
+      { withCredentials: true }
+    ).pipe(
+      map((res: TokenResponse) => {
+        this.setAccessToken(res.access_token);
+        try {
+          const decoded: any = jwtDecode(res.access_token);
+          localStorage.setItem('is_admin', String(decoded.is_admin ?? false));
+        } catch {}
+        return true;
+      }),
+      catchError(() => of(false))
+    );
   }
 
   forgotPassword(payload: ForgotPasswordPayload): Observable<MessageResponse> {

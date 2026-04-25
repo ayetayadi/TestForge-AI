@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+import { map } from 'rxjs/operators';
 import { AuthService } from 'src/app/services/auth.service';
 
 export const authGuard: CanActivateFn = () => {
@@ -10,6 +11,13 @@ export const authGuard: CanActivateFn = () => {
     return true;
   }
 
-  router.navigate(['/authentication/login']);
-  return false;
+  return auth.tryAutoLogin().pipe(
+    map(success => {
+      if (!success) {
+        router.navigate(['/authentication/login']);
+        return false;
+      }
+      return true;
+    })
+  );
 };
