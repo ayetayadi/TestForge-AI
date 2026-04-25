@@ -91,3 +91,15 @@ alembic/versions/*.pyc
 # =========================
 *.tmp
 *.swp
+
+# Clés privées
+*.pem
+*.key
+*.p12
+
+# Configuration MCP (contient des tokens)
+.cursor/mcp.json
+.vscode/mcp.json
+
+.playwright-mcp/
+
