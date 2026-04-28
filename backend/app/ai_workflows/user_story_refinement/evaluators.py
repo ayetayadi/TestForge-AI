@@ -39,6 +39,8 @@ def _extract_role(text: str) -> str:
 def _is_garbage(story: str) -> bool:
     if not story or len(story.strip()) < 10 or len(story) > 5000:
         return True
+    if len(story.split()) < 4:
+        return True
     s = story.lower().strip()
     patterns = [r"^[0-9\s]+$", r"^[a-zA-Z\s]{0,5}$", r"lorem ipsum", r"test test test", r"^[^a-zA-Z]+$"]
     return any(re.search(p, s) for p in patterns)
@@ -122,12 +124,12 @@ def _nlp_score(story: str) -> Dict[str, Any]:
 
 _VERIFIABLE = re.compile(
     r"\b(doit|must|shall|should|will|can|peut|"
-    r"display|show|affiche|montre|présente|"
-    r"return|retourne|renvoie|send|envoie|receive|reçoit|"
-    r"create|crée|delete|supprime|update|modifie|"
-    r"validate|valide|verify|vérifie|check|contrôle|"
-    r"generate|génère|select|sélectionne|"
-    r"accept|accepte|reject|rejette)\b",
+    r"display|show|affich(?:e|er|ez)|montr(?:e|er)|présent(?:e|er)|"
+    r"return|retourn(?:e|er)|renvoi(?:e|er)|send|envo(?:ie|yer)|receiv(?:e|er)|reçoi(?:t|re)|"
+    r"creat(?:e|er)|cré(?:e|er)|delet(?:e|er)|supprim(?:e|er)|updat(?:e|er)|modifi(?:e|er)|"
+    r"validat(?:e|er)|valid(?:e|er)|verif(?:y|ier)|vérifi(?:e|er)|check|contrôl(?:e|er)|"
+    r"generat(?:e|er)|génér(?:e|er)|select|sélectionn(?:e|er)|"
+    r"accept(?:e|er)|rejet(?:te|er)|reject)\b",
     re.IGNORECASE,
 )
 
@@ -135,7 +137,8 @@ _MEASURABLE = re.compile(
     r"\b\d+\s*(ms|secondes?|seconds?|sec|minutes?|min|heures?|hours?|"
     r"caractères?|characters?|chars?|items?|%)\b|"
     r"(at least|at most|minimum|maximum|less than|more than|within|"
-    r"au moins|au plus|moins de|plus de|dans un délai de)\s*\d+",
+    r"au moins|au plus|moins de|plus de|dans un délai de)\s*\d+|"
+    r"\[SPECIFY\s+\w+\]",
     re.IGNORECASE,
 )
 

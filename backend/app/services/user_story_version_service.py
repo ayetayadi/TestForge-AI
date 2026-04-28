@@ -22,7 +22,7 @@ from app.repositories.user_story_version_repository import (
     update_version_content,
 )
 from app.ai_workflows.user_story_refinement.utils.text_processing import detect_language
-from app.workers.asyncio_workers import submit_version
+from app.workers.us_worker import submit_version
 
 
 logger = logging.getLogger(__name__)
@@ -79,10 +79,20 @@ async def start_version(
         )
 
     # ============================================================
+    # Guard: description must not be empty
+    # ============================================================
+    if not raw_story or not (raw_story if isinstance(raw_story, str) else str(raw_story)).strip():
+        raise ValueError(
+            f"Story {user_story.issue_key} has no description — add content in Jira before running the pipeline"
+        )
+
+    raw_story = raw_story.strip()
+
+    # ============================================================
     # Générer ID mais NE PAS créer en DB
     # ============================================================
     version_id = str(uuid.uuid4())
-    
+
     try:
         language = detect_language(raw_story)
     except Exception:
@@ -98,9 +108,9 @@ async def start_version(
         "user_story_id": user_story.id,
         "acceptance_criteria": acceptance_criteria,
         "language": language,
-        "retry_count": 0  # ← AJOUTÉ
+        "retry_count": 0,
     }
-    
+
     print(f"[START_VERSION] {user_story.issue_key}")
     print(f"  - Version ID: {version_id} (to be created after AI processing)")
     print(f"  - Story: {raw_story[:50]}...")

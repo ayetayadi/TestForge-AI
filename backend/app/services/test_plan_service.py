@@ -1,0 +1,649 @@
+"""TestPlan service — AI generation, approval workflow, email, Jira notification."""
+
+import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from app.repositories.test_plan_repository import TestPlanRepository
+from app.repositories.risk_repository import RiskRepository
+from app.repositories.user_story_repository import get_user_stories_by_project_id
+from app.schemas.test_plan_schema import (
+    TestPlanCreate,
+    TestPlanUpdate,
+    TestPlanResponse,
+    TestPlanListResponse,
+    GenerateTestPlanRequest,
+    GenerateTestPlanResponse,
+    EmailRecipient,
+    SendEmailRequest,
+    GenerateEmailBodyRequest,
+    GenerateEmailBodyResponse,
+    JiraNotificationRequest,
+    JiraNotificationResponse,
+)
+from app.models.test_plan import TestPlan
+from app.models.jira_project import JiraProject
+from app.ai_workflows.test_plan.pipeline import get_pipeline
+
+logger = logging.getLogger(__name__)
+
+
+class TestPlanService:
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.repository = TestPlanRepository(db)
+
+    # ============================================================
+    # AI GENERATION
+    # ============================================================
+
+    async def generate_ai_draft(
+        self,
+        request: GenerateTestPlanRequest,
+    ) -> GenerateTestPlanResponse:
+        """
+        Generate an AI test plan draft from existing risk analysis results.
+        Creates a new TestPlan with status=AI_PROPOSED.
+        """
+        logger.info(f"[TEST PLAN SERVICE] Generating AI draft for project {request.project_id}")
+
+        # --- Fetch project info ---
+        project = await self._get_project(request.project_id)
+        project_name = project.name if hasattr(project, "name") else request.project_id
+        project_key = project.key if hasattr(project, "key") else "PROJ"
+
+        # --- Fetch risks for this project ---
+        risk_repo = RiskRepository(self.db)
+        from app.schemas.risk_schema import RiskFilters
+        filters = RiskFilters(is_accepted=True)
+        risks_list = await risk_repo.get_by_project(request.project_id, filters)
+
+        if not risks_list:
+            # Vérifier s'il y a des risques en attente
+            all_risks = await risk_repo.get_by_project(request.project_id)
+            pending_count = sum(1 for r in all_risks if r.is_accepted is None)
+            
+            if pending_count > 0:
+                raise ValueError(
+                    f"No accepted risks found. {pending_count} risk(s) are pending review. "
+                    "Please review and accept/reject risks before generating a Test Plan. "
+                    "Go to Risk Analysis → Review each risk → Click ✓ Accept or ✗ Reject."
+                )
+            else:
+                raise ValueError(
+                    "No risk analysis results found for this project. "
+                    "Run Risk Analysis first, then review and accept risks before generating a Test Plan."
+                )
+        
+        risks = [self._risk_to_dict(r) for r in risks_list[: request.limit_risks]]
+
+        accepted_user_story_ids = list(set(r.user_story_id for r in risks_list if r.user_story_id))
+        stories_raw = await get_user_stories_by_project_id(self.db, request.project_id)
+        user_stories = [
+            self._story_to_dict(s) 
+            for s in stories_raw 
+            if s.id in accepted_user_story_ids
+        ][: request.limit_stories]
+
+        if not risks:
+            raise ValueError(
+                "No risk analysis results found for this project. "
+                "Run Risk Analysis first before generating a Test Plan."
+            )
+
+        # --- Run AI pipeline ---
+        pipeline = get_pipeline()
+        result = await pipeline.run(
+            project_name=project_name,
+            project_key=project_key,
+            project_id=request.project_id,
+            risks=risks,
+            user_stories=user_stories,
+            scope_type=request.scope_type,
+            scope_refs=request.scope_refs,
+            environment=request.environment,
+        )
+
+        if result.get("workflow_status") == "error":
+            raise ValueError(f"AI generation failed: {result.get('error')}")
+
+        # --- Persist test plan ---
+        now = datetime.now(timezone.utc)
+        ai_fields = {
+            k: result.get(k)
+            for k in [
+                "title", "description", "objective", "in_scope", "out_of_scope",
+                "test_types", "test_levels", "environment", "entry_criteria",
+                "exit_criteria", "approach", "assumptions", "constraints",
+                "stakeholders", "communication", "scope_type", "scope_refs",
+            ]
+        }
+        ai_fields["scope_type"] = request.scope_type
+        ai_fields["scope_refs"] = request.scope_refs
+
+        create_data = TestPlanCreate(
+            project_id=request.project_id,
+            title=ai_fields.get("title") or f"Test Plan — {project_name}",
+            description=ai_fields.get("description"),
+            objective=ai_fields.get("objective"),
+            scope_type=ai_fields.get("scope_type"),
+            scope_refs=ai_fields.get("scope_refs") or [],
+            in_scope=ai_fields.get("in_scope"),
+            out_of_scope=ai_fields.get("out_of_scope"),
+            test_types=ai_fields.get("test_types") or [],
+            test_levels=ai_fields.get("test_levels") or [],
+            environment=ai_fields.get("environment"),
+            entry_criteria=ai_fields.get("entry_criteria"),
+            exit_criteria=ai_fields.get("exit_criteria"),
+            approach=ai_fields.get("approach"),
+            assumptions=ai_fields.get("assumptions"),
+            constraints=ai_fields.get("constraints"),
+            stakeholders=ai_fields.get("stakeholders"),
+            communication=ai_fields.get("communication"),
+        )
+
+        plan = await self.repository.create(create_data)
+        plan.status = "ai_proposed"
+        plan.ai_draft_generated_at = now
+        await self.db.flush()
+        await self.db.refresh(plan)
+
+        risk_repo = RiskRepository(self.db)
+        for risk in risks_list:
+            await risk_repo.set_test_plan_id(risk.id, plan.id)
+
+        await self.db.commit()
+
+        logger.info(f"[TEST PLAN SERVICE] AI draft created: plan_id={plan.id}")
+        return GenerateTestPlanResponse(
+            test_plan=TestPlanResponse.model_validate(plan),
+            recommendations=result.get("recommendations"),
+            workflow_status="success",
+        )
+
+    async def regenerate_ai_draft(self, plan_id: str) -> GenerateTestPlanResponse:
+        """Regenerate AI draft for an existing test plan (overwrite AI fields)."""
+        plan = await self.repository.get_by_id(plan_id)
+        if not plan:
+            raise ValueError(f"Test plan {plan_id} not found")
+
+        request = GenerateTestPlanRequest(
+            project_id=plan.project_id,
+            scope_type=plan.scope_type or "manual",
+            scope_refs=plan.scope_refs or [],
+            environment=plan.environment,
+        )
+
+        # Delete old plan and create fresh
+        await self.repository.delete(plan_id)
+        await self.db.commit()
+
+        return await self.generate_ai_draft(request)
+
+    # ============================================================
+    # CRUD
+    # ============================================================
+
+    async def get_test_plan(self, plan_id: str) -> Optional[TestPlanResponse]:
+        plan = await self.repository.get_by_id(plan_id)
+        if not plan:
+            return None
+        return TestPlanResponse.model_validate(plan)
+
+    async def get_test_plans_by_project(
+        self,
+        project_id: str,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> TestPlanListResponse:
+        items, total = await self.repository.get_by_project(project_id, page, page_size)
+        pagination = TestPlanRepository.compute_pagination(total, page, page_size)
+        return TestPlanListResponse(
+            items=[TestPlanResponse.model_validate(p) for p in items],
+            **pagination,
+        )
+
+    async def update_test_plan(
+        self,
+        plan_id: str,
+        data: TestPlanUpdate,
+    ) -> Optional[TestPlanResponse]:
+        plan = await self.repository.update(plan_id, data)
+        if not plan:
+            return None
+        await self.db.commit()
+        return TestPlanResponse.model_validate(plan)
+
+    async def approve_test_plan(self, plan_id: str) -> TestPlanResponse:
+        plan = await self.repository.get_by_id(plan_id)
+        if not plan:
+            raise ValueError(f"Test plan {plan_id} not found")
+        if plan.status not in ("ai_proposed", "draft"):
+            raise ValueError(f"Cannot approve a plan in status '{plan.status}'")
+
+        now = datetime.now(timezone.utc)
+        plan = await self.repository.approve(plan_id, now)
+        await self.db.commit()
+
+        logger.info(f"[TEST PLAN SERVICE] Approved plan {plan_id}")
+        return TestPlanResponse.model_validate(plan)
+
+    async def reject_test_plan(self, plan_id: str) -> TestPlanResponse:
+        """Reset plan back to draft (QA rejected the AI proposal)."""
+        plan = await self.repository.get_by_id(plan_id)
+        if not plan:
+            raise ValueError(f"Test plan {plan_id} not found")
+
+        plan = await self.repository.set_status(plan_id, "draft")
+        await self.db.commit()
+
+        logger.info(f"[TEST PLAN SERVICE] Rejected / reset plan {plan_id} to draft")
+        return TestPlanResponse.model_validate(plan)
+
+    async def delete_test_plan(self, plan_id: str) -> bool:
+        deleted = await self.repository.delete(plan_id)
+        if deleted:
+            await self.db.commit()
+        return deleted
+
+    # ============================================================
+    # AI EMAIL BODY GENERATION
+    # ============================================================
+
+    async def generate_email_body(
+        self,
+        plan_id: str,
+        request: GenerateEmailBodyRequest,
+    ) -> GenerateEmailBodyResponse:
+        """Use the LLM to generate a professional email subject + body."""
+        plan = await self.repository.get_by_id(plan_id)
+        if not plan:
+            raise ValueError(f"Test plan {plan_id} not found")
+
+        from app.llm.llm_control import create_llm
+        from app.ai_workflows.test_plan.config import LLM_MODEL, LLM_TEMPERATURE
+
+        llm = create_llm(temperature=0.6, model=LLM_MODEL, max_tokens=1500)
+
+        recipient_lines = "\n".join(
+            f"  - {r.name or r.email} ({r.role})" for r in request.recipients
+        )
+        test_types_str = ", ".join(plan.test_types) if plan.test_types else "N/A"
+        test_levels_str = ", ".join(plan.test_levels) if plan.test_levels else "N/A"
+
+        prompt = f"""You are a QA engineer writing a professional email to share a test plan with stakeholders.
+
+TEST PLAN DETAILS:
+- Title: {plan.title}
+- Status: {plan.status}
+- Description: {plan.description or 'N/A'}
+- Objective: {plan.objective or 'N/A'}
+- Test Types: {test_types_str}
+- Test Levels: {test_levels_str}
+- Environment: {plan.environment or 'N/A'}
+- Entry Criteria: {plan.entry_criteria or 'N/A'}
+- Exit Criteria: {plan.exit_criteria or 'N/A'}
+
+RECIPIENTS:
+{recipient_lines}
+
+{"ADDITIONAL CONTEXT: " + request.additional_context if request.additional_context else ""}
+
+Write a professional email with:
+1. A concise subject line (start with "Subject: ")
+2. A professional body that:
+   - Greets recipients by their roles
+   - Briefly explains the purpose (sharing the test plan for review/information)
+   - Highlights key points (scope, approach, timeline if available)
+   - Includes a call-to-action appropriate for each role (e.g., PO for sign-off, Dev for build readiness)
+   - Ends with a professional sign-off
+
+Format your response EXACTLY as:
+Subject: <subject here>
+---
+<email body here>"""
+
+        response = await llm.ainvoke(prompt)
+        content = response.content if hasattr(response, "content") else str(response)
+
+        # Parse subject and body
+        parts = content.split("---", 1)
+        subject_line = parts[0].strip()
+        body = parts[1].strip() if len(parts) > 1 else content
+
+        subject = subject_line.replace("Subject:", "").strip()
+        if not subject:
+            subject = f"Test Plan: {plan.title} — Ready for Review"
+
+        logger.info(f"[TEST PLAN SERVICE] Generated email body for plan {plan_id}")
+        return GenerateEmailBodyResponse(subject=subject, body=body)
+
+    # ============================================================
+    # EMAIL SENDING
+    # ============================================================
+    async def send_email(
+        self,
+        plan_id: str,
+        request: SendEmailRequest,
+    ) -> dict:
+        """Send test plan report via email to specified recipients."""
+        plan = await self.repository.get_by_id(plan_id)
+        if not plan:
+            raise ValueError(f"Test plan {plan_id} not found")
+    
+        subject = request.subject
+        body_html = request.body
+    
+        if request.generate_body or not subject or not body_html:
+            gen_req = GenerateEmailBodyRequest(recipients=request.recipients)
+            generated = await self.generate_email_body(plan_id, gen_req)
+            subject = subject or generated.subject
+            if not body_html:
+                body_html = self._render_email_html(plan, generated.body, request.recipients)
+    
+        # ✅ Générer le PDF du Test Plan
+        from app.services.test_plan_export_service import TestPlanExportService
+        exporter = TestPlanExportService()
+        pdf_bytes = exporter.export_pdf(plan)
+    
+        # ✅ Envoyer l'email avec pièce jointe PDF
+        from app.services.mail_service import send_test_plan_email_with_attachment
+        recipient_emails = [r.email for r in request.recipients]
+    
+        await send_test_plan_email_with_attachment(
+            recipients=recipient_emails,
+            subject=subject,
+            html_body=body_html,
+            attachments=[
+                {
+                    "filename": f"Test_Plan_{plan.title.replace(' ', '_')[:50]}.pdf",
+                    "content": pdf_bytes,
+                    "mime_type": "application/pdf",
+                }
+            ],
+        )
+    
+        logger.info(
+            f"[TEST PLAN SERVICE] Email sent for plan {plan_id} "
+            f"to {len(recipient_emails)} recipients with PDF attachment"
+        )
+        return {
+            "sent_to": recipient_emails,
+            "subject": subject,
+            "message": f"Test plan report sent to {len(recipient_emails)} recipient(s) successfully with PDF attachment.",
+        }
+
+    # ============================================================
+    # JIRA NOTIFICATION
+    # ============================================================
+
+    async def send_jira_notification(
+        self,
+        plan_id: str,
+        request: JiraNotificationRequest,
+        user_id: str,
+    ) -> JiraNotificationResponse:
+        """Create a Jira ticket notifying stakeholders of the test plan."""
+        plan = await self.repository.get_by_id(plan_id)
+        if not plan:
+            raise ValueError(f"Test plan {plan_id} not found")
+
+        from app.services.jira_session_manager import JiraSessionManager
+        session_manager = JiraSessionManager(self.db)
+        conn = await session_manager.get_connection(user_id)
+        client = await session_manager.get_client(conn)
+
+        summary = request.summary or f"[Test Plan] {plan.title}"
+        description = request.description or self._build_jira_description(plan)
+
+        issue_data = {
+            "fields": {
+                "project": {"key": request.project_key},
+                "summary": summary,
+                "description": {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": description}],
+                        }
+                    ],
+                },
+                "issuetype": {"name": request.issue_type},
+                "priority": {"name": request.priority},
+            }
+        }
+
+        url = (
+            f"https://api.atlassian.com/ex/jira/{conn.cloud_id}"
+            f"/rest/api/3/issue"
+        )
+        result = await client._request("POST", url, json=issue_data)
+
+        issue_key = result.get("key", "")
+        base_url = conn.jira_url.rstrip("/") if conn.jira_url else "https://atlassian.net"
+        issue_url = f"{base_url}/browse/{issue_key}"
+
+        logger.info(
+            f"[TEST PLAN SERVICE] Jira ticket created: {issue_key} for plan {plan_id}"
+        )
+        return JiraNotificationResponse(
+            issue_key=issue_key,
+            issue_url=issue_url,
+            summary=summary,
+            message=f"Jira ticket {issue_key} created successfully.",
+        )
+
+    # ============================================================
+    # STATISTICS
+    # ============================================================
+
+    async def get_summary_by_project(self, project_id: str) -> dict:
+        return await self.repository.get_summary_by_project(project_id)
+
+    # ============================================================
+    # PRIVATE HELPERS
+    # ============================================================
+
+    async def _get_project(self, project_id: str) -> JiraProject:
+        result = await self.db.execute(
+            select(JiraProject).where(JiraProject.id == project_id)
+        )
+        project = result.scalar_one_or_none()
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+        return project
+
+    @staticmethod
+    def _risk_to_dict(risk) -> dict:
+        return {
+            "id": risk.id,
+            "description": risk.description,
+            "mitigation": risk.mitigation,
+            "probability": risk.probability,
+            "impact": risk.impact,
+            "risk_score": risk.risk_score,
+            "level": risk.level,
+        }
+
+    @staticmethod
+    def _story_to_dict(story) -> dict:
+        return {
+            "issue_key": getattr(story, "issue_key", ""),
+            "title": getattr(story, "title", getattr(story, "summary", "")),
+            "acceptance_criteria": getattr(story, "acceptance_criteria", []),
+        }
+
+    @staticmethod
+    def _build_jira_description(plan: TestPlan) -> str:
+        lines = [
+            f"Test Plan: {plan.title}",
+            f"Status: {plan.status}",
+            "",
+        ]
+        if plan.description:
+            lines += [f"Description: {plan.description}", ""]
+        if plan.objective:
+            lines += [f"Objective: {plan.objective}", ""]
+        if plan.test_types:
+            lines += [f"Test Types: {', '.join(plan.test_types)}", ""]
+        if plan.test_levels:
+            lines += [f"Test Levels: {', '.join(plan.test_levels)}", ""]
+        if plan.environment:
+            lines += [f"Environment: {plan.environment}", ""]
+        if plan.entry_criteria:
+            lines += [f"Entry Criteria:\n{plan.entry_criteria}", ""]
+        if plan.exit_criteria:
+            lines += [f"Exit Criteria:\n{plan.exit_criteria}", ""]
+        if plan.approach:
+            lines += [f"Approach:\n{plan.approach}", ""]
+        lines.append("Generated by TestForge AI")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _render_email_html(
+        plan: TestPlan,
+        text_body: str,
+        recipients: List[EmailRecipient],
+    ) -> str:
+        """Render HTML email with Test Plan details."""
+        
+        # Helper pour les lignes d'information
+        def info_row(label, value):
+            if not value:
+                return ""
+            return (
+                '<tr>'
+                '<td style="padding: 10px 0; width: 130px; font-weight: 700; color: #6b7280; '
+                'text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; vertical-align: top;">'
+                f'{label}</td>'
+                '<td style="padding: 10px 0; color: #374151; font-size: 13px; line-height: 1.5;">'
+                f'{value}</td>'
+                '</tr>'
+            )
+        
+        # Helper pour les paragraphes
+        def format_paragraphs(text):
+            if not text:
+                return ""
+            paragraphs = text.split('\n\n')
+            return ''.join(
+                f'<p style="margin: 0 0 12px 0;">{p.strip()}</p>' 
+                for p in paragraphs if p.strip()
+            )
+        
+        test_types = ", ".join(plan.test_types) if plan.test_types else "—"
+        test_levels = ", ".join(plan.test_levels) if plan.test_levels else "—"
+        scope_refs = ", ".join(plan.scope_refs) if plan.scope_refs else "—"
+        
+        status_display = plan.status.replace('_', ' ').title() if plan.status else 'Draft'
+        status_color = "#059669" if plan.status == "approved" else "#d97706" if plan.status == "ai_proposed" else "#6b7280"
+        status_bg = "#f0fdf4" if plan.status == "approved" else "#fffbeb" if plan.status == "ai_proposed" else "#f3f4f6"
+        
+        # Construire les sections optionnelles
+        in_scope_html = ''
+        if plan.in_scope:
+            in_scope_html = (
+                '<div style="margin-top:20px;">'
+                '<div style="font-size:12px;font-weight:700;color:#059669;margin-bottom:8px;">✓ In Scope</div>'
+                '<div style="font-size:13px;color:#374151;background:#f0fdf4;padding:12px;border-radius:8px;border-left:3px solid #059669;">'
+                f'{plan.in_scope}</div></div>'
+            )
+        
+        out_of_scope_html = ''
+        if plan.out_of_scope:
+            out_of_scope_html = (
+                '<div style="margin-top:16px;">'
+                '<div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:8px;">✗ Out of Scope</div>'
+                '<div style="font-size:13px;color:#374151;background:#fef2f2;padding:12px;border-radius:8px;border-left:3px solid #dc2626;">'
+                f'{plan.out_of_scope}</div></div>'
+            )
+        
+        # Construire le corps du texte formaté
+        body_paragraphs = format_paragraphs(text_body)
+        
+        # Construire les lignes d'information
+        info_rows = (
+            info_row("Objective", plan.objective) +
+            info_row("Test Types", test_types) +
+            info_row("Test Levels", test_levels) +
+            info_row("Environment", plan.environment) +
+            info_row("Entry Criteria", plan.entry_criteria) +
+            info_row("Exit Criteria", plan.exit_criteria) +
+            info_row("Approach", plan.approach) +
+            info_row("Scope Type", plan.scope_type) +
+            info_row("Scope References", scope_refs)
+        )
+        
+        # HTML final
+        html = f'''<!DOCTYPE html>
+    <html>
+    <head><meta charset="UTF-8"><title>Test Plan: {plan.title}</title></head>
+    <body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f9fafb;padding:24px 0;">
+        <tr><td align="center">
+            <table width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+                
+                <!-- Header -->
+                <tr>
+                    <td style="background:linear-gradient(135deg,#6366f1 0%,#4f46e5 100%);padding:28px 32px;text-align:center;">
+                        <div style="font-size:24px;font-weight:800;color:#fff;letter-spacing:-0.02em;margin-bottom:6px;">TEST<span style="color:#c7d2fe;">FORGE</span></div>
+                        <div style="font-size:11px;color:rgba(255,255,255,0.7);letter-spacing:0.04em;text-transform:uppercase;">Intelligent Test Automation</div>
+                    </td>
+                </tr>
+                
+                <!-- Content -->
+                <tr>
+                    <td style="padding:32px 36px;">
+                        
+                        <div style="font-size:14px;color:#374151;line-height:1.6;margin-bottom:20px;">Hello <strong>Test Team</strong>,</div>
+                        
+                        <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #e5e7eb;">
+                            <h1 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 8px 0;">📋 {plan.title}</h1>
+                            <div style="display:inline-flex;align-items:center;gap:6px;background:{status_bg};color:{status_color};font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:0.04em;">✓ Status: {status_display}</div>
+                        </div>
+                        
+                        {body_paragraphs}
+                        
+                        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+                        
+                        <h2 style="font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;margin:0 0 16px 0;">📊 Test Plan Details</h2>
+                        
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;">
+                            {info_rows}
+                        </table>
+                        
+                        {in_scope_html}
+                        {out_of_scope_html}
+                        
+                        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+                        
+                        <!-- Call to Action -->
+                        <div style="margin:24px 0;text-align:center;background:#f9fafb;padding:20px;border-radius:10px;border:1px solid #e5e7eb;">
+                            <div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:16px;">🎯 Action Required</div>
+                            <div style="color:#6b7280;font-size:12px;line-height:1.6;margin-bottom:16px;">Please review the test plan and provide your feedback or approval.</div>
+                            <div style="background:#eef2ff;padding:10px;border-radius:8px;font-size:12px;color:#4f46e5;margin-bottom:6px;">💡 Product Owner: Please review scope and objectives</div>
+                            <div style="background:#f0fdf4;padding:10px;border-radius:8px;font-size:12px;color:#059669;">🔧 Dev Team: Review entry/exit criteria and environment setup</div>
+                        </div>
+                        
+                        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 16px 0;">
+                        <div style="font-size:11px;color:#9ca3af;text-align:center;line-height:1.5;">
+                            <p style="margin:0 0 8px 0;">Generated by <strong>TestForge AI</strong> — Intelligent Test Automation</p>
+                            <p style="margin:0;">© 2026 TestForge. All rights reserved.</p>
+                        </div>
+                        
+                    </td>
+                </tr>
+                
+            </table>
+        </td></tr>
+    </table>
+    </body>
+    </html>'''
+        
+        return html

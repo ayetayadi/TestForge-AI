@@ -164,18 +164,45 @@
 
                   <!-- Key -->
                   <td class="col-key">
-                    <span class="issue-key">{{ story.issue_key }}</span>
+                    <div class="key-cell">
+                      <span class="issue-key">{{ story.issue_key }}</span>
+                      @if (storiesWithUnread().has(story.issue_key)) {
+                        <button
+                          class="notif-dot"
+                          title="Notification non lue — cliquer pour marquer comme lu"
+                          (click)="markStoryNotifsRead(story.issue_key, $event)"
+                        ></button>
+                      }
+                    </div>
                   </td>
 
                   <!-- Title -->
                   <td class="col-title">
-                    <div class="story-main">                
+                    <div class="story-main">
                       <span class="title">
                         {{ story.title || 'No title' }}
                       </span>
                       <span class="description">
                         {{ story.description || 'No description' }}
                       </span>
+                      <div class="story-meta-tags">
+                        @if (story.epic_key) {
+                          <span class="meta-tag epic-tag" [title]="story.epic_name || story.epic_key">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="tag-icon">
+                              <path d="M2 3.5A1.5 1.5 0 013.5 2h9A1.5 1.5 0 0114 3.5v2A1.5 1.5 0 0112.5 7h-9A1.5 1.5 0 012 5.5v-2zm0 7A1.5 1.5 0 013.5 9h9a1.5 1.5 0 011.5 1.5v2a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12.5v-2z"/>
+                            </svg>
+                            {{ story.epic_name || story.epic_key }}
+                          </span>
+                        }
+                        @if (story.sprint) {
+                          <span class="meta-tag sprint-tag" [title]="story.sprint">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="tag-icon">
+                              <path fill-rule="evenodd" d="M1 8a7 7 0 1114 0A7 7 0 011 8zm7.75-4.25a.75.75 0 00-1.5 0V8c0 .414.336.75.75.75h3.25a.75.75 0 000-1.5h-2.5v-3.5z" clip-rule="evenodd"/>
+                            </svg>
+                            {{ story.sprint }}
+                          </span>
+                        }
+                      </div>
                     </div>
                   </td>
 

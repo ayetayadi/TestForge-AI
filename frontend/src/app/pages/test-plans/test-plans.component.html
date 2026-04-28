@@ -1,0 +1,251 @@
+<div class="test-plans-page">
+
+  <!-- ── PAGE HEADER ────────────────────────────────────────── -->
+  <div class="page-header">
+    <div class="header-content">
+      <div class="header-title">
+        <h1>Test Plans</h1>
+        <p class="subtitle">AI-powered ISTQB test plan generation & management</p>
+      </div>
+      <button
+        class="btn-primary"
+        (click)="openGenerateModal()"
+        [disabled]="!selectedProjectId()">
+        <span class="icon">✦</span>
+        Generate with AI
+      </button>
+    </div>
+
+    <!-- Project selector -->
+    <div class="project-bar">
+      <label class="project-label">Project</label>
+      <select
+        class="project-select"
+        [value]="selectedProjectId()"
+        (change)="onProjectChange($any($event.target).value)">
+        <option value="">— Select a project —</option>
+        <option *ngFor="let p of projects()" [value]="p.id">{{ p.project_name }}</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ── SUMMARY CARDS ──────────────────────────────────────── -->
+  <div class="summary-row" *ngIf="summary() as s">
+    <div class="summary-card total">
+      <span class="card-value">{{ s.total }}</span>
+      <span class="card-label">Total Plans</span>
+    </div>
+    <div class="summary-card approved">
+      <span class="card-value">{{ s.approved }}</span>
+      <span class="card-label">Approved</span>
+    </div>
+    <div class="summary-card pending">
+      <span class="card-value">{{ s.pending }}</span>
+      <span class="card-label">Pending Review</span>
+    </div>
+  </div>
+
+  <!-- ── STATUS TABS ────────────────────────────────────────── -->
+  <div class="status-tabs" *ngIf="selectedProjectId()">
+    <button
+      *ngFor="let tab of statusTabs"
+      class="status-tab"
+      [class.active]="activeTab() === tab"
+      (click)="activeTab.set(tab)">
+      {{ tabLabel(tab) }}
+      <span class="tab-count" *ngIf="tabCount(tab) > 0">{{ tabCount(tab) }}</span>
+    </button>
+  </div>
+
+  <!-- ── EMPTY STATE ────────────────────────────────────────── -->
+  <div class="empty-state" *ngIf="!selectedProjectId()">
+    <div class="empty-icon">📋</div>
+    <h3>Select a project</h3>
+    <p>Choose a project to view and generate test plans.</p>
+  </div>
+
+  <div class="empty-state" *ngIf="selectedProjectId() && !isLoading() && filteredPlans().length === 0">
+    <div class="empty-icon">✦</div>
+    <h3>No test plans yet</h3>
+    <p>Generate your first AI-powered test plan based on your risk analysis.</p>
+    <button class="btn-primary" (click)="openGenerateModal()">Generate with AI</button>
+  </div>
+
+  <!-- ── LOADING ────────────────────────────────────────────── -->
+  <div class="loading-state" *ngIf="isLoading()">
+    <div class="spinner"></div>
+    <p>Loading test plans...</p>
+  </div>
+
+  <!-- ── PLANS GRID ─────────────────────────────────────────── -->
+  <div class="plans-grid" *ngIf="!isLoading() && filteredPlans().length > 0">
+    <div
+      class="plan-card"
+      *ngFor="let plan of filteredPlans()"
+      (click)="openPlan(plan)">
+
+      <div class="plan-card-header">
+        <span
+          class="status-badge"
+          [style.color]="getStatusConfig(plan.status).color"
+          [style.background]="getStatusConfig(plan.status).bg">
+          {{ getStatusConfig(plan.status).label }}
+        </span>
+        <span class="plan-date">{{ formatDate(plan.created_at) }}</span>
+      </div>
+
+      <h3 class="plan-title">{{ plan.title }}</h3>
+      <p class="plan-desc" *ngIf="plan.description">{{ plan.description }}</p>
+
+      <div class="plan-meta">
+        <div class="meta-chips" *ngIf="plan.test_types.length">
+          <span class="chip" *ngFor="let t of plan.test_types.slice(0, 3)">{{ t }}</span>
+          <span class="chip more" *ngIf="plan.test_types.length > 3">
+            +{{ plan.test_types.length - 3 }}
+          </span>
+        </div>
+        <div class="meta-row" *ngIf="plan.environment">
+          <span class="meta-label">Env:</span>
+          <span class="meta-value">{{ plan.environment }}</span>
+        </div>
+      </div>
+
+      <div class="plan-card-footer">
+        <span class="footer-hint">Click to view &amp; manage →</span>
+        <span class="approved-badge" *ngIf="plan.approved_at">
+          ✓ Approved {{ formatDate(plan.approved_at) }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGINATION ─────────────────────────────────────────── -->
+  <div class="pagination-row" *ngIf="totalPages() > 1">
+    <button
+      class="page-btn"
+      [disabled]="page() === 1"
+      (click)="goToPage(page() - 1)">
+      ← Prev
+    </button>
+    <span class="page-info">Page {{ page() }} of {{ totalPages() }}</span>
+    <button
+      class="page-btn"
+      [disabled]="page() === totalPages()"
+      (click)="goToPage(page() + 1)">
+      Next →
+    </button>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     GENERATE MODAL
+════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="showGenerateModal()" (click)="closeGenerateModal()">
+  <div class="modal-panel" (click)="$event.stopPropagation()">
+
+    <div class="modal-header">
+      <div>
+        <h2>Generate Test Plan with AI</h2>
+        <p class="modal-subtitle">
+          An ISTQB-compliant draft will be generated from your risk analysis results.
+        </p>
+      </div>
+      <button class="close-btn" (click)="closeGenerateModal()">✕</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Scope Type -->
+      <div class="form-group">
+        <label>Scope Type</label>
+        <select
+          class="form-control"
+          [ngModel]="scopeType"
+          (ngModelChange)="onScopeTypeChange($event)">
+          <option *ngFor="let s of scopeTypes" [value]="s">{{ s | titlecase }}</option>
+        </select>
+      </div>
+
+      <!-- Scope References : MANUAL -->
+      <div class="form-group" *ngIf="scopeType === 'manual'">
+        <label>Scope References <span class="optional">(optional, comma-separated)</span></label>
+        <input
+          type="text"
+          class="form-control"
+          [(ngModel)]="scopeRefs"
+          placeholder="e.g. Sprint 4, SCRUM-12, Release 2.0">
+      </div>
+
+      <!-- Scope References : EPIC / SPRINT / RELEASE -->
+      <div class="form-group" *ngIf="scopeType !== 'manual'">
+        <label>{{ scopeOptionLabel() }} <span class="optional">(select one or more)</span></label>
+
+        <div *ngIf="isLoadingScopeRefs()" class="loading-small">
+          <span class="spinner-sm"></span> Loading...
+        </div>
+
+        <div *ngIf="!isLoadingScopeRefs()" class="scope-multi-select">
+          <div
+            *ngFor="let item of scopeOptions()"
+            class="scope-item"
+            [class.selected]="selectedScopeItems().includes(item.id)"
+            (click)="toggleScopeItem(item.id)">
+            <span class="checkbox-icon">
+              {{ selectedScopeItems().includes(item.id) ? '☑' : '☐' }}
+            </span>
+            <span class="item-name">{{ item.name }}</span>
+            <span class="item-key" *ngIf="$any(item).key">({{ $any(item).key }})</span>
+          </div>
+
+          <div *ngIf="scopeOptions().length === 0" class="no-data">
+            No {{ scopeType }}s found for this project.
+          </div>
+        </div>
+
+        <div class="selected-count" *ngIf="selectedScopeItems().length > 0">
+          {{ selectedScopeItems().length }} {{ scopeType }}(s) selected
+        </div>
+      </div>
+
+      <!-- Target Environment -->
+      <div class="form-group">
+        <label>Target Environment</label>
+        <select class="form-control" [(ngModel)]="environment">
+          <option *ngFor="let e of environments" [value]="e">{{ e | uppercase }}</option>
+        </select>
+      </div>
+
+      <!-- Max items -->
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Max Risks to Include</label>
+          <input type="number" class="form-control" [(ngModel)]="limitRisks" min="1" max="200">
+        </div>
+        <div class="form-group half">
+          <label>Max User Stories</label>
+          <input type="number" class="form-control" [(ngModel)]="limitStories" min="1" max="100">
+        </div>
+      </div>
+
+      <div class="ai-note">
+        <span class="ai-icon">✦</span>
+        The AI will analyze your risk results and generate a complete test plan draft including
+        objectives, scope, test types, criteria, approach, and communication plan.
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="closeGenerateModal()" [disabled]="isGenerating()">
+        Cancel
+      </button>
+      <button class="btn-primary" (click)="generatePlan()" [disabled]="isGenerating()">
+        <span *ngIf="!isGenerating()">✦ Generate Plan</span>
+        <span *ngIf="isGenerating()" class="generating-text">
+          <span class="spinner-sm"></span> Generating...
+        </span>
+      </button>
+    </div>
+
+  </div>
+</div>

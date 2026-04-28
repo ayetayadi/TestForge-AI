@@ -12,7 +12,7 @@ def get_oauth_url(state: str) -> str:
     params = {
         "audience":      "api.atlassian.com",
         "client_id":     settings.JIRA_CLIENT_ID,
-        "scope":         "read:jira-work read:jira-user offline_access",
+        "scope":         "read:jira-work write:jira-work read:jira-user offline_access",
         "redirect_uri":  settings.JIRA_REDIRECT_URI,
         "state":         state,
         "response_type": "code",

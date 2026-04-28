@@ -1,11 +1,15 @@
 from datetime import datetime
 import uuid
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import DateTime, Index, String, Text, Float, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    pass
+
 
 class UserStory(Base):
     __tablename__ = "user_stories"
@@ -46,6 +50,7 @@ class UserStory(Base):
     reporter: Mapped[Optional[str]] = mapped_column(String(200))
 
     epic_key: Mapped[Optional[str]] = mapped_column(String(100))
+    epic_name: Mapped[Optional[str]] = mapped_column(String(500))
     sprint: Mapped[Optional[str]] = mapped_column(String(200))
 
     labels: Mapped[List[str]] = mapped_column(JSONB, default=lambda: [], server_default="[]")
@@ -77,13 +82,38 @@ class UserStory(Base):
     # =========================
     # RELATIONS
     # =========================
-    jira_project = relationship("JiraProject", back_populates="user_stories")
+    jira_project = relationship(
+        "JiraProject",
+        back_populates="user_stories",
+        foreign_keys=[project_id]
+    )
 
     versions = relationship(
         "UserStoryVersion",
         back_populates="user_story",
         cascade="all, delete-orphan",
         foreign_keys="UserStoryVersion.user_story_id"
+    )
+
+    # Cas de test générés pour cette User Story (matrice de traçabilité)
+    test_cases = relationship(
+        "TestCase",
+        back_populates="user_story",
+        foreign_keys="TestCase.user_story_id"
+    )
+
+    # Risques évalués pour cette User Story (analyse §5.2.3)
+    risks = relationship(
+        "Risk",
+        back_populates="user_story",
+        foreign_keys="Risk.user_story_id"
+    )
+
+    # Défauts détectés sur cette User Story
+    defects = relationship(
+        "Defect",
+        back_populates="user_story",
+        foreign_keys="Defect.user_story_id"
     )
 
     # =========================

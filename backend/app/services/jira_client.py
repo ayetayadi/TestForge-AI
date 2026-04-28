@@ -163,7 +163,16 @@ class JiraClient:
             "story_points": fields.get("customfield_10016"),
             "assignee":     _name(fields.get("assignee")),
             "reporter":     _name(fields.get("reporter")),
-            "epic":         fields.get("customfield_10014"),
+            "epic":         fields.get("customfield_10014") or (
+                (fields.get("parent") or {}).get("key")
+                if ((fields.get("parent") or {}).get("fields") or {}).get("issuetype", {}).get("name") == "Epic"
+                else None
+            ),
+            "epic_name":    fields.get("customfield_10008") or (
+                ((fields.get("parent") or {}).get("fields") or {}).get("summary")
+                if ((fields.get("parent") or {}).get("fields") or {}).get("issuetype", {}).get("name") == "Epic"
+                else None
+            ),
             "sprint":       _sprint(fields),
             "labels":       fields.get("labels") or [],
             "components":   [
@@ -181,14 +190,31 @@ class JiraClient:
     _FULL_FIELDS = [
         "summary", "description", "status", "priority", "assignee", "reporter",
         "issuetype", "customfield_10016", "customfield_10014", "customfield_10020",
-        "labels", "components", "fixVersions", "created", "updated",
+        "labels", "components", "fixVersions", "created", "updated", "parent",
+        "customfield_10008",
     ]
 
-    async def get_stories(self, project_key: str) -> list[dict]:
-        """Full story data used by the import pipeline."""
+    async def get_stories(
+        self,
+        project_key: str,
+        epic_key: str | None = None,
+        sprint_name: str | None = None,
+    ) -> list[dict]:
+        """Full story data used by the import pipeline.
+        Optionally filter by epic_key or sprint_name (client-side after fetch).
+        """
         jql = f'project="{project_key}" AND issuetype="Story" ORDER BY created DESC'
         issues = await self._search_jql(jql, self._FULL_FIELDS)
-        return [self._map_issue(i) for i in issues]
+        mapped = [self._map_issue(i) for i in issues]
+
+        if epic_key:
+            epic_key_norm = epic_key.strip().upper()
+            mapped = [m for m in mapped if (m.get("epic") or "").strip().upper() == epic_key_norm]
+        if sprint_name:
+            sprint_name_norm = sprint_name.strip().lower()
+            mapped = [m for m in mapped if (m.get("sprint") or "").strip().lower() == sprint_name_norm]
+
+        return mapped
 
     async def get_stories_preview(
         self, project_key: str, limit: int = 50
@@ -205,3 +231,108 @@ class JiraClient:
             }
             for i in issues
         ]
+
+    # ------------------------------------------------------------------
+    # Epics  (issues of type Epic in the project)
+    # ------------------------------------------------------------------
+
+    async def get_epics(self, project_key: str) -> list[dict]:
+        """Return all epics for a project."""
+        jql = f'project="{project_key}" AND issuetype=Epic ORDER BY created DESC'
+        issues = await self._search_jql(jql, ["summary", "status"], max_results=500)
+        return [
+            {
+                "key":    i.get("key"),
+                "summary": (i.get("fields") or {}).get("summary"),
+                "status":  ((i.get("fields") or {}).get("status") or {}).get("name"),
+            }
+            for i in issues
+        ]
+
+    # ------------------------------------------------------------------
+    # Sprints  (via Agile REST API)
+    # ------------------------------------------------------------------
+
+    async def _get_agile(self, path: str, params: dict | None = None) -> dict:
+        url = f"{ATLASSIAN_API_URL}/ex/jira/{self.cloud_id}/rest/agile/1.0{path}"
+        return await self._request("GET", url, params=params)
+
+    # ------------------------------------------------------------------
+    # Issue creation  (Tech Lead / Defect reporting)
+    # ------------------------------------------------------------------
+
+    def _build_adf(self, paragraphs: list[str]) -> dict:
+        """Build an Atlassian Document Format body from plain-text paragraphs."""
+        return {
+            "version": 1,
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": p}],
+                }
+                for p in paragraphs
+            ],
+        }
+
+    async def add_comment(self, issue_key: str, paragraphs: list[str]) -> dict:
+        """Add a comment (ADF) to an existing Jira issue."""
+        url = (
+            f"{ATLASSIAN_API_URL}/ex/jira/{self.cloud_id}"
+            f"/rest/api/3/issue/{issue_key}/comment"
+        )
+        body = {"body": self._build_adf(paragraphs)}
+        data = await self._request("POST", url, json=body)
+        return {"id": data.get("id")}
+
+    async def create_issue(
+        self,
+        project_key: str,
+        summary: str,
+        description_paragraphs: list[str],
+        issue_type: str = "Bug",
+        priority: str = "High",
+        labels: list[str] | None = None,
+    ) -> dict:
+        """Create a Jira issue and return its key and id."""
+        url = f"{ATLASSIAN_API_URL}/ex/jira/{self.cloud_id}/rest/api/3/issue"
+        body: dict = {
+            "fields": {
+                "project": {"key": project_key},
+                "summary": summary,
+                "description": self._build_adf(description_paragraphs),
+                "issuetype": {"name": issue_type},
+                "priority": {"name": priority},
+            }
+        }
+        if labels:
+            body["fields"]["labels"] = labels
+
+        data = await self._request("POST", url, json=body)
+        return {"key": data.get("key"), "id": data.get("id")}
+
+    async def get_sprints(self, project_key: str) -> list[dict]:
+        """Return all sprints for a project across all its Scrum boards."""
+        data = await self._get_agile("/board", params={"projectKeyOrId": project_key})
+        boards = data.get("values", [])
+
+        seen: dict[int, dict] = {}
+        for board in boards:
+            board_id = board.get("id")
+            try:
+                sprint_data = await self._get_agile(f"/board/{board_id}/sprint")
+                for s in sprint_data.get("values", []):
+                    sid = s.get("id")
+                    if sid and sid not in seen:
+                        seen[sid] = {
+                            "id":         sid,
+                            "name":       s.get("name"),
+                            "state":      s.get("state"),   # active | closed | future
+                            "start_date": s.get("startDate"),
+                            "end_date":   s.get("endDate"),
+                        }
+            except Exception:
+                # Kanban boards have no sprints — silently skip
+                pass
+
+        return list(seen.values())

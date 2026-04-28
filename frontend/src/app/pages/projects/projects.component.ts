@@ -9,6 +9,7 @@ import { ImportModalComponent } from '../../components/import-modal/import-modal
 import { ProjectsService, ToastService } from '../../services';
 import { Project } from '../../models/user_story.model';
 import { JiraService } from 'src/app/services/jira.service';
+import { InAppNotificationService } from 'src/app/services/in-app-notification.service';
 
 @Component({
   selector: 'app-projects',
@@ -29,6 +30,7 @@ export class ProjectsComponent implements OnInit {
   private toastService = inject(ToastService);
   private router = inject(Router);
   private jiraService = inject(JiraService);
+  private notifService = inject(InAppNotificationService);
 
   @ViewChild('importModal') importModal!: ImportModalComponent;
 
@@ -163,10 +165,10 @@ export class ProjectsComponent implements OnInit {
 
   onImported(result: { imported: number; skipped: number; total: number } | null): void {
     if (result && result.imported > 0) {
-      this.toastService.success(
-        'Import completed',
-        `${result.imported} new stories imported, ${result.skipped} already existed`
-      );
+      // this.toastService.success(
+      //   'Import completed',
+      //   `${result.imported} new stories imported, ${result.skipped} already existed`
+      // );
     } else if (result && result.skipped > 0 && result.imported === 0) {
       this.toastService.info(
         'Already up to date',
@@ -189,7 +191,9 @@ export class ProjectsComponent implements OnInit {
       );
       return;
     }
-    
+
+    this.notifService.connect(project.project_key);
+
     this.router.navigate(['/user-stories'], {
       queryParams: {
         projectId: project.id,

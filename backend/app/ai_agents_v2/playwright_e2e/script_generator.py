@@ -5,10 +5,13 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.llm.llm_control import create_llm
 from .prompts import SCRIPT_GENERATOR_SYSTEM, SCRIPT_GENERATOR_USER
-from .config import LLM_MODEL, LLM_TEMPERATURE, PLACEHOLDER_PREFIX
+from .config import PLACEHOLDER_PREFIX
 
 logger = logging.getLogger(__name__)
 
+LLM_MODEL = "gpt-oss-20b"
+LLM_TEMPERATURE = 0.3
+LLM_MAX_TOKENS = 800
 
 class ScriptGeneratorService:
     """
@@ -17,7 +20,7 @@ class ScriptGeneratorService:
     """
 
     def __init__(self):
-        self.llm = create_llm(temperature=LLM_TEMPERATURE)
+        self.llm = create_llm(temperature=LLM_TEMPERATURE, model=LLM_MODEL, max_tokens=LLM_MAX_TOKENS)
         logger.info("ScriptGeneratorService initialized")
 
     async def generate(self, test_cases: List[Dict[str, Any]]) -> Dict[str, Any]:

@@ -1,7 +1,12 @@
+from email import encoders
+from email.mime.base import MIMEBase
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
+from typing import Dict, List, Optional
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import aiosmtplib
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.core.config import settings
 
@@ -172,3 +177,87 @@ async def send_password_changed_email(email: str, username: str):
 
     fm = FastMail(conf)
     await fm.send_message(message)
+
+
+async def send_test_plan_email(
+    recipients: List[str],
+    subject: str,
+    html_body: str,
+) -> None:
+    """Send a test plan report email to a list of recipients."""
+    message = MessageSchema(
+        subject=subject,
+        recipients=recipients,
+        body=html_body,
+        subtype=MessageType.html,
+    )
+    fm = FastMail(conf)
+    await fm.send_message(message)
+
+def _send_email_with_pdf_sync(msg: MIMEMultipart) -> None:
+    """
+    Fonction synchrone pour envoyer l'email avec pièce jointe.
+    Utilise smtplib standard qui gère correctement STARTTLS.
+    """
+    try:
+        # Connexion au serveur SMTP
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.ehlo()  # Saluer le serveur
+        server.starttls()  # Démarrer TLS
+        server.ehlo()  # Saluer à nouveau après TLS
+        server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
+        
+        # Envoyer le message
+        server.send_message(msg)
+        server.quit()
+        
+        print("✅ Email sent successfully")
+        
+    except Exception as e:
+        print(f"❌ Sync send error: {str(e)}")
+        raise
+
+
+async def send_test_plan_email_with_attachment(
+    recipients: List[str],
+    subject: str,
+    html_body: str,
+    attachments: Optional[List[Dict[str, any]]] = None,
+) -> None:
+    """
+    Send a test plan email with PDF attachment.
+    Uses smtplib in a thread pool for reliable async sending.
+    """
+    try:
+        # Créer le message multipart
+        msg = MIMEMultipart("mixed")
+        msg["Subject"] = subject
+        msg["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
+        msg["To"] = ", ".join(recipients)
+        
+        # Corps HTML
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        
+        # Pièces jointes PDF
+        if attachments:
+            for attachment in attachments:
+                part = MIMEBase("application", "pdf")
+                part.set_payload(attachment["content"])
+                encoders.encode_base64(part)
+                part.add_header(
+                    "Content-Disposition",
+                    f'attachment; filename="{attachment["filename"]}"'
+                )
+                msg.attach(part)
+        
+        # Envoyer de manière asynchrone avec ThreadPoolExecutor
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as pool:
+            await loop.run_in_executor(pool, _send_email_with_pdf_sync, msg)
+        
+        print(f"✅ Email with PDF attachment sent to {len(recipients)} recipients")
+        
+    except Exception as e:
+        error_msg = f"Email sending failed: {str(e)}"
+        print(f"❌ {error_msg}")
+        raise ValueError(error_msg)

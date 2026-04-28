@@ -29,6 +29,18 @@ export const navItems: NavItem[] = [
     userOnly: true,
   },
   {
+    displayName: 'Risk Analysis',
+    iconName: 'solar:danger-triangle-line-duotone',
+    route: '/risk-analysis',
+    userOnly: true,
+  },
+  {
+    displayName: 'Test Plans',
+    iconName: 'solar:clipboard-list-line-duotone',
+    route: '/test-plans',
+    userOnly: true,
+  },
+  {
     displayName: 'Test Cases',
     iconName: 'solar:document-add-line-duotone',
     route: '/test-cases',
@@ -40,6 +52,7 @@ export const navItems: NavItem[] = [
     route: '/playwright-scripts',
     userOnly: true,
   },
+
   {
     navCap: 'Admin',
     divider: true,

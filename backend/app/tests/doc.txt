@@ -1,0 +1,1164 @@
+app/models/enums.py
+from enum import Enum
+
+
+class TestPlanStatus(str, Enum):
+    DRAFT = "DRAFT"
+    AI_SUGGESTED = "AI_SUGGESTED"
+    IN_REVIEW = "IN_REVIEW"
+    APPROVED = "APPROVED"
+    LOCKED = "LOCKED"
+    OUTDATED = "OUTDATED"
+    ARCHIVED = "ARCHIVED"
+
+
+class TestSuiteStatus(str, Enum):
+    DRAFT = "DRAFT"
+    GENERATED = "GENERATED"
+    REVIEWED = "REVIEWED"
+    APPROVED = "APPROVED"
+    LOCKED = "LOCKED"
+    ARCHIVED = "ARCHIVED"
+
+
+class TestCaseStatus(str, Enum):
+    DRAFT = "DRAFT"
+    GENERATED = "GENERATED"
+    REVIEWED = "REVIEWED"
+    APPROVED = "APPROVED"
+    LOCKED = "LOCKED"
+    ARCHIVED = "ARCHIVED"
+
+
+class RiskStatus(str, Enum):
+    PROPOSED = "PROPOSED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    MITIGATED = "MITIGATED"
+    RESIDUAL_ACCEPTED = "RESIDUAL_ACCEPTED"
+    CLOSED = "CLOSED"
+
+
+class RiskLevel(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class RiskProbability(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class RiskImpact(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class DependencyType(str, Enum):
+    REQUIRES = "REQUIRES"
+    BLOCKS = "BLOCKS"
+    DATA_DEPENDENCY = "DATA_DEPENDENCY"
+    AUTH_DEPENDENCY = "AUTH_DEPENDENCY"
+    BUSINESS_FLOW = "BUSINESS_FLOW"
+    CLEANUP_DEPENDENCY = "CLEANUP_DEPENDENCY"
+    ENVIRONMENT_DEPENDENCY = "ENVIRONMENT_DEPENDENCY"
+
+
+class TraceabilityLinkType(str, Enum):
+    COVERS = "covers"
+    VERIFIES = "verifies"
+    MITIGATES = "mitigates"
+    DERIVED_FROM = "derived_from"
+    DEPENDS_ON = "depends_on"
+
+
+class CoverageGapStatus(str, Enum):
+    OPEN = "OPEN"
+    ACCEPTED = "ACCEPTED"
+    RESOLVED = "RESOLVED"
+    IGNORED = "IGNORED"
+2. app/models/test_plan.py
+import uuid
+from datetime import date, datetime
+from typing import List, Optional
+
+from sqlalchemy import Date, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+from app.models.enums import TestPlanStatus
+
+
+class TestPlan(Base):
+    __tablename__ = "test_plans"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Scope structuré
+    scope_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # epic | sprint | release | manual | spec_document
+
+    scope_refs: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+    # Ex: ["SCRUM-12", "SCRUM-13"] ou ["Sprint 4"]
+
+    objective: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    in_scope: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    out_of_scope: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    test_types: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+    # functional | regression | smoke | security | performance | e2e | api
+
+    test_levels: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+    # component | integration | system | acceptance | e2e
+
+    environment: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    test_data_requirements: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    entry_criteria: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    exit_criteria: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    approach: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    assumptions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    constraints: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    deliverables: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+
+    metrics_to_collect: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+
+    coverage_target: Mapped[Optional[float]] = mapped_column(nullable=True)
+    # Exemple: 90.0
+
+    automation_strategy: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # none | partial | full | playwright_candidate
+
+    # Snapshots rapides, pas la source officielle
+    matrix_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    coverage_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default=TestPlanStatus.DRAFT.value,
+        server_default=TestPlanStatus.DRAFT.value,
+        nullable=False,
+        index=True,
+    )
+
+    created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    approved_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+
+    ai_draft_generated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    approved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    generation_completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    jira_project = relationship(
+        "JiraProject",
+        back_populates="test_plans",
+    )
+
+    test_suites = relationship(
+        "TestSuite",
+        back_populates="test_plan",
+        cascade="all, delete-orphan",
+    )
+
+    risks = relationship(
+        "Risk",
+        back_populates="test_plan",
+        cascade="all, delete-orphan",
+    )
+
+    test_cases = relationship(
+        "TestCase",
+        back_populates="test_plan",
+        cascade="all, delete-orphan",
+    )
+
+    dependencies = relationship(
+        "TestCaseDependency",
+        back_populates="test_plan",
+        cascade="all, delete-orphan",
+    )
+
+    traceability_links = relationship(
+        "TraceabilityLink",
+        back_populates="test_plan",
+        cascade="all, delete-orphan",
+    )
+
+    coverage_snapshots = relationship(
+        "CoverageSnapshot",
+        back_populates="test_plan",
+        cascade="all, delete-orphan",
+    )
+
+    coverage_gaps = relationship(
+        "CoverageGap",
+        back_populates="test_plan",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("idx_test_plan_project_id", "project_id"),
+        Index("idx_test_plan_status", "status"),
+        Index("idx_test_plan_scope_type", "scope_type"),
+    )
+3. app/models/risk.py
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+from app.models.enums import RiskStatus
+
+
+class Risk(Base):
+    __tablename__ = "risks"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    test_plan_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    user_story_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("user_stories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    risk_type: Mapped[str] = mapped_column(String(30), default="product", nullable=False)
+    # product | project
+
+    category: Mapped[str] = mapped_column(String(50), default="functional", nullable=False)
+    # functional | security | performance | usability | integration | data | business | environment | regression
+
+    probability: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    # low | medium | high
+
+    impact: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    # low | medium | high
+
+    risk_score: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
+    # low=1, medium=2, high=3 => score = probability_value * impact_value
+
+    level: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    # low | medium | high | critical
+
+    mitigation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    residual_risk: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # low | medium | high | critical
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default=RiskStatus.PROPOSED.value,
+        server_default=RiskStatus.PROPOSED.value,
+        nullable=False,
+        index=True,
+    )
+
+    is_ai_generated: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+    )
+
+    is_accepted: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    # None = pas encore décidé, True = accepté, False = rejeté
+
+    confidence_score: Mapped[Optional[float]] = mapped_column(nullable=True)
+
+    created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    accepted_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    test_plan = relationship(
+        "TestPlan",
+        back_populates="risks",
+    )
+
+    user_story = relationship(
+        "UserStory",
+        foreign_keys=[user_story_id],
+    )
+
+    test_case_links = relationship(
+        "RiskTestCaseLink",
+        back_populates="risk",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("idx_risk_project_id", "project_id"),
+        Index("idx_risk_test_plan_id", "test_plan_id"),
+        Index("idx_risk_user_story_id", "user_story_id"),
+        Index("idx_risk_level", "level"),
+        Index("idx_risk_score", "risk_score"),
+        Index("idx_risk_status", "status"),
+    )
+4. app/models/test_suite.py
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+from app.models.enums import TestSuiteStatus
+
+
+class TestSuite(Base):
+    __tablename__ = "test_suites"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    test_plan_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    suite_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # feature | epic | sprint | smoke | regression | negative | security | performance | e2e
+
+    priority: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # critical | high | medium | low
+
+    risk_level: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # low | medium | high | critical
+
+    execution_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    is_ai_generated: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default=TestSuiteStatus.DRAFT.value,
+        server_default=TestSuiteStatus.DRAFT.value,
+        nullable=False,
+        index=True,
+    )
+
+    created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    test_plan = relationship(
+        "TestPlan",
+        back_populates="test_suites",
+    )
+
+    test_cases = relationship(
+        "TestCase",
+        back_populates="test_suite",
+        foreign_keys="TestCase.test_suite_id",
+    )
+
+    __table_args__ = (
+        Index("idx_test_suite_project_id", "project_id"),
+        Index("idx_test_suite_test_plan_id", "test_plan_id"),
+        Index("idx_test_suite_status", "status"),
+        Index("idx_test_suite_type", "suite_type"),
+        Index("idx_test_suite_execution_order", "execution_order"),
+    )
+5. app/models/test_case.py
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+from app.models.enums import TestCaseStatus
+
+
+class TestCase(Base):
+    __tablename__ = "test_cases"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    test_plan_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    test_suite_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("test_suites.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    tc_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Unique par test_plan, pas globalement.
+
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    objective: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    test_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # positive | negative | edge | smoke | regression | security | performance | e2e | api
+
+    test_level: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # component | integration | system | acceptance | e2e
+
+    priority: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # critical | high | medium | low
+
+    risk_level: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # low | medium | high | critical
+
+    tags: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+
+    preconditions: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+
+    postconditions: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+
+    steps: Mapped[List[dict]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+    # [{"order": 1, "action": "...", "expected_result": "..."}]
+
+    expected_results: Mapped[List[str]] = mapped_column(
+        JSONB,
+        default=lambda: [],
+        server_default="[]",
+        nullable=False,
+    )
+
+    test_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+    gherkin_source: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    automation_candidate: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+
+    automation_status: Mapped[str] = mapped_column(
+        String(30),
+        default="NOT_AUTOMATED",
+        server_default="NOT_AUTOMATED",
+        nullable=False,
+    )
+    # NOT_AUTOMATED | DRAFT_SCRIPT | AUTOMATED | VERIFIED | FAILED | NEEDS_REVIEW
+
+    locators: Mapped[Optional[List[dict]]] = mapped_column(JSONB, nullable=True)
+
+    generation_source: Mapped[str] = mapped_column(
+        String(30),
+        default="ai_generated",
+        server_default="ai_generated",
+        nullable=False,
+    )
+    # ai_generated | manual | imported
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default=TestCaseStatus.GENERATED.value,
+        server_default=TestCaseStatus.GENERATED.value,
+        nullable=False,
+        index=True,
+    )
+
+    review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+    )
+
+    created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    test_plan = relationship(
+        "TestPlan",
+        back_populates="test_cases",
+    )
+
+    test_suite = relationship(
+        "TestSuite",
+        back_populates="test_cases",
+        foreign_keys=[test_suite_id],
+    )
+
+    risk_links = relationship(
+        "RiskTestCaseLink",
+        back_populates="test_case",
+        cascade="all, delete-orphan",
+    )
+
+    source_dependencies = relationship(
+        "TestCaseDependency",
+        foreign_keys="TestCaseDependency.source_test_case_id",
+        back_populates="source_test_case",
+        cascade="all, delete-orphan",
+    )
+
+    target_dependencies = relationship(
+        "TestCaseDependency",
+        foreign_keys="TestCaseDependency.target_test_case_id",
+        back_populates="target_test_case",
+        cascade="all, delete-orphan",
+    )
+
+    script_versions = relationship(
+        "PlaywrightScriptVersion",
+        back_populates="test_case",
+        cascade="all, delete-orphan",
+        order_by="PlaywrightScriptVersion.version_number",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("test_plan_id", "tc_code", name="uq_tc_code_per_plan"),
+        Index("idx_test_case_project_id", "project_id"),
+        Index("idx_test_case_test_plan_id", "test_plan_id"),
+        Index("idx_test_case_test_suite_id", "test_suite_id"),
+        Index("idx_test_case_tc_code", "tc_code"),
+        Index("idx_test_case_status", "status"),
+        Index("idx_test_case_priority", "priority"),
+        Index("idx_test_case_is_active", "is_active"),
+    )
+6. app/models/risk_test_case_link.py
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+
+
+class RiskTestCaseLink(Base):
+    __tablename__ = "risk_test_case_links"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    risk_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("risks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    test_case_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_cases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    coverage_type: Mapped[str] = mapped_column(
+        String(30),
+        default="direct",
+        server_default="direct",
+        nullable=False,
+    )
+    # direct | indirect | exploratory | regression
+
+    mitigation_strength: Mapped[str] = mapped_column(
+        String(20),
+        default="medium",
+        server_default="medium",
+        nullable=False,
+    )
+    # low | medium | high
+
+    is_ai_generated: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+    )
+
+    confidence_score: Mapped[Optional[float]] = mapped_column(nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    risk = relationship(
+        "Risk",
+        back_populates="test_case_links",
+    )
+
+    test_case = relationship(
+        "TestCase",
+        back_populates="risk_links",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("risk_id", "test_case_id", name="uq_risk_test_case"),
+        Index("idx_risk_tc_risk_id", "risk_id"),
+        Index("idx_risk_tc_test_case_id", "test_case_id"),
+    )
+7. app/models/test_case_dependency.py
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+from app.models.enums import DependencyType
+
+
+class TestCaseDependency(Base):
+    __tablename__ = "test_case_dependencies"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    test_plan_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    source_test_case_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_cases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    target_test_case_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_cases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    dependency_type: Mapped[str] = mapped_column(
+        String(40),
+        default=DependencyType.REQUIRES.value,
+        server_default=DependencyType.REQUIRES.value,
+        nullable=False,
+    )
+
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    is_blocking: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+    )
+
+    is_ai_generated: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+    )
+
+    is_manual_override: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+
+    confidence_score: Mapped[Optional[float]] = mapped_column(nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    test_plan = relationship(
+        "TestPlan",
+        back_populates="dependencies",
+    )
+
+    source_test_case = relationship(
+        "TestCase",
+        foreign_keys=[source_test_case_id],
+        back_populates="source_dependencies",
+    )
+
+    target_test_case = relationship(
+        "TestCase",
+        foreign_keys=[target_test_case_id],
+        back_populates="target_dependencies",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "test_plan_id",
+            "source_test_case_id",
+            "target_test_case_id",
+            name="uq_dependency_per_plan",
+        ),
+        CheckConstraint(
+            "source_test_case_id <> target_test_case_id",
+            name="ck_no_self_dependency",
+        ),
+        Index("idx_dep_plan", "test_plan_id"),
+        Index("idx_dep_source", "source_test_case_id"),
+        Index("idx_dep_target", "target_test_case_id"),
+    )
+8. app/models/traceability_link.py
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+from app.models.enums import TraceabilityLinkType
+
+
+class TraceabilityLink(Base):
+    __tablename__ = "traceability_links"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    test_plan_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("test_plans.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # user_story | requirement | acceptance_criterion | risk | test_suite
+
+    source_id: Mapped[str] = mapped_column(String(36), nullable=False)
+
+    target_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # requirement | acceptance_criterion | test_case | defect | test_suite
+
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False)
+
+    link_type: Mapped[str] = mapped_column(
+        String(50),
+        default=TraceabilityLinkType.COVERS.value,
+        server_default=TraceabilityLinkType.COVERS.value,
+        nullable=False,
+    )
+    # covers | verifies | mitigates | derived_from | depends_on
+
+    is_ai_generated: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+    )
+
+    confidence_score: Mapped[Optional[float]] = mapped_column(nullable=True)
+
+    created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    test_plan = relationship(
+        "TestPlan",
+        back_populates="traceability_links",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "test_plan_id",
+            "source_type",
+            "source_id",
+            "target_type",
+            "target_id",
+            "link_type",
+            name="uq_traceability_link",
+        ),
+        Index("idx_trace_project", "project_id"),
+        Index("idx_trace_plan", "test_plan_id"),
+        Index("idx_trace_source", "source_type", "source_id"),
+        Index("idx_trace_target", "target_type", "target_id"),
+        Index("idx_trace_link_type", "link_type"),
+    )
+9. app/models/coverage_snapshot.py
+import uuid
+from datetime import datetime
+
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+
+
+class CoverageSnapshot(Base):
+    __tablename__ = "coverage_snapshots"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    test_plan_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    total_user_stories: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    covered_user_stories: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    user_story_coverage: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+    total_acceptance_criteria: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    covered_acceptance_criteria: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    acceptance_criteria_coverage: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+    total_risks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    covered_risks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    risk_coverage: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+    total_test_cases: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    automated_test_cases: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    automation_coverage: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+    gaps_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    test_plan = relationship(
+        "TestPlan",
+        back_populates="coverage_snapshots",
+    )
+
+    __table_args__ = (
+        Index("idx_coverage_project", "project_id"),
+        Index("idx_coverage_plan", "test_plan_id"),
+        Index("idx_coverage_created_at", "created_at"),
+    )
+10. app/models/coverage_gap.py
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.core.database import Base
+from app.models.enums import CoverageGapStatus
+
+
+class CoverageGap(Base):
+    __tablename__ = "coverage_gaps"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    test_plan_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("test_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    gap_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # uncovered_user_story | uncovered_ac | uncovered_risk | missing_negative_test | missing_edge_case
+
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # user_story | acceptance_criterion | risk | requirement
+
+    source_id: Mapped[str] = mapped_column(String(36), nullable=False)
+
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    severity: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    # low | medium | high | critical
+
+    recommendation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default=CoverageGapStatus.OPEN.value,
+        server_default=CoverageGapStatus.OPEN.value,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    test_plan = relationship(
+        "TestPlan",
+        back_populates="coverage_gaps",
+    )
+
+    __table_args__ = (
+        Index("idx_gap_project", "project_id"),
+        Index("idx_gap_plan", "test_plan_id"),
+        Index("idx_gap_type", "gap_type"),
+        Index("idx_gap_status", "status"),
+        Index("idx_gap_source", "source_type", "source_id"),
+    )

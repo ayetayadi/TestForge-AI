@@ -1,0 +1,298 @@
+$primary:  #4f46e5;
+$border:   #e2e8f0;
+$text:     #1e293b;
+$muted:    #64748b;
+$bg-hover: #f8fafc;
+
+// ─── Bell button ──────────────────────────────────────────────────────────
+.bell-btn {
+  width: 40px;
+  height: 40px;
+  color: $muted;
+  transition: color 0.2s, background 0.2s;
+
+  mat-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  &:hover {
+    color: $primary;
+    background: rgba(79, 70, 229, 0.06);
+  }
+}
+
+// ─── Dropdown panel ───────────────────────────────────────────────────────
+::ng-deep .notif-dropdown {
+  margin-top: 8px;
+  border-radius: 16px !important;
+  min-width: 340px !important;
+  max-width: 380px !important;
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.04) !important;
+  overflow: hidden;
+
+  .mat-mdc-menu-content {
+    padding: 0 !important;
+  }
+}
+
+// ─── Header ───────────────────────────────────────────────────────────────
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+
+  .notif-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .notif-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: $text;
+  }
+
+  .unread-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 999px;
+  }
+
+  .mark-all-btn {
+    font-size: 0.75rem;
+    color: $primary;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: background 0.15s;
+
+    &:hover {
+      background: rgba(79, 70, 229, 0.08);
+    }
+  }
+}
+
+// ─── List ─────────────────────────────────────────────────────────────────
+.notif-list {
+  max-height: 360px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: $border transparent;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-thumb { background: $border; border-radius: 4px; }
+}
+
+// ─── Single notification item ─────────────────────────────────────────────
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.15s;
+  position: relative;
+
+  &:hover {
+    background: $bg-hover;
+  }
+
+  // Unread state
+  &.unread {
+    background: #fafbff;
+  }
+
+  // Severity left-border colour
+  &.sev-info    { border-left-color: #4f46e5; }
+  &.sev-warning { border-left-color: #f59e0b; }
+  &.sev-error   { border-left-color: #ef4444; }
+}
+
+// ─── Icon ─────────────────────────────────────────────────────────────────
+.notif-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  &.icon-info {
+    background: rgba(79, 70, 229, 0.1);
+    mat-icon { color: #4f46e5; }
+  }
+
+  &.icon-warning {
+    background: rgba(245, 158, 11, 0.1);
+    mat-icon { color: #f59e0b; }
+  }
+
+  &.icon-error {
+    background: rgba(239, 68, 68, 0.1);
+    mat-icon { color: #ef4444; }
+  }
+}
+
+// ─── Content ──────────────────────────────────────────────────────────────
+.notif-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notif-item-title {
+  font-size: 0.82rem;
+  color: $text;
+  line-height: 1.4;
+  white-space: normal;
+  margin: 0;
+
+  &.bold { font-weight: 600; }
+}
+
+.issue-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  background: rgba(79, 70, 229, 0.08);
+  color: $primary;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  width: fit-content;
+}
+
+.notif-change-line {
+  font-size: 0.72rem;
+  color: $muted;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-time {
+  font-size: 0.72rem;
+  color: $muted;
+}
+
+// ─── Unread dot ───────────────────────────────────────────────────────────
+.unread-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4f46e5;
+  margin-top: 4px;
+}
+
+// ─── Empty / Loading states ───────────────────────────────────────────────
+.notif-empty,
+.notif-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  text-align: center;
+
+  mat-icon {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+    color: #cbd5e1;
+  }
+
+  span {
+    font-size: 0.85rem;
+    color: $muted;
+    font-weight: 500;
+  }
+
+  small {
+    font-size: 0.75rem;
+    color: #94a3b8;
+  }
+}
+
+.notif-loading {
+  flex-direction: row;
+  padding: 20px 16px;
+  gap: 12px;
+
+  span { font-size: 0.82rem; }
+}
+
+// ─── Footer ───────────────────────────────────────────────────────────────
+.notif-footer {
+  padding: 10px 16px;
+}
+
+.sync-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: 1px solid $border;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: $muted;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: $primary;
+    color: $primary;
+    background: rgba(79, 70, 229, 0.04);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+// ─── Sync spinning animation ──────────────────────────────────────────────
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}

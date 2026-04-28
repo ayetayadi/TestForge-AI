@@ -781,6 +781,15 @@ private connectRelaunchSSE(versionId: string): void {
                 this.toastService.error(event.data?.error || 'Pipeline failed');
                 this.cleanupSSE();
             }
+
+            // Défaut détecté (story trop mauvaise)
+            if (event.type === 'defect_created') {
+                const jiraKey = event.data?.jira_issue_key;
+                const msg = jiraKey
+                    ? `Defect reported automatically → Jira ${jiraKey}`
+                    : 'Defect saved locally (Jira not connected)';
+                this.toastService.warning('⚠ Tech Lead: Defect Detected', msg);
+            }
         },
         error: (err) => {
             console.error('[SSE ERROR]', err);
