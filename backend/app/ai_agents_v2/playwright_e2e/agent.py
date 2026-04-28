@@ -9,7 +9,7 @@ from langsmith import traceable
 from app.llm.llm_control import create_llm
 from .tools import PlaywrightMCPClient
 from .prompts import REACT_SYSTEM, REACT_USER
-from .config import LLM_MODEL, LLM_TEMPERATURE, MAX_REACT_ITERATIONS, APP_BASE_URL, PLACEHOLDER_PREFIX
+from .config import LLM_MODEL, LLM_TEMPERATURE, MAX_REACT_ITERATIONS, APP_BASE_URL, PLACEHOLDER_PREFIX, LLM_MAX_TOKENS
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class PlaywrightReActAgent:
                     "steps_failed": 0,
                     "error": "No MCP tools loaded. Check MCP server connection.",
                 }
-            llm = create_llm(temperature=LLM_TEMPERATURE, model=LLM_MODEL)
+            llm = create_llm(temperature=LLM_TEMPERATURE, model=LLM_MODEL, max_tokens=LLM_MAX_TOKENS)
             logger.info("🔍 DEBUG: LLM created")
 
             from langgraph.prebuilt import ToolNode

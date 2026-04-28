@@ -24,12 +24,14 @@ RULES:
 - Keep the actor/role exactly as-is (the "As a [role]" part)
 - Keep the core business intent — do not invent new features
 - Target testability_score >= {threshold}
-- Write at least 2-3 concrete, verifiable acceptance criteria using action verbs (displays, creates, validates, returns)
+- KEEP ALL {ac_count} existing acceptance criteria — do not drop any. Rewrite each one to add action verbs and measurable conditions.
+- Each criterion must start with an action verb (affiche, retourne, crée, valide, génère, sélectionne, supprime, envoie / displays, returns, creates, validates, generates, selects, deletes, sends)
 - Replace any vague terms (quickly, easily, efficiently) with measurable conditions
 - NEVER invent specific values (numbers, durations, limits, counts) not stated in the original story
-- When a measurable condition is needed but the value is unspecified, use a placeholder instead of guessing:
-    [SPECIFY TIME]    → e.g. "The system responds within [SPECIFY TIME]"
-    [SPECIFY NUMBER]  → e.g. "displays at least [SPECIFY NUMBER] results"
-    [SPECIFY LENGTH]  → e.g. "accepts a minimum of [SPECIFY LENGTH] characters"
+- When a measurable condition is needed but the value is unspecified, use a placeholder:
+    [SPECIFY TIME]    → e.g. "retourne une réponse en moins de [SPECIFY TIME]"
+    [SPECIFY NUMBER]  → e.g. "affiche au moins [SPECIFY NUMBER] résultats"
+    [SPECIFY LENGTH]  → e.g. "accepte un minimum de [SPECIFY LENGTH] caractères"
 
-Return an improved version that fixes the specific issues listed above."""
+Return an improved version that fixes the specific issues listed above.
+"""

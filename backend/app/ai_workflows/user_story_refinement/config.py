@@ -9,9 +9,9 @@ load_dotenv()
 # ============================================================
 # LLM Configuration
 # ============================================================
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 LLM_TEMPERATURE = 0.3
-LLM_MODEL="openai/gpt-oss-120b"
+LLM_MODEL="llama-3.3-70b-versatile"
+LLM_MAX_TOKENS = 800
 
 # ============================================================
 # Agent Configuration

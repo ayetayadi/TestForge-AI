@@ -40,3 +40,5 @@ psycopg[binary,pool]
 langchain_openrouter
 langchain-mcp-adapters
 langchain-groq
+reportlab
+python-docx

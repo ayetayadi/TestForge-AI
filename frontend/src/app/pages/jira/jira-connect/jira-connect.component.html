@@ -2,35 +2,68 @@
   <mat-card-content class="p-32">
     <h2 class="mat-headline-6 f-w-600 m-b-24">Jira Integration</h2>
 
-    <div *ngIf="errorMessage" class="m-b-16">
-      <mat-error>{{ errorMessage }}</mat-error>
+    <div *ngIf="errorMessage" class="error-banner m-b-16">
+      <mat-icon>error_outline</mat-icon>
+      {{ errorMessage }}
     </div>
 
     <!-- Connection status bar -->
-    <div class="d-flex align-items-center justify-content-between p-24 m-b-24"
-         style="border:1px solid #e0e0e0; border-radius:8px">
-      <div class="d-flex align-items-center" style="gap:16px">
-        <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg"
-             width="40" height="40" alt="Jira" />
-        <div>
-          <p class="f-s-16 f-w-600 m-0">Jira</p>
-          <p class="f-s-13 m-0" style="color:#666">
-            {{ status.connected ? 'Connected to Atlassian' : 'Not connected' }}
-          </p>
+    <div class="connection-bar" [class.is-connected]="status.connected">
+
+      <!-- Left: logo + info -->
+      <div class="connection-info">
+        <div class="jira-logo-wrap" [class.connected]="status.connected">
+          <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" />
+        </div>
+        <div class="info-text">
+          <span class="info-name">Jira</span>
+          <span class="info-subtitle">Atlassian Cloud</span>
         </div>
       </div>
-      <div class="d-flex align-items-center" style="gap:8px">
-        <mat-chip [color]="status.connected ? 'accent' : ''" highlighted>
-          {{ status.connected ? '✓ Connected' : 'Disconnected' }}
-        </mat-chip>
-        <button *ngIf="!status.connected" mat-flat-button color="primary"
-                (click)="connectJira()" [disabled]="connecting">
-          {{ connecting ? 'Connecting...' : 'Connect to Jira' }}
-        </button>
-        <button *ngIf="status.connected" mat-stroked-button color="warn"
-                (click)="disconnect()" [disabled]="disconnecting">
-          {{ disconnecting ? 'Disconnecting...' : 'Disconnect' }}
-        </button>
+
+      <!-- Right: status badge + action -->
+      <div class="connection-actions">
+
+        <!-- ÉTAT : connecting -->
+        <ng-container *ngIf="connecting">
+          <div class="status-pill loading">
+            <span class="spinner"></span>
+            Connecting…
+          </div>
+        </ng-container>
+
+        <!-- ÉTAT : disconnecting -->
+        <ng-container *ngIf="disconnecting">
+          <div class="status-pill loading">
+            <span class="spinner"></span>
+            Disconnecting…
+          </div>
+        </ng-container>
+
+        <!-- ÉTAT : connected -->
+        <ng-container *ngIf="status.connected && !disconnecting">
+          <div class="status-pill connected">
+            <span class="dot"></span>
+            Connected
+          </div>
+          <button class="btn-disconnect" (click)="disconnect()">
+            <mat-icon>link_off</mat-icon>
+            Disconnect
+          </button>
+        </ng-container>
+
+        <!-- ÉTAT : disconnected -->
+        <ng-container *ngIf="!status.connected && !connecting">
+          <div class="status-pill disconnected">
+            <span class="dot"></span>
+            Not connected
+          </div>
+          <button class="btn-connect" (click)="connectJira()">
+            <mat-icon>link</mat-icon>
+            Connect to Jira
+          </button>
+        </ng-container>
+
       </div>
     </div>
 

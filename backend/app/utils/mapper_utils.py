@@ -215,6 +215,7 @@ def map_jira_issue(issue: dict) -> dict:
         "reporter": issue.get("reporter"),
 
         "epic_key": issue.get("epic"),
+        "epic_name": issue.get("epic_name"),
         "sprint": issue.get("sprint"),
 
         "labels": issue.get("labels", []),

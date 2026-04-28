@@ -71,6 +71,27 @@ async def get_selected_version(
     return result.scalar_one_or_none()
 
 
+async def get_approved_version_for_risk(
+    db: AsyncSession,
+    user_story_id: str,
+) -> UserStoryVersion | None:
+    """
+    Retourne la version approuvée ET complétée la plus récente d'une US.
+    Utilisée par le risk worker : si elle existe, son contenu (improved_story +
+    generated_acceptance_criteria) est préféré à l'US originale.
+    """
+    result = await db.execute(
+        select(UserStoryVersion)
+        .where(
+            UserStoryVersion.user_story_id == user_story_id,
+            UserStoryVersion.decision_status == StoryDecision.APPROVED,
+        )
+        .order_by(desc(UserStoryVersion.started_at))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_latest_version(
     db: AsyncSession, 
     story_id: str

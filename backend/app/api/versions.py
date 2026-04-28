@@ -32,7 +32,7 @@ from app.repositories.user_story_version_repository import (
 from app.repositories.user_story_repository import get_user_story_by_id, get_user_story_by_issue_key
 from app.streaming.sse_manager import event_generator
 from app.models.enums import WorkflowStatus
-from app.workers.asyncio_workers import submit_version
+from app.workers.us_worker import submit_version
 
 
 class DecisionRequest(BaseModel):

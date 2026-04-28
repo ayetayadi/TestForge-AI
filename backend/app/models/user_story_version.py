@@ -1,13 +1,14 @@
 from datetime import datetime
 import uuid
-from typing import List, Optional
-from sqlalchemy import Boolean, DateTime, String, Text, Float, ForeignKey, Index, Integer, Enum as SqlEnum
+from typing import TYPE_CHECKING, List, Optional
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, Float, ForeignKey, Index, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 from app.models.enums import StoryDecision, WorkflowStatus
+
 
 class UserStoryVersion(Base):
     __tablename__ = "user_story_versions"
@@ -22,8 +23,11 @@ class UserStoryVersion(Base):
         String(36),
         ForeignKey("user_stories.id", ondelete="CASCADE"),
         nullable=False,
-        index=True  # ← Déjà un index simple ici
+        index=True
     )
+
+    # Numéro de version incrémental par User Story (1, 2, 3...)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     improved_story: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -43,7 +47,7 @@ class UserStoryVersion(Base):
     # TESTABILITY
     # =========================
     testability_score: Mapped[Optional[float]] = mapped_column(Float)
-    is_testable: Mapped[Optional[bool]] = mapped_column()
+    is_testable: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     testability_issues: Mapped[Optional[List[str]]] = mapped_column(JSONB)
 
     # =========================
@@ -95,9 +99,15 @@ class UserStoryVersion(Base):
     # RELATIONS
     # =========================
     user_story = relationship(
-        "UserStory", 
+        "UserStory",
         back_populates="versions",
         foreign_keys=[user_story_id]
+    )
+
+    defects = relationship(
+        "Defect",
+        back_populates="user_story_version",
+        foreign_keys="Defect.user_story_version_id"
     )
 
     # =========================
@@ -117,7 +127,6 @@ class UserStoryVersion(Base):
         # Pour chercher les versions complétées dans une plage de temps
         Index("idx_version_completed_at", "completed_at"),
         
-        # INDEX COMPOSITE 🔥 Le plus important !
         # Pour trouver rapidement la dernière version d'une story
         Index("idx_version_story_workflow_status_date", 
               "user_story_id", "workflow_status", "started_at"),

@@ -29,7 +29,7 @@ from app.ai_workflows.user_story_refinement.utils.text_processing import (
 )
 from app.llm.llm_control import create_llm
 from app.ai_workflows.user_story_refinement.prompts import IMPROVEMENT_PROMPT
-from .config import LLM_TEMPERATURE, MIN_SCORE_THRESHOLD
+from .config import LLM_TEMPERATURE, MIN_SCORE_THRESHOLD, LLM_MODEL, LLM_MAX_TOKENS
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +58,9 @@ class UserStoryRefinementPipeline:
     Step 4 — score improved to measure progress
     """
 
-    def __init__(self, temperature: float = LLM_TEMPERATURE):
+    def __init__(self, temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL):
         logger.info("[PIPELINE] Initializing...")
-        llm = create_llm(temperature=temperature)
+        llm = create_llm(temperature=temperature, model=model, max_tokens=LLM_MAX_TOKENS)
         self._llm = llm.with_structured_output(ImprovementResult)
         logger.info("[PIPELINE] Ready")
 
@@ -129,7 +129,14 @@ class UserStoryRefinementPipeline:
                 "message": "✨ Improving story with AI (this may take a moment)..."
             })
             
-            improvement = await self._call_llm(clean_story, ac, initial)
+            try:
+                improvement = await asyncio.wait_for(
+                    self._call_llm(clean_story, ac, initial),
+                    timeout=60,
+                )
+            except asyncio.TimeoutError:
+                logger.error("[PIPELINE] LLM call timed out after 60s")
+                raise RuntimeError("LLM call timed out")
             improved_story = improvement.improved_story or clean_story
             improved_ac = improvement.acceptance_criteria or ac
     
@@ -161,7 +168,19 @@ class UserStoryRefinementPipeline:
                 score_story(improved_story, improved_ac),
                 compare_similarity(clean_story, improved_story),
             )
-    
+
+            if final.get("final_score", 0) < initial.get("final_score", 0):
+                logger.warning(
+                    f"[PIPELINE] Score regression {initial['final_score']:.3f} → {final['final_score']:.3f} — reverting"
+                )
+                return self._build_result(
+                    story=clean_story, ac=ac,
+                    initial=initial, final=initial,
+                    similarity=1.0, iterations=1, status="safe_revert",
+                    reasoning=improvement.reasoning,
+                    jira_id=jira_id, original_actor=original_actor,
+                )
+
             status = (
                 "success"
                 if final.get("is_testable") and final.get("final_score", 0) >= MIN_SCORE_THRESHOLD
@@ -222,6 +241,7 @@ class UserStoryRefinementPipeline:
         prompt = IMPROVEMENT_PROMPT.format(
             story=story,
             acceptance_criteria="\n".join(f"- {a}" for a in ac) if ac else "(none)",
+            ac_count=len(ac),
             issues="\n".join(f"- {i}" for i in score_result.get("issues", [])) or "(none)",
             suggestions="\n".join(f"- {s}" for s in score_result.get("suggestions", [])) or "(none)",
             threshold=MIN_SCORE_THRESHOLD,

@@ -39,6 +39,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
 
   private sseSubscription?: Subscription;
   private currentVersionId?: string;
+  private sseTimeoutHandle?: ReturnType<typeof setTimeout>;
 
   // ─── Computed ───────────────────────────────────────────────────
 
@@ -193,12 +194,29 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
     this.disconnectSSE();
     this.currentVersionId = versionId;
     this.sseSubscription = this.versionsService.connectToVersionStream(versionId).subscribe({
-      next: (event) => this.handleSSEEvent(event, versionId),
-      error: (err) => console.error('[SSE error]', err),
+      next: (event) => {
+        clearTimeout(this.sseTimeoutHandle);
+        this.handleSSEEvent(event, versionId);
+      },
+      error: (err) => {
+        console.error('[SSE error]', err);
+        this.story.update(s => s ? { ...s, WorkflowStatus: 'failed', has_processing: false } : s);
+        this.toastService.error('Pipeline failed', 'Connection lost');
+      },
     });
+
+    // Safety net: if no terminal event arrives within 3 minutes, stop waiting
+    this.sseTimeoutHandle = setTimeout(() => {
+      console.warn('[SSE] Timeout — no terminal event received for version', versionId);
+      this.story.update(s => s ? { ...s, WorkflowStatus: 'failed', has_processing: false } : s);
+      this.toastService.error('Pipeline timeout', 'The server did not respond in time');
+      this.disconnectSSE();
+    }, 3 * 60 * 1000);
   }
 
   private disconnectSSE(): void {
+    clearTimeout(this.sseTimeoutHandle);
+    this.sseTimeoutHandle = undefined;
     if (this.sseSubscription) {
       this.sseSubscription.unsubscribe();
       this.sseSubscription = undefined;
@@ -246,7 +264,17 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
 
       case 'failed':
         this.story.update(s => s ? { ...s, WorkflowStatus: 'failed', has_processing: false } : s);
+        this.toastService.error('Pipeline failed', data.error ?? 'An error occurred');
         break;
+
+      case 'defect_created': {
+        const jiraKey = data.jira_issue_key;
+        const msg = jiraKey
+          ? `Defect reported automatically → Jira ${jiraKey}`
+          : 'Defect saved locally (Jira not connected)';
+        this.toastService.warning('⚠ Tech Lead: Defect Detected', msg);
+        break;
+      }
     }
   }
 
@@ -283,7 +311,15 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
           this.connectSSE(v.version_id);
           this.toastService.success('Pipeline started');
         } else {
-          this.toastService.warning('No stories to process');
+          const skipped = response.skipped?.[0];
+          if (skipped) {
+            this.toastService.warning(
+              'Story skipped',
+              'No description found — product owner notified on Jira'
+            );
+          } else {
+            this.toastService.warning('No stories to process');
+          }
         }
       },
       error: (err) => {

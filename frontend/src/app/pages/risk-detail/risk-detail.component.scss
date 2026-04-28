@@ -1,0 +1,901 @@
+// ══════════════════════════════════════════════════════════
+// DESIGN TOKENS — alignés avec Story Detail Page
+// ══════════════════════════════════════════════════════════
+
+$radius: 8px;
+$border: 1px solid #e5e7eb;
+
+$primary:        #6366f1;
+$primary-dark:   #4f46e5;
+$text-primary:   #111827;
+$text-secondary: #6b7280;
+$bg-page:        #f9fafb;
+$bg-card:        #ffffff;
+$shadow-sm:      0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-md:      0 4px 6px -1px rgba(0, 0, 0, 0.1);
+$shadow-lg:      0 10px 15px -3px rgba(0, 0, 0, 0.1);
+$transition:     0.15s ease;
+
+$critical-c:  #dc2626;
+$critical-bg: #fef2f2;
+$critical-bd: #fecaca;
+$high-c:      #ea580c;
+$high-bg:     #fff7ed;
+$high-bd:     #fed7aa;
+$medium-c:    #d97706;
+$medium-bg:   #fffbeb;
+$medium-bd:   #fde68a;
+$low-c:       #059669;
+$low-bg:      #f0fdf4;
+$low-bd:      #a7f3d0;
+
+// ══════════════════════════════════════════════════════════
+// PAGE
+// ══════════════════════════════════════════════════════════
+
+.detail-page {
+  background: $bg-page;
+  min-height: 100vh;
+}
+
+// ══════════════════════════════════════════════════════════
+// HEADER
+// ══════════════════════════════════════════════════════════
+
+.detail-header {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: #fff;
+
+  // Gradient selon le niveau
+  &--critical { background: linear-gradient(135deg, #7f1d1d, $critical-c); }
+  &--high     { background: linear-gradient(135deg, #7c2d12, $high-c);     }
+  &--medium   { background: linear-gradient(135deg, #78350f, $medium-c);   }
+  &--low      { background: linear-gradient(135deg, #14532d, $low-c);      }
+}
+
+.header-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.btn-back-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: $radius;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all $transition;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+  }
+}
+
+.breadcrumb-sep {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.85rem;
+}
+
+.breadcrumb-current {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.header-main {
+  max-width: 860px;
+}
+
+.header-level {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.level-badge {
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.header-score {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.ai-tag, .manual-tag {
+  font-size: 0.65rem;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.ai-tag {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.manual-tag {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.header-description {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+// ══════════════════════════════════════════════════════════
+// CONTENT
+// ══════════════════════════════════════════════════════════
+
+.detail-content {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// ══════════════════════════════════════════════════════════
+// CARDS
+// ══════════════════════════════════════════════════════════
+
+.detail-card {
+  background: $bg-card;
+  border: $border;
+  border-radius: 10px;
+  padding: 20px 24px;
+  box-shadow: $shadow-sm;
+}
+
+.card-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 14px;
+
+  svg {
+    stroke: $text-secondary;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.btn-edit {
+  margin-left: auto;
+  background: none;
+  border: $border;
+  border-radius: $radius;
+  color: $primary;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  transition: all $transition;
+
+  &:hover {
+    background: rgba(99, 102, 241, 0.06);
+    border-color: rgba(99, 102, 241, 0.4);
+    transform: translateY(-1px);
+  }
+}
+
+// ── USER STORY CARD ────────────────────────────────────────
+
+.us-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.us-key {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: $primary;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  background: rgba(99, 102, 241, 0.08);
+  padding: 4px 12px;
+  border-radius: $radius;
+}
+
+.us-title {
+  font-size: 0.85rem;
+  color: $text-primary;
+  line-height: 1.5;
+}
+
+// ── USER STORY DETAILS (Description + AC) ──────────────────
+
+.us-description, .us-acceptance {
+  margin-top: 1rem;
+  
+  .subsection-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $text-secondary;
+    margin-bottom: 0.75rem;
+  }
+  
+  .description-text {
+    color: $text-primary;
+    line-height: 1.6;
+    font-size: 0.8rem;
+    background: #f9fafb;
+    padding: 0.75rem;
+    border-radius: $radius;
+    border-left: 3px solid $primary;
+    margin: 0;
+  }
+}
+
+.acceptance-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  
+  li {
+    padding: 0.5rem 0 0.5rem 1.5rem;
+    position: relative;
+    color: #374151;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    
+    &::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #059669;
+      font-weight: bold;
+    }
+  }
+}
+
+// ── FORMULA ───────────────────────────────────────────────
+
+.formula-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.formula-box {
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: $border;
+
+  &-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: $text-secondary;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &-val {
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1;
+    color: $text-primary;
+  }
+
+  &-sub {
+    font-size: 0.65rem;
+    color: $text-secondary;
+    margin-top: 4px;
+  }
+
+  &--prob {
+    background: rgba(99, 102, 241, 0.05);
+    border-color: rgba(99, 102, 241, 0.2);
+    .formula-box-val { color: $primary; }
+  }
+
+  &--impact {
+    background: rgba(14, 165, 233, 0.05);
+    border-color: rgba(14, 165, 233, 0.2);
+    .formula-box-val { color: #0ea5e9; }
+  }
+
+  // Résultat selon le niveau
+  &--critical {
+    background: $critical-bg;
+    border-color: $critical-bd;
+    .formula-box-val { color: $critical-c; }
+    .formula-box-sub { color: $critical-c; font-weight: 700; }
+  }
+  &--high {
+    background: $high-bg;
+    border-color: $high-bd;
+    .formula-box-val { color: $high-c; }
+    .formula-box-sub { color: $high-c; font-weight: 700; }
+  }
+  &--medium {
+    background: $medium-bg;
+    border-color: $medium-bd;
+    .formula-box-val { color: $medium-c; }
+    .formula-box-sub { color: $medium-c; font-weight: 700; }
+  }
+  &--low {
+    background: $low-bg;
+    border-color: $low-bd;
+    .formula-box-val { color: $low-c; }
+    .formula-box-sub { color: $low-c; font-weight: 700; }
+  }
+}
+
+.formula-op {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: $text-secondary;
+  flex-shrink: 0;
+}
+
+// ── SCORE BAR ─────────────────────────────────────────────
+
+.score-bar-track {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  overflow: visible;
+  margin-bottom: 4px;
+}
+
+.score-zones {
+  display: flex;
+  height: 100%;
+  border-radius: 5px;
+  overflow: hidden;
+
+  .zone { height: 100%; }
+  .zone--low      { width: 22.2%; background: $low-c;      }
+  .zone--medium   { width: 33.3%; background: $medium-c;   }
+  .zone--high     { width: 33.3%; background: $high-c;     }
+  .zone--critical { width: 11.2%; background: $critical-c; }
+}
+
+.score-cursor {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25), $shadow-sm;
+  transition: left 0.4s ease;
+
+  &.cursor-critical { background: $critical-c; }
+  &.cursor-high     { background: $high-c;     }
+  &.cursor-medium   { background: $medium-c;   }
+  &.cursor-low      { background: $low-c;      }
+}
+
+.score-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.55rem;
+  color: $text-secondary;
+  padding: 0 2px;
+}
+
+// ── REASONING ─────────────────────────────────────────────
+
+.reasoning-box {
+  background: linear-gradient(135deg, #f8f7ff, #eff6ff);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: $text-primary;
+}
+
+// ── DESCRIPTION ───────────────────────────────────────────
+
+.description-text {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: $text-primary;
+  margin: 0;
+}
+
+// ── MITIGATION ────────────────────────────────────────────
+
+.mitigation-list {
+  margin: 0;
+  padding-left: 20px;
+
+  li {
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: $text-primary;
+    padding: 3px 0;
+
+    &::marker {
+      color: $low-c;
+      font-weight: 700;
+    }
+  }
+}
+
+.no-mitigation {
+  font-size: 0.75rem;
+  color: $text-secondary;
+  font-style: italic;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: $primary;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-style: normal;
+  transition: color $transition;
+
+  &:hover {
+    text-decoration: underline;
+    color: $primary-dark;
+  }
+}
+
+.mitigation-editor {
+  width: 100%;
+  padding: 12px 14px;
+  border: $border;
+  border-radius: $radius;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  resize: vertical;
+  color: $text-primary;
+  box-sizing: border-box;
+  font-family: inherit;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  }
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-save {
+  padding: 8px 20px;
+  background: $primary;
+  color: #fff;
+  border: none;
+  border-radius: $radius;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    background: $primary-dark;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  }
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  background: $bg-page;
+  color: $text-secondary;
+  border: $border;
+  border-radius: $radius;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition;
+
+  &:hover {
+    border-color: $text-secondary;
+    color: $text-primary;
+    transform: translateY(-1px);
+  }
+}
+
+// ── DECISION ──────────────────────────────────────────────
+
+.decision-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.decision-status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &.status-accepted {
+    background: $low-bg;
+    color: $low-c;
+    border-color: $low-bd;
+  }
+  &.status-rejected {
+    background: $critical-bg;
+    color: $critical-c;
+    border-color: $critical-bd;
+  }
+  &.status-pending {
+    background: #f8fafc;
+    color: $text-secondary;
+    border-color: #e5e7eb;
+  }
+}
+
+.decision-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-accept,
+.btn-reject {
+  padding: 8px 22px;
+  border-radius: $radius;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all $transition;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.btn-accept {
+  border-color: $low-bd;
+  color: $low-c;
+  background: $low-bg;
+
+  &:hover, &.is-active {
+    background: $low-c;
+    color: #fff;
+    border-color: $low-c;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+  }
+}
+
+.btn-reject {
+  border-color: $critical-bd;
+  color: $critical-c;
+  background: $critical-bg;
+
+  &:hover, &.is-active {
+    background: $critical-c;
+    color: #fff;
+    border-color: $critical-c;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+  }
+}
+
+// ── STATUS UPDATE MESSAGE ─────────────────────────────────
+
+.status-update-message {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: $radius;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: slideDown 0.3s ease;
+
+  &--success {
+    background: $low-bg;
+    color: $low-c;
+    border: 1px solid $low-bd;
+  }
+
+  &--error {
+    background: $critical-bg;
+    color: $critical-c;
+    border: 1px solid $critical-bd;
+  }
+
+  &--info {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+  }
+
+  .status-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .status-text {
+    flex: 1;
+    line-height: 1.4;
+  }
+
+  .status-close {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    color: currentColor;
+    opacity: 0.6;
+    padding: 0;
+    line-height: 1;
+    transition: opacity $transition;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+// ── META FOOTER ───────────────────────────────────────────
+
+.meta-footer {
+  display: flex;
+  gap: 20px;
+  font-size: 0.65rem;
+  color: $text-secondary;
+  padding: 8px 0 4px;
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: #f3f4f6;
+    padding: 1px 6px;
+    border-radius: $radius;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// LOADING / NOT FOUND
+// ══════════════════════════════════════════════════════════
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  gap: 12px;
+  color: $text-secondary;
+  font-size: 0.8rem;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: $primary;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  text-align: center;
+  color: $text-secondary;
+
+  .not-found-icon {
+    font-size: 2.5rem;
+    margin-bottom: 16px;
+  }
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: $text-primary;
+  }
+
+  p {
+    font-size: 0.75rem;
+    margin: 0 0 20px;
+  }
+}
+
+// ── FORMULA EDIT MODE ─────────────────────────────────────
+
+.formula-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.formula-edit-box {
+  flex: 1;
+  min-width: 100px;
+  text-align: center;
+
+  label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .formula-preview {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: 4px;
+  }
+}
+
+.formula-edit-result {
+  .formula-score-preview {
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  &.formula-edit--critical .formula-score-preview { color: #dc2626; }
+  &.formula-edit--high .formula-score-preview { color: #ea580c; }
+  &.formula-edit--medium .formula-score-preview { color: #d97706; }
+  &.formula-edit--low .formula-score-preview { color: #16a34a; }
+}
+
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border: $border;
+  border-radius: $radius;
+  background: $bg-card;
+  color: $primary;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &:hover {
+    border-color: $primary;
+    background: rgba(99, 102, 241, 0.05);
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// RESPONSIVE
+// ══════════════════════════════════════════════════════════
+
+@media (max-width: 640px) {
+  .detail-header {
+    padding: 20px;
+  }
+
+  .detail-content {
+    padding: 16px;
+  }
+
+  .detail-card {
+    padding: 16px 18px;
+  }
+
+  .header-main {
+    max-width: 100%;
+  }
+
+  .formula-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .formula-op {
+    text-align: center;
+  }
+
+  .decision-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .decision-status {
+    text-align: center;
+  }
+
+  .decision-buttons {
+    justify-content: center;
+  }
+
+  .us-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .status-update-message {
+    font-size: 0.7rem;
+    padding: 8px 12px;
+  }
+}

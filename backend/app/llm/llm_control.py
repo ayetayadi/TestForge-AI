@@ -1,211 +1,117 @@
-# import asyncio
-# import logging
-
-# from typing import Any, Optional
-# from langchain_openrouter import ChatOpenRouter
-
-# from app.ai_agents_v2.user_story_refinement.config import LLM_TEMPERATURE, LLM_MAX_TOKENS
-# from app.core.config import settings
-
-# logger = logging.getLogger(__name__)
-
-# # Semaphore global pour limiter les appels simultanés
-# llm_semaphore = asyncio.Semaphore(3)
-
-
-# class ControlledChatOpenRouter(ChatOpenRouter):
-#     """
-#     ChatOpenRouter avec contrôles de concurrence (semaphore).
-#     """
-    
-#     async def _agenerate(self, *args, **kwargs) -> Any:
-#         async with llm_semaphore:
-#             logger.debug("[LLM] Semaphore acquired, calling OpenRouter...")
-#             try:
-#                 result = await super()._agenerate(*args, **kwargs)
-#                 logger.debug("[LLM] ✓ Response received from OpenRouter")
-#                 return result
-#             except Exception as e:
-#                 logger.error(f"[LLM ERROR] OpenRouter call failed: {e}")
-#                 raise
-
-
-# def create_llm(
-#     temperature: float = LLM_TEMPERATURE,
-#     model: Optional[str] = None,
-#     max_tokens: int = LLM_MAX_TOKENS
-# ) -> ControlledChatOpenRouter:
-#     """
-#     Factory pour créer une instance ChatOpenRouter contrôlée.
-    
-#     Args:
-#         temperature: Température (0.0-1.0)
-#         model: Nom du modèle OpenRouter (ex: "openai/gpt-oss-120b")
-#         max_tokens: Nombre max de tokens
-#     """
-#     if not settings.OPENROUTER_API_KEY:
-#         raise ValueError("OPENROUTER_API_KEY not configured in .env")
-
-#     # Utiliser le modèle passé en paramètre ou celui de la config
-#     model_name = model or getattr(settings, "LLM_MODEL", "openai/gpt-oss-120b")
-
-#     return ControlledChatOpenRouter(
-#         model=model_name,
-#         temperature=temperature,
-#         max_tokens=max_tokens,
-#         max_retries=2,
-#         api_key=settings.OPENROUTER_API_KEY,
-#     )
-
-
 import asyncio
 import logging
-from typing import Any, Optional
-from langchain_groq import ChatGroq  # ← Directement via langchain_groq
-from app.ai_workflows.user_story_refinement.config import LLM_TEMPERATURE, LLM_MAX_TOKENS
+import time
+from typing import Any
+from langchain_groq import ChatGroq
+from groq import RateLimitError
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Semaphore global pour limiter les appels simultanés
-llm_semaphore = asyncio.Semaphore(5)
+# Serialize all outgoing LLM calls — one at a time to avoid bursts
+llm_semaphore = asyncio.Semaphore(1)
+
+# Minimum gap between consecutive API calls: 24 req/min, well under Groq's 30 RPM limit
+_MIN_CALL_INTERVAL = 2.5  # seconds
+_last_call_time: float = 0.0
+
+# Retry delays (seconds) when Groq returns 429 — overridden by retry-after header if present
+_RETRY_DELAYS = [10, 30, 60]
+
+# If Groq says retry-after > this threshold, fail immediately instead of blocking the worker.
+# This handles daily quota exhaustion (retry-after can be 500+ seconds).
+_MAX_RETRY_WAIT = 30.0
 
 
 class ControlledChatGroq(ChatGroq):
-    """ChatGroq avec contrôles de concurrence."""
-    
+    """ChatGroq with global serialization, inter-call pacing, and rate-limit retry."""
+
     async def _agenerate(self, *args, **kwargs) -> Any:
+        global _last_call_time
+
         async with llm_semaphore:
-            logger.debug("[LLM] Semaphore acquired, calling Groq...")
+            # Pace: enforce a minimum gap since the last API call
+            elapsed = time.monotonic() - _last_call_time
+            if elapsed < _MIN_CALL_INTERVAL:
+                await asyncio.sleep(_MIN_CALL_INTERVAL - elapsed)
+
+            for attempt in range(len(_RETRY_DELAYS) + 1):
+                try:
+                    _last_call_time = time.monotonic()
+                    result = await super()._agenerate(*args, **kwargs)
+                    logger.debug("[LLM] Response received from Groq")
+                    return result
+
+                except RateLimitError as exc:
+                    should_retry, wait = _parse_rate_limit(exc, attempt)
+                    if not should_retry:
+                        logger.error(
+                            f"[LLM] Rate limit — Groq said do not retry "
+                            f"(retry-after={wait}s). Failing job immediately."
+                        )
+                        raise
+                    if attempt == len(_RETRY_DELAYS):
+                        logger.error("[LLM] Rate limit exceeded after all retries")
+                        raise
+                    logger.warning(
+                        f"[LLM] Rate limited — retrying in {wait}s "
+                        f"(attempt {attempt + 1}/{len(_RETRY_DELAYS)})"
+                    )
+                    await asyncio.sleep(wait)
+
+                except Exception as exc:
+                    logger.error(f"[LLM ERROR] Groq call failed: {exc}")
+                    raise
+
+
+def _parse_rate_limit(exc: RateLimitError, attempt: int) -> tuple[bool, float]:
+    """
+    Returns (should_retry, wait_seconds).
+
+    Fails immediately (should_retry=False) when:
+    - Groq sets x-should-retry: false, OR
+    - retry-after exceeds _MAX_RETRY_WAIT (daily quota exhausted)
+    """
+    try:
+        response = getattr(exc, "response", None)
+        if response is not None:
+            headers = response.headers
+
+            # Groq explicitly says don't retry
+            if headers.get("x-should-retry", "").lower() == "false":
+                retry_after = _read_retry_after(headers)
+                return False, retry_after or 0.0
+
+            retry_after = _read_retry_after(headers)
+            if retry_after is not None:
+                # Long wait = daily/hourly quota hit → fail fast
+                if retry_after > _MAX_RETRY_WAIT:
+                    logger.warning(
+                        f"[LLM] retry-after={retry_after}s > {_MAX_RETRY_WAIT}s threshold "
+                        f"— daily quota likely exhausted, failing job."
+                    )
+                    return False, retry_after
+                return True, retry_after
+    except Exception:
+        pass
+    return True, _RETRY_DELAYS[min(attempt, len(_RETRY_DELAYS) - 1)]
+
+
+def _read_retry_after(headers) -> float | None:
+    for header in ("retry-after", "x-ratelimit-reset-requests"):
+        val = headers.get(header)
+        if val:
             try:
-                result = await super()._agenerate(*args, **kwargs)
-                logger.debug("[LLM] ✓ Response received from Groq")
-                return result
-            except Exception as e:
-                logger.error(f"[LLM ERROR] Groq call failed: {e}")
-                raise
-def create_llm(temperature: float = 0.3, model: str = "openai/gpt-oss-120b"):
-    return ChatGroq(
+                return float(val)
+            except ValueError:
+                pass
+    return None
+
+
+def create_llm(temperature: float, model: str, max_tokens: int) -> ControlledChatGroq:
+    return ControlledChatGroq(
         groq_api_key=settings.GROQ_API_KEY,
         model=model,
         temperature=temperature,
-        max_tokens=800,
+        max_tokens=max_tokens,
     )
-# # # import asyncio
-# # # import logging
-# # # from typing import Any, Optional
-# # # from langchain_openai import ChatOpenAI
-# # # from app.core.config import settings
-
-# # # logger = logging.getLogger(__name__)
-
-# # # llm_semaphore = asyncio.Semaphore(5)
-
-
-# # # class ControlledAtlasChat(ChatOpenAI):
-# # #     """ChatOpenAI avec contrôles de concurrence pour Atlas Cloud."""
-    
-# # #     async def _agenerate(self, *args, **kwargs) -> Any:
-# # #         async with llm_semaphore:
-# # #             logger.debug("[LLM] Semaphore acquired, calling Atlas Cloud...")
-# # #             try:
-# # #                 result = await super()._agenerate(*args, **kwargs)
-# # #                 logger.debug("[LLM] ✓ Response received from Atlas Cloud")
-# # #                 return result
-# # #             except Exception as e:
-# # #                 logger.error(f"[LLM ERROR] Atlas Cloud call failed: {e}")
-# # #                 raise
-
-
-# # # def create_llm(
-# # #     temperature: float = 0.3,
-# # #     model: str = "openai/gpt-oss-120b",
-# # #     max_tokens: int = 1500
-# # # ) -> ControlledAtlasChat:
-# # #     """
-# # #     Factory pour créer une instance Atlas Cloud.
-    
-# # #     Args:
-# # #         temperature: Température (0.0-1.0)
-# # #         model: Nom du modèle (ex: "openai/gpt-oss-120b")
-# # #         max_tokens: Nombre max de tokens
-# # #     """
-# # #     if not settings.ATLAS_API_KEY:
-# # #         raise ValueError(
-# # #             "ATLAS_API_KEY not configured in .env\n"
-# # #             "Get your key at: https://www.atlascloud.ai"
-# # #         )
-    
-# # #     base_url = getattr(settings, "ATLAS_BASE_URL", "https://api.atlascloud.ai/v1")
-    
-# # #     return ControlledAtlasChat(
-# # #         model=model,
-# # #         temperature=temperature,
-# # #         max_tokens=max_tokens,
-# # #         max_retries=2,
-# # #         api_key=settings.ATLAS_API_KEY,
-# # #         base_url=base_url,
-# # #         timeout=60,
-# # #     )
-
-
-# # # app/llm/llm_control.py
-# # import asyncio
-# # import logging
-# # from typing import Any, Optional
-# # from langchain_openai import ChatOpenAI  # GitHub Models utilise API compatible OpenAI
-# # from app.core.config import settings
-
-# # logger = logging.getLogger(__name__)
-
-# # llm_semaphore = asyncio.Semaphore(5)
-
-
-# # class ControlledGitHubChat(ChatOpenAI):
-# #     """ChatOpenAI avec contrôles de concurrence pour GitHub Models."""
-    
-# #     async def _agenerate(self, *args, **kwargs) -> Any:
-# #         async with llm_semaphore:
-# #             logger.debug("[LLM] Semaphore acquired, calling GitHub Models...")
-# #             try:
-# #                 result = await super()._agenerate(*args, **kwargs)
-# #                 logger.debug("[LLM] ✓ Response received from GitHub Models")
-# #                 return result
-# #             except Exception as e:
-# #                 logger.error(f"[LLM ERROR] GitHub Models call failed: {e}")
-# #                 raise
-
-
-# # def create_llm(
-# #     temperature: float = 0.3,
-# #     model: str = "gpt-4o",  # ou gpt-4o-mini, llama-3.3-70b
-# #     max_tokens: int = 1500
-# # ) -> ControlledGitHubChat:
-# #     """
-# #     Factory pour créer une instance GitHub Models.
-    
-# #     Modèles disponibles:
-# #     - gpt-4o
-# #     - gpt-4o-mini  
-# #     - llama-3.3-70b
-# #     - mistral-large
-# #     - codestral
-# #     """
-# #     if not settings.GITHUB_TOKEN:
-# #         raise ValueError(
-# #             "GITHUB_TOKEN not configured in .env\n"
-# #             "Get your GitHub token with Models access"
-# #         )
-    
-# #     # URL de l'API GitHub Models
-# #     base_url = "https://models.inference.ai.azure.com"
-    
-# #     return ControlledGitHubChat(
-# #         model=model,
-# #         temperature=temperature,
-# #         max_tokens=max_tokens,
-# #         max_retries=2,
-# #         api_key=settings.GITHUB_TOKEN,
-# #         base_url=base_url,
-# #         timeout=60,
-# #     )

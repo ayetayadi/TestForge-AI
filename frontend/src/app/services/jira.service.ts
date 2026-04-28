@@ -16,6 +16,20 @@ export interface JiraProject {
   avatar?: string;
 }
 
+export interface JiraEpic {
+  key: string;
+  summary: string;
+  status?: string;
+}
+
+export interface JiraSprint {
+  id: number;
+  name: string;
+  state: 'active' | 'closed' | 'future';
+  start_date?: string;
+  end_date?: string;
+}
+
 export interface UserStory {
   id: string;
   key: string;
@@ -26,7 +40,7 @@ export interface UserStory {
   assignee: string;
   created: string;
   updated: string;
-  selected?: boolean;   // for UI selection
+  selected?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -44,8 +58,15 @@ export class JiraService {
   }
 
   getProjects(): Observable<JiraProject[]> {
-
     return this.http.get<JiraProject[]>(`${this.apiUrl}/projects`);
+  }
+
+  getEpics(projectKey: string): Observable<JiraEpic[]> {
+    return this.http.get<JiraEpic[]>(`${this.apiUrl}/epics/${projectKey}`);
+  }
+
+  getSprints(projectKey: string): Observable<JiraSprint[]> {
+    return this.http.get<JiraSprint[]>(`${this.apiUrl}/sprints/${projectKey}`);
   }
 
   getUserStories(projectKey: string): Observable<UserStory[]> {

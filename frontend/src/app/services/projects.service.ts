@@ -41,10 +41,18 @@ export class ProjectsService {
     return this.http.get<Project[]>(`${this.apiUrl}`);
   }
 
-  importStories(projectKey: string): Observable<ImportStoriesResponse> {
+  importStories(
+    projectKey: string,
+    epicKey?: string | null,
+    sprintName?: string | null,
+  ): Observable<ImportStoriesResponse> {
+    const params: Record<string, string> = {};
+    if (epicKey) params['epic_key'] = epicKey;
+    if (sprintName) params['sprint_name'] = sprintName;
     return this.http.post<ImportStoriesResponse>(
       `${this.apiUrl}/${projectKey}/import`,
-      {}
+      {},
+      { params },
     );
   }
 
