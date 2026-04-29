@@ -83,7 +83,12 @@ async def create_test_case(db: AsyncSession, data: Dict[str, Any]) -> TestCase:
         if version.decision_status != StoryDecision.APPROVED:
             raise ValueError("Seules les versions approuvées peuvent être utilisées pour créer des tests")
     
-    return await repo.create_test_case(db, data)
+    test_case = await repo.create_test_case(db, data)
+
+    from app.services import testomat_service
+    await testomat_service.push_test_case(test_case)
+
+    return test_case
 
 
 async def update_test_case(db: AsyncSession, test_case_id: str, data: Dict[str, Any]) -> Optional[TestCase]:
