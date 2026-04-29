@@ -117,5 +117,10 @@ class Settings(BaseSettings):
     # =========================
     TEST_APPLICATION_URL: str = "http://localhost:3000"
 
+    # =========================
+    # TESTOMAT.IO CONFIG
+    # =========================
+    TESTOMATIO_API_KEY: str | None = None
+
 
 settings = Settings()

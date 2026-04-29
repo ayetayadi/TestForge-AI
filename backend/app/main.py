@@ -44,6 +44,7 @@ from app.api.test_cases import router as test_cases_router
 from app.api.playwright import router as playwright_router
 from app.api.ai_generate import router as ai_generate_router
 from app.api.dashboard import router as dashboard_router
+from app.api.chatbot import router as chatbot_router
 from app.core.database import Base, engine
 from app.streaming.sse_manager import set_main_loop
 from app.core.model_manager import preload_embedding_model
@@ -130,6 +131,7 @@ app.include_router(test_cases_router)
 app.include_router(playwright_router)
 app.include_router(ai_generate_router)
 app.include_router(dashboard_router)
+app.include_router(chatbot_router)
 
 # =========================
 # HEALTH

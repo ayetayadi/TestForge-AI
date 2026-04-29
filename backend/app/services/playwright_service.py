@@ -156,6 +156,26 @@ async def execute_script(
                 exec_result=exec_result
             )
 
+        # Report to Testomat.io (best-effort, never blocks the main flow)
+        from app.models.test_case import TestCase
+        from app.services import testomat_service
+        tc = await db.get(TestCase, script_version.test_case_id)
+        if tc:
+            testomat_status = (
+                "passed"
+                if exec_result.get("execution_status") in ("passed", "completed")
+                else "failed"
+            )
+            await testomat_service.report_execution(
+                tc_code=tc.tc_code,
+                title=tc.title,
+                status=testomat_status,
+                browser=browser,
+                duration=exec_result.get("duration"),
+                steps=_extract_steps(exec_result.get("raw_messages", [])),
+                error_message=exec_result.get("error"),
+            )
+
         exec_result["test_run_id"] = test_run.id if test_run else None
         exec_result["script_version_id"] = script_version.id
 

@@ -29,7 +29,7 @@ from app.ai_workflows.user_story_refinement.utils.text_processing import (
 )
 from app.llm.llm_control import create_llm
 from app.ai_workflows.user_story_refinement.prompts import IMPROVEMENT_PROMPT
-from .config import LLM_TEMPERATURE, MIN_SCORE_THRESHOLD
+from .config import LLM_TEMPERATURE, MIN_SCORE_THRESHOLD, MAX_ITERATIONS
 
 logger = logging.getLogger(__name__)
 
@@ -132,15 +132,17 @@ class UserStoryRefinementPipeline:
             improvement = await self._call_llm(clean_story, ac, initial)
             improved_story = improvement.improved_story or clean_story
             improved_ac = improvement.acceptance_criteria or ac
-    
+            reasoning = improvement.reasoning
+            iterations = 1
+
             # ── PHASE 3: FINALIZING ──────────────────────────────
             await self._emit(progress_callback, "phase", {
-                "phase": "finalizing", 
+                "phase": "finalizing",
                 "message": "✓ Validating and calculating final score..."
             })
-            
+
             validation = await validate_constraints(clean_story, improved_story, improved_ac)
-    
+
             if not validation.get("is_safe"):
                 logger.warning(f"[PIPELINE] Constraint violation — reverting: {validation.get('violations')}")
                 await self._emit(progress_callback, "phase", {
@@ -151,35 +153,70 @@ class UserStoryRefinementPipeline:
                 return self._build_result(
                     story=clean_story, ac=ac,
                     initial=initial, final=initial,
-                    similarity=1.0, iterations=1, status="safe_revert",
+                    similarity=1.0, iterations=iterations, status="safe_revert",
                     violations=validation.get("violations", []),
-                    reasoning=improvement.reasoning,
+                    reasoning=reasoning,
                     jira_id=jira_id, original_actor=original_actor,
                 )
-    
+
             final, similarity = await asyncio.gather(
                 score_story(improved_story, improved_ac),
                 compare_similarity(clean_story, improved_story),
             )
-    
+
             status = (
                 "success"
                 if final.get("is_testable") and final.get("final_score", 0) >= MIN_SCORE_THRESHOLD
                 else "best_effort"
             )
-    
+
+            # ── RETRY: second pass when best_effort and budget allows ──
+            if status == "best_effort" and MAX_ITERATIONS > 1:
+                logger.info("[PIPELINE] best_effort — retrying with refined issues (iteration 2)")
+                await self._emit(progress_callback, "phase", {
+                    "phase": "improving",
+                    "message": "🔄 Refining story further (second pass)...",
+                })
+                improvement2 = await self._call_llm(improved_story, improved_ac, final)
+                candidate_story = improvement2.improved_story or improved_story
+                candidate_ac = improvement2.acceptance_criteria or improved_ac
+
+                validation2 = await validate_constraints(clean_story, candidate_story, candidate_ac)
+                if validation2.get("is_safe"):
+                    final2, similarity2 = await asyncio.gather(
+                        score_story(candidate_story, candidate_ac),
+                        compare_similarity(clean_story, candidate_story),
+                    )
+                    if final2.get("final_score", 0) > final.get("final_score", 0):
+                        improved_story = candidate_story
+                        improved_ac = candidate_ac
+                        final = final2
+                        similarity = similarity2
+                        reasoning = improvement2.reasoning
+                        iterations = 2
+                        status = (
+                            "success"
+                            if final.get("is_testable") and final.get("final_score", 0) >= MIN_SCORE_THRESHOLD
+                            else "best_effort"
+                        )
+                        logger.info(f"[PIPELINE] Second pass improved score to {final['final_score']:.3f}")
+                    else:
+                        logger.info("[PIPELINE] Second pass did not improve — keeping first result")
+                else:
+                    logger.warning(f"[PIPELINE] Second pass failed constraints — keeping first result")
+
             await self._emit(progress_callback, "phase", {
                 "phase": "done",
                 "message": "✅ Story refinement complete!",
                 "score": final.get("final_score", 0),
                 "similarity": round(similarity, 3),
             })
-    
+
             result = self._build_result(
                 story=improved_story, ac=improved_ac,
                 initial=initial, final=final,
-                similarity=similarity, iterations=1, status=status,
-                reasoning=improvement.reasoning,
+                similarity=similarity, iterations=iterations, status=status,
+                reasoning=reasoning,
                 jira_id=jira_id, original_actor=original_actor,
                 original_story=clean_story,
             )
@@ -197,8 +234,10 @@ class UserStoryRefinementPipeline:
                 "final_score": 0.0,
                 "score": 0.0,
                 "testability_score": 0.0,
+                "invest_score": 0.0,
                 "is_testable": False,
                 "testability_issues": [],
+                "invest_issues": [],
                 "similarity": 1.0,
                 "language_consistent": False,
                 "role_preserved": False,
@@ -226,7 +265,16 @@ class UserStoryRefinementPipeline:
             suggestions="\n".join(f"- {s}" for s in score_result.get("suggestions", [])) or "(none)",
             threshold=MIN_SCORE_THRESHOLD,
         )
-        return await self._llm.ainvoke(prompt)
+        try:
+            return await self._llm.ainvoke(prompt)
+        except Exception as e:
+            # Groq returns 400 when max_tokens cuts the JSON mid-stream.
+            # Fall back: trim reasoning to force a shorter response.
+            if "tool_use_failed" in str(e) or "Failed to parse" in str(e):
+                logger.warning("[PIPELINE] JSON parse error from Groq — retrying with shorter reasoning hint")
+                short_prompt = prompt + "\n\nIMPORTANT: Keep the reasoning field under 80 words."
+                return await self._llm.ainvoke(short_prompt)
+            raise
 
     def _build_result(
         self,
@@ -260,8 +308,10 @@ class UserStoryRefinementPipeline:
             "final_score": round(final.get("final_score", 0.0), 3),
             "score": round(final.get("final_score", 0.0), 3),
             "testability_score": round(final.get("testability_score", 0.0), 3),
+            "invest_score": round(final.get("invest_score", 0.0), 3),
             "is_testable": final.get("is_testable", False),
             "testability_issues": final.get("testability_issues", []),
+            "invest_issues": final.get("invest_issues", []),
             "similarity": round(similarity, 3),
             "language_consistent": language_consistent,
             "role_preserved": role_preserved,
@@ -280,7 +330,7 @@ class UserStoryRefinementPipeline:
         logger.info(
             f"[RESULT] jira={result['jira_id']} "
             f"score {result['initial_score']:.3f} → {result['final_score']:.3f} ({delta:+.3f}) "
-            f"testability={result['testability_score']:.3f} "
+            f"testability={result['testability_score']:.3f} invest={result['invest_score']:.3f} "
             f"status={result['workflow_status']} iter={result['iterations']}"
         )
 
