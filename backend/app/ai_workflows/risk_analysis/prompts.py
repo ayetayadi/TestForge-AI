@@ -1,66 +1,116 @@
 """
-LLM prompt for ISTQB risk analysis — Easy English version.
+Prompts pour le Risk-Based Testing.
+
+Deux prompts :
+  1. RBT_EXPLANATION_PROMPT — Prompt principal : le LLM explique P et I déjà calculés
+  2. RISK_ANALYSIS_PROMPT_FALLBACK — Prompt de secours : le LLM calcule P et I
+     (utilisé uniquement si le ML n'est pas disponible)
 """
 
-RISK_ANALYSIS_PROMPT = """You are a test manager. You analyze risks in user stories.
+# ============================================================
+# PROMPT PRINCIPAL : EXPLICATION
+# ============================================================
+# Le LLM reçoit P et I déjà calculés. Il les EXPLIQUE.
+# Il ne les modifie PAS.
 
-For each story, give two numbers:
-- P (Probability): How likely is a bug in this story? (0.1 = very unlikely → 0.9 = almost certain)
-- I (Impact): How bad if the bug reaches users? (1 = small problem → 5 = very serious)
+RBT_EXPLANATION_PROMPT = """You are a senior test manager specialized in Risk-Based Testing (ISTQB).
 
-USER STORY:
-{story}
+## CONTEXT
+A Machine Learning model has already analyzed the user story and assigned:
+- Probability (P): {probability}/5
+- Impact (I): {impact}/5
+- Risk Score: {risk_score}/25 (P × I)
+- Priority: {priority}
 
-ACCEPTANCE CRITERIA:
+Your job is NOT to change these scores. Your job is to EXPLAIN them.
+
+---
+
+## USER STORY
+{user_story}
+
+## ACCEPTANCE CRITERIA
 {acceptance_criteria}
 
-JIRA CONTEXT:
-- Issue key : {issue_key}
-- Priority  : {jira_priority}
-- Story points: {story_points}
-- Components: {components}
-- Labels    : {labels}
-- Epic      : {epic}
+---
 
-WHEN TO INCREASE PROBABILITY (P):
-  • The feature has complex logic
-  • There are many acceptance criteria
-  • It involves login, payments, or user data
-  • Story points are high (8 or more)
-  • Many components work together
-  • Jira priority is High or Critical
-  • This is a new feature (never tested before)
+## YOUR TASKS
 
-WHEN TO INCREASE IMPACT (I):
-  • All users need this feature
-  • A bug could lose data or money
-  • A bug could break security
-  • There is no backup plan if it fails
-  • It blocks other features from working
+### 1. RISK DESCRIPTION (max 15 words)
+Describe the MOST LIKELY defect scenario for this story.
+Format: "[Component] may [failure mode] causing [consequence]"
+Good example: "Payment gateway timeout may create duplicate charges causing revenue loss"
+Bad example: "The payment module might have some issues that could affect users"
 
-RULES:
-- P must be a number between 0.1 and 0.9 (like 0.3, 0.6, 0.8)
-- I must be a whole number between 1 and 5
+### 2. MITIGATION (max 12 words)
+Propose a concrete test action to detect this risk.
+Start with an action verb.
+Good example: "Test payment with network delays and retry mechanisms"
+Bad example: "Perform thorough testing of the payment functionality"
 
-- description: One short sentence. Simple words. Maximum 15 words.
-  Say what can go wrong.
-  Good example: "Weak login may let hackers access user accounts."
-  Good example: "Wrong price may cause company to lose money."
-  Bad example: "The implementation of the authentication mechanism..." (too long)
+### 3. REASONING (exactly 3 bullet points)
+- Bullet 1: Why is P={probability}/5 justified for this story? (1 sentence)
+- Bullet 2: Why is I={impact}/5 justified for this story? (1 sentence)
+- Bullet 3: What does the score {risk_score}/25 ({priority}) mean for testing? (1 sentence)
 
-- mitigation: One short sentence. Maximum 12 words. Start with an action word.
-  Say how to test it.
-  Good example: "Test login with correct, wrong, and empty passwords."
-  Good example: "Test price with discounts, taxes, and large orders."
-  Bad example: "Perform thorough testing of the authentication workflow..." (too long)
+Example:
+• P=4 is justified because the story involves payment integration with multiple external APIs and complex business rules
+• I=5 is justified because a failure affects all customers, involves real money transactions, and could cause regulatory issues
+• Score 20/25 (CRITICAL) means comprehensive testing is required: unit, integration, E2E, performance, and security tests
 
-- reasoning: Exactly 3 short bullet points. One sentence each.
-  Bullet 1: Why this P?
-  Bullet 2: Why this I?
-  Bullet 3: The calculation result.
-  
-  Example:
-  • P=0.6 because there are many validation rules and conditions
-  • I=3 because wrong price loses money but there is a manual fix
-  • Score = 0.6 × 3 = 1.80 (MEDIUM)
+---
+
+## RULES
+- Do NOT suggest changing P or I values
+- Do NOT add extra bullet points
+- Keep description under 15 words
+- Keep mitigation under 12 words
+- Be specific, not generic
+"""
+
+
+# ============================================================
+# PROMPT DE FALLBACK : CALCUL P ET I
+# ============================================================
+# Utilisé UNIQUEMENT si le ML n'est pas disponible.
+# Le LLM attribue P et I selon les règles du document RBT.
+
+RISK_ANALYSIS_PROMPT_FALLBACK = """You are a test manager. Assess risk for this user story.
+
+## RISK FORMULA
+Risk Score = Probability (1-5) × Impact (1-5)
+
+## WHAT YOU CAN EVALUATE FROM THE TEXT
+
+### PROBABILITY (1-5)
+Look at the story and acceptance criteria. Ask yourself:
+- Does it involve complex logic, algorithms, or external integrations?
+- Does it have many conditions (if/when/unless)?
+- Is it a new feature (words like "new", "create", "migrate")?
+- Does it mention legacy code or refactoring?
+
+→ If many of these are true → Higher P (4-5)
+→ If few of these are true → Lower P (1-2)
+
+### IMPACT (1-5)
+Look at who and what is affected. Ask yourself:
+- Who is affected? All users, customers, or just admins?
+- Is money involved? Payment, transaction, checkout?
+- Is security involved? Passwords, personal data, authentication?
+- Is it public-facing or internal only?
+
+→ If core feature, all users, money, security → Higher I (4-5)
+→ If internal, admin-only, cosmetic → Lower I (1-2)
+
+## USER STORY
+{story}
+
+## ACCEPTANCE CRITERIA
+{acceptance_criteria}
+
+## TASK
+Based ONLY on what you can detect in the text above:
+1. Assign P (1-5) : probability of defects
+2. Assign I (1-5) : impact if defect reaches users
+3. Brief justification (1 sentence each)
 """
