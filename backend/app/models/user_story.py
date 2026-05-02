@@ -95,13 +95,6 @@ class UserStory(Base):
         foreign_keys="UserStoryVersion.user_story_id"
     )
 
-    # Cas de test générés pour cette User Story (matrice de traçabilité)
-    test_cases = relationship(
-        "TestCase",
-        back_populates="user_story",
-        foreign_keys="TestCase.user_story_id"
-    )
-
     # Risques évalués pour cette User Story (analyse §5.2.3)
     risks = relationship(
         "Risk",

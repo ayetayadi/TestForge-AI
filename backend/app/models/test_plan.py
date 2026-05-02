@@ -12,9 +12,6 @@ from app.models.enums import TestPlanStatus
 if TYPE_CHECKING:
     from app.models.jira_project import JiraProject
     from app.models.test_suite import TestSuite
-    from app.models.risk import Risk
-    from app.models.test_case_dependency import TestCaseDependency
-    from app.models.test_execution import TestExecution
 
 
 class TestPlan(Base):
@@ -78,14 +75,9 @@ class TestPlan(Base):
     stakeholders: Mapped[Optional[str]] = mapped_column(Text)
     communication: Mapped[Optional[str]] = mapped_column(Text)
 
-    # ==============================
-    # SNAPSHOTS CALCULÉS AUTOMATIQUEMENT
-    # ==============================
-
-    # Matrice de traçabilité : {us_id → [tc_id, ...]}
-    matrix_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
-    # Couverture : {total_us, covered_us, total_ac, covered_ac, coverage_pct}
-    coverage_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
+    risk_analysis: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    estimation: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    recommendations_detail: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # ==============================
     # STATUT & TRACKING
@@ -112,7 +104,6 @@ class TestPlan(Base):
     # ==============================
     # RELATIONS
     # ==============================
-
     jira_project: Mapped["JiraProject"] = relationship("JiraProject", back_populates="test_plans")
 
     test_suites: Mapped[List["TestSuite"]] = relationship(
@@ -121,23 +112,10 @@ class TestPlan(Base):
         cascade="all, delete-orphan"
     )
 
-    risks: Mapped[List["Risk"]] = relationship(
-        "Risk",
+    test_cases: Mapped[List["TestCase"]] = relationship(
+        "TestCase",
         back_populates="test_plan",
-        order_by="Risk.risk_score.desc()",
-    )
-
-    # Graphe de dépendances scopé à ce plan
-    test_case_dependencies: Mapped[List["TestCaseDependency"]] = relationship(
-        "TestCaseDependency",
-        back_populates="test_plan",
-        cascade="all, delete-orphan"
-    )
-
-    # Exécutions manuelles des tests de ce plan (section 5.5)
-    test_executions: Mapped[List["TestExecution"]] = relationship(
-        "TestExecution",
-        back_populates="test_plan",
+        foreign_keys="TestCase.test_plan_id",
         cascade="all, delete-orphan"
     )
 

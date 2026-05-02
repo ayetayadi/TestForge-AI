@@ -7,7 +7,7 @@ load_dotenv()
 # LLM
 # ============================================================
 LLM_TEMPERATURE = 0.2          # Risk analysis must be precise, not creative
-LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MODEL = "openai/gpt-oss-120b"
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS_RISK", "1500"))
 LLM_TIMEOUT_SECONDS = 60
 

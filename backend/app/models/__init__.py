@@ -9,13 +9,12 @@ from .enums import (
     TestRunStatus, TestResultStatus, StepType, StepStatus,
     ScriptValidationStatus, ScriptSource,
     TestPlanStatus, TestSuiteStatus,
-    TestCaseType, TestExecutionStatus,
+    TestCaseType,
     DefectSeverity, DefectStatus,
     DependencyType,
 )
 from .defect import Defect
 from .test_case import TestCase
-from .test_execution import TestExecution
 from .playwright_script_version import PlaywrightScriptVersion
 from .test_run import TestRun
 from .test_result import TestResult
@@ -45,7 +44,6 @@ __all__ = [
     "TestPlanStatus",
     "TestSuiteStatus",
     "TestCaseType",
-    "TestExecutionStatus",
     "DependencyType",
 
     "DefectSeverity",
@@ -53,7 +51,6 @@ __all__ = [
     "Defect",
 
     "TestCase",
-    "TestExecution",
     "PlaywrightScriptVersion",
     "TestRun",
     "TestResult",

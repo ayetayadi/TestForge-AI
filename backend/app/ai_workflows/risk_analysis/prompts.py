@@ -1,12 +1,12 @@
 """
-LLM prompt for  risk analysis.
+LLM prompt for ISTQB risk analysis — Easy English version.
 """
 
-RISK_ANALYSIS_PROMPT = """You are an ISTQB-certified test manager performing product risk analysis.
+RISK_ANALYSIS_PROMPT = """You are a test manager. You analyze risks in user stories.
 
-Analyze the user story below and estimate the two ISTQB risk factors:
-- P (Probability): likelihood that a defect will occur in this area (0.1 = very unlikely → 0.9 = almost certain)
-- I (Impact): severity of consequences if the defect reaches production (1 = cosmetic → 5 = business-critical / data loss)
+For each story, give two numbers:
+- P (Probability): How likely is a bug in this story? (0.1 = very unlikely → 0.9 = almost certain)
+- I (Impact): How bad if the bug reaches users? (1 = small problem → 5 = very serious)
 
 USER STORY:
 {story}
@@ -22,28 +22,45 @@ JIRA CONTEXT:
 - Labels    : {labels}
 - Epic      : {epic}
 
-ISTQB RISK FACTORS TO CONSIDER:
-
-For PROBABILITY — increase if:
-  • Complex business logic or many branching conditions
-  • Many acceptance criteria (more surface area for defects)
-  • Feature touches authentication, payments, data integrity, permissions
-  • High story points (more code = more risk)
-  • Many components involved (integration risk)
+WHEN TO INCREASE PROBABILITY (P):
+  • The feature has complex logic
+  • There are many acceptance criteria
+  • It involves login, payments, or user data
+  • Story points are high (8 or more)
+  • Many components work together
   • Jira priority is High or Critical
-  • New feature with no prior test history
+  • This is a new feature (never tested before)
 
-For IMPACT — increase if:
-  • Feature used by all users or core workflow (login, checkout, data save)
-  • Failure causes data loss, security breach, financial harm
-  • Feature is legally or contractually required
-  • Failure is visible and blocks other features
-  • No fallback or manual workaround exists
+WHEN TO INCREASE IMPACT (I):
+  • All users need this feature
+  • A bug could lose data or money
+  • A bug could break security
+  • There is no backup plan if it fails
+  • It blocks other features from working
 
 RULES:
-- probability must be a float between 0.1 and 0.9 (e.g. 0.3, 0.6, 0.8)
-- impact must be an integer between 1 and 5
-- description: 1–2 sentences explaining the specific risk identified in this story
-- mitigation: 1–2 concrete testing actions to reduce this risk
-- reasoning: step-by-step justification of your P and I values (3–5 sentences)
+- P must be a number between 0.1 and 0.9 (like 0.3, 0.6, 0.8)
+- I must be a whole number between 1 and 5
+
+- description: One short sentence. Simple words. Maximum 15 words.
+  Say what can go wrong.
+  Good example: "Weak login may let hackers access user accounts."
+  Good example: "Wrong price may cause company to lose money."
+  Bad example: "The implementation of the authentication mechanism..." (too long)
+
+- mitigation: One short sentence. Maximum 12 words. Start with an action word.
+  Say how to test it.
+  Good example: "Test login with correct, wrong, and empty passwords."
+  Good example: "Test price with discounts, taxes, and large orders."
+  Bad example: "Perform thorough testing of the authentication workflow..." (too long)
+
+- reasoning: Exactly 3 short bullet points. One sentence each.
+  Bullet 1: Why this P?
+  Bullet 2: Why this I?
+  Bullet 3: The calculation result.
+  
+  Example:
+  • P=0.6 because there are many validation rules and conditions
+  • I=3 because wrong price loses money but there is a manual fix
+  • Score = 0.6 × 3 = 1.80 (MEDIUM)
 """

@@ -10,7 +10,6 @@ from app.models.enums import DependencyType
 
 if TYPE_CHECKING:
     from app.models.test_case import TestCase
-    from app.models.test_plan import TestPlan
 
 
 class TestCaseDependency(Base):
@@ -26,11 +25,10 @@ class TestCaseDependency(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
 
-    # Scoper le graphe à un test plan (optionnel)
-    test_plan_id: Mapped[Optional[str]] = mapped_column(
+    test_plan_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("test_plans.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
         index=True
     )
 
@@ -78,21 +76,15 @@ class TestCaseDependency(Base):
         back_populates="target_dependencies",
         foreign_keys=[target_test_case_id]
     )
-
-    test_plan: Mapped[Optional["TestPlan"]] = relationship(
-        "TestPlan", back_populates="test_case_dependencies"
-    )
-
     # ==============================
     # CONTRAINTES & INDEX
     # ==============================
 
     __table_args__ = (
         UniqueConstraint(
-            "test_plan_id", "source_test_case_id", "target_test_case_id",
+            "source_test_case_id", "target_test_case_id",
             name="uq_dependency_per_plan"
         ),
         Index("idx_dep_source", "source_test_case_id"),
         Index("idx_dep_target", "target_test_case_id"),
-        Index("idx_dep_plan", "test_plan_id"),
     )

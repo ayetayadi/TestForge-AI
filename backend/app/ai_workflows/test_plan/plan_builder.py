@@ -86,8 +86,8 @@ def recommend_test_types(risk_summary: Dict[str, Any], stories_text: str = "") -
         reasoning: List[str]
     """
     types: list = ["functional"]
-    levels: list = ["system", "acceptance"]
-    reasons: list = ["functional tests are always required"]
+    levels: list = ["system", "acceptance", "e2e"]
+    reasons: list = ["functional tests are always required",  "e2e execution via Playwright MCP is the target" ]
 
     all_text = (stories_text + " " + " ".join(risk_summary.get("all_descriptions", []))).lower()
 
@@ -179,7 +179,6 @@ def sanitize_list(values: List[str], allowed: set) -> List[str]:
     """Keep only allowed values, lowercase, deduped."""
     return list(dict.fromkeys(v.lower() for v in values if v.lower() in allowed))
 
-
 def build_plan_record(
     llm_output: Dict[str, Any],
     risk_summary: Dict[str, Any],
@@ -188,14 +187,17 @@ def build_plan_record(
     scope_type: str,
     scope_refs: List[str],
     environment_override: Optional[str] = None,
+    user_stories: List[Dict[str, Any]] = None,  # ← NOUVEAU paramètre
+    recommendations: Dict[str, Any] = None,      # ← NOUVEAU paramètre
 ) -> Dict[str, Any]:
     """
     Merge LLM draft with computed data into a dict ready for TestPlan persistence.
-    Sanitizes test_types, test_levels, and environment against allowed values.
-    Status is set to AI_PROPOSED (waiting for tester validation).
+    ALL computed fields are now VISIBLE in the final record (no underscore prefixes).
     """
     now = datetime.now(timezone.utc)
+    user_stories = user_stories or []
 
+    # ... sanitize environment, test_types, test_levels (existant) ...
     env = (environment_override or llm_output.get("environment", "staging")).lower()
     if env not in VALID_ENVIRONMENTS:
         env = "staging"
@@ -212,7 +214,103 @@ def build_plan_record(
     if scope not in {"epic", "sprint", "release", "manual", "spec_document"}:
         scope = "manual"
 
+    # ============================================================
+    # SECTION VISIBLE 1 : ANALYSE DES RISQUES DÉTAILLÉE
+    # ============================================================
+    
+    # Mapping US → Risque (pour le tableau de traçabilité)
+    risk_mapping_table = []
+    for story in user_stories:
+        risk_info = {
+            "issue_key": story.get("issue_key", "?"),
+            "title": story.get("title", "")[:80],
+            "risk_level": story.get("risk_level", "unknown"),
+            "risk_score": story.get("risk_score", 0.0),
+            "risk_description": story.get("risk_description", ""),
+            "probability": story.get("probability", None),
+            "impact": story.get("impact", None),
+        }
+        risk_mapping_table.append(risk_info)
+    
+    # Trier par risque décroissant
+    risk_mapping_table.sort(key=lambda x: x["risk_score"], reverse=True)
+    
+    # Distribution pour graphique
+    risk_distribution = {
+        "critical": risk_summary["counts"].get("critical", 0),
+        "high": risk_summary["counts"].get("high", 0),
+        "medium": risk_summary["counts"].get("medium", 0),
+        "low": risk_summary["counts"].get("low", 0),
+        "total": sum(risk_summary["counts"].values()),
+        "high_risk_ratio": round(risk_summary.get("high_risk_ratio", 0.0), 2),
+    }
+    
+    # Formules de calcul des risques
+    risk_formulas = {
+        "risk_score": "Risk Score = Probability × Impact",
+        "probability_scale": "Probability: 0.0 (impossible) → 1.0 (certain)",
+        "impact_scale": "Impact: 1 (très faible) → 5 (catastrophique)",
+        "thresholds": {
+            "critical": "Risk Score ≥ 4.0",
+            "high": "2.5 ≤ Risk Score < 4.0",
+            "medium": "1.0 ≤ Risk Score < 2.5",
+            "low": "Risk Score < 1.0",
+        },
+    }
+
+    # ============================================================
+    # SECTION VISIBLE 2 : ESTIMATION PERT DÉTAILLÉE
+    # ============================================================
+    
+    # Détail du calcul PERT par niveau de risque
+    pert_details = {
+        "formula": "E = (O + 4 × M + P) / 6",
+        "inputs": {
+            "optimistic": duration["optimistic"],
+            "most_likely": duration["realistic"],
+            "pessimistic": duration["pessimistic"],
+        },
+        "calculation": duration.get("formula", ""),
+        "standard_deviation": f"SD = (P - O) / 6 = ({duration['pessimistic']} - {duration['optimistic']}) / 6 = {round((duration['pessimistic'] - duration['optimistic']) / 6, 1)}",
+        "confidence_interval": f"{duration['realistic']} ± {round((duration['pessimistic'] - duration['optimistic']) / 6, 1)} working days",
+        "breakdown_by_risk": [],
+    }
+    
+    # Breakdown par niveau de risque
+    if user_stories:
+        for level in ["critical", "high", "medium", "low"]:
+            count = risk_summary["counts"].get(level, 0)
+            if count > 0 and level in DAYS_PER_STORY:
+                days = DAYS_PER_STORY[level]
+                pert_details["breakdown_by_risk"].append({
+                    "level": level,
+                    "story_count": count,
+                    "days_per_story_optimistic": days["optimistic"],
+                    "days_per_story_realistic": days["realistic"],
+                    "days_per_story_pessimistic": days["pessimistic"],
+                    "subtotal_optimistic": count * days["optimistic"],
+                    "subtotal_realistic": count * days["realistic"],
+                    "subtotal_pessimistic": count * days["pessimistic"],
+                })
+
+    # ============================================================
+    # SECTION VISIBLE 3 : RECOMMENDATIONS DÉTAILLÉES
+    # ============================================================
+    
+    recommendations_detail = {}
+    if recommendations:
+        recommendations_detail = {
+            "test_types": recommendations.get("test_types", []),
+            "test_levels": recommendations.get("test_levels", []),
+            "reasoning": recommendations.get("reasoning", []),
+        }
+
+    # ============================================================
+    # ASSEMBLAGE FINAL
+    # ============================================================
+    
     return {
+        # Champs existants (base de données)
         "project_id": project_id,
         "title": llm_output.get("title", "Test Plan"),
         "description": llm_output.get("description", ""),
@@ -229,16 +327,29 @@ def build_plan_record(
         "approach": llm_output.get("approach", ""),
         "assumptions": llm_output.get("assumptions", ""),
         "constraints": llm_output.get("constraints", ""),
-        "status": "ai_proposed",
-        "ai_draft_generated_at": now,
-        # Extra metadata (not persisted as columns, used by the API layer)
-        "_duration": duration,
-        "_risk_summary": {
-            "counts": risk_summary["counts"],
-            "high_risk_ratio": round(risk_summary["high_risk_ratio"], 2),
-            "top_risks": risk_summary["top_risks"],
-        },
-        "_reasoning": llm_output.get("reasoning", ""),
         "stakeholders": llm_output.get("stakeholders", ""),
         "communication": llm_output.get("communication", ""),
+        "status": "ai_proposed",
+        "ai_draft_generated_at": now,
+        
+        # ========================================================
+        # NOUVEAUX CHAMPS VISIBLES (à stocker en BDD ou JSON field)
+        # ========================================================
+        
+        # Section Risques (TOUT est visible)
+        "risk_analysis": {
+            "distribution": risk_distribution,
+            "formulas": risk_formulas,
+            "mapping_table": risk_mapping_table,  # ← Tableau US → Risque
+            "top_risks": risk_summary.get("top_risks", []),
+        },
+        
+        # Section Estimation (TOUT est visible)
+        "estimation": pert_details,
+        
+        # Section Recommandations
+        "recommendations_detail": recommendations_detail,
+        
+        # Raisonnement IA
+        "ai_reasoning": llm_output.get("reasoning", ""),
     }

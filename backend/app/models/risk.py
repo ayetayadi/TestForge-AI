@@ -8,9 +8,7 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.models.test_plan import TestPlan
     from app.models.user_story import UserStory
-    from app.models.jira_project import JiraProject
 
 
 class Risk(Base):
@@ -20,24 +18,10 @@ class Risk(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
 
-    project_id: Mapped[str] = mapped_column(
+    user_story_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("jira_projects.id", ondelete="CASCADE"),
+        ForeignKey("user_stories.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
-    )
-
-    test_plan_id: Mapped[Optional[str]] = mapped_column(
-        String(36),
-        ForeignKey("test_plans.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-
-    user_story_id: Mapped[Optional[str]] = mapped_column(
-        String(36),
-        ForeignKey("user_stories.id", ondelete="SET NULL"),
-        nullable=True,
         index=True
     )
 
@@ -80,8 +64,6 @@ class Risk(Base):
     # ==============================
     # RELATIONS
     # ==============================
-    jira_project: Mapped["JiraProject"] = relationship("JiraProject", back_populates="risks")
-    test_plan: Mapped[Optional["TestPlan"]] = relationship("TestPlan", back_populates="risks")
     user_story: Mapped[Optional["UserStory"]] = relationship("UserStory", back_populates="risks")
 
     # ==============================
@@ -110,8 +92,6 @@ class Risk(Base):
     # INDEX
     # ==============================
     __table_args__ = (
-        Index("idx_risk_project_id", "project_id"),
-        Index("idx_risk_plan_id", "test_plan_id"),
         Index("idx_risk_user_story_id", "user_story_id"),
         Index("idx_risk_level", "level"),
         Index("idx_risk_score", "risk_score"),

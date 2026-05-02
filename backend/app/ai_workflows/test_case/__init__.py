@@ -1,6 +1,11 @@
 from .pipeline import TestCasePipeline, get_pipeline, reset_pipeline
-from .gherkin_generator import validate_gherkin, parse_gherkin_steps, build_tc_code
-from .coverage_checker import check_ac_coverage, validate_explicit_coverage
+from .test_case_builder import validate_gherkin, parse_gherkin_steps, build_tc_code
+from .coverage_checker import (
+    validate_explicit_coverage,
+    compute_risk_coverage,
+    compute_requirements_coverage,
+    suggest_hints,
+)
 
 __all__ = [
     "TestCasePipeline",
@@ -9,6 +14,8 @@ __all__ = [
     "validate_gherkin",
     "parse_gherkin_steps",
     "build_tc_code",
-    "check_ac_coverage",
     "validate_explicit_coverage",
+    "compute_risk_coverage",
+    "compute_requirements_coverage",
+    "suggest_hints",
 ]

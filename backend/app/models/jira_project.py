@@ -55,10 +55,3 @@ class JiraProject(Base):
         cascade="all, delete-orphan"
     )
 
-    risks: Mapped[list["Risk"]] = relationship(
-        "Risk",
-        back_populates="jira_project",
-        cascade="all, delete-orphan",
-        order_by="Risk.risk_score.desc()",
-    )
-

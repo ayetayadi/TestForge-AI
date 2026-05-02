@@ -86,33 +86,94 @@
     <div class="tcd-layout">
 
       <!-- ══ LEFT ══ User Story ────────────────────────────────────────────── -->
-      <aside class="tcd-panel tcd-panel--left">
+<!-- ══ LEFT ══ User Story ────────────────────────────────────────────── -->
+<aside class="tcd-panel tcd-panel--left">
 
-        <div class="panel-header">
-          <svg class="panel-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+    <div class="panel-header">
+        <svg class="panel-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/>
-          </svg>
-          <span class="panel-title">User Story</span>
-        </div>
+        </svg>
+        <span class="panel-title">User Story</span>
+    </div>
 
-        @if (testCase.issue_key) {
-          <div class="us-key-badge">{{ testCase.issue_key }}</div>
-        }
+    @if (testCase.issue_key) {
+        <div class="us-key-badge">{{ testCase.issue_key }}</div>
+    }
 
-        @if (testCase.user_story_title) {
-          <p class="us-story-title">{{ testCase.user_story_title }}</p>
-        } @else {
-          <p class="us-empty">No linked user story</p>
-        }
+    @if (testCase.user_story_title) {
+        <p class="us-story-title">{{ testCase.user_story_title }}</p>
+    } @else {
+        <p class="us-empty">No linked user story</p>
+    }
 
-        @if (testCase.project_name) {
-          <div class="us-meta-row">
+    @if (testCase.project_name) {
+        <div class="us-meta-row">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4zm7 5a1 1 0 10-2 0v1H8a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd"/>
+                <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4zm7 5a1 1 0 10-2 0v1H8a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd"/>
             </svg>
             {{ testCase.project_name }}
-          </div>
-        }
+        </div>
+    }
+
+    <!-- ✅ STORY SOURCE INFO -->
+    @if (testCase.story_details) {
+        <div class="us-divider"></div>
+        <div class="us-story-source">
+            <span class="source-label">Story Source</span>
+            @if (testCase.story_details.source === 'approved') {
+                <div class="source-badge source-approved">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
+                    </svg>
+                    Approved Version v{{ testCase.story_details.version_number }}
+                </div>
+            } @else {
+                <div class="source-badge source-original">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+                    </svg>
+                    Original Story
+                </div>
+            }
+            
+            @if (testCase.story_details.has_approved_version && testCase.story_details.approved_version && testCase.story_details.source === 'original') {
+                <div class="source-note">
+                    ⚠️ An approved version (v{{ testCase.story_details.approved_version.version_number }}) exists but was not used
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ✅ RISKS SECTION -->
+    @if (testCase.risks && testCase.risks.length > 0) {
+        <div class="us-divider"></div>
+        <div class="us-risks">
+            <span class="risks-label">
+                Linked Risks ({{ testCase.risks.length }})
+            </span>
+            @for (risk of testCase.risks; track risk.id) {
+                <div class="risk-item" [class]="'risk-' + risk.level">
+                    <div class="risk-header">
+                        <span class="risk-level-badge" [class]="'level-' + risk.level">
+                            {{ risk.level }}
+                        </span>
+                    </div>
+                    <p class="risk-description">{{ risk.description }}</p>
+                    @if (risk.mitigation) {
+                        <div class="risk-mitigation">
+                            <span class="mitigation-label">Mitigation:</span>
+                            {{ risk.mitigation }}
+                        </div>
+                    }
+                    <div class="risk-meta">
+                        <span>Score: {{ risk.risk_score }}</span>
+                        <span>Impact: {{ risk.impact }}/5</span>
+                        <span>Probability: {{ (risk.probability * 100).toFixed(0) }}%</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 
         <div class="us-divider"></div>
 
@@ -128,6 +189,13 @@
               {{ testCase.priority || 'medium' }}
             </span>
           </div>
+          <!-- Dans la section tc-meta-list, après la priorité -->
+<div class="tc-meta-item">
+  <span class="tc-meta-key">Test Type</span>
+  <span class="test-type-badge" [class]="getTestTypeClass(testCase.test_type)">
+    {{ testCase.test_type || 'Not specified' }}
+  </span>
+</div>
           <div class="tc-meta-item">
             <span class="tc-meta-key">Status</span>
             <span class="status-badge" [class.active]="testCase.is_active">
@@ -234,7 +302,7 @@
                 </div>
                 @if (!isEditing) {
                   <ul class="cond-list cond-list--pre">
-                    @for (p of preconditions; track $index) {
+                    @for (p of visiblePreconditions; track $index) {
                       <li>{{ p }}</li>
                     }
                   </ul>
@@ -282,7 +350,7 @@
                       <div class="step-item">
                         <div class="step-num-col">
                           <div class="step-num">{{ step.order }}</div>
-                          @if (!last && $index < visibleSteps.length - 1) { 
+                          @if (!last) {
                             <div class="step-line"></div>
                           }
                         </div>

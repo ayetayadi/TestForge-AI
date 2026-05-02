@@ -48,23 +48,26 @@ class TestPlanService:
         """
         Generate an AI test plan draft from existing risk analysis results.
         Creates a new TestPlan with status=AI_PROPOSED.
+        Supports sprint/epic filtering.
         """
-        logger.info(f"[TEST PLAN SERVICE] Generating AI draft for project {request.project_id}")
-
+        logger.info(
+            f"[TEST PLAN SERVICE] Generating AI draft for project {request.project_id}"
+            f" | sprints={request.sprint_ids} | epics={request.epic_keys}"
+        )
+    
         # --- Fetch project info ---
         project = await self._get_project(request.project_id)
-        project_name = project.name if hasattr(project, "name") else request.project_id
-        project_key = project.key if hasattr(project, "key") else "PROJ"
-
-        # --- Fetch risks for this project ---
+        project_name = project.project_name if hasattr(project, "project_name") else str(request.project_id)
+        project_key = project.project_key if hasattr(project, "project_key") else "PROJ"
+    
+        # --- 1. Fetch accepted risks ---
         risk_repo = RiskRepository(self.db)
-        from app.schemas.risk_schema import RiskFilters
-        filters = RiskFilters(is_accepted=True)
-        risks_list = await risk_repo.get_by_project(request.project_id, filters)
-
-        if not risks_list:
-            # Vérifier s'il y a des risques en attente
-            all_risks = await risk_repo.get_by_project(request.project_id)
+        
+        # Récupère les risques acceptés du projet
+        all_risks = await risk_repo.get_by_project(request.project_id)
+        accepted_risks = [r for r in all_risks if r.is_accepted == True]
+        
+        if not accepted_risks:
             pending_count = sum(1 for r in all_risks if r.is_accepted is None)
             
             if pending_count > 0:
@@ -78,24 +81,49 @@ class TestPlanService:
                     "No risk analysis results found for this project. "
                     "Run Risk Analysis first, then review and accept risks before generating a Test Plan."
                 )
-        
-        risks = [self._risk_to_dict(r) for r in risks_list[: request.limit_risks]]
-
-        accepted_user_story_ids = list(set(r.user_story_id for r in risks_list if r.user_story_id))
+    
+        # --- 2. Convertir les risques en dicts (limités) ---
+        risks = [self._risk_to_dict(r) for r in accepted_risks[:request.limit_risks]]
+    
+        # --- 3. Construire la map risques → user_story_id ---
+        risks_map = {}
+        for r in accepted_risks:
+            if r.user_story_id:
+                risks_map[r.user_story_id] = self._risk_to_dict(r)
+    
+        # --- 4. Récupérer les User Stories liées aux risques acceptés ---
+        accepted_user_story_ids = list(set(r.user_story_id for r in accepted_risks if r.user_story_id))
         stories_raw = await get_user_stories_by_project_id(self.db, request.project_id)
+        
+        # Filtrer par sprint/epic si spécifié
+        filtered_stories = []
+        for s in stories_raw:
+            if s.id not in accepted_user_story_ids:
+                continue
+            
+            # Filtre sprint
+            if request.sprint_ids and s.sprint not in request.sprint_ids:
+                continue
+            
+            # Filtre epic
+            if request.epic_keys:
+                epic_match = s.epic_key in request.epic_keys or s.epic_name in request.epic_keys
+                if not epic_match:
+                    continue
+            
+            filtered_stories.append(s)
+        
         user_stories = [
-            self._story_to_dict(s) 
-            for s in stories_raw 
-            if s.id in accepted_user_story_ids
-        ][: request.limit_stories]
-
-        if not risks:
+            self._story_to_dict(s, risk_info=risks_map.get(s.id))
+            for s in filtered_stories[:request.limit_stories]
+        ]
+    
+        if not user_stories:
             raise ValueError(
-                "No risk analysis results found for this project. "
-                "Run Risk Analysis first before generating a Test Plan."
+                "No user stories found with accepted risks matching the specified filters."
             )
-
-        # --- Run AI pipeline ---
+    
+        # --- 5. Run AI pipeline ---
         pipeline = get_pipeline()
         result = await pipeline.run(
             project_name=project_name,
@@ -107,66 +135,57 @@ class TestPlanService:
             scope_refs=request.scope_refs,
             environment=request.environment,
         )
-
+    
         if result.get("workflow_status") == "error":
             raise ValueError(f"AI generation failed: {result.get('error')}")
-
-        # --- Persist test plan ---
-        now = datetime.now(timezone.utc)
-        ai_fields = {
-            k: result.get(k)
-            for k in [
-                "title", "description", "objective", "in_scope", "out_of_scope",
-                "test_types", "test_levels", "environment", "entry_criteria",
-                "exit_criteria", "approach", "assumptions", "constraints",
-                "stakeholders", "communication", "scope_type", "scope_refs",
-            ]
-        }
-        ai_fields["scope_type"] = request.scope_type
-        ai_fields["scope_refs"] = request.scope_refs
-
+    
+        # --- 6. Persist test plan ---
         create_data = TestPlanCreate(
             project_id=request.project_id,
-            title=ai_fields.get("title") or f"Test Plan — {project_name}",
-            description=ai_fields.get("description"),
-            objective=ai_fields.get("objective"),
-            scope_type=ai_fields.get("scope_type"),
-            scope_refs=ai_fields.get("scope_refs") or [],
-            in_scope=ai_fields.get("in_scope"),
-            out_of_scope=ai_fields.get("out_of_scope"),
-            test_types=ai_fields.get("test_types") or [],
-            test_levels=ai_fields.get("test_levels") or [],
-            environment=ai_fields.get("environment"),
-            entry_criteria=ai_fields.get("entry_criteria"),
-            exit_criteria=ai_fields.get("exit_criteria"),
-            approach=ai_fields.get("approach"),
-            assumptions=ai_fields.get("assumptions"),
-            constraints=ai_fields.get("constraints"),
-            stakeholders=ai_fields.get("stakeholders"),
-            communication=ai_fields.get("communication"),
+            sprint_ids=request.sprint_ids,
+            epic_keys=request.epic_keys,
+            require_accepted_risks=True,
+            title=result.get("title") or f"Test Plan — {project_name}",
+            description=result.get("description"),
+            objective=result.get("objective"),
+            scope_type=request.scope_type,
+            scope_refs=request.scope_refs or [],
+            in_scope=result.get("in_scope"),
+            out_of_scope=result.get("out_of_scope"),
+            test_types=result.get("test_types") or [],
+            test_levels=result.get("test_levels") or [],
+            environment=request.environment or result.get("environment"),
+            entry_criteria=result.get("entry_criteria"),
+            exit_criteria=result.get("exit_criteria"),
+            approach=result.get("approach"),
+            assumptions=result.get("assumptions"),
+            constraints=result.get("constraints"),
+            stakeholders=result.get("stakeholders"),
+            communication=result.get("communication"),
+            risk_analysis=result.get("risk_analysis"),
+            estimation=result.get("estimation"),
+            recommendations_detail=result.get("recommendations_detail"),
         )
-
+    
         plan = await self.repository.create(create_data)
+        
+        now = datetime.now(timezone.utc)
         plan.status = "ai_proposed"
         plan.ai_draft_generated_at = now
         await self.db.flush()
         await self.db.refresh(plan)
-
-        risk_repo = RiskRepository(self.db)
-        for risk in risks_list:
-            await risk_repo.set_test_plan_id(risk.id, plan.id)
-
+    
         await self.db.commit()
-
+    
         logger.info(f"[TEST PLAN SERVICE] AI draft created: plan_id={plan.id}")
         return GenerateTestPlanResponse(
             test_plan=TestPlanResponse.model_validate(plan),
             recommendations=result.get("recommendations"),
             workflow_status="success",
         )
-
+    
     async def regenerate_ai_draft(self, plan_id: str) -> GenerateTestPlanResponse:
-        """Regenerate AI draft for an existing test plan (overwrite AI fields)."""
+        """Regenerate AI draft for an existing test plan."""
         plan = await self.repository.get_by_id(plan_id)
         if not plan:
             raise ValueError(f"Test plan {plan_id} not found")
@@ -178,7 +197,6 @@ class TestPlanService:
             environment=plan.environment,
         )
 
-        # Delete old plan and create fresh
         await self.repository.delete(plan_id)
         await self.db.commit()
 
@@ -197,10 +215,30 @@ class TestPlanService:
     async def get_test_plans_by_project(
         self,
         project_id: str,
+        sprint_ids: Optional[List[str]] = None,
+        epic_keys: Optional[List[str]] = None,
         page: int = 1,
         page_size: int = 20,
     ) -> TestPlanListResponse:
-        items, total = await self.repository.get_by_project(project_id, page, page_size)
+        """Récupère les Test Plans avec filtres sprint/epic."""
+        items, total = await self.repository.get_by_project(
+            project_id, sprint_ids, epic_keys, page, page_size
+        )
+        pagination = TestPlanRepository.compute_pagination(total, page, page_size)
+        return TestPlanListResponse(
+            items=[TestPlanResponse.model_validate(p) for p in items],
+            **pagination,
+        )
+
+    async def get_all_test_plans(
+        self,
+        project_id: Optional[str] = None,
+        status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> TestPlanListResponse:
+        """Récupère tous les Test Plans avec filtres."""
+        items, total = await self.repository.get_all(project_id, status, page, page_size)
         pagination = TestPlanRepository.compute_pagination(total, page, page_size)
         return TestPlanListResponse(
             items=[TestPlanResponse.model_validate(p) for p in items],
@@ -233,7 +271,7 @@ class TestPlanService:
         return TestPlanResponse.model_validate(plan)
 
     async def reject_test_plan(self, plan_id: str) -> TestPlanResponse:
-        """Reset plan back to draft (QA rejected the AI proposal)."""
+        """Reset plan back to draft."""
         plan = await self.repository.get_by_id(plan_id)
         if not plan:
             raise ValueError(f"Test plan {plan_id} not found")
@@ -250,6 +288,12 @@ class TestPlanService:
             await self.db.commit()
         return deleted
 
+    async def delete_test_plans_by_project(self, project_id: str) -> int:
+        """Supprime tous les Test Plans d'un projet."""
+        count = await self.repository.delete_by_project(project_id)
+        await self.db.commit()
+        return count
+    
     # ============================================================
     # AI EMAIL BODY GENERATION
     # ============================================================
@@ -472,12 +516,23 @@ Subject: <subject here>
         }
 
     @staticmethod
-    def _story_to_dict(story) -> dict:
-        return {
+    def _story_to_dict(story, risk_info: dict = None) -> dict:
+        result = {
             "issue_key": getattr(story, "issue_key", ""),
             "title": getattr(story, "title", getattr(story, "summary", "")),
             "acceptance_criteria": getattr(story, "acceptance_criteria", []),
         }
+        if risk_info:
+            result.update({
+                "risk_level": risk_info.get("level", "unknown"),
+                "risk_score": risk_info.get("risk_score", 0.0),
+                "risk_description": risk_info.get("description", ""),
+                "risk_mitigation": risk_info.get("mitigation", ""),
+                "probability": risk_info.get("probability", None),
+                "impact": risk_info.get("impact", None),
+            })
+        
+        return result
 
     @staticmethod
     def _build_jira_description(plan: TestPlan) -> str:
@@ -647,3 +702,4 @@ Subject: <subject here>
     </html>'''
         
         return html
+    

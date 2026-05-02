@@ -68,7 +68,7 @@ export class TestCaseDetailComponent implements OnInit {
     this.isLoading = true;
     this.testCaseService.getTestCaseById(id).subscribe({
       next: (testCase) => {
-        this.testCase = testCase;  // ← Utiliser directement testCase
+        this.testCase = testCase;
         this.initForm();
         this.isLoading = false;
       },
@@ -324,28 +324,37 @@ resetPostconditionsView() {
 
   get tagCoverage(): { ac: number; positive: number; negative: number; boundary: number; edge: number } {
     const tags = (this.testCase?.tags || []).map(t => t.toLowerCase());
+    const testType = (this.testCase?.test_type || '').toLowerCase();
+
+    const matchesType = (keyword: string) =>
+      testType.includes(keyword) || tags.some(t => t.includes(keyword));
+
     return {
       ac:       this.testCase?.expected_results?.length ? 100 : 0,
-      positive: tags.some(t => t.includes('positive') || t === 'smoke') ? 100 : 0,
-      negative: tags.some(t => t.includes('negative')) ? 100 : 0,
-      boundary: tags.some(t => t.includes('boundary')) ? 100 : 0,
-      edge:     tags.some(t => t.includes('edge')) ? 100 : 0,
+      positive: matchesType('positive') || testType === 'smoke' || tags.includes('smoke') ? 100 : 0,
+      negative: matchesType('negative') ? 100 : 0,
+      boundary: matchesType('boundary') ? 100 : 0,
+      edge:     matchesType('edge') ? 100 : 0,
     };
   }
 
   get coverageScore(): number {
     const c = this.tagCoverage;
-    const vals = [c.ac, c.positive, c.negative, c.boundary, c.edge];
+    const hasSteps = (this.testCase?.steps?.length ?? 0) > 0;
+    const typeScore = [c.positive, c.negative, c.boundary, c.edge].some(v => v === 100) ? 100 : 0;
+    const vals = [c.ac, hasSteps ? 100 : 0, typeScore];
     return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
   }
 
   get gaps(): string[] {
     const result: string[] = [];
     const c = this.tagCoverage;
-    if (!c.ac)       result.push('Missing: expected results');
-    if (!c.negative) result.push('Missing: negative test');
-    if (!c.boundary) result.push('Missing: boundary test');
-    if (!c.edge)     result.push('Missing: edge case test');
+    const hasSteps = (this.testCase?.steps?.length ?? 0) > 0;
+    const typeIsSet = [c.positive, c.negative, c.boundary, c.edge].some(v => v === 100);
+
+    if (!c.ac)      result.push('Missing: expected results');
+    if (!hasSteps)  result.push('Missing: test steps');
+    if (!typeIsSet) result.push('Missing: test type tag (positive/negative/boundary/edge)');
     return result;
   }
 
@@ -375,6 +384,18 @@ resetPostconditionsView() {
       key,
       value: String(value),
     }));
+  }
+
+  getTestTypeClass(testType: string | null): string {
+    const map: Record<string, string> = {
+      positive:  'type-positive',
+      negative:  'type-negative',
+      boundary:  'type-boundary',
+      edge:      'type-edge',
+      edge_case: 'type-edge',
+      smoke:     'type-smoke',
+    };
+    return map[testType?.toLowerCase() ?? ''] ?? 'type-default';
   }
 
   getTagClass(tag: string): string {

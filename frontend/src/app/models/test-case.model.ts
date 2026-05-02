@@ -53,6 +53,46 @@ export enum TestCaseStatus {
 
 export type ExecutionStatus = 'passed' | 'failed' | 'completed' | 'error';
 
+// ============================================
+// INTERFACES POUR LES NOUVEAUX CHAMPS
+// ============================================
+
+export interface ApprovedVersion {
+  id: string;
+  version_number: number;
+  decision_status: string;
+  improved_story: string;
+  final_score: number | null;
+  testability_score: number | null;
+  is_testable: boolean | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface StoryDetails {
+  source: 'original' | 'approved' | null;
+  version_number: number | null;
+  story_text: string | null;
+  acceptance_criteria: string[];
+  has_approved_version: boolean;
+  approved_version: ApprovedVersion | null;
+}
+
+export interface RiskInfo {
+  id: string;
+  description: string;
+  mitigation: string | null;
+  probability: number;
+  impact: number;
+  risk_score: number;
+  level: 'critical' | 'high' | 'medium' | 'low';
+  is_accepted: boolean | null;
+  is_ai_generated: boolean;
+  source: string | null;
+  source_story_text: string | null;
+  created_at: string | null;
+}
+
 export interface Locator {
   name: string;
   selector: string;
@@ -65,18 +105,28 @@ export interface TestStep {
   expected?: string;
 }
 
+// ✅ Interface alignée avec le backend (MISE À JOUR)
 export interface TestCase {
   id: string;
   tc_code: string;
   title: string;
   description: string | null;
   priority: string | null;
-  user_story_id: string | null;
-  user_story_version_id: string | null;
-  issue_key: string | null;
-  user_story_title: string | null;
+  test_type: string | null;
+  
+  // Suite & Plan
+  test_suite_id: string | null;     
+  test_suite_title: string | null;
+  test_plan_id: string | null;
+  test_plan_title: string | null;
   project_id: string | null;
-  project_name: string | null;
+  
+  // ✅ NOUVEAUX CHAMPS - Story & Risks
+  story_details: StoryDetails | null;
+  risks: RiskInfo[] | null;
+  risks_count: number | null;
+  
+  // Contenu structuré
   tags: string[] | null;
   preconditions: string[] | null;
   postconditions: string[] | null;
@@ -85,9 +135,19 @@ export interface TestCase {
   test_data: Record<string, any> | null;
   expected_results: string[] | null;
   locators: Locator[] | null;
+  execution_order: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  
+  // Champs US enrichis côté frontend
+  user_story_id?: string | null;
+  issue_key?: string | null;
+  user_story_title?: string | null;
+  sprint?: string | null;
+  epic_key?: string | null;
+  epic_name?: string | null;
+  project_name?: string | null;
 }
 
 // Interface pour l'affichage UI (enrichie)
@@ -106,28 +166,46 @@ export interface TestCaseUI {
   lastRunAt?: string;
   createdAt: string;
   updatedAt: string;
-  // Infos User Story
-  userStoryId?: string | null;
-  userStoryKey?: string | null;
-  userStoryTitle?: string | null;
+  
+  // Infos Suite & Plan
+  testSuiteId?: string | null;
+  testSuiteTitle?: string | null;
+  testPlanId?: string | null;
+  testPlanTitle?: string | null;
+  
   // Infos Projet
   projectId?: string | null;
-  projectName?: string | null;
+  
+  // ✅ NOUVEAUX CHAMPS UI
+  storyDetails?: StoryDetails | null;
+  risks?: RiskInfo[] | null;
+  risksCount?: number | null;
+  
+  // Ordre d'exécution
+  executionOrder?: number | null;
+  
   // Extrait du gherkin
   scenarioPreview?: string | null;
 }
 
 // Pour la création/mise à jour
 export interface TestCaseFormData {
-  tc_code: string;
+  tc_code?: string;
   title: string;
-  user_story_id?: string | null;
-  user_story_version_id?: string | null;
+  user_story_id: string | null;
+  test_suite_id?: string | null;
+  description?: string | null;
+  test_type?: string | null;
+  priority?: string | null;
   gherkin_source?: string | null;
   test_data?: Record<string, any> | null;
   expected_results?: string[];
   tags?: string[];
+  steps?: TestStep[];
+  preconditions?: string[];
+  postconditions?: string[];
   locators?: Locator[];
+  execution_order?: number | null;
 }
 
 // Pour les requêtes paginées
@@ -138,7 +216,8 @@ export interface PaginatedQueryParams {
   status?: TestCaseStatus[];
   priority?: Priority[];
   tags?: string[];
-  hasScript?: boolean;
+  test_suite_id?: string;
+  test_plan_id?: string;
   project_id?: string;
 }
 
@@ -160,11 +239,19 @@ export function toTestCaseUI(testCase: TestCase, extra?: Partial<TestCaseUI>): T
     'low': Priority.LOW
   };
   
+  const priorityFromField = testCase.priority 
+    ? priorityMap[testCase.priority.toLowerCase()] 
+    : null;
+  
   const priorityTag = testCase.tags?.find(t => 
-    ['critical', 'high', 'medium', 'low'].includes(t)
+    ['critical', 'high', 'medium', 'low'].includes(t.toLowerCase())
   );
   
-  // Extraire un aperçu du scénario depuis gherkin_source
+  const priority = priorityFromField || 
+    (priorityTag ? priorityMap[priorityTag.toLowerCase()] : null) || 
+    Priority.MEDIUM;
+  
+  // Extrait preview du scénario Gherkin
   let scenarioPreview: string | null = null;
   if (testCase.gherkin_source) {
     const lines = testCase.gherkin_source.split('\n');
@@ -184,19 +271,26 @@ export function toTestCaseUI(testCase: TestCase, extra?: Partial<TestCaseUI>): T
     id: testCase.id,
     tc_code: testCase.tc_code,
     title: testCase.title,
-    description: scenarioPreview,
+    description: scenarioPreview || testCase.description,
     status: testCase.is_active ? TestCaseStatus.ACTIVE : TestCaseStatus.ARCHIVED,
-    priority: priorityTag ? priorityMap[priorityTag] || Priority.MEDIUM : Priority.MEDIUM,
+    priority: priority,
     tags: testCase.tags,
     hasScript: false,
     createdAt: testCase.created_at,
     updatedAt: testCase.updated_at,
-    userStoryId: testCase.user_story_id,
-    userStoryKey: testCase.issue_key,
-    userStoryTitle: testCase.user_story_title,
+    testSuiteId: testCase.test_suite_id,
+    testSuiteTitle: testCase.test_suite_title,
+    testPlanId: testCase.test_plan_id,
+    testPlanTitle: testCase.test_plan_title,
     projectId: testCase.project_id,
-    projectName: testCase.project_name,
+    executionOrder: testCase.execution_order,
     scenarioPreview: scenarioPreview,
+    
+    // ✅ Nouveaux champs
+    storyDetails: testCase.story_details,
+    risks: testCase.risks,
+    risksCount: testCase.risks_count,
+    
     ...extra
   };
 }

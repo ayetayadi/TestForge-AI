@@ -12,7 +12,7 @@
       </div>
       <div>
         <h1 class="page-title">Risk Analysis</h1>
-        <p class="page-subtitle"> — Risk Score = Probability × Impact</p>
+        <p class="page-subtitle">ISTQB — Risk Score = Probability × Impact</p>
       </div>
     </div>
 
@@ -68,7 +68,6 @@
         Filters
         <span class="filter-dot" *ngIf="hasActiveFilters()"></span>
       </button>
-
       <button class="btn-analyze" [disabled]="!selectedProjectId() || analyzing()"
         [title]="!selectedProjectId() ? 'Select a project to analyze' : ''"
         (click)="analyzeProject()">
@@ -84,11 +83,23 @@
           <ng-template #defaultProg>{{ analyzeProgress().done }}/{{ analyzeProgress().total }}</ng-template>
         </ng-container>
       </button>
+      <!-- Accept All -->
+      <button class="btn-accept-all" 
+        *ngIf="selectedProjectId()"
+        [disabled]="analyzing()"
+        (click)="acceptAllVisibleRisks()"
+        title="Accept all pending risks in current view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Accept All
+      </button>
+      
     </div>
   </div>
 
-    <!-- ══════════════════════════════════════════════
-       🆕 BARRE DE PROGRESSION
+  <!-- ══════════════════════════════════════════════
+       PROGRESS BAR
   ══════════════════════════════════════════════ -->
   <div class="progress-fixed-bar" *ngIf="analyzing() && analyzeProgress().total > 0">
     <div class="progress-container">
@@ -115,10 +126,7 @@
       
       <div class="progress-footer">
         <div class="progress-remaining">
-          ⏳ <strong>{{ getRemainingCount() }}</strong> story{{ getRemainingCount() > 1 ? 's' : '' }} remaining
-        </div>
-        <div class="progress-estimate" *ngIf="getEstimatedTimeRemaining()">
-          🕐 ~{{ getEstimatedTimeRemaining() }} sec left
+          ⏳ <strong>{{ analyzeProgress().total - analyzeProgress().done }}</strong> story{{ (analyzeProgress().total - analyzeProgress().done) > 1 ? 's' : '' }} remaining
         </div>
         <div class="progress-current" *ngIf="analyzeProgress().currentBatch">
           📍 {{ analyzeProgress().currentBatch }}
@@ -127,7 +135,9 @@
     </div>
   </div>
 
-  <!-- 🆕 REMAINING STORIES BANNER - INSÉREZ ICI -->
+  <!-- ══════════════════════════════════════════════
+       REMAINING STORIES BANNER
+  ══════════════════════════════════════════════ -->
   <div class="remaining-banner" *ngIf="showRemainingBanner() && pendingStories() > 0 && !analyzing()">
     <div class="banner-content">
       <div class="banner-icon">📊</div>
@@ -136,7 +146,7 @@
         <span class="banner-detail">
           ({{ totalStories() }} total, {{ analyzedStories() }} already analyzed)
         </span>
-        <div class="priority-tags" *ngIf="getPendingBreakdownKeys.length > 0">
+        <div class="priority-tags" *ngIf="getPendingBreakdownKeys().length > 0">
           <span class="priority-tag" *ngFor="let item of pendingBreakdown() | keyvalue">
             {{ item.key }}: {{ item.value }}
           </span>
@@ -159,7 +169,7 @@
   </div>
 
   <!-- ══════════════════════════════════════════════
-       FILTER PANEL (only when project selected)
+       FILTER PANEL
   ══════════════════════════════════════════════ -->
   <div class="filter-panel" *ngIf="showFilterPanel() && selectedProjectId()">
     <div class="filter-panel-header">
@@ -215,21 +225,21 @@
           placeholder="e.g. 5" min="0">
       </div>
 
-<div class="filter-field">
-  <label>Analysis Limit</label>
-  <select class="filter-select"
-    [ngModel]="analysisLimit()"
-    (ngModelChange)="setAnalysisLimit($event)">
-    <option value="all">📊 All stories (no limit)</option>
-    <option value="20">📈 20 stories (quick check)</option>
-    <option value="50">📊 50 stories (medium)</option>
-    <option value="100">🔥 100 stories (recommended)</option>
-    <option value="200">⚡ 200 stories (full project)</option>
-    <option value="500">🚀 500 stories (enterprise)</option>
-  </select>
-  <small *ngIf="analysisLimit() === 'all'">Analyzes ALL stories (takes longer)</small>
-  <small *ngIf="analysisLimit() !== 'all'">Analyzes max {{ analysisLimit() }} stories</small>
-</div>
+      <div class="filter-field">
+        <label>Analysis Limit</label>
+        <select class="filter-select"
+          [ngModel]="analysisLimit()"
+          (ngModelChange)="setAnalysisLimit($event)">
+          <option value="all">📊 All stories (no limit)</option>
+          <option value="20">📈 20 stories (quick check)</option>
+          <option value="50">📊 50 stories (medium)</option>
+          <option value="100">🔥 100 stories (recommended)</option>
+          <option value="200">⚡ 200 stories (full project)</option>
+          <option value="500">🚀 500 stories (enterprise)</option>
+        </select>
+        <small *ngIf="analysisLimit() === 'all'">Analyzes ALL stories (takes longer)</small>
+        <small *ngIf="analysisLimit() !== 'all'">Analyzes max {{ analysisLimit() }} stories</small>
+      </div>
 
       <div class="filter-field filter-field--checkbox">
         <label class="checkbox-label">
@@ -244,12 +254,11 @@
     <div class="filter-quick-actions">
       <button class="btn-quick" (click)="analyzeByPriority('Highest')">⚡ Highest Priority</button>
       <button class="btn-quick" (click)="analyzeByPriority('High')">⚡ High Priority</button>
-      <button class="btn-quick" (click)="analyzeProjectProgressively()">🔄 Progressive Analysis</button>
     </div>
   </div>
 
   <!-- ══════════════════════════════════════════════
-       STATS BAR (always visible)
+       STATS BAR
   ══════════════════════════════════════════════ -->
   <div class="stats-bar" *ngIf="!analyzing() && allRisks().length > 0">
     <div class="stat-card stat-card--total">
@@ -326,11 +335,10 @@
   </div>
 
   <!-- ══════════════════════════════════════════════
-       RISK REGISTER — cards grid (always visible)
+       RISK REGISTER — cards grid
   ══════════════════════════════════════════════ -->
   <div class="section-card">
 
-    <!-- Register header: title + search -->
     <div class="register-header">
       <h2 class="section-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
@@ -394,14 +402,6 @@
           </div>
         </div>
 
-        <!-- Project name tag (shown when viewing all projects) -->
-        <div class="card-project" *ngIf="!selectedProjectId()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
-            <path d="M3 7h18M3 12h18M3 17h18"/>
-          </svg>
-          {{ projectName(risk.project_id) }}
-        </div>
-
         <!-- User story reference -->
         <div class="card-us" *ngIf="risk.user_story_key">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
@@ -448,6 +448,16 @@
             [class.chip-pending]="risk.is_accepted === null">
             {{ acceptanceLabel(risk.is_accepted) }}
           </span>
+            <button class="btn-delete-card" 
+    (click)="deleteRisk(risk.id, $event)"
+    title="Delete this risk">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+      <line x1="10" y1="11" x2="10" y2="17"/>
+      <line x1="14" y1="11" x2="14" y2="17"/>
+    </svg>
+  </button>
           <span class="card-arrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
               <path d="M9 18l6-6-6-6"/>
@@ -471,8 +481,8 @@
 
   </div>
 
-    <!-- ══════════════════════════════════════════════
-       RISK MATRIX (only when a project is selected)
+  <!-- ══════════════════════════════════════════════
+       RISK MATRIX
   ══════════════════════════════════════════════ -->
   <div class="section-card">
     <div class="section-header" (click)="toggleMatrix()">
@@ -481,10 +491,10 @@
           <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
           <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
         </svg>
-        Risk Matrix — {{ projectName(selectedProjectId()) }}
+        Risk Matrix — {{ selectedProjectId() ? projectName(selectedProjectId()) : 'All Projects' }}
       </h2>
       <div class="section-header-right">
-        <span class="badge-istqb"></span>
+        <span class="badge-istqb">ISTQB</span>
         <svg class="chevron" [class.chevron--open]="showMatrix()"
           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <path d="M6 9l6 6 6-6"/>

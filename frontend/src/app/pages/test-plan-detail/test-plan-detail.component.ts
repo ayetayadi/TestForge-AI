@@ -117,6 +117,25 @@ export class TestPlanDetailComponent implements OnInit {
     this.loadPlan(id);
   }
 
+  // Pagination for risk mapping table
+riskMappingPage = 1;
+riskMappingPageSize = 5;
+
+paginatedRiskMappings() {
+  const mappings = this.plan()?.risk_analysis?.mapping_table ?? [];
+  const start = (this.riskMappingPage - 1) * this.riskMappingPageSize;
+  const end = start + this.riskMappingPageSize;
+  return mappings.slice(start, end);
+}
+
+totalRiskMappingPages(): number {
+  const total = this.plan()?.risk_analysis?.mapping_table?.length ?? 0;
+  return Math.max(1, Math.ceil(total / this.riskMappingPageSize));
+}
+
+min(a: number, b: number): number {
+  return Math.min(a, b);
+}
   // ── Data loading ──────────────────────────────────────────────
 
   loadPlan(id: string): void {

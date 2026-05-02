@@ -47,6 +47,12 @@ export const navItems: NavItem[] = [
     userOnly: true,
   },
   {
+    displayName: 'Test Suites',
+    iconName: 'solar:widget-6-line-duotone',
+    route: '/test-suites',
+    userOnly: true,
+  },
+  {
     displayName: 'Playwright Scripts',
     iconName: 'solar:play-circle-line-duotone',
     route: '/playwright-scripts',

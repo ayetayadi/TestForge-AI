@@ -111,29 +111,6 @@
         <p>Review the generated test plan below. You can edit any section before approving.</p>
       </div>
     </div>
-    <div class="banner-actions">
-      <button
-        class="btn-danger-outline"
-        (click)="reject()"
-        [disabled]="isRejecting() || isApproving()">
-        <span *ngIf="!isRejecting()">✕ Reject</span>
-        <span *ngIf="isRejecting()"><span class="spinner-sm dark"></span></span>
-      </button>
-      <button
-        class="btn-warning"
-        (click)="regenerate()"
-        [disabled]="isRegenerating() || isApproving()">
-        <span *ngIf="!isRegenerating()">↺ Regenerate</span>
-        <span *ngIf="isRegenerating()"><span class="spinner-sm"></span> Regenerating...</span>
-      </button>
-      <button
-        class="btn-success"
-        (click)="approve()"
-        [disabled]="isApproving() || isRejecting()">
-        <span *ngIf="!isApproving()">✓ Approve</span>
-        <span *ngIf="isApproving()"><span class="spinner-sm"></span> Approving...</span>
-      </button>
-    </div>
   </div>
 
   <div class="workflow-banner approved" *ngIf="isApproved()">
@@ -142,6 +119,304 @@
     <span *ngIf="plan.approved_at"> Approved on {{ formatDate(plan.approved_at) }}.</span>
   </div>
 
+<!-- ══════════════════════════════════════════════════════════
+       RISK ANALYSIS SECTION
+  ══════════════════════════════════════════════════════════ -->
+  <div class="risk-analysis-section" *ngIf="plan.risk_analysis && !isEditMode()">
+    
+    <div class="section-card">
+      <div class="section-header">
+        <h3>📊 Risk Analysis</h3>
+        <span class="section-badge">Based on {{ plan.risk_analysis.distribution.total }} stories analyzed</span>
+      </div>
+
+      <div class="section-body">
+        
+        <div class="risk-top-row">
+          
+          <!-- Distribution -->
+          <div class="risk-distribution-card">
+            <h4>Risk Distribution</h4>
+            <div class="risk-bars">
+              <div class="risk-bar-row" *ngIf="plan.risk_analysis.distribution.critical > 0">
+                <span class="risk-label critical">🔴 Critical</span>
+                <div class="risk-bar-track">
+                  <div class="risk-bar-fill critical" 
+                       [style.width.%]="(plan.risk_analysis.distribution.critical / plan.risk_analysis.distribution.total) * 100">
+                  </div>
+                </div>
+                <span class="risk-count">{{ plan.risk_analysis.distribution.critical }}</span>
+              </div>
+              <div class="risk-bar-row" *ngIf="plan.risk_analysis.distribution.high > 0">
+                <span class="risk-label high">🟠 High</span>
+                <div class="risk-bar-track">
+                  <div class="risk-bar-fill high"
+                       [style.width.%]="(plan.risk_analysis.distribution.high / plan.risk_analysis.distribution.total) * 100">
+                  </div>
+                </div>
+                <span class="risk-count">{{ plan.risk_analysis.distribution.high }}</span>
+              </div>
+              <div class="risk-bar-row" *ngIf="plan.risk_analysis.distribution.medium > 0">
+                <span class="risk-label medium">🟡 Medium</span>
+                <div class="risk-bar-track">
+                  <div class="risk-bar-fill medium"
+                       [style.width.%]="(plan.risk_analysis.distribution.medium / plan.risk_analysis.distribution.total) * 100">
+                  </div>
+                </div>
+                <span class="risk-count">{{ plan.risk_analysis.distribution.medium }}</span>
+              </div>
+              <div class="risk-bar-row" *ngIf="plan.risk_analysis.distribution.low > 0">
+                <span class="risk-label low">🟢 Low</span>
+                <div class="risk-bar-track">
+                  <div class="risk-bar-fill low"
+                       [style.width.%]="(plan.risk_analysis.distribution.low / plan.risk_analysis.distribution.total) * 100">
+                  </div>
+                </div>
+                <span class="risk-count">{{ plan.risk_analysis.distribution.low }}</span>
+              </div>
+            </div>
+            <div class="risk-ratio" *ngIf="plan.risk_analysis.distribution.high_risk_ratio > 0">
+              <strong>High Risk Ratio</strong> = (Critical + High) ÷ Total = 
+              ({{ plan.risk_analysis.distribution.critical }} + {{ plan.risk_analysis.distribution.high }}) 
+              ÷ {{ plan.risk_analysis.distribution.total }} = 
+              <strong>{{ (plan.risk_analysis.distribution.high_risk_ratio * 100).toFixed(0) }}%</strong>
+            </div>
+          </div>
+
+          <!-- Formula -->
+          <div class="risk-formula-card">
+            <h4>📐 Risk Calculation (ISTQB §5.2.1)</h4>
+            <div class="formula-box">
+              <code>{{ plan.risk_analysis.formulas.risk_score }}</code>
+            </div>
+            <div class="formula-detail">
+              <p><strong>P</strong> (Probability): {{ plan.risk_analysis.formulas.probability_scale }}</p>
+              <p><strong>I</strong> (Impact): {{ plan.risk_analysis.formulas.impact_scale }}</p>
+            </div>
+            <div class="thresholds">
+              <p><strong>Risk Level = P × I</strong></p>
+              <span class="threshold critical">🔴 Critical: {{ plan.risk_analysis.formulas.thresholds.critical }}</span>
+              <span class="threshold high">🟠 High: {{ plan.risk_analysis.formulas.thresholds.high }}</span>
+              <span class="threshold medium">🟡 Medium: {{ plan.risk_analysis.formulas.thresholds.medium }}</span>
+              <span class="threshold low">🟢 Low: {{ plan.risk_analysis.formulas.thresholds.low }}</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Row 2: Mapping Table -->
+<div class="risk-mapping-card" *ngIf="plan.risk_analysis.mapping_table.length > 0">
+  <h4>🔗 User Story → Risk Mapping (Traceability Matrix)</h4>
+  <p class="mapping-subtitle">
+    Each User Story is linked to its risk level. Tests will be prioritized based on these risks.
+  </p>
+  <p class="mapping-count">
+    Showing {{ (riskMappingPage - 1) * riskMappingPageSize + 1 }}–{{ min(riskMappingPage * riskMappingPageSize, plan.risk_analysis.mapping_table.length) }} of {{ plan.risk_analysis.mapping_table.length }} stories
+  </p>
+  
+  <div class="table-responsive">
+    <table class="risk-table">
+      <thead>
+        <tr>
+          <th>Issue Key</th>
+          <th>User Story</th>
+          <th>Risk Level</th>
+          <th>Score</th>
+          <th>P</th>
+          <th>I</th>
+          <th>Formula</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let entry of paginatedRiskMappings()">
+          <td>
+            <span class="issue-key">{{ entry.issue_key }}</span>
+          </td>
+          <td class="story-title">{{ entry.title }}</td>
+          <td>
+            <span class="risk-badge" [class]="entry.risk_level">
+              {{ entry.risk_level | uppercase }}
+            </span>
+          </td>
+          <td class="score">{{ entry.risk_score.toFixed(2) }}</td>
+          <td>{{ entry.probability ?? '—' }}</td>
+          <td>{{ entry.impact ?? '—' }}</td>
+          <td class="formula-cell">
+            <code *ngIf="entry.probability && entry.impact">
+              {{ entry.probability }} × {{ entry.impact }} = {{ entry.risk_score.toFixed(2) }}
+            </code>
+            <span *ngIf="!entry.probability || !entry.impact">—</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="table-pagination" *ngIf="plan.risk_analysis.mapping_table.length > riskMappingPageSize">
+    <button 
+      class="page-btn" 
+      [disabled]="riskMappingPage === 1"
+      (click)="riskMappingPage = 1">
+      ⏮ First
+    </button>
+    <button 
+      class="page-btn" 
+      [disabled]="riskMappingPage === 1"
+      (click)="riskMappingPage = riskMappingPage - 1">
+      ◀ Prev
+    </button>
+    <span class="page-info">Page {{ riskMappingPage }} of {{ totalRiskMappingPages() }}</span>
+    <button 
+      class="page-btn" 
+      [disabled]="riskMappingPage === totalRiskMappingPages()"
+      (click)="riskMappingPage = riskMappingPage + 1">
+      Next ▶
+    </button>
+    <button 
+      class="page-btn" 
+      [disabled]="riskMappingPage === totalRiskMappingPages()"
+      (click)="riskMappingPage = totalRiskMappingPages()">
+      Last ⏭
+    </button>
+  </div>
+</div>
+
+      </div>
+    </div>
+  </div>
+
+  <!--
+  <div class="pert-section" *ngIf="plan.estimation && !isEditMode()">
+    <div class="section-card">
+      <div class="section-header">
+        <h3>⏱️ PERT Duration Estimation (ISTQB §5.1.4)</h3>
+      </div>
+
+      <div class="section-body">
+        
+        <div class="pert-big-number">
+          <div class="pert-value">{{ plan.estimation.inputs.most_likely }} days</div>
+          <div class="pert-interval">{{ plan.estimation.confidence_interval }}</div>
+        </div>
+
+        <div class="pert-bar-container">
+          <div class="pert-bar">
+            <div class="pert-segment optimistic" [style.flex]="plan.estimation.inputs.optimistic">
+              <span class="pert-label">O</span>
+              <span class="pert-num">{{ plan.estimation.inputs.optimistic }}d</span>
+            </div>
+            <div class="pert-segment realistic" [style.flex]="plan.estimation.inputs.most_likely">
+              <span class="pert-label">PERT</span>
+              <span class="pert-num">{{ plan.estimation.inputs.most_likely }}d</span>
+            </div>
+            <div class="pert-segment pessimistic" [style.flex]="plan.estimation.inputs.pessimistic">
+              <span class="pert-label">P</span>
+              <span class="pert-num">{{ plan.estimation.inputs.pessimistic }}d</span>
+            </div>
+          </div>
+          <div class="pert-labels">
+            <span>Optimistic</span>
+            <span>Most Likely</span>
+            <span>Pessimistic</span>
+          </div>
+        </div>
+
+        <details class="pert-detail" open>
+          <summary>📐 Detailed Calculation</summary>
+          <div class="pert-calculation">
+            <p><strong>PERT Formula:</strong> <code>{{ plan.estimation.formula }}</code></p>
+            <p><strong>Calculation:</strong> <code>{{ plan.estimation.calculation }}</code></p>
+            <p><strong>Standard Deviation:</strong> <code>{{ plan.estimation.standard_deviation }}</code></p>
+            <div class="pert-info">
+              <p>📏 <strong>Standard Deviation</strong> measures uncertainty. Lower = more precise estimate.</p>
+              <p>🎯 <strong>Confidence Interval</strong> = PERT ± 1 SD covers ~68% of scenarios.</p>
+            </div>
+          </div>
+        </details>
+
+        <div class="pert-breakdown" *ngIf="plan.estimation.breakdown_by_risk.length > 0">
+          <h4>⏱️ Breakdown by Risk Level</h4>
+          <p class="breakdown-subtitle">
+            Days per story × Number of stories = Subtotal. Overhead (+3 days) added for environment setup, reporting, and contingencies.
+          </p>
+          <div class="table-responsive">
+            <table class="pert-table">
+              <thead>
+                <tr>
+                  <th>Risk Level</th>
+                  <th># Stories</th>
+                  <th>Days/Story (O)</th>
+                  <th>Days/Story (M)</th>
+                  <th>Days/Story (P)</th>
+                  <th>Subtotal (M)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of plan.estimation.breakdown_by_risk">
+                  <td>
+                    <span class="risk-badge" [class]="row.level">{{ row.level | uppercase }}</span>
+                  </td>
+                  <td>{{ row.story_count }}</td>
+                  <td>{{ row.days_per_story_optimistic }}</td>
+                  <td>{{ row.days_per_story_realistic }}</td>
+                  <td>{{ row.days_per_story_pessimistic }}</td>
+                  <td class="subtotal">{{ row.subtotal_realistic }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  -->
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       RECOMMENDATIONS SECTION
+  ══════════════════════════════════════════════════════════ -->
+  <div class="recommendations-section" *ngIf="plan.recommendations_detail && !isEditMode()">
+    <div class="section-card">
+      <div class="section-header">
+        <h3>🎯 Test Recommendations</h3>
+      </div>
+
+      <div class="section-body">
+        
+        <div class="rec-columns">
+          
+          <!-- Test Types -->
+          <div class="rec-col">
+            <h4>✅ Recommended Test Types</h4>
+            <ul class="rec-list">
+              <li *ngFor="let type of plan.recommendations_detail.test_types; let i = index">
+                <span class="rec-check">✅</span>
+                <span class="rec-name">{{ type | titlecase }}</span>
+                <span class="rec-reason" *ngIf="plan.recommendations_detail.reasoning[i]">
+                  → {{ plan.recommendations_detail.reasoning[i] }}
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Test Levels -->
+          <div class="rec-col">
+            <h4>✅ Recommended Test Levels</h4>
+            <ul class="rec-list">
+              <li *ngFor="let level of plan.recommendations_detail.test_levels">
+                <span class="rec-check">✅</span>
+                <span class="rec-name">{{ level | titlecase }}</span>
+              </li>
+            </ul>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
 
   <!-- ── TWO-COLUMN LAYOUT ──────────────────────────────────── -->
   <div class="columns">
