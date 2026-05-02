@@ -1,4 +1,4 @@
-"""Risk service for business logic ( - Risk Control with AI Pipeline)."""
+"""Risk service for business logic (ISTQB - Risk Control with AI Pipeline)."""
 
 import asyncio
 import logging
@@ -21,29 +21,27 @@ from app.ai_workflows.risk_analysis import (
     compute_risk_score,
     classify_level,
 )
-from app.models.risk import Risk
 
 logger = logging.getLogger(__name__)
 
 
 class RiskService:
-    """Service for risk management following ."""
+    """Service for risk management following ISTQB."""
     
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repository = RiskRepository(db)
     
     # ============================================================
-    # AI-POWERED RISK ANALYSIS ()
+    # AI-POWERED RISK ANALYSIS (ISTQB §5.2.3)
     # ============================================================
     
     async def analyze_user_story(
         self,
         story: str,
         acceptance_criteria: List[str],
-        project_id: str,
-        test_plan_id: Optional[str] = None,
-        user_story_id: Optional[str] = None,
+        user_story_id: str,
+        project_id: str,  # Pour le contexte uniquement (logging/filtrage futur)
         jira_priority: Optional[str] = None,
         story_points: Optional[float] = None,
         components: Optional[List[str]] = None,
@@ -52,13 +50,13 @@ class RiskService:
         issue_key: Optional[str] = None,
     ) -> RiskResponse:
         """
-        Analyse une User Story avec l'IA () et crée le risque.
+        Analyse une User Story avec l'IA et crée le risque.
         
         Pipeline:
           1. estimate_baseline → signaux Jira
           2. LLM → suggère P et I
           3. build_risk_record → clamp, compute P×I, classify
-          4. Persiste en base
+          4. Persiste en base (lié à user_story_id uniquement)
         """
         pipeline = get_pipeline()
         
@@ -72,7 +70,6 @@ class RiskService:
             epic=epic,
             issue_key=issue_key or "manual",
             user_story_id=user_story_id,
-            test_plan_id=test_plan_id,
         )
         
         if result.get("workflow_status") == "error":
@@ -80,8 +77,6 @@ class RiskService:
             raise ValueError(f"Risk analysis failed: {result.get('error')}")
         
         risk_create = RiskCreate(
-            project_id=project_id,
-            test_plan_id=test_plan_id,
             user_story_id=user_story_id,
             description=result["description"],
             mitigation=result["mitigation"],
@@ -90,6 +85,9 @@ class RiskService:
             impact=result["impact"],
             is_ai_generated=True,
             is_accepted=None,
+            source="original",
+            source_story_text=story,
+            source_acceptance_criteria=acceptance_criteria,
         )
 
         risk = await self.repository.create(risk_create)
@@ -102,41 +100,21 @@ class RiskService:
         
         return RiskResponse.model_validate(risk)
     
-    def _chunked(self, lst, n):
-        """Yield successive n-sized chunks from lst."""
-        for i in range(0, len(lst), n):
-            yield lst[i:i + n]
-
     async def analyze_user_stories_batch(
         self,
         stories_data: List[Dict[str, Any]],
-        project_id: str,
-        test_plan_id: Optional[str] = None,
+        project_id: str,  # Contexte uniquement
         concurrency: int = 2,
     ) -> RiskBatchResponse:
         """
         Analyse plusieurs User Stories en batch avec l'IA.
         """
         pipeline = get_pipeline()
-
-        results = []
-        for i, story_batch in enumerate(self._chunked(stories_data, 2)):  # Batch de 2
-            batch_results = await analyse_stories_batch(
-                pipeline=pipeline,
-                stories=story_batch,
-                test_plan_id=test_plan_id,
-                concurrency=concurrency,
-            )
-            results.extend(batch_results)
-            
-            if i < len(stories_data) // 2 - 1:
-                await asyncio.sleep(2) 
         
         # Lancer l'analyse batch via le pipeline
         ai_results = await analyse_stories_batch(
             pipeline=pipeline,
             stories=stories_data,
-            test_plan_id=test_plan_id,
             concurrency=concurrency,
         )
         
@@ -155,8 +133,6 @@ class RiskService:
             
             try:
                 risk_create = RiskCreate(
-                    project_id=project_id,
-                    test_plan_id=test_plan_id,
                     user_story_id=result.get("user_story_id"),
                     description=result["description"],
                     mitigation=result["mitigation"],
@@ -165,6 +141,9 @@ class RiskService:
                     impact=result["impact"],
                     is_ai_generated=True,
                     is_accepted=None,
+                    source="original",
+                    source_story_text=result.get("story", ""),
+                    source_acceptance_criteria=result.get("acceptance_criteria", []),
                 )
                 
                 risk = await self.repository.create(risk_create)
@@ -177,6 +156,35 @@ class RiskService:
                     "error": str(e),
                     "issue_key": result.get("issue_key", "?"),
                 })
+        
+        await self.db.commit()
+        
+        return RiskBatchResponse(
+            created=[RiskResponse.model_validate(r) for r in created],
+            failed=failed,
+            total_success=len(created),
+            total_failed=len(failed),
+        )
+    
+    async def analyze_risks_for_project(
+        self,
+        project_id: str,
+        sprint: Optional[str] = None,
+        epic_key: Optional[str] = None,
+        use_approved_version_only: bool = False,
+        base_data: Optional[RiskCreate] = None,
+    ) -> RiskBatchResponse:
+        """
+        Crée des risques pour toutes les UserStories d'un projet/sprint/epic.
+        Utilise le repository pour la création en lot.
+        """
+        created, failed = await self.repository.create_for_stories(
+            project_id=project_id,
+            sprint=sprint,
+            epic_key=epic_key,
+            use_approved_version_only=use_approved_version_only,
+            base_data=base_data,
+        )
         
         await self.db.commit()
         
@@ -209,14 +217,30 @@ class RiskService:
     
     async def list_risks(
         self,
-        test_plan_id: str,
+        project_id: Optional[str] = None,
+        sprint: Optional[str] = None,
+        epic_key: Optional[str] = None,
+        user_story_id: Optional[str] = None,
+        level: Optional[str] = None,
+        is_accepted: Optional[bool] = None,
+        source: Optional[str] = None,
         page: int = 1,
         page_size: int = 50,
-        filters: Optional[RiskFilters] = None,
     ) -> RiskListResponse:
-        """Get paginated list of risks for a test plan."""
-        items, total = await self.repository.get_by_test_plan(
-            test_plan_id, page, page_size, filters
+        """
+        Get paginated list of risks with optional filters.
+        Remplace get_by_test_plan() par get_all() avec filtres.
+        """
+        items, total = await self.repository.get_all(
+            project_id=project_id,
+            sprint=sprint,
+            epic_key=epic_key,
+            user_story_id=user_story_id,
+            level=level,
+            is_accepted=is_accepted,
+            source=source,
+            page=page,
+            page_size=page_size,
         )
         
         return RiskListResponse(
@@ -227,24 +251,6 @@ class RiskService:
             total_pages=(total + page_size - 1) // page_size if total > 0 else 0,
         )
     
-    async def get_risks_by_test_plan(
-        self,
-        test_plan_id: str,
-        level: Optional[str] = None,
-        is_accepted: Optional[bool] = None,
-        is_ai_generated: Optional[bool] = None,
-    ) -> List[RiskResponse]:
-        """Get all risks for a test plan with optional filters (no pagination)."""
-        filters = RiskFilters(
-            level=level,
-            is_accepted=is_accepted,
-            is_ai_generated=is_ai_generated,
-        )
-        items, _ = await self.repository.get_by_test_plan(
-            test_plan_id, page=1, page_size=10000, filters=filters
-        )
-        return [RiskResponse.model_validate(r) for r in items]
-
     async def get_risks_by_project(
         self,
         project_id: str,
@@ -253,13 +259,51 @@ class RiskService:
         is_ai_generated: Optional[bool] = None,
     ) -> List[RiskResponse]:
         """Get all risks for a project with optional filters."""
-        filters = RiskFilters(level=level, is_accepted=is_accepted, is_ai_generated=is_ai_generated)
+        filters = RiskFilters(
+            level=level,
+            is_accepted=is_accepted,
+            is_ai_generated=is_ai_generated,
+        )
         risks = await self.repository.get_by_project(project_id, filters)
         return [RiskResponse.model_validate(r) for r in risks]
+    
+    async def get_risks_by_sprint(
+        self,
+        project_id: str,
+        sprint: str,
+        level: Optional[str] = None,
+        is_accepted: Optional[bool] = None,
+    ) -> List[RiskResponse]:
+        """Get all risks for a sprint via JOIN."""
+        items, _ = await self.repository.get_all(
+            project_id=project_id,
+            sprint=sprint,
+            level=level,
+            is_accepted=is_accepted,
+        )
+        return [RiskResponse.model_validate(r) for r in items]
+    
+    async def get_risks_by_epic(
+        self,
+        project_id: str,
+        epic_key: str,
+        level: Optional[str] = None,
+    ) -> List[RiskResponse]:
+        """Get all risks for an epic via JOIN."""
+        items, _ = await self.repository.get_all(
+            project_id=project_id,
+            epic_key=epic_key,
+            level=level,
+        )
+        return [RiskResponse.model_validate(r) for r in items]
 
     async def get_risk_summary_by_project(self, project_id: str) -> dict:
         """Get risk distribution summary for a project."""
         return await self.repository.get_risk_summary_by_project(project_id)
+    
+    async def get_risk_summary_by_sprint(self, project_id: str, sprint: str) -> dict:
+        """Get risk distribution summary for a sprint."""
+        return await self.repository.get_risk_summary_by_sprint(project_id, sprint)
 
     async def get_risks_by_user_story(self, user_story_id: str) -> List[RiskResponse]:
         """Get all risks for a user story."""
@@ -268,25 +312,32 @@ class RiskService:
 
     async def get_all_risks(
         self,
+        project_id: Optional[str] = None,
+        sprint: Optional[str] = None,
+        epic_key: Optional[str] = None,
         level: Optional[str] = None,
+        is_accepted: Optional[bool] = None,
+        source: Optional[str] = None,
     ) -> List[RiskResponse]:
-        """Get all risks across all projects."""
-        filters = RiskFilters(level=level)
-        risks = await self.repository.get_all(filters)
-        return [RiskResponse.model_validate(r) for r in risks]
+        """Get all risks with optional filters."""
+        items, _ = await self.repository.get_all(
+            project_id=project_id,
+            sprint=sprint,
+            epic_key=epic_key,
+            level=level,
+            is_accepted=is_accepted,
+            source=source,
+        )
+        return [RiskResponse.model_validate(r) for r in items]
     
     async def get_high_priority_risks(
         self, 
-        test_plan_id: str, 
+        project_id: Optional[str] = None,
         min_score: float = 2.5
     ) -> List[RiskResponse]:
         """Get high or critical risks (ISTQB: Haute/Critique)."""
-        risks = await self.repository.get_high_priority_risks(test_plan_id, min_score)
+        risks = await self.repository.get_high_priority_risks(project_id, min_score)
         return [RiskResponse.model_validate(r) for r in risks]
-    
-    async def get_risk_summary(self, test_plan_id: str) -> dict:
-        """Get risk distribution summary."""
-        return await self.repository.get_risk_summary(test_plan_id)
     
     # ============================================================
     # UPDATE (Risk Control - ISTQB §5.2.4)
@@ -319,7 +370,7 @@ class RiskService:
         acceptance_criteria: List[str],
     ) -> Optional[RiskResponse]:
         """
-        Ré-analyser un risque existant avec l'IA (mise à jour P, I, description, mitigation).
+        Ré-analyser un risque existant avec l'IA.
         Utile quand la User Story change.
         """
         risk = await self.repository.get_by_id(risk_id)
@@ -330,14 +381,13 @@ class RiskService:
         result = await pipeline.run(
             story=story,
             acceptance_criteria=acceptance_criteria,
-            jira_priority=None,  # Optionnel : récupérer depuis Jira
+            jira_priority=None,
             story_points=None,
             components=[],
             labels=[],
             epic=None,
             issue_key=risk.user_story_id or "?",
             user_story_id=risk.user_story_id,
-            test_plan_id=risk.test_plan_id,
         )
         
         if result.get("workflow_status") == "error":
@@ -369,8 +419,8 @@ class RiskService:
         await self.db.commit()
         return deleted
     
-    async def delete_test_plan_risks(self, test_plan_id: str) -> int:
-        """Delete all risks for a test plan."""
-        count = await self.repository.delete_by_test_plan(test_plan_id)
+    async def delete_project_risks(self, project_id: str) -> int:
+        """Delete all risks for a project (via JOIN UserStory)."""
+        count = await self.repository.delete_by_project(project_id)
         await self.db.commit()
         return count

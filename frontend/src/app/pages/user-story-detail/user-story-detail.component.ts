@@ -7,7 +7,7 @@ import {
   UserStory, UserStoryVersion, SSEEvent, PipelineResponse, StoryWithVersion
 } from '../../models/user_story.model';
 import { StoriesService, PipelineService, VersionsService, ToastService } from '../../services';
-import { TestCaseService } from '../../services/test-case.service';
+import { TestCaseService, WorkflowGenerationResponse } from '../../services/test-case.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
 
@@ -58,7 +58,7 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
   isProcessing = computed(() => this.story()?.WorkflowStatus === 'processing');
 
 
-  generateTestCase(): void {
+generateTestCase(): void {
     const s = this.story();
     if (!s || this.tcGenerating()) return;
 
@@ -67,18 +67,18 @@ export class UserStoryDetailComponent implements OnInit, OnDestroy {
     this.generatedQualityScore.set(null);
     this.tcFlaggedForHuman.set(false);
 
-    this.testCaseService.generateTestCases(s.id).subscribe({
-      next: (result) => {
+    this.testCaseService.generateWorkflow(s.id).subscribe({
+      next: (result: WorkflowGenerationResponse) => {
         this.tcGenerating.set(false);
-        this.generatedCount.set(result.generated_count);
-        this.generatedQualityScore.set(result.quality_score ?? null);
-        this.tcFlaggedForHuman.set(result.flagged_for_human ?? false);
+        this.generatedCount.set(result.count); // Note: uses 'count' not 'generated_count'
+        this.generatedQualityScore.set(null); // WorkflowGenerationResponse doesn't have quality_score
+        this.tcFlaggedForHuman.set(false);
         this.toastService.success(
           'Test Cases Generated',
-          `${result.generated_count} test case${result.generated_count !== 1 ? 's' : ''} created successfully`
+          `${result.count} test case${result.count !== 1 ? 's' : ''} created successfully`
         );
       },
-      error: (err) => {
+      error: (err: any) => {
         this.tcGenerating.set(false);
         const msg = err?.error?.detail ?? err?.message ?? 'Generation failed';
         this.toastService.error('Generation failed', msg);

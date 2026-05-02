@@ -1,0 +1,311 @@
+<div class="suites-page">
+
+  <!-- ═══════════════════════════════════════════════════
+       HEADER
+  ════════════════════════════════════════════════════ -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="page-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Test Suites</h1>
+        <p class="header-subtitle">Organized test suites with full QA lifecycle traceability</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="view-toggle">
+        <button [class.active]="viewMode() === 'grid'" (click)="viewMode.set('grid')" title="Grid view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </button>
+        <button [class.active]="viewMode() === 'list'" (click)="viewMode.set('list')" title="List view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       STATS BANNER
+  ════════════════════════════════════════════════════ -->
+  <div class="stats-banner">
+    <div class="stat-card">
+      <span class="stat-value">{{ stats().total }}</span>
+      <span class="stat-label">Total Suites</span>
+    </div>
+    <div class="stat-card accent-green">
+      <span class="stat-value">{{ stats().active }}</span>
+      <span class="stat-label">Active</span>
+    </div>
+    <div class="stat-card accent-blue">
+      <span class="stat-value">{{ stats().totalCases }}</span>
+      <span class="stat-label">Test Cases</span>
+    </div>
+    <div class="stat-card accent-purple">
+      <span class="stat-value">{{ stats().aiGenerated }}</span>
+      <span class="stat-label">AI Generated</span>
+    </div>
+    <div class="stat-card accent-red">
+      <span class="stat-value">{{ stats().criticalSuites }}</span>
+      <span class="stat-label">Critical Priority</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       GENERATE BAR
+  ════════════════════════════════════════════════════ -->
+  <div class="generate-bar">
+    <div class="generate-left">
+      <select [(ngModel)]="selectedPlanId" class="filter-select">
+        <option value="">Select a Test Plan...</option>
+        @for (plan of availablePlans(); track plan.id) {
+          <option [value]="plan.id">
+            {{ plan.title }} ({{ plan.test_case_count }} cases)
+          </option>
+        }
+      </select>
+      
+      <select [(ngModel)]="selectedStrategy" class="filter-select">
+        @for (strategy of strategies; track strategy.value) {
+          <option [value]="strategy.value">{{ strategy.label }}</option>
+        }
+      </select>
+    </div>
+    
+    <button 
+      class="btn-primary"
+      (click)="generateSuites()"
+      [disabled]="!selectedPlanId() || isGenerating()">
+      @if (!isGenerating()) {
+        ⚡ Generate Test Suites
+      } @else {
+        <span class="spinner-sm"></span> Generating...
+      }
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       FILTERS
+  ════════════════════════════════════════════════════ -->
+  <div class="filters-bar">
+    <div class="search-box">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input
+        type="text"
+        placeholder="Search suites, plans, projects..."
+        [ngModel]="searchTerm()"
+        (ngModelChange)="searchTerm.set($event)"
+        class="search-input"
+      />
+    </div>
+
+    <select class="filter-select" [ngModel]="selectedProject()" (ngModelChange)="selectedProject.set($event)">
+      <option value="">All Projects</option>
+      @for (p of uniqueProjects(); track p) {
+        <option [value]="p">{{ p }}</option>
+      }
+    </select>
+
+    <select class="filter-select" [ngModel]="selectedType()" (ngModelChange)="selectedType.set($event)">
+      @for (t of suiteTypes; track t.value) {
+        <option [value]="t.value">{{ t.label }}</option>
+      }
+    </select>
+
+    <select class="filter-select" [ngModel]="selectedStatus()" (ngModelChange)="selectedStatus.set($event)">
+      <option value="">All Statuses</option>
+      <option value="active">Active</option>
+      <option value="draft">Draft</option>
+      <option value="archived">Archived</option>
+      <option value="closed">Closed</option>
+    </select>
+
+    <select class="filter-select" [ngModel]="selectedPriority()" (ngModelChange)="selectedPriority.set($event)">
+      <option value="">All Priorities</option>
+      <option value="critical">Critical</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+
+    <span class="results-count">{{ filteredSuites().length }} suite{{ filteredSuites().length !== 1 ? 's' : '' }}</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       LOADING
+  ════════════════════════════════════════════════════ -->
+  @if (isLoading()) {
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <span>Loading test suites...</span>
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════
+       EMPTY STATE
+  ════════════════════════════════════════════════════ -->
+  @if (!isLoading() && filteredSuites().length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </div>
+      <h3>No test suites found</h3>
+      <p>Generate test suites from a Test Plan to get started, or adjust your filters.</p>
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════
+       GRID VIEW
+  ════════════════════════════════════════════════════ -->
+  @if (!isLoading() && filteredSuites().length > 0 && viewMode() === 'grid') {
+    <div class="suites-grid">
+      @for (suite of filteredSuites(); track suite.id) {
+        <div
+          class="suite-card"
+          [class.priority-critical]="suite.priority === 'critical'"
+          (click)="openSuite(suite.id)"
+        >
+          <!-- Card header -->
+          <div class="card-header">
+            <div class="card-title-row">
+              @if (getSuiteTypeConfig(suite.suite_type); as cfg) {
+                <div class="suite-type-badge" [style.background]="cfg.color + '18'" [style.color]="cfg.color">
+                  {{ cfg.label }}
+                </div>
+              }
+              @if (suite.is_ai_generated) {
+                <div class="ai-badge">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  AI
+                </div>
+              }
+            </div>
+            <h3 class="card-title">{{ suite.title }}</h3>
+            @if (suite.description) {
+              <p class="card-description">{{ suite.description }}</p>
+            }
+          </div>
+
+          <!-- Context breadcrumb -->
+          <div class="card-context">
+            @if (suite.project_key) {
+              <span class="context-chip">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+                {{ suite.project_key }}
+              </span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            }
+            @if (suite.test_plan_title) {
+              <span class="context-chip plan-chip">{{ suite.test_plan_title }}</span>
+            }
+          </div>
+
+
+
+          <!-- Footer -->
+          <div class="card-footer">
+            <div class="footer-left">
+              <span class="case-count">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                {{ suite.test_case_count }} cases
+              </span>
+            </div>
+            <div class="footer-right">
+              <span class="status-pill" [style.color]="getStatusConfig(suite.status).color" [style.background]="getStatusConfig(suite.status).bg">
+                {{ getStatusConfig(suite.status).label }}
+              </span>
+              @if (getPriorityConfig(suite.priority); as pCfg) {
+                <span class="priority-dot" [style.background]="pCfg.dot" [title]="pCfg.label + ' priority'"></span>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════
+       LIST VIEW
+  ════════════════════════════════════════════════════ -->
+  @if (!isLoading() && filteredSuites().length > 0 && viewMode() === 'list') {
+    <div class="suites-list">
+      <div class="list-header-row">
+        <span>Suite</span>
+        <span>Type</span>
+        <span>Plan / Project</span>
+        <span>Cases</span>
+        <span>Risk Cov.</span>
+        <span>AC Cov.</span>
+        <span>Priority</span>
+        <span>Status</span>
+      </div>
+
+      @for (suite of filteredSuites(); track suite.id) {
+        <div
+          class="list-row"
+          (click)="openSuite(suite.id)"
+        >
+          <div class="list-title">
+            @if (suite.is_ai_generated) {
+              <span class="ai-dot" title="AI Generated"></span>
+            }
+            <span>{{ suite.title }}</span>
+          </div>
+
+          <div>
+            @if (getSuiteTypeConfig(suite.suite_type); as cfg) {
+              <span class="type-tag" [style.background]="cfg.color + '18'" [style.color]="cfg.color">{{ cfg.label }}</span>
+            } @else {
+              <span class="type-tag">—</span>
+            }
+          </div>
+
+          <div class="list-plan">
+            @if (suite.project_key) {
+              <span class="project-key">{{ suite.project_key }}</span>
+            }
+            @if (suite.test_plan_title) {
+              <span class="plan-name">{{ suite.test_plan_title }}</span>
+            }
+          </div>
+
+          <span class="cases-badge">{{ suite.test_case_count }}</span>
+
+          @if (suite.coverage) {
+            <div class="mini-bar-cell">
+              <div class="mini-bar"><div [style.width.%]="suite.coverage.risk_coverage_pct" [style.background]="getCoverageColor(suite.coverage.risk_coverage_pct)"></div></div>
+              <span [style.color]="getCoverageColor(suite.coverage.risk_coverage_pct)">{{ suite.coverage.risk_coverage_pct }}%</span>
+            </div>
+
+            <div class="mini-bar-cell">
+              <div class="mini-bar"><div [style.width.%]="suite.coverage.ac_coverage_pct" [style.background]="getCoverageColor(suite.coverage.ac_coverage_pct)"></div></div>
+              <span [style.color]="getCoverageColor(suite.coverage.ac_coverage_pct)">{{ suite.coverage.ac_coverage_pct }}%</span>
+            </div>
+          } @else {
+            <div class="mini-bar-cell">—</div>
+            <div class="mini-bar-cell">—</div>
+          }
+
+          <div>
+            @if (getPriorityConfig(suite.priority); as pCfg) {
+              <span class="prio-pill" [style.color]="pCfg.color" [style.background]="pCfg.bg">{{ pCfg.label }}</span>
+            } @else {
+              <span>—</span>
+            }
+          </div>
+
+          <span class="status-pill" [style.color]="getStatusConfig(suite.status).color" [style.background]="getStatusConfig(suite.status).bg">
+            {{ getStatusConfig(suite.status).label }}
+          </span>
+        </div>
+      }
+    </div>
+  }
+
+</div>

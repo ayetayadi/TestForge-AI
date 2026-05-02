@@ -2,9 +2,7 @@ export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
 
 export interface Risk {
   id: string;
-  project_id: string;
-  test_plan_id: string | null;
-  user_story_id: string | null;
+  user_story_id: string | null;         
   user_story_key?: string | null;
   user_story_title?: string | null;
   description: string;

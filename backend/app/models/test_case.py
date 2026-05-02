@@ -11,10 +11,8 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.playwright_script_version import PlaywrightScriptVersion
     from app.models.test_suite import TestSuite
-    from app.models.user_story import UserStory
     from app.models.test_case_dependency import TestCaseDependency
     from app.models.defect import Defect
-    from app.models.test_execution import TestExecution
 
 
 class TestCase(Base):
@@ -30,8 +28,6 @@ class TestCase(Base):
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
 
-    # User Story dont ce cas de test vérifie le comportement
-    # nullable=True : un TC peut être créé manuellement sans story
     user_story_id: Mapped[Optional[str]] = mapped_column(
         String(36),
         ForeignKey("user_stories.id", ondelete="SET NULL"),
@@ -47,6 +43,13 @@ class TestCase(Base):
         index=True
     )
 
+    test_plan_id: Mapped[Optional[str]] = mapped_column(
+            String(36),
+            ForeignKey("test_plans.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True
+        )
+    
     # ==============================
     # CONTENU DU TEST
     # ==============================
@@ -90,11 +93,6 @@ class TestCase(Base):
         JSONB, default=lambda: [], server_default="[]"
     )
 
-    # IDs des Risk que ce cas de test couvre (dénormalisé pour performance)
-    risk_ids: Mapped[List[str]] = mapped_column(
-        JSONB, default=lambda: [], server_default="[]"
-    )
-
     # Locators Playwright pour l'exécution automatisée
     # [{"name": "emailInput", "selector": "[data-testid='email-input']", "reliability": "high"}]
     locators: Mapped[Optional[List[dict]]] = mapped_column(JSONB)
@@ -121,14 +119,16 @@ class TestCase(Base):
     # ==============================
     # RELATIONS
     # ==============================
-
-    user_story: Mapped[Optional["UserStory"]] = relationship(
-        "UserStory", back_populates="test_cases", foreign_keys=[user_story_id]
-    )
+    user_story: Mapped[Optional["UserStory"]] = relationship("UserStory", foreign_keys=[user_story_id])
 
     test_suite: Mapped[Optional["TestSuite"]] = relationship(
-        "TestSuite", back_populates="test_cases", foreign_keys=[test_suite_id]
+        "TestSuite",
+        back_populates="test_cases",
+        foreign_keys=[test_suite_id]
     )
+
+
+    test_plan: Mapped[Optional["TestPlan"]] = relationship("TestPlan")
 
     script_versions: Mapped[List["PlaywrightScriptVersion"]] = relationship(
         "PlaywrightScriptVersion",
@@ -159,15 +159,6 @@ class TestCase(Base):
         back_populates="test_case",
         foreign_keys="Defect.test_case_id"
     )
-
-    # Exécutions manuelles de ce test (PASS/FAIL/SKIP)
-    executions: Mapped[List["TestExecution"]] = relationship(
-        "TestExecution",
-        back_populates="test_case",
-        foreign_keys="TestExecution.test_case_id",
-        cascade="all, delete-orphan"
-    )
-
     # ==============================
     # INDEX
     # ==============================
@@ -176,6 +167,7 @@ class TestCase(Base):
         Index("idx_test_case_tc_code", "tc_code"),
         Index("idx_test_case_user_story_id", "user_story_id"),
         Index("idx_test_case_test_suite_id", "test_suite_id"),
+        Index("idx_test_case_test_plan_id", "test_plan_id"),
         Index("idx_test_case_test_type", "test_type"),
         Index("idx_test_case_is_active", "is_active"),
         Index("idx_test_case_execution_order", "execution_order"),

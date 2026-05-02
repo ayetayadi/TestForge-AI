@@ -118,6 +118,7 @@ class TestPlanPipeline:
             risk_summary = summarize_risks(risks)
             stories_text = " ".join(
                 f"{s.get('issue_key', '')} {s.get('title', '')}"
+                + " ".join(s.get('acceptance_criteria', []))
                 for s in user_stories
             )
             recommendations = recommend_test_types(risk_summary, stories_text)
@@ -162,6 +163,8 @@ class TestPlanPipeline:
                 scope_type=scope_type,
                 scope_refs=scope_refs,
                 environment_override=environment,
+                user_stories=user_stories,
+                recommendations=recommendations,
             )
 
             await self._emit(progress_callback, "phase", {
@@ -238,6 +241,8 @@ class TestPlanPipeline:
             scope_refs=", ".join(scope_refs) if scope_refs else "not specified",
             environment_hint=environment_hint,
             story_count=len(user_stories),
+            sprint_count=len(scope_refs) if scope_type == "sprint" else 1,
+            epic_count=len(scope_refs) if scope_type == "epic" else 1,   
             stories_summary=stories_summary,
             count_critical=counts.get("critical", 0),
             count_high=counts.get("high", 0),

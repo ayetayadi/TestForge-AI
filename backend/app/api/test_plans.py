@@ -1,7 +1,7 @@
 """Test Plan API — generation, validation, export, sharing."""
 
 import logging
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
@@ -41,7 +41,8 @@ router = APIRouter(prefix="/test-plans", tags=["Test Plans"])
     summary="Generate AI test plan draft",
     description=(
         "Generates a complete ISTQB-compliant test plan draft using AI, "
-        "based on existing risk analysis results for the project. "
+        "based on existing accepted risk analysis results. "
+        "Supports filtering by sprint/epic. "
         "The plan is created with status 'ai_proposed' awaiting QA validation."
     ),
 )
@@ -51,6 +52,7 @@ async def generate_test_plan(
     current_user: User = Depends(deps.get_current_user),
 ) -> GenerateTestPlanResponse:
     service = TestPlanService(db)
+    print(f"📦 Received: {request.model_dump()}")
     try:
         return await service.generate_ai_draft(request)
     except ValueError as exc:
@@ -68,7 +70,6 @@ async def generate_test_plan(
     status_code=status.HTTP_200_OK,
     response_model=GenerateTestPlanResponse,
     summary="Regenerate AI draft",
-    description="Deletes the existing AI draft and generates a fresh one from updated risk data.",
 )
 async def regenerate_test_plan(
     plan_id: str,
@@ -93,16 +94,51 @@ async def regenerate_test_plan(
     "/project/{project_id}",
     response_model=TestPlanListResponse,
     summary="List test plans for a project",
+    description="Supports filtering by sprint and epic.",
 )
 async def get_project_test_plans(
     project_id: str,
+    sprint_ids: Optional[str] = Query(None, description="Comma-separated sprint IDs"),
+    epic_keys: Optional[str] = Query(None, description="Comma-separated epic keys"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> TestPlanListResponse:
     service = TestPlanService(db)
-    return await service.get_test_plans_by_project(project_id, page, page_size)
+    
+    sprint_list = sprint_ids.split(',') if sprint_ids else None
+    epic_list = epic_keys.split(',') if epic_keys else None
+    
+    return await service.get_test_plans_by_project(
+        project_id=project_id,
+        sprint_ids=sprint_list,
+        epic_keys=epic_list,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get(
+    "/all",
+    response_model=TestPlanListResponse,
+    summary="Get all test plans with optional filters",
+)
+async def get_all_test_plans(
+    project_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None, description="draft | ai_proposed | approved"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> TestPlanListResponse:
+    service = TestPlanService(db)
+    return await service.get_all_test_plans(
+        project_id=project_id,
+        status=status,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get(
@@ -139,10 +175,6 @@ async def get_test_plan(
     "/{plan_id}",
     response_model=TestPlanResponse,
     summary="Update / edit a test plan",
-    description=(
-        "QA engineer can edit any field of the test plan. "
-        "Works for both AI-proposed and manually created plans."
-    ),
 )
 async def update_test_plan(
     plan_id: str,
@@ -173,6 +205,21 @@ async def delete_test_plan(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test plan not found")
 
 
+@router.delete(
+    "/project/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete all test plans for a project",
+)
+async def delete_project_test_plans(
+    project_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> None:
+    """Delete all test plans associated with a project."""
+    service = TestPlanService(db)
+    await service.delete_test_plans_by_project(project_id)
+
+
 # ============================================================
 # APPROVAL WORKFLOW
 # ============================================================
@@ -181,10 +228,6 @@ async def delete_test_plan(
     "/{plan_id}/approve",
     response_model=TestPlanResponse,
     summary="Approve AI test plan draft",
-    description=(
-        "QA engineer approves the AI-generated draft. "
-        "Status transitions: ai_proposed → approved."
-    ),
 )
 async def approve_test_plan(
     plan_id: str,
@@ -202,11 +245,6 @@ async def approve_test_plan(
     "/{plan_id}/reject",
     response_model=TestPlanResponse,
     summary="Reject AI draft — reset to draft",
-    description=(
-        "QA engineer rejects the AI proposal. "
-        "Status transitions back to draft. "
-        "The QA can then edit the plan manually or trigger regeneration."
-    ),
 )
 async def reject_test_plan(
     plan_id: str,
@@ -221,18 +259,13 @@ async def reject_test_plan(
 
 
 # ============================================================
-# EXPORT
+# EXPORT 
 # ============================================================
 
 @router.get(
     "/{plan_id}/export/pdf",
     summary="Export test plan as PDF",
-    responses={
-        200: {
-            "content": {"application/pdf": {}},
-            "description": "PDF file download",
-        }
-    },
+    responses={200: {"content": {"application/pdf": {}}, "description": "PDF file download"}},
 )
 async def export_pdf(
     plan_id: str,
@@ -251,10 +284,7 @@ async def export_pdf(
         raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
     except Exception as exc:
         logger.error(f"[API] PDF export failed for {plan_id}: {exc}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="PDF generation failed.",
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="PDF generation failed.")
 
     filename = f"test_plan_{plan_id[:8]}.pdf"
     return Response(
@@ -267,14 +297,7 @@ async def export_pdf(
 @router.get(
     "/{plan_id}/export/docx",
     summary="Export test plan as DOCX",
-    responses={
-        200: {
-            "content": {
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {}
-            },
-            "description": "DOCX file download",
-        }
-    },
+    responses={200: {"content": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document": {}}, "description": "DOCX file download"}},
 )
 async def export_docx(
     plan_id: str,
@@ -293,10 +316,7 @@ async def export_docx(
         raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
     except Exception as exc:
         logger.error(f"[API] DOCX export failed for {plan_id}: {exc}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="DOCX generation failed.",
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="DOCX generation failed.")
 
     filename = f"test_plan_{plan_id[:8]}.docx"
     mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -308,17 +328,13 @@ async def export_docx(
 
 
 # ============================================================
-# EMAIL SHARING
+# EMAIL SHARING 
 # ============================================================
 
 @router.post(
     "/{plan_id}/email/generate-body",
     response_model=GenerateEmailBodyResponse,
     summary="AI-generate email subject + body",
-    description=(
-        "Generates a professional email subject and body for sharing the test plan. "
-        "Takes recipient list with roles into account."
-    ),
 )
 async def generate_email_body(
     plan_id: str,
@@ -333,19 +349,12 @@ async def generate_email_body(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except Exception as exc:
         logger.error(f"[API] Email body generation failed: {exc}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Email body generation failed.",
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Email body generation failed.")
 
 
 @router.post(
     "/{plan_id}/email/send",
     summary="Send test plan report via email",
-    description=(
-        "Sends the test plan report to specified recipients. "
-        "If generate_body=true, AI generates subject and body automatically."
-    ),
 )
 async def send_email(
     plan_id: str,
@@ -360,24 +369,17 @@ async def send_email(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except Exception as exc:
         logger.error(f"[API] Email send failed: {exc}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send email: {exc}",
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to send email: {exc}")
 
 
 # ============================================================
-# JIRA NOTIFICATION
+# JIRA NOTIFICATION 
 # ============================================================
 
 @router.post(
     "/{plan_id}/jira/notify",
     response_model=JiraNotificationResponse,
     summary="Create Jira ticket for test plan",
-    description=(
-        "Creates a Jira issue (Task/Story) to notify the team about the test plan. "
-        "Uses the user's connected Jira account."
-    ),
 )
 async def send_jira_notification(
     plan_id: str,
@@ -394,7 +396,4 @@ async def send_jira_notification(
         raise
     except Exception as exc:
         logger.error(f"[API] Jira notification failed: {exc}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create Jira ticket: {exc}",
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create Jira ticket: {exc}")

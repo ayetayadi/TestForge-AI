@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.database import Base
 from app.models.enums import TestSuiteStatus
@@ -38,6 +39,11 @@ class TestSuite(Base):
     )
 
     execution_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Matrice de traçabilité : {us_id → [tc_id, ...]}
+    matrix_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
+    # Couverture : {total_us, covered_us, total_ac, covered_ac, coverage_pct}
+    coverage_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
 
     status: Mapped[str] = mapped_column(
         String(20),

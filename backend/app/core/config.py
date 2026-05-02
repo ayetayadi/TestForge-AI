@@ -54,8 +54,19 @@ class Settings(BaseSettings):
     # =========================
     LLM_PROVIDER: str = "smart"
     GEMINI_API_KEY: str | None = None
-    OPENROUTER_API_KEY: str | None = None
-    GROQ_API_KEY: str | None = None
+    
+    OPENROUTER_API_KEY_1: str | None = None
+    OPENROUTER_API_KEY_2: str | None = None
+    OPENROUTER_API_KEY_3: str | None = None
+    OPENROUTER_API_KEY_4: str | None = None
+    OPENROUTER_API_KEY_5: str | None = None
+    OPENROUTER_API_KEY_6: str | None = None
+
+    GROQ_API_KEY_1: str | None = None
+    GROQ_API_KEY_2: str | None = None
+    GROQ_API_KEY_3: str | None = None
+    GROQ_API_KEY_4: str | None = None
+    GROQ_API_KEY_5: str | None = None
 
     # =========================
     # ATLAS CLOUD CONFIGURATION

@@ -7,13 +7,24 @@
         <h1>Test Plans</h1>
         <p class="subtitle">AI-powered ISTQB test plan generation & management</p>
       </div>
-      <button
-        class="btn-primary"
-        (click)="openGenerateModal()"
-        [disabled]="!selectedProjectId()">
-        <span class="icon">✦</span>
-        Generate with AI
-      </button>
+      <div class="header-actions">
+        <button
+  class="btn-primary"
+  (click)="openGenerateModal()"
+  *ngIf="selectedProjectId() && testPlans().length > 0"
+  [disabled]="!selectedProjectId()">
+          <span class="icon">✦</span>
+          Generate with AI
+        </button>
+         <button
+          class="btn-danger"
+          *ngIf="selectedProjectId() && testPlans().length > 0"
+          (click)="deleteAllProjectPlans()"
+          title="Delete all test plans for this project">
+          <span class="icon">🗑️</span>
+          Delete All
+        </button>
+      </div>
     </div>
 
     <!-- Project selector -->
@@ -115,6 +126,17 @@
         <span class="approved-badge" *ngIf="plan.approved_at">
           ✓ Approved {{ formatDate(plan.approved_at) }}
         </span>
+          <button 
+            class="btn-delete-card" 
+            (click)="deletePlan(plan.id, $event)"
+            title="Delete this test plan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </button>
       </div>
     </div>
   </div>
@@ -148,7 +170,7 @@
       <div>
         <h2>Generate Test Plan with AI</h2>
         <p class="modal-subtitle">
-          An ISTQB-compliant draft will be generated from your risk analysis results.
+          An ISTQB-compliant draft will be generated from your accepted risk analysis results.
         </p>
       </div>
       <button class="close-btn" (click)="closeGenerateModal()">✕</button>
@@ -156,59 +178,70 @@
 
     <div class="modal-body">
 
-      <!-- Scope Type -->
+      <!-- 1. SCOPE TYPE SELECTION -->
       <div class="form-group">
         <label>Scope Type</label>
-        <select
-          class="form-control"
-          [ngModel]="scopeType"
-          (ngModelChange)="onScopeTypeChange($event)">
-          <option *ngFor="let s of scopeTypes" [value]="s">{{ s | titlecase }}</option>
-        </select>
+        <div class="scope-type-buttons">
+          <button
+            *ngFor="let type of scopeTypes"
+            type="button"
+            class="scope-btn"
+            [class.active]="scopeType === type"
+            (click)="onScopeTypeChange(type)">
+            {{ type | titlecase }}
+          </button>
+        </div>
       </div>
 
-      <!-- Scope References : MANUAL -->
+      <!-- 2. MANUAL REFERENCES -->
       <div class="form-group" *ngIf="scopeType === 'manual'">
-        <label>Scope References <span class="optional">(optional, comma-separated)</span></label>
+        <label>Manual References</label>
         <input
           type="text"
           class="form-control"
           [(ngModel)]="scopeRefs"
-          placeholder="e.g. Sprint 4, SCRUM-12, Release 2.0">
+          placeholder="e.g. SCRUM-12, SCRUM-13">
+        <small>Comma-separated story IDs</small>
       </div>
 
-      <!-- Scope References : EPIC / SPRINT / RELEASE -->
+      <!-- 3. DYNAMIC SELECTION (Epics ou Sprints) -->
       <div class="form-group" *ngIf="scopeType !== 'manual'">
-        <label>{{ scopeOptionLabel() }} <span class="optional">(select one or more)</span></label>
-
-        <div *ngIf="isLoadingScopeRefs()" class="loading-small">
-          <span class="spinner-sm"></span> Loading...
+        <label>{{ scopeOptionLabel() }}</label>
+        
+        <!-- Loading -->
+        <div *ngIf="isLoadingScopeRefs()" class="loading-state">
+          <div class="spinner-sm"></div>
+          <span>Loading {{ scopeType }}s...</span>
         </div>
-
-        <div *ngIf="!isLoadingScopeRefs()" class="scope-multi-select">
+        
+        <!-- Liste des sélections -->
+        <div *ngIf="!isLoadingScopeRefs() && getScopeOptions().length > 0" class="scope-multi-select">
           <div
-            *ngFor="let item of scopeOptions()"
+            *ngFor="let item of getScopeOptions()"
             class="scope-item"
             [class.selected]="selectedScopeItems().includes(item.id)"
             (click)="toggleScopeItem(item.id)">
             <span class="checkbox-icon">
-              {{ selectedScopeItems().includes(item.id) ? '☑' : '☐' }}
+              {{ selectedScopeItems().includes(item.id) ? '✓' : '○' }}
             </span>
             <span class="item-name">{{ item.name }}</span>
-            <span class="item-key" *ngIf="$any(item).key">({{ $any(item).key }})</span>
-          </div>
-
-          <div *ngIf="scopeOptions().length === 0" class="no-data">
-            No {{ scopeType }}s found for this project.
+            <span class="item-key" *ngIf="scopeType === 'epic'">({{ item.key || item.id }})</span>
           </div>
         </div>
-
+        
+        <!-- Aucune donnée -->
+        <div *ngIf="!isLoadingScopeRefs() && getScopeOptions().length === 0" class="empty-state-small">
+          <p>No {{ scopeType }}s found for this project.</p>
+          <p class="hint">Make sure user stories have been imported.</p>
+        </div>
+        
+        <!-- Compteur -->
         <div class="selected-count" *ngIf="selectedScopeItems().length > 0">
-          {{ selectedScopeItems().length }} {{ scopeType }}(s) selected
+          ✅ {{ selectedScopeItems().length }} {{ scopeType }}(s) selected
         </div>
       </div>
 
-      <!-- Target Environment -->
+      <!-- 4. TARGET ENVIRONMENT -->
       <div class="form-group">
         <label>Target Environment</label>
         <select class="form-control" [(ngModel)]="environment">
@@ -216,7 +249,7 @@
         </select>
       </div>
 
-      <!-- Max items -->
+      <!-- 5. MAX ITEMS -->
       <div class="form-row">
         <div class="form-group half">
           <label>Max Risks to Include</label>
@@ -228,9 +261,10 @@
         </div>
       </div>
 
+      <!-- 6. AI NOTE -->
       <div class="ai-note">
         <span class="ai-icon">✦</span>
-        The AI will analyze your risk results and generate a complete test plan draft including
+        The AI will analyze your <strong>accepted risks</strong> and generate a complete test plan draft including
         objectives, scope, test types, criteria, approach, and communication plan.
       </div>
     </div>

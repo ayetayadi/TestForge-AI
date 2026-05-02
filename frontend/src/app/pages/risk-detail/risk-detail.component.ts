@@ -40,7 +40,7 @@ export class RiskDetailComponent implements OnInit {
   // Configuration
   readonly levelConfig = RISK_LEVEL_CONFIG;
 
-  // Computed: Map pour lookup rapide des stories (fallback uniquement)
+  // Computed: Map pour lookup rapide des stories
   storyMap = computed((): Map<string, UserStory> => {
     const map = new Map<string, UserStory>();
     for (const story of this.allStories()) {
@@ -61,6 +61,12 @@ export class RiskDetailComponent implements OnInit {
     return this.risk()?.source === 'approved_version';
   });
 
+  // Computed: Projet ID récupéré depuis la UserStory (plus de project_id dans Risk)
+  projectId = computed((): string | null => {
+    const risk = this.risk();
+    if (!risk?.user_story_id) return null;
+    return this.storyMap().get(risk.user_story_id)?.project_id || null;
+  });
 
   computedScoreDraft = computed((): number => {
     return Math.round(this.probabilityDraft * this.impactDraft * 100) / 100;
@@ -76,7 +82,6 @@ export class RiskDetailComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadRisk();
-    // Ne charge les stories originales qu'en fallback
     this.loadAllStories();
   }
 
@@ -112,34 +117,23 @@ export class RiskDetailComponent implements OnInit {
   // USER STORY HELPERS — PRIORITÉ À LA SOURCE STOCKÉE
   // ============================================================
   
-  /** 
-   * Récupère la description qui a SERVI à l'analyse de risque.
-   * Priorité : source_story_text (stocké dans Risk) > story.description (fallback)
-   */
   getStoryDescription(): string | null {
     const risk = this.risk();
     if (!risk) return null;
 
-    // 1. Priorité : le texte source stocké dans le risque lui-même
     if (risk.source_story_text) {
       return risk.source_story_text;
     }
 
-    // 2. Fallback : User Story originale (risques créés avant la feature)
     if (!risk.user_story_id) return null;
     const story = this.storyMap().get(risk.user_story_id);
     return story?.description || null;
   }
 
-  /** 
-   * Récupère les critères d'acceptation qui ont SERVI à l'analyse.
-   * Priorité : source_acceptance_criteria (JSON stocké) > story.acceptance_criteria (fallback)
-   */
   getStoryAcceptanceCriteria(): string[] | null {
     const risk = this.risk();
     if (!risk) return null;
 
-    // 1. Priorité : les ACs stockés dans le risque (JSON string)
     if (risk.source_acceptance_criteria) {
       try {
         const parsed = JSON.parse(risk.source_acceptance_criteria);
@@ -151,7 +145,6 @@ export class RiskDetailComponent implements OnInit {
       }
     }
 
-    // 2. Fallback : User Story originale
     if (!risk.user_story_id) return null;
     const story = this.storyMap().get(risk.user_story_id);
     const criteria = story?.acceptance_criteria;
@@ -159,7 +152,6 @@ export class RiskDetailComponent implements OnInit {
     return criteria.filter((c: string) => c && c.trim().length > 0);
   }
 
-  /** Label de la User Story */
   usLabel(): string {
     const risk = this.risk();
     if (!risk) return '—';
@@ -168,7 +160,6 @@ export class RiskDetailComponent implements OnInit {
            '—';
   }
 
-  /** Titre de la User Story */
   usTitle(): string | null {
     const risk = this.risk();
     if (!risk?.user_story_id) return null;
@@ -210,7 +201,7 @@ export class RiskDetailComponent implements OnInit {
     });
   }
 
-    startEditFormula(): void {
+  startEditFormula(): void {
     const risk = this.risk();
     if (!risk) return;
     this.probabilityDraft = risk.probability;
@@ -223,12 +214,10 @@ export class RiskDetailComponent implements OnInit {
   }
 
   onProbabilityChange(value: number): void {
-    // Clamp between 0.1 and 0.9
     this.probabilityDraft = Math.min(0.9, Math.max(0.1, value));
   }
 
   onImpactChange(value: number): void {
-    // Clamp between 1 and 5
     this.impactDraft = Math.min(5, Math.max(1, Math.round(value)));
   }
 
@@ -272,36 +261,44 @@ export class RiskDetailComponent implements OnInit {
   // RISK DECISION
   // ============================================================
 
-acceptRisk(accepted: boolean): void {
-  const risk = this.risk();
-  if (!risk) return;
-  
-  this.riskService.acceptRisk(risk.id, accepted).subscribe({
-    next: (updatedRisk) => {
-      this.risk.set(updatedRisk);
-      const action = accepted ? 'accepted' : 'rejected';
-      this.toast.success(`Risk ${action} successfully!`);
-      setTimeout(() => {
-        this.router.navigate(['/risk-analysis'], {
-          queryParams: { project: updatedRisk.project_id }
-        });
-      }, 1000);
-    },
-    error: () => {
-      this.toast.error('Failed to update risk status');
-    }
-  });
-}
+  acceptRisk(accepted: boolean): void {
+    const risk = this.risk();
+    if (!risk) return;
+    
+    this.riskService.acceptRisk(risk.id, accepted).subscribe({
+      next: (updatedRisk) => {
+        this.risk.set(updatedRisk);
+        const action = accepted ? 'accepted' : 'rejected';
+        this.toast.success(`Risk ${action} successfully!`);
+        setTimeout(() => {
+          // ✅ Navigation sans project_id (récupéré via UserStory)
+          const projectId = this.projectId();
+          this.router.navigate(['/risk-analysis'], {
+            queryParams: projectId ? { project: projectId } : {}
+          });
+        }, 1000);
+      },
+      error: () => {
+        this.toast.error('Failed to update risk status');
+      }
+    });
+  }
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+
+  goBack(): void {
+    // ✅ Navigation sans risk.project_id
+    const projectId = this.projectId();
+    this.router.navigate(['/risk-analysis'], {
+      queryParams: projectId ? { project: projectId } : {}
+    });
+  }
 
   // ============================================================
   // UI HELPERS
   // ============================================================
-
-  goBack(): void {
-    this.router.navigate(['/risk-analysis'], {
-      queryParams: { project: this.risk()?.project_id }
-    });
-  }
 
   formatScore(score: number): string {
     return score.toFixed(2);

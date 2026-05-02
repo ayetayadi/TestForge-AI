@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, DateTime, Integer, String, Text, Float, ForeignK
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
-
+from sqlalchemy import UniqueConstraint
 from app.core.database import Base
 from app.models.enums import StoryDecision, WorkflowStatus
 
@@ -114,6 +114,7 @@ class UserStoryVersion(Base):
     # INDEX OPTIMISÉS
     # =========================
     __table_args__ = (
+        UniqueConstraint("user_story_id", "version_number", name="uq_user_story_version"),
         # Index simple sur user_story_id (déjà fait par index=True)
         # Mais on garde un index nommé pour les requêtes complexes
         Index("idx_version_user_story_id", "user_story_id"),

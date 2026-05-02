@@ -1,11 +1,12 @@
 """
-Pure functions for Gherkin BDD manipulation.
+Pure utility functions for building and validating test case components.
 
 No LLM, no I/O:
-  - validate_gherkin      → check the Gherkin text has the minimum required structure
-  - parse_gherkin_steps   → extract structured steps from a Gherkin scenario text
-  - extract_postconditions→ derive postconditions from Then/And clauses
-  - normalize_gherkin     → clean indentation and keyword casing
+  - validate_gherkin        → check Gherkin has minimum required structure
+  - parse_gherkin_steps     → extract structured steps from a Gherkin text
+  - extract_postconditions  → derive postconditions from Then/And clauses
+  - normalize_gherkin       → clean indentation and keyword casing
+  - build_tc_code           → generate a TC-NNN identifier
 """
 
 import re
@@ -16,7 +17,6 @@ from app.ai_workflows.test_case.config import GHERKIN_KEYWORDS, MIN_GHERKIN_STEP
 
 logger = logging.getLogger(__name__)
 
-# Regex: line starting with a Gherkin keyword
 _STEP_PATTERN = re.compile(
     r"^\s*(Given|When|Then|And|But)\s+(.+)$",
     re.IGNORECASE | re.MULTILINE,
@@ -26,10 +26,10 @@ _SCENARIO_PATTERN = re.compile(r"^\s*Scenario\s*:\s*(.+)$", re.IGNORECASE | re.M
 
 def validate_gherkin(text: str) -> Tuple[bool, List[str]]:
     """
-    Check that a Gherkin scenario has the minimum valid structure.
+    Check that a Gherkin scenario block has the minimum valid structure.
 
     Returns:
-        (is_valid, issues)  — issues is empty when is_valid is True
+        (is_valid, issues) — issues is empty when is_valid is True
     """
     if not text or len(text.strip()) < 20:
         return False, ["Gherkin scenario is empty or too short"]
@@ -56,10 +56,10 @@ def parse_gherkin_steps(gherkin_text: str) -> List[Dict[str, Any]]:
     Convert a Gherkin scenario text into a structured steps list.
 
     Returns:
-        [{"order": 1, "action": "Navigate to /login", "expected": ""}]
+        [{"order": 1, "action": "Navigate to /login", "expected": "Login form displayed"}]
 
-    The "expected" field is populated for Then/And steps that follow a When.
-    Action steps (Given/When) have expected="".
+    The "expected" field is populated for Then/And steps.
+    Given/When steps have expected="".
     """
     steps: List[Dict[str, Any]] = []
     matches = _STEP_PATTERN.findall(gherkin_text)
@@ -95,7 +95,7 @@ def parse_gherkin_steps(gherkin_text: str) -> List[Dict[str, Any]]:
 
 def extract_postconditions(gherkin_text: str) -> List[str]:
     """
-    Extract Then/And clauses as postconditions (observable state after test).
+    Extract Then/And clauses as postconditions (observable system state after test).
     """
     postconditions: List[str] = []
     in_then = False
@@ -115,6 +115,7 @@ def extract_postconditions(gherkin_text: str) -> List[str]:
 def normalize_gherkin(text: str) -> str:
     """
     Normalize indentation and keyword casing in a Gherkin scenario.
+    Preserves Scenario Outline / Examples table structure.
     """
     lines = text.strip().splitlines()
     normalized: List[str] = []
@@ -124,19 +125,21 @@ def normalize_gherkin(text: str) -> str:
         if not stripped:
             continue
 
-        # Capitalize Gherkin keywords
         upper_match = re.match(
-            r"^(scenario|given|when|then|and|but)(\s*:?\s*)(.*)$",
+            r"^(scenario\s*outline|scenario|given|when|then|and|but)(\s*:?\s*)(.*)$",
             stripped,
             re.IGNORECASE,
         )
         if upper_match:
-            kw = upper_match.group(1).capitalize()
+            kw_raw = upper_match.group(1).strip()
+            kw = " ".join(w.capitalize() for w in kw_raw.split())
             rest = upper_match.group(3)
-            if kw.lower() == "scenario":
-                normalized.append(f"Scenario: {rest}")
+            if kw.lower() in ("scenario", "scenario outline"):
+                normalized.append(f"{kw}: {rest}")
             else:
                 normalized.append(f"  {kw} {rest}")
+        elif stripped.startswith("|") or stripped.lower().startswith("examples"):
+            normalized.append(f"  {stripped}")
         else:
             normalized.append(f"  {stripped}")
 

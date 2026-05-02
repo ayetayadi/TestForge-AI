@@ -1,4 +1,4 @@
-"""Risk repository for database operations ()."""
+"""Risk repository for database operations."""
 
 import logging
 from typing import List, Optional, Tuple
@@ -10,15 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.risk import Risk
 from app.models.user_story import UserStory
-from app.models.test_plan import TestPlan
 from app.models.jira_project import JiraProject
 from app.schemas.risk_schema import RiskCreate, RiskUpdate, RiskFilters
+from app.models.user_story_version import UserStoryVersion
 
 logger = logging.getLogger(__name__)
 
 
 class RiskRepository:
-    """Repository for Risk entity following ."""
+    """Repository for Risk entity."""
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -28,16 +28,14 @@ class RiskRepository:
     # ============================================================
     
     async def create(self, data: RiskCreate) -> Risk:
-        """Create a new risk (automatically computes risk_score and level)."""
-        await self._validate_foreign_keys(data.project_id, data.test_plan_id, data.user_story_id)
+        """Create a single risk."""
+        await self._validate_foreign_keys(data.user_story_id)
 
         risk_score = data.compute_risk_score()
         level = data.compute_level()
 
         risk = Risk(
             id=str(uuid4()),
-            project_id=data.project_id,
-            test_plan_id=data.test_plan_id,
             user_story_id=data.user_story_id,
             description=data.description,
             mitigation=data.mitigation,
@@ -58,11 +56,77 @@ class RiskRepository:
         await self.db.flush()
         await self.db.refresh(risk)
         
-        logger.info(f"[RISK REPO] Created risk {risk.id} with score={risk_score} level={level}")
+        logger.info(f"[RISK REPO] Created risk {risk.id} score={risk_score} level={level}")
         return risk
     
+    async def create_for_stories(
+        self,
+        project_id: str,
+        sprint: Optional[str] = None,
+        epic_key: Optional[str] = None,
+        use_approved_version_only: bool = False,
+        base_data: Optional[RiskCreate] = None,
+    ) -> Tuple[List[Risk], List[dict]]:
+        """
+        Crée des risques pour toutes les UserStories correspondant aux filtres.
+        
+        Args:
+            project_id: Projet Jira concerné
+            sprint: Filtrer par sprint
+            epic_key: Filtrer par epic
+            use_approved_version_only: Utiliser uniquement les versions approuvées
+            base_data: Données de base pour chaque risque
+        """
+        stmt = select(UserStory).where(UserStory.project_id == project_id)
+        
+        if sprint:
+            stmt = stmt.where(UserStory.sprint == sprint)
+        if epic_key:
+            stmt = stmt.where(UserStory.epic_key == epic_key)
+        
+        result = await self.db.execute(stmt)
+        user_stories = result.scalars().all()
+        
+        created = []
+        failed = []
+        
+        for us in user_stories:
+            try:
+                source_text = f"{us.title}\n{us.description or ''}"
+                version_id = None
+                ac_criteria = us.acceptance_criteria or []
+                source = "original"
+                
+                if use_approved_version_only:
+                    approved = await self._get_last_approved_version(us.id)
+                    if not approved:
+                        continue
+                    source_text = approved.improved_story
+                    version_id = approved.id
+                    ac_criteria = approved.generated_acceptance_criteria or []
+                    source = "approved_version"
+                
+                risk_data = RiskCreate(
+                    user_story_id=us.id,
+                    source_version_id=version_id,
+                    source_story_text=source_text,
+                    source_acceptance_criteria=ac_criteria,
+                    source=source,
+                    **(base_data.model_dump(exclude={'user_story_id'}) if base_data else {})
+                )
+                
+                risk = await self.create(risk_data)
+                created.append(risk)
+                
+            except Exception as e:
+                logger.error(f"[RISK REPO] Failed for {us.issue_key}: {e}")
+                failed.append({"issue_key": us.issue_key, "error": str(e)})
+        
+        await self.db.commit()
+        return created, failed
+
     async def create_batch(self, items: List[RiskCreate]) -> Tuple[List[Risk], List[dict]]:
-        """Create multiple risks in batch."""
+        """Create multiple risks from a list."""
         created = []
         failed = []
         
@@ -87,74 +151,110 @@ class RiskRepository:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
     
-    async def get_by_test_plan(
-        self,
-        test_plan_id: str,
-        page: int = 1,
-        page_size: int = 50,
-        filters: Optional[RiskFilters] = None,
-    ) -> Tuple[List[Risk], int]:
-        """Get paginated risks for a test plan with optional filters."""
-        stmt = select(Risk).options(selectinload(Risk.user_story)).where(Risk.test_plan_id == test_plan_id)
-        
-        if filters:
-            stmt = self._apply_filters(stmt, filters)
-        
-        # Count total
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        total = await self.db.scalar(count_stmt)
-        
-        # Pagination
-        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-        stmt = stmt.order_by(Risk.risk_score.desc())  # Highest risks first
-        
-        result = await self.db.execute(stmt)
-        items = result.scalars().all()
-        
-        return items, total or 0
-    
     async def get_by_project(
         self,
         project_id: str,
         filters: Optional[RiskFilters] = None,
     ) -> List[Risk]:
-        """Get all risks for a project, ordered by score desc."""
-        stmt = select(Risk).options(selectinload(Risk.user_story)).where(Risk.project_id == project_id)
+        """Get all risks for a project via UserStory."""
+        stmt = (
+            select(Risk)
+            .join(UserStory, Risk.user_story_id == UserStory.id)
+            .options(selectinload(Risk.user_story))
+            .where(UserStory.project_id == project_id)
+            .order_by(Risk.risk_score.desc())
+        )
+    
         if filters:
             stmt = self._apply_filters(stmt, filters)
-        stmt = stmt.order_by(Risk.risk_score.desc())
+    
         result = await self.db.execute(stmt)
         return result.scalars().all()
 
     async def get_by_user_story(self, user_story_id: str) -> List[Risk]:
         """Get all risks for a specific user story."""
-        stmt = select(Risk).options(selectinload(Risk.user_story)).where(Risk.user_story_id == user_story_id)
-        stmt = stmt.order_by(Risk.risk_score.desc())
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
-
-    async def get_all(self, filters: Optional[RiskFilters] = None) -> List[Risk]:
-        """Get all risks across all projects, ordered by score desc."""
-        stmt = select(Risk).options(selectinload(Risk.user_story))
-        if filters:
-            stmt = self._apply_filters(stmt, filters)
-        stmt = stmt.order_by(Risk.risk_score.desc())
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
-    
-    async def get_high_priority_risks(
-        self,
-        test_plan_id: str,
-        min_score: float = 2.5
-    ) -> List[Risk]:
-        """Get risks above threshold (ISTQB: Haute or Critique)."""
         stmt = (
             select(Risk)
             .options(selectinload(Risk.user_story))
-            .where(Risk.test_plan_id == test_plan_id)
-            .where(Risk.risk_score >= min_score)
+            .where(Risk.user_story_id == user_story_id)
             .order_by(Risk.risk_score.desc())
         )
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+
+    async def get_all(
+        self,
+        project_id: Optional[str] = None,
+        sprint: Optional[str] = None,
+        epic_key: Optional[str] = None,
+        user_story_id: Optional[str] = None,
+        level: Optional[str] = None,
+        is_accepted: Optional[bool] = None,
+        source: Optional[str] = None,  # "original" | "approved_version"
+        page: int = 1,
+        page_size: int = 50,
+    ) -> Tuple[List[Risk], int]:
+        """
+        Récupère TOUS les risques avec filtres optionnels.
+        
+        Exemples d'utilisation :
+        - get_all() → Tous les risques
+        - get_all(project_id="proj-1") → Risques du projet
+        - get_all(project_id="proj-1", sprint="Sprint 4") → Risques du sprint
+        - get_all(project_id="proj-1", epic_key="SCRUM-12") → Risques de l'epic
+        - get_all(level="critical") → Risques critiques tous projets
+        - get_all(source="approved_version") → Risques basés sur versions approuvées
+        """
+        stmt = select(Risk).options(selectinload(Risk.user_story))
+        
+        # JOINTURE uniquement si filtre projet/sprint/epic
+        if project_id or sprint or epic_key:
+            stmt = stmt.join(UserStory, Risk.user_story_id == UserStory.id)
+            
+            if project_id:
+                stmt = stmt.where(UserStory.project_id == project_id)
+            if sprint:
+                stmt = stmt.where(UserStory.sprint == sprint)
+            if epic_key:
+                stmt = stmt.where(UserStory.epic_key == epic_key)
+        
+        # Filtres directs sur Risk
+        if user_story_id:
+            stmt = stmt.where(Risk.user_story_id == user_story_id)
+        if level:
+            stmt = stmt.where(Risk.level == level)
+        if is_accepted is not None:
+            stmt = stmt.where(Risk.is_accepted == is_accepted)
+        if source:
+            stmt = stmt.where(Risk.source == source)
+        
+        # Pagination
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total = await self.db.scalar(count_stmt)
+        
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+        stmt = stmt.order_by(Risk.risk_score.desc())
+        
+        result = await self.db.execute(stmt)
+        return result.scalars().all(), total or 0
+
+    async def get_high_priority_risks(
+        self,
+        project_id: Optional[str] = None,
+        min_score: float = 2.5
+    ) -> List[Risk]:
+        """Get risks above threshold for a project."""
+        stmt = (
+            select(Risk)
+            .options(selectinload(Risk.user_story))
+            .where(Risk.risk_score >= min_score)
+        )
+        
+        if project_id:
+            stmt = stmt.join(UserStory, Risk.user_story_id == UserStory.id)
+            stmt = stmt.where(UserStory.project_id == project_id)
+        
+        stmt = stmt.order_by(Risk.risk_score.desc())
         result = await self.db.execute(stmt)
         return result.scalars().all()
     
@@ -162,12 +262,6 @@ class RiskRepository:
     # UPDATE
     # ============================================================
     
-    async def set_test_plan_id(self, risk_id: str, test_plan_id: str) -> None:
-        risk = await self.get_by_id(risk_id)
-        if risk:
-            risk.test_plan_id = test_plan_id
-            await self.db.flush()
-
     async def update(self, risk_id: str, data: RiskUpdate) -> Optional[Risk]:
         """Update a risk and recompute risk_score and level if P or I changed."""
         risk = await self.get_by_id(risk_id)
@@ -176,14 +270,11 @@ class RiskRepository:
         
         update_data = data.model_dump(exclude_unset=True)
         
-        # Track if P or I changed (needs recomputation)
         p_i_changed = "probability" in update_data or "impact" in update_data
         
-        # Apply updates
         for field, value in update_data.items():
             setattr(risk, field, value)
         
-        # Recompute risk_score and level if needed
         if p_i_changed:
             risk.risk_score = round(risk.probability * risk.impact, 2)
             risk.level = self._compute_level(risk.risk_score)
@@ -195,7 +286,7 @@ class RiskRepository:
         return risk
     
     async def accept_risk(self, risk_id: str, accepted: bool) -> Optional[Risk]:
-        """Accept or reject a risk (ISTQB: validation par le testeur)."""
+        """Accept or reject a risk."""
         risk = await self.get_by_id(risk_id)
         if not risk:
             return None
@@ -223,9 +314,13 @@ class RiskRepository:
         logger.info(f"[RISK REPO] Deleted risk {risk_id}")
         return True
     
-    async def delete_by_test_plan(self, test_plan_id: str) -> int:
-        """Delete all risks for a test plan (cascade handled by DB)."""
-        stmt = select(Risk).where(Risk.test_plan_id == test_plan_id)
+    async def delete_by_project(self, project_id: str) -> int:
+        """Delete all risks for a project via UserStory."""
+        stmt = (
+            select(Risk)
+            .join(UserStory, Risk.user_story_id == UserStory.id)
+            .where(UserStory.project_id == project_id)
+        )
         result = await self.db.execute(stmt)
         risks = result.scalars().all()
         
@@ -234,25 +329,54 @@ class RiskRepository:
             await self.db.delete(risk)
         
         await self.db.flush()
-        logger.info(f"[RISK REPO] Deleted {count} risks for test plan {test_plan_id}")
+        logger.info(f"[RISK REPO] Deleted {count} risks for project {project_id}")
         return count
     
     # ============================================================
     # STATISTICS
     # ============================================================
     
-    async def get_risk_summary(self, test_plan_id: str) -> dict:
-        """Get risk distribution summary for a test plan."""
-        stmt = select(Risk).where(Risk.test_plan_id == test_plan_id)
-        result = await self.db.execute(stmt)
-        return self._build_summary(result.scalars().all())
-
     async def get_risk_summary_by_project(self, project_id: str) -> dict:
         """Get risk distribution summary for a project."""
-        stmt = select(Risk).where(Risk.project_id == project_id)
+        stmt = (
+            select(Risk)
+            .join(UserStory, Risk.user_story_id == UserStory.id)
+            .where(UserStory.project_id == project_id)
+            .order_by(Risk.risk_score.desc())
+        )
         result = await self.db.execute(stmt)
         return self._build_summary(result.scalars().all())
 
+    async def get_risk_summary_by_sprint(self, project_id: str, sprint: str) -> dict:
+        """Get risk distribution summary for a sprint."""
+        stmt = (
+            select(Risk)
+            .join(UserStory, Risk.user_story_id == UserStory.id)
+            .where(UserStory.project_id == project_id)
+            .where(UserStory.sprint == sprint)
+            .order_by(Risk.risk_score.desc())
+        )
+        result = await self.db.execute(stmt)
+        return self._build_summary(result.scalars().all())
+
+    # ============================================================
+    # PRIVATE HELPERS
+    # ============================================================
+
+    async def _get_last_approved_version(self, user_story_id: str) -> Optional[UserStoryVersion]:
+        """Récupère la dernière version approuvée d'une UserStory."""
+        from app.models.enums import StoryDecision
+        
+        stmt = (
+            select(UserStoryVersion)
+            .where(UserStoryVersion.user_story_id == user_story_id)
+            .where(UserStoryVersion.decision_status == StoryDecision.APPROVED)
+            .order_by(UserStoryVersion.version_number.desc())
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+      
     def _build_summary(self, risks) -> dict:
         summary = {
             "total": len(risks),
@@ -276,28 +400,12 @@ class RiskRepository:
             summary["avg_score"] = round(total_score / len(risks), 2)
         return summary
     
-    # ============================================================
-    # PRIVATE HELPERS
-    # ============================================================
-    
-    async def _validate_foreign_keys(
-        self,
-        project_id: str,
-        test_plan_id: Optional[str],
-        user_story_id: Optional[str],
-    ) -> None:
-        """Validate that referenced entities exist."""
-        result = await self.db.execute(select(JiraProject).where(JiraProject.id == project_id))
-        if not result.scalar_one_or_none():
-            raise ValueError(f"Project {project_id} not found")
-
-        if test_plan_id:
-            result = await self.db.execute(select(TestPlan).where(TestPlan.id == test_plan_id))
-            if not result.scalar_one_or_none():
-                raise ValueError(f"TestPlan {test_plan_id} not found")
-
+    async def _validate_foreign_keys(self, user_story_id: Optional[str]) -> None:
+        """Validate that referenced UserStory exists."""
         if user_story_id:
-            result = await self.db.execute(select(UserStory).where(UserStory.id == user_story_id))
+            result = await self.db.execute(
+                select(UserStory).where(UserStory.id == user_story_id)
+            )
             if not result.scalar_one_or_none():
                 raise ValueError(f"UserStory {user_story_id} not found")
     

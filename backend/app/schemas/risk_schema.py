@@ -1,4 +1,4 @@
-"""Pydantic schemas for Risk model ()."""
+"""Pydantic schemas for Risk model (ISTQB)."""
 
 from datetime import datetime
 from typing import Optional, List
@@ -23,13 +23,13 @@ class RiskBase(BaseModel):
     @field_validator("probability")
     @classmethod
     def validate_probability(cls, v: float) -> float:
-        """: probability between 0.1 and 0.9"""
+        """ISTQB: probability between 0.1 and 0.9"""
         return round(v, 2)
     
     @field_validator("impact")
     @classmethod
     def validate_impact(cls, v: int) -> int:
-        """: impact between 1 and 5"""
+        """ISTQB: impact between 1 and 5"""
         return v
     
     def compute_risk_score(self) -> float:
@@ -55,9 +55,7 @@ class RiskBase(BaseModel):
 class RiskCreate(RiskBase):
     """Schema for creating a new Risk."""
 
-    project_id: str = Field(..., min_length=36, max_length=36)
-    test_plan_id: Optional[str] = Field(None, min_length=36, max_length=36)
-    user_story_id: Optional[str] = Field(None, min_length=36, max_length=36)
+    user_story_id: str = Field(..., min_length=36, max_length=36)
     source: Optional[str] = "original"
     source_version_id: Optional[str] = None
     source_story_text: Optional[str] = None
@@ -83,9 +81,7 @@ class RiskResponse(RiskBase):
     """Schema for API responses."""
 
     id: str
-    project_id: str
-    test_plan_id: Optional[str]
-    user_story_id: Optional[str]
+    user_story_id: Optional[str] = None
     user_story_key: Optional[str] = None
     user_story_title: Optional[str] = None
     risk_score: float
@@ -106,8 +102,6 @@ class RiskResponse(RiskBase):
 
 class RiskFilters(BaseModel):
     """Filters for listing risks."""
-    
-    test_plan_id: Optional[str] = None
     user_story_id: Optional[str] = None
     level: Optional[str] = Field(None, pattern="^(critical|high|medium|low)$")
     is_accepted: Optional[bool] = None
@@ -131,9 +125,7 @@ class RiskListResponse(BaseModel):
 # ============================================================
 
 class RiskBatchCreate(BaseModel):
-    """Batch creation of risks for multiple user stories."""
-    
-    test_plan_id: str
+    """Batch creation of risks for multiple user stories."""    
     risks: List[RiskCreate]
 
 

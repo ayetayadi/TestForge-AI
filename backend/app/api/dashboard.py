@@ -14,6 +14,8 @@ from app.core.database import get_db
 from app.models.jira_connection import JiraConnection
 from app.models.jira_project import JiraProject
 from app.models.test_case import TestCase
+from app.models.test_suite import TestSuite  
+from app.models.test_plan import TestPlan      
 from app.models.user import User
 from app.models.user_story import UserStory
 
@@ -40,19 +42,16 @@ class ActivityItem(BaseModel):
 
 
 class DashboardStatsResponse(BaseModel):
-    # KPI cards
     user_stories_count: int
     user_stories_this_week: int
     test_cases_count: int
     test_cases_this_week: int
     gherkin_coverage: float
-    quality_score: float     # 0-100
+    quality_score: float
     projects_count: int
     has_data: bool
-    # Charts
     test_type_coverage: List[CoverageItem]
     priority_distribution: List[PriorityItem]
-    # Activity feed
     recent_activities: List[ActivityItem]
 
 
@@ -129,7 +128,6 @@ async def get_dashboard_stats(
     us_total, avg_score_raw = us_agg.fetchone()
     us_total = us_total or 0
     avg_score_raw = float(avg_score_raw or 0)
-    # current_score is stored as 0-1 (e.g. 0.74); multiply for display
     quality_score = round(avg_score_raw * 100 if avg_score_raw <= 1.0 else avg_score_raw, 1)
 
     us_week = await db.execute(
@@ -138,11 +136,12 @@ async def get_dashboard_stats(
     )
     us_this_week = us_week.scalar() or 0
 
-    # ── 3. Test case stats ─────────────────────────────────────────────────────
+    # ── 3. Test case stats (via TestSuite → TestPlan) ──────────────────────────
     base_tc = (
         select(TestCase.id)
-        .join(UserStory, TestCase.user_story_id == UserStory.id)
-        .where(UserStory.project_id.in_(project_ids), TestCase.is_active == True)
+        .join(TestSuite, TestCase.test_suite_id == TestSuite.id)      
+        .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)        
+        .where(TestPlan.project_id.in_(project_ids), TestCase.is_active == True)
         .subquery()
     )
 
@@ -151,9 +150,10 @@ async def get_dashboard_stats(
 
     tc_week_r = await db.execute(
         select(func.count(TestCase.id))
-        .join(UserStory, TestCase.user_story_id == UserStory.id)
+        .join(TestSuite, TestCase.test_suite_id == TestSuite.id)      
+        .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)        
         .where(
-            UserStory.project_id.in_(project_ids),
+            TestPlan.project_id.in_(project_ids),
             TestCase.is_active == True,
             TestCase.created_at >= one_week_ago,
         )
@@ -162,9 +162,10 @@ async def get_dashboard_stats(
 
     tc_gherkin_r = await db.execute(
         select(func.count(TestCase.id))
-        .join(UserStory, TestCase.user_story_id == UserStory.id)
+        .join(TestSuite, TestCase.test_suite_id == TestSuite.id)      
+        .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)        
         .where(
-            UserStory.project_id.in_(project_ids),
+            TestPlan.project_id.in_(project_ids),
             TestCase.is_active == True,
             TestCase.gherkin_source.isnot(None),
             TestCase.gherkin_source != "",
@@ -173,11 +174,12 @@ async def get_dashboard_stats(
     tc_with_gherkin = tc_gherkin_r.scalar() or 0
     gherkin_coverage = round(tc_with_gherkin / tc_total * 100, 1) if tc_total else 0.0
 
-    # ── 4. Test type coverage (bar chart) ──────────────────────────────────────
+    # ── 4. Test type coverage ──────────────────────────────────────────────────
     tags_r = await db.execute(
         select(TestCase.tags)
-        .join(UserStory, TestCase.user_story_id == UserStory.id)
-        .where(UserStory.project_id.in_(project_ids), TestCase.is_active == True)
+        .join(TestSuite, TestCase.test_suite_id == TestSuite.id)      
+        .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)        
+        .where(TestPlan.project_id.in_(project_ids), TestCase.is_active == True)
     )
     type_counts: dict[str, int] = {k: 0 for k in _TYPE_LABELS}
     for (tags,) in tags_r.fetchall():
@@ -199,11 +201,12 @@ async def get_dashboard_stats(
             CoverageItem(label=lbl, value=0.0) for lbl in _TYPE_LABELS.values()
         ]
 
-    # ── 5. Priority distribution (donut chart) ────────────────────────────────
+    # ── 5. Priority distribution ───────────────────────────────────────────────
     prio_r = await db.execute(
         select(TestCase.priority, func.count(TestCase.id).label("cnt"))
-        .join(UserStory, TestCase.user_story_id == UserStory.id)
-        .where(UserStory.project_id.in_(project_ids), TestCase.is_active == True)
+        .join(TestSuite, TestCase.test_suite_id == TestSuite.id)      
+        .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)        
+        .where(TestPlan.project_id.in_(project_ids), TestCase.is_active == True)
         .group_by(TestCase.priority)
         .order_by(func.count(TestCase.id).desc())
     )
@@ -219,8 +222,9 @@ async def get_dashboard_stats(
     # ── 6. Recent activity feed ────────────────────────────────────────────────
     tc_feed_r = await db.execute(
         select(TestCase.title, TestCase.created_at)
-        .join(UserStory, TestCase.user_story_id == UserStory.id)
-        .where(UserStory.project_id.in_(project_ids), TestCase.is_active == True)
+        .join(TestSuite, TestCase.test_suite_id == TestSuite.id)      
+        .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)        
+        .where(TestPlan.project_id.in_(project_ids), TestCase.is_active == True)
         .order_by(TestCase.created_at.desc())
         .limit(5)
     )

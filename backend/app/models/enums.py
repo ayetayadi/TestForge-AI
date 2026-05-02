@@ -66,12 +66,6 @@ class TestCaseType(str, Enum):
     NEGATIVE  = "negative"
     EDGE_CASE = "edge_case"
 
-class TestExecutionStatus(str, Enum):
-    PASS    = "pass"
-    FAIL    = "fail"
-    SKIP    = "skip"
-    BLOCKED = "blocked"
-
 class DependencyType(str, Enum):
     REQUIRES = "requires"  # A doit s'exécuter avant B
     BLOCKS   = "blocks"    # A bloque B si échoue

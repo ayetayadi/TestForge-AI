@@ -7,6 +7,8 @@ export type TestPlanStatus = 'draft' | 'ai_proposed' | 'approved' | 'active' | '
 export interface TestPlan {
   id: string;
   project_id: string;
+  project_name?: string;
+  project_key?: string;
   title: string;
   description?: string;
   objective?: string;
@@ -26,14 +28,15 @@ export interface TestPlan {
   constraints?: string;
   stakeholders?: string;
   communication?: string;
-  matrix_snapshot?: Record<string, any>;
-  coverage_snapshot?: Record<string, any>;
   status: TestPlanStatus;
   ai_draft_generated_at?: string;
   approved_at?: string;
   generation_completed_at?: string;
   created_at: string;
   updated_at: string;
+  risk_analysis?: RiskAnalysisDisplay;
+  estimation?: PertEstimationDisplay;
+  recommendations_detail?: RecommendationsDetail;
 }
 
 export interface TestPlanListResponse {
@@ -99,6 +102,9 @@ export interface GenerateTestPlanRequest {
   environment?: string;
   limit_risks?: number;
   limit_stories?: number;
+  // ✅ Nouveaux champs pour filtrage
+  sprint_ids?: string[];
+  epic_keys?: string[];
 }
 
 export interface GenerateTestPlanResponse {
@@ -187,4 +193,84 @@ export interface JiraNotificationResponse {
   issue_url: string;
   summary: string;
   message: string;
+}
+
+// ============================================================
+// RISK ANALYSIS DISPLAY (visible dans le Test Plan)
+// ============================================================
+
+export interface RiskMappingEntry {
+  issue_key: string;
+  title: string;
+  risk_level: string;
+  risk_score: number;
+  risk_description?: string;
+  probability?: number;
+  impact?: number;
+}
+
+export interface RiskDistribution {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+  high_risk_ratio: number;
+}
+
+export interface RiskFormulas {
+  risk_score: string;
+  probability_scale: string;
+  impact_scale: string;
+  thresholds: {
+    critical: string;
+    high: string;
+    medium: string;
+    low: string;
+  };
+}
+
+export interface RiskAnalysisDisplay {
+  distribution: RiskDistribution;
+  formulas: RiskFormulas;
+  mapping_table: RiskMappingEntry[];
+  top_risks: string[];
+}
+
+// ============================================================
+// PERT ESTIMATION DISPLAY
+// ============================================================
+
+export interface PertBreakdownEntry {
+  level: string;
+  story_count: number;
+  days_per_story_optimistic: number;
+  days_per_story_realistic: number;
+  days_per_story_pessimistic: number;
+  subtotal_optimistic: number;
+  subtotal_realistic: number;
+  subtotal_pessimistic: number;
+}
+
+export interface PertEstimationDisplay {
+  formula: string;
+  inputs: {
+    optimistic: number;
+    most_likely: number;
+    pessimistic: number;
+  };
+  calculation: string;
+  standard_deviation: string;
+  confidence_interval: string;
+  breakdown_by_risk: PertBreakdownEntry[];
+}
+
+// ============================================================
+// RECOMMENDATIONS DISPLAY
+// ============================================================
+
+export interface RecommendationsDetail {
+  test_types: string[];
+  test_levels: string[];
+  reasoning: string[];
 }

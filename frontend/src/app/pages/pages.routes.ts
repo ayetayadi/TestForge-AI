@@ -121,5 +121,19 @@ export const PagesRoutes: Routes = [
     canActivate: [authGuard],
     data: { title: 'Test Plan Detail' },
   },
+  {
+    path: 'test-suites',
+    loadComponent: () =>
+      import('./test-suites/test-suites.component').then(m => m.TestSuitesComponent),
+    canActivate: [authGuard],
+    data: { title: 'Test Suites' },
+  },
+  {
+    path: 'test-suites/:suiteId',
+    loadComponent: () =>
+      import('./test-suite-detail/test-suite-detail.component').then(m => m.TestSuiteDetailComponent),
+    canActivate: [authGuard],
+    data: { title: 'Test Suite Detail' },
+  },
 
 ];

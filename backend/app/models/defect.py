@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from app.models.user_story import UserStory
     from app.models.user_story_version import UserStoryVersion
     from app.models.test_case import TestCase
-    from app.models.test_execution import TestExecution
 
 
 class Defect(Base):
@@ -47,14 +46,6 @@ class Defect(Base):
     test_case_id: Mapped[Optional[str]] = mapped_column(
         String(36),
         ForeignKey("test_cases.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True
-    )
-
-    # Exécution manuelle qui a révélé ce défaut (nullable car défaut peut venir du pipeline IA)
-    test_execution_id: Mapped[Optional[str]] = mapped_column(
-        String(36),
-        ForeignKey("test_executions.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
@@ -148,19 +139,12 @@ class Defect(Base):
         foreign_keys=[test_case_id]
     )
 
-    test_execution: Mapped[Optional["TestExecution"]] = relationship(
-        "TestExecution",
-        back_populates="defect",
-        foreign_keys=[test_execution_id]
-    )
-
     # ========================
     # INDEXES
     # ========================
     __table_args__ = (
         Index("idx_defect_user_story_id", "user_story_id"),
         Index("idx_defect_test_case_id", "test_case_id"),
-        Index("idx_defect_test_execution_id", "test_execution_id"),
         Index("idx_defect_status", "status"),
         Index("idx_defect_severity", "severity"),
         Index("idx_defect_jira_issue_key", "jira_issue_key"),

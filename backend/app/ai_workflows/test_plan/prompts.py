@@ -31,7 +31,14 @@ RECOMMENDED TEST TYPES: {recommended_types}
 RECOMMENDED TEST LEVELS: {recommended_levels}
 
 RULES:
-- title: short, professional (max 100 characters), include project name and scope
+- title: short, professional (max 100 characters). Include project name and scope.
+  TITLE RULES:
+  • If scope_type is "sprint" and multiple sprints: use "Test Plan — {project_name} — {sprint_count} Sprints ({scope_refs})"
+  • If scope_type is "epic" and multiple epics: use "Test Plan — {project_name} — {epic_count} Epics ({scope_refs})"
+  • If scope_type is "sprint" and single sprint: use "Test Plan — {project_name} — {scope_refs}"
+  • If scope_type is "epic" and single epic: use "Test Plan — {project_name} — {scope_refs}"
+  • Otherwise: use "Test Plan — {project_name} — {scope_type}"
+  • NEVER use: "USM - Sprint 1 Testing" (this is confusing and incorrect)
 - description: 2-3 sentences summarizing what this test plan covers and why
 - objective: 2-4 measurable testing objectives (what we want to verify)
 - in_scope: bullet list of what IS covered (features, modules, risk areas)

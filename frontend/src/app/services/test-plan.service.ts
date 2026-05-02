@@ -45,18 +45,56 @@ export class TestPlanService {
     return this.http.get<TestPlan>(`${this.baseUrl}/${planId}`);
   }
 
+  /**
+   * Récupère les Test Plans d'un projet avec filtres optionnels
+   */
   getByProject(
     projectId: string,
-    page = 1,
-    pageSize = 20,
+    options?: {
+      sprintIds?: string[];
+      epicKeys?: string[];
+      page?: number;
+      pageSize?: number;
+    },
   ): Observable<TestPlanListResponse> {
-    const params = new HttpParams()
-      .set('page', page.toString())
-      .set('page_size', pageSize.toString());
+    let params = new HttpParams()
+      .set('page', (options?.page || 1).toString())
+      .set('page_size', (options?.pageSize || 20).toString());
+
+    if (options?.sprintIds?.length) {
+      params = params.set('sprint_ids', options.sprintIds.join(','));
+    }
+    if (options?.epicKeys?.length) {
+      params = params.set('epic_keys', options.epicKeys.join(','));
+    }
+
     return this.http.get<TestPlanListResponse>(
       `${this.baseUrl}/project/${projectId}`,
       { params },
     );
+  }
+
+  /**
+   * Récupère TOUS les Test Plans avec filtres optionnels
+   */
+  getAll(options?: {
+    projectId?: string;
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  }): Observable<TestPlanListResponse> {
+    let params = new HttpParams()
+      .set('page', (options?.page || 1).toString())
+      .set('page_size', (options?.pageSize || 20).toString());
+
+    if (options?.projectId) {
+      params = params.set('project_id', options.projectId);
+    }
+    if (options?.status) {
+      params = params.set('status', options.status);
+    }
+
+    return this.http.get<TestPlanListResponse>(`${this.baseUrl}/all`, { params });
   }
 
   getSummaryByProject(projectId: string): Observable<TestPlanSummary> {
@@ -71,6 +109,13 @@ export class TestPlanService {
 
   delete(planId: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${planId}`);
+  }
+
+  /**
+   * Supprime TOUS les Test Plans d'un projet
+   */
+  deleteByProject(projectId: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/project/${projectId}`);
   }
 
   // ============================================================

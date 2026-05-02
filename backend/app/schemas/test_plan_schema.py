@@ -38,6 +38,16 @@ class TestPlanBase(BaseModel):
 
 class TestPlanCreate(TestPlanBase):
     project_id: str = Field(..., min_length=36, max_length=36)
+    
+    # ✅ Nouveaux champs pour filtrage sprint/epic
+    sprint_ids: Optional[List[str]] = Field(None, description="Filter by sprint IDs")
+    epic_keys: Optional[List[str]] = Field(None, description="Filter by epic keys")
+    require_accepted_risks: bool = Field(True, description="Require accepted risks before creation")
+    
+    # AI-generated fields
+    risk_analysis: Optional[dict] = None      
+    estimation: Optional[dict] = None         
+    recommendations_detail: Optional[dict] = None 
 
 
 class TestPlanUpdate(BaseModel):
@@ -65,14 +75,26 @@ class TestPlanUpdate(BaseModel):
 class TestPlanResponse(TestPlanBase):
     id: str
     project_id: str
+    project_name: Optional[str] = None
+    project_key: Optional[str] = None
     status: str
-    matrix_snapshot: Optional[dict] = None
-    coverage_snapshot: Optional[dict] = None
     ai_draft_generated_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
     generation_completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    risk_analysis: Optional[dict] = Field(
+        None,
+        description="Analyse des risques : distribution, formules, mapping US→Risque"
+    )
+    estimation: Optional[dict] = Field(
+        None,
+        description="Estimation PERT : formule, calcul détaillé, breakdown par risque"
+    )
+    recommendations_detail: Optional[dict] = Field(
+        None,
+        description="Recommandations : types de test, niveaux, justifications"
+    )
 
     class Config:
         from_attributes = True
@@ -97,6 +119,10 @@ class GenerateTestPlanRequest(BaseModel):
     environment: Optional[str] = None
     limit_risks: int = Field(50, ge=1, le=200)
     limit_stories: int = Field(30, ge=1, le=100)
+    
+    # ✅ Nouveaux champs pour filtrage
+    sprint_ids: Optional[List[str]] = Field(None, description="Filter User Stories by sprint")
+    epic_keys: Optional[List[str]] = Field(None, description="Filter User Stories by epic")
 
 
 class GenerateTestPlanResponse(BaseModel):
