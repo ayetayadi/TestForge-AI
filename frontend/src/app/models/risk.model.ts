@@ -15,10 +15,15 @@ export interface Risk {
   is_ai_generated: boolean;
   is_accepted: boolean | null;
   created_at: string;
-  source?: 'original' | 'approved_version';
+   source?: 'ml' | 'ml_low_confidence' |'llm_fallback' | 'rules_fallback' | 'default' | 'human_modified';
   source_version_id?: string;
   source_story_text?: string;
   source_acceptance_criteria?: string;
+  ml_confidence?: number;              
+  modified_by?: string;          
+  modified_at?: string;               
+  original_probability?: number;       
+  original_impact?: number;          
 }
 
 export interface RiskSummary {
@@ -88,11 +93,11 @@ export const RISK_LEVEL_CONFIG: Record<RiskLevel, {
 };
 
 export const PROB_BANDS = [
-  { label: 'Almost Certain', sublabel: 'P > 0.8', pMid: 0.85 },
-  { label: 'Likely',         sublabel: '0.6 < P ≤ 0.8', pMid: 0.70 },
-  { label: 'Possible',       sublabel: '0.4 < P ≤ 0.6', pMid: 0.50 },
-  { label: 'Unlikely',       sublabel: '0.2 < P ≤ 0.4', pMid: 0.30 },
-  { label: 'Rare',           sublabel: 'P ≤ 0.2', pMid: 0.15 },
+  { label: 'Almost Certain', sublabel: 'P = 5', pMid: 5 },
+  { label: 'Likely',         sublabel: 'P = 4', pMid: 4 },
+  { label: 'Possible',       sublabel: 'P = 3', pMid: 3 },
+  { label: 'Unlikely',       sublabel: 'P = 2', pMid: 2 },
+  { label: 'Rare',           sublabel: 'P = 1', pMid: 1 },
 ];
 
 export const IMPACT_LEVELS = [
@@ -104,16 +109,12 @@ export const IMPACT_LEVELS = [
 ];
 
 export function classifyLevel(score: number): RiskLevel {
-  if (score >= 4.0) return 'critical';
-  if (score >= 2.5) return 'high';
-  if (score >= 1.0) return 'medium';
+  if (score >= 20) return 'critical';
+  if (score >= 12) return 'high';
+  if (score >= 6) return 'medium';
   return 'low';
 }
 
 export function mapProbToRow(p: number): number {
-  if (p > 0.8) return 0;
-  if (p > 0.6) return 1;
-  if (p > 0.4) return 2;
-  if (p > 0.2) return 3;
-  return 4;
+  return 5 - p;  // P=5 → row 0, P=1 → row 4
 }

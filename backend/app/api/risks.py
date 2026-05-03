@@ -31,12 +31,6 @@ class UserStoryAnalysisRequest(BaseModel):
     story: str
     acceptance_criteria: List[str] = []
     user_story_id: Optional[str] = None
-    jira_priority: Optional[str] = None
-    story_points: Optional[float] = None
-    components: List[str] = []
-    labels: List[str] = []
-    epic: Optional[str] = None
-    issue_key: Optional[str] = None
 
 
 class BatchAnalysisRequest(BaseModel):
@@ -313,12 +307,6 @@ async def analyze_user_story(
         acceptance_criteria=request.acceptance_criteria,
         project_id=project_id,
         user_story_id=request.user_story_id,
-        jira_priority=request.jira_priority,
-        story_points=request.story_points,
-        components=request.components,
-        labels=request.labels,
-        epic=request.epic,
-        issue_key=request.issue_key,
     )
 
 
@@ -339,12 +327,6 @@ async def analyze_user_stories_batch(
             "story": s.story,
             "acceptance_criteria": s.acceptance_criteria,
             "user_story_id": s.user_story_id,
-            "jira_priority": s.jira_priority,
-            "story_points": s.story_points,
-            "components": s.components,
-            "labels": s.labels,
-            "epic": s.epic,
-            "issue_key": s.issue_key or f"US-{idx}",
         }
         for idx, s in enumerate(request.stories)
     ]
@@ -514,7 +496,7 @@ async def get_all_risks(
 )
 async def get_high_priority_risks(
     project_id: Optional[str] = Query(None),
-    min_score: float = Query(2.5, ge=0, le=4.5),
+    min_score: float = Query(12, ge=0, le=4.5),
     db: AsyncSession = Depends(deps.get_db),
 ) -> List[RiskResponse]:
     """Get risks with score >= threshold (ISTQB: Haute ou Critique)."""
@@ -694,3 +676,33 @@ async def delete_project_risks(
     service = RiskService(db)
     await service.delete_project_risks(project_id)
     return None
+
+
+class HumanCorrectionRequest(BaseModel):
+    probability: int = Field(ge=1, le=5)
+    impact: int = Field(ge=1, le=5)
+    modified_by: str
+    comment: Optional[str] = None
+
+@router.patch(
+    "/{risk_id}/human-correct",
+    response_model=RiskResponse,
+    summary="Human correction of ML risk analysis",
+)
+async def human_correct_risk(
+    risk_id: str,
+    correction: HumanCorrectionRequest,
+    db: AsyncSession = Depends(deps.get_db),
+) -> RiskResponse:
+    """Correction humaine d'un risque prédit par le ML."""
+    service = RiskService(db)
+    risk = await service.human_correct_risk(
+        risk_id=risk_id,
+        probability=correction.probability,
+        impact=correction.impact,
+        modified_by=correction.modified_by,
+        comment=correction.comment,
+    )
+    if not risk:
+        raise HTTPException(status_code=404, detail=f"Risk {risk_id} not found")
+    return risk

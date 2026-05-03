@@ -13,39 +13,26 @@ import {
 
 // ─── Generation response shapes ──────────────────────────────────────────────
 
-export interface CoverageMetric {
-  coverage_pct: number;
-  covered_count: number;
-  total_count: number;
-  is_sufficient: boolean;
-}
-
-export interface CoverageResponse {
-  suites_coverage: CoverageMetric;
-  requirements_coverage: CoverageMetric;
-}
-
+// 🆕 SIMPLIFIÉ : Pas de coverage dans TestCase
 export interface WorkflowGenerationResponse {
   count: number;
-  test_plan_id: string;         // ✅ Changé
-  test_suite_id: string | null; // ✅ Optionnel
+  test_plan_id: string;
+  test_suite_id: string | null;
   workflow_status: 'success' | 'error';
   feature_gherkin: string;
-  coverage: CoverageResponse | null;
-  coverage_hints: string[];
   test_cases: TestCase[];
   error?: string;
 }
 
 export interface AsyncJobResponse {
   job_id: string;
-  test_plan_id: string;         // ✅ Changé
-  test_suite_id: string | null; // ✅ Optionnel
+  test_plan_id: string;
+  test_suite_id: string | null;
   status: string;
 }
 
 export interface WorkflowGenerationOptions {
-  test_suite_id?: string;       
+  test_suite_id?: string;
   scenario_types?: string[];
   risk_level?: 'critical' | 'high' | 'medium' | 'low';
   risk_score?: number;
@@ -61,7 +48,6 @@ export interface TcGenerationEvent {
     count?: number;
     total?: number;
     test_cases?: TestCase[];
-    coverage?: CoverageResponse;
     error?: string;
     message?: string;
   };
@@ -149,25 +135,26 @@ export class TestCaseService {
 
   // ============================================================
   // AI GENERATION (ISTQB workflow pipeline)
-  // ✅ Routes basées sur test_plan_id avec test_suite_id optionnel
   // ============================================================
 
   /**
    * Synchronous: generates TCs for a TestPlan.
    * POST /test-cases/generate/{testPlanId}?test_suite_id=...
+   * 
+   * Returns test cases WITHOUT coverage (coverage is in TestSuite).
    */
   generateWorkflow(
     testPlanId: string,
     opts: WorkflowGenerationOptions = {}
   ): Observable<WorkflowGenerationResponse> {
     let params = new HttpParams();
-    if (opts.test_suite_id) params = params.set('test_suite_id', opts.test_suite_id);  // ✅ Optionnel
+    if (opts.test_suite_id) params = params.set('test_suite_id', opts.test_suite_id);
     if (opts.risk_level) params = params.set('risk_level', opts.risk_level);
     if (opts.risk_score != null) params = params.set('risk_score', String(opts.risk_score));
     if (opts.risk_description) params = params.set('risk_description', opts.risk_description);
 
     return this.http.post<WorkflowGenerationResponse>(
-      `${this.apiUrl}/generate/${testPlanId}`,  // ✅ test_plan_id
+      `${this.apiUrl}/generate/${testPlanId}`,
       null,
       { params }
     );
@@ -182,14 +169,14 @@ export class TestCaseService {
     opts: WorkflowGenerationOptions = {}
   ): Observable<AsyncJobResponse> {
     let params = new HttpParams();
-    if (opts.test_suite_id) params = params.set('test_suite_id', opts.test_suite_id); 
+    if (opts.test_suite_id) params = params.set('test_suite_id', opts.test_suite_id);
     if (opts.scenario_types?.length) params = params.set('scenario_types', opts.scenario_types.join(','));
     if (opts.risk_level) params = params.set('risk_level', opts.risk_level);
     if (opts.risk_score != null) params = params.set('risk_score', String(opts.risk_score));
     if (opts.risk_description) params = params.set('risk_description', opts.risk_description);
 
     return this.http.post<AsyncJobResponse>(
-      `${this.apiUrl}/generate/${testPlanId}/async`,  // ✅ test_plan_id
+      `${this.apiUrl}/generate/${testPlanId}/async`,
       null,
       { params }
     );

@@ -129,32 +129,51 @@ $transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   &:active { transform: translateY(0); }
 }
 
-// ── 3-column grid ─────────────────────────────────────────────────────────────
+// ── 2-column grid (LEFT + MAIN seulement) ─────────────────────────────────────
 .tcd-layout {
   display: grid;
-  grid-template-columns: 232px 1fr 248px;
+  grid-template-columns: 280px 1fr;  // ✅ Plus large pour le panneau gauche
   gap: 14px;
   align-items: start;
   animation: fadeUp 0.22s ease-out both;
 
-  @media (max-width: 1200px) {
-    grid-template-columns: 220px 1fr;
-    .tcd-panel--right { grid-column: 1 / -1; }
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;  // ✅ Une seule colonne sur mobile
   }
-  @media (max-width: 768px) { grid-template-columns: 1fr; }
 }
 
 // ── Panels ────────────────────────────────────────────────────────────────────
 .tcd-panel {
-  background: $bg-card; border: 1px solid $border;
-  border-radius: $radius-lg; padding: 16px;
-  position: sticky; top: 16px;
+  background: $bg-card; 
+  border: 1px solid $border;
+  border-radius: $radius-lg; 
+  padding: 16px;
+  position: sticky; 
+  top: 16px;
+
+  &--left {
+    max-height: calc(100vh - 32px);  // ✅ Hauteur max avec scroll
+    overflow-y: auto;                 // ✅ Scroll si contenu long
+    
+    // Scrollbar fine
+    &::-webkit-scrollbar { width: 3px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb { 
+      background: #cbd5e1; 
+      border-radius: 10px;
+      &:hover { background: #94a3b8; }
+    }
+  }
 
   &--main {
-    position: static; padding: 0;
-    background: transparent; border: none;
+    position: static; 
+    padding: 0;
+    background: transparent; 
+    border: none;
+    min-width: 0;  // ✅ Éviter le débordement
   }
 }
+
 
 .panel-header {
   display: flex; align-items: center; gap: 8px;

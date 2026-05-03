@@ -320,44 +320,6 @@ resetPostconditionsView() {
     return priority || 'medium';
   }
 
-  // ── Coverage ──────────────────────────────────────────────────────────────
-
-  get tagCoverage(): { ac: number; positive: number; negative: number; boundary: number; edge: number } {
-    const tags = (this.testCase?.tags || []).map(t => t.toLowerCase());
-    const testType = (this.testCase?.test_type || '').toLowerCase();
-
-    const matchesType = (keyword: string) =>
-      testType.includes(keyword) || tags.some(t => t.includes(keyword));
-
-    return {
-      ac:       this.testCase?.expected_results?.length ? 100 : 0,
-      positive: matchesType('positive') || testType === 'smoke' || tags.includes('smoke') ? 100 : 0,
-      negative: matchesType('negative') ? 100 : 0,
-      boundary: matchesType('boundary') ? 100 : 0,
-      edge:     matchesType('edge') ? 100 : 0,
-    };
-  }
-
-  get coverageScore(): number {
-    const c = this.tagCoverage;
-    const hasSteps = (this.testCase?.steps?.length ?? 0) > 0;
-    const typeScore = [c.positive, c.negative, c.boundary, c.edge].some(v => v === 100) ? 100 : 0;
-    const vals = [c.ac, hasSteps ? 100 : 0, typeScore];
-    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-  }
-
-  get gaps(): string[] {
-    const result: string[] = [];
-    const c = this.tagCoverage;
-    const hasSteps = (this.testCase?.steps?.length ?? 0) > 0;
-    const typeIsSet = [c.positive, c.negative, c.boundary, c.edge].some(v => v === 100);
-
-    if (!c.ac)      result.push('Missing: expected results');
-    if (!hasSteps)  result.push('Missing: test steps');
-    if (!typeIsSet) result.push('Missing: test type tag (positive/negative/boundary/edge)');
-    return result;
-  }
-
   // ── Gherkin parsing ──────────────────────────────────────────────────────
 
   getGherkinLines(): { type: string; text: string }[] {

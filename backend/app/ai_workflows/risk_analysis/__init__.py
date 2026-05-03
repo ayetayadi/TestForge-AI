@@ -10,7 +10,7 @@ Pipeline :
   3. LLM Explainer → Description, Mitigation, Reasoning
 """
 
-from .pipeline import RiskAnalysisPipeline, get_pipeline, reset_pipeline
+from .pipeline import RiskAnalysisPipeline, get_pipeline, reset_pipeline, analyse_stories_batch
 from .calculator import compute_risk_score, classify_priority, compute_full_result
 from .config import (
     PROBABILITY_MIN, PROBABILITY_MAX,

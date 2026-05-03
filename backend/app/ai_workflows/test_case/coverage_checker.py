@@ -1,25 +1,18 @@
 """
-Pure functions for coverage checking (AC, Risk, Requirements).
+Pure functions for AC coverage checking per User Story.
 
 No LLM, no I/O:
-  - validate_explicit_coverage  → AC coverage using LLM indices + keyword fallback
-  - compute_risk_coverage       → fraction of accepted risks covered by generated TCs
-  - compute_requirements_coverage → fraction of user stories that have at least 1 TC
-  - suggest_hints               → derive hints for uncovered ACs
+  - validate_ac_coverage  → AC coverage for ONE User Story
+  - suggest_hints         → derive hints for uncovered ACs
 """
 
 import re
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.ai_workflows.test_case.config import MIN_AC_COVERAGE
 
 logger = logging.getLogger(__name__)
-
-
-# ============================================================
-# HELPERS
-# ============================================================
 
 _STOP_WORDS = {
     "the", "a", "an", "is", "are", "in", "on", "at", "to", "and", "or", "of",
@@ -30,10 +23,11 @@ def _keywords(text: str) -> set:
     words = re.findall(r"\b\w{3,}\b", text.lower())
     return {w for w in words if w not in _STOP_WORDS}
 
+
 def _ac_is_covered(ac: str, test_cases: List[Dict[str, Any]]) -> bool:
     """
     Return True if at least one test case covers this AC.
-
+    
     Strategy 1: explicit covered_ac_indices declared by LLM.
     Strategy 2: keyword overlap >= 45% between AC and test case content.
     """
@@ -42,27 +36,21 @@ def _ac_is_covered(ac: str, test_cases: List[Dict[str, Any]]) -> bool:
         return True
 
     for tc in test_cases:
-        # Build searchable text from multiple fields
         searchable_parts = []
         
-        # Add title
         if tc.get("title"):
             searchable_parts.append(tc["title"])
         
-        # Add Gherkin scenario
         gherkin = tc.get("gherkin_source") or tc.get("gherkin_scenario", "")
         if gherkin:
             searchable_parts.append(gherkin)
         
-        # Add expected results
         if tc.get("expected_results"):
             searchable_parts.extend(tc["expected_results"])
         
-        # Add preconditions if available
         if tc.get("preconditions"):
             searchable_parts.extend(tc["preconditions"])
             
-        # Add postconditions if available
         if tc.get("postconditions"):
             searchable_parts.extend(tc["postconditions"])
         
@@ -76,19 +64,34 @@ def _ac_is_covered(ac: str, test_cases: List[Dict[str, Any]]) -> bool:
 
     return False
 
+
 # ============================================================
-# PUBLIC API
+# LA SEULE FONCTION DE COUVERTURE NÉCESSAIRE
 # ============================================================
 
-def validate_explicit_coverage(
+def validate_ac_coverage(
     test_cases: List[Dict[str, Any]],
     acceptance_criteria: List[str],
 ) -> Dict[str, Any]:
     """
-    AC Coverage = (ACs with at least 1 TC / Total ACs) × 100
-
-    Uses LLM-provided covered_ac_indices for precision; falls back to
-    keyword matching for test cases without explicit indices.
+    AC Coverage pour UNE User Story.
+    
+    Formule ISTQB §4.3.2:
+        (ACs avec au moins 1 TC / Total ACs) × 100
+    
+    Args:
+        test_cases: Liste des TCs générés pour cette US
+        acceptance_criteria: Liste des ACs de cette US
+    
+    Returns:
+        {
+            "is_sufficient": bool,
+            "coverage_pct": float,
+            "covered_count": int,
+            "total_count": int,
+            "uncovered": List[str],
+            "uncovered_indices": List[int]
+        }
     """
     if not acceptance_criteria:
         return {
@@ -102,13 +105,14 @@ def validate_explicit_coverage(
 
     covered_indices: set = set()
 
+    # Stratégie 1: Indices explicites du LLM
     for tc in test_cases:
         indices = tc.get("covered_ac_indices", [])
         for idx in indices:
             if isinstance(idx, int) and 0 <= idx < len(acceptance_criteria):
                 covered_indices.add(idx)
 
-    # Keyword fallback for TCs without explicit indices
+    # Stratégie 2: Fallback sémantique
     tcs_without_indices = [tc for tc in test_cases if not tc.get("covered_ac_indices")]
     for i, ac in enumerate(acceptance_criteria):
         if i not in covered_indices:
@@ -121,7 +125,7 @@ def validate_explicit_coverage(
     covered = total - len(uncovered_acs)
     pct = covered / total if total > 0 else 1.0
 
-    logger.info(f"[AC COVERAGE] {covered}/{total} = {pct:.0%} (threshold={MIN_AC_COVERAGE:.0%})")
+    logger.info(f"[AC COVERAGE] {covered}/{total} = {pct:.0%} (seuil={MIN_AC_COVERAGE:.0%})")
 
     return {
         "is_sufficient": pct >= MIN_AC_COVERAGE,
@@ -132,91 +136,10 @@ def validate_explicit_coverage(
         "uncovered_indices": uncovered_indices,
     }
 
-def compute_risk_coverage(
-    test_cases: List[Dict[str, Any]],
-    total_accepted_risks: int,
-    accepted_risk_ids: List[str] = None,
-) -> Dict[str, Any]:
-    """
-    Risk Coverage = (Risks with at least 1 TC / Total accepted risks) × 100
-
-    A risk is covered ONLY if at least one test case explicitly lists its UUID
-    in covered_risk_ids AND that UUID is in the accepted_risk_ids set.
-    When accepted_risk_ids is not provided any non-empty ID is accepted.
-    """
-    if total_accepted_risks == 0:
-        return {
-            "coverage_pct": 1.0,
-            "covered_count": 0,
-            "total_count": 0,
-            "covered_risk_ids": [],
-            "uncovered_risk_ids": [],
-            "is_sufficient": True,
-        }
-
-    known_ids: Optional[set] = set(accepted_risk_ids) if accepted_risk_ids else None
-
-    covered_risk_ids: set = set()
-    for tc in test_cases:
-        ids = tc.get("covered_risk_ids", []) or tc.get("risk_ids", [])
-        for rid in ids:
-            if rid and (known_ids is None or rid in known_ids):
-                covered_risk_ids.add(rid)
-
-    covered_count = len(covered_risk_ids)
-    pct = covered_count / total_accepted_risks
-
-    uncovered = (
-        [rid for rid in accepted_risk_ids if rid not in covered_risk_ids]
-        if accepted_risk_ids else []
-    )
-
-    logger.info(
-        f"[RISK COVERAGE] {covered_count}/{total_accepted_risks} risks covered = {pct:.0%} "
-        f"(uncovered: {len(uncovered)})"
-    )
-
-    return {
-        "coverage_pct": round(pct, 3),
-        "covered_count": covered_count,
-        "total_count": total_accepted_risks,
-        "covered_risk_ids": list(covered_risk_ids),
-        "uncovered_risk_ids": uncovered,
-        "is_sufficient": pct >= MIN_AC_COVERAGE,
-    }
-
-def compute_requirements_coverage(
-    covered_us_count: int,
-    total_user_stories: int,
-) -> Dict[str, Any]:
-    """
-    Requirements Coverage = (US with at least 1 TC / Total requirements (US)) × 100
-    """
-    if total_user_stories == 0:
-        return {
-            "coverage_pct": 1.0,
-            "covered_count": 0,
-            "total_count": 0,
-            "is_sufficient": True,
-        }
-
-    pct = covered_us_count / total_user_stories
-
-    logger.info(
-        f"[REQ COVERAGE] {covered_us_count}/{total_user_stories} user stories covered = {pct:.0%}"
-    )
-
-    return {
-        "coverage_pct": round(pct, 3),
-        "covered_count": covered_us_count,
-        "total_count": total_user_stories,
-        "is_sufficient": pct >= MIN_AC_COVERAGE,
-    }
-
 
 def suggest_hints(uncovered_acs: List[str]) -> List[str]:
     """
-    Derive test scenario hints for uncovered ACs.
+    Suggère des scénarios de test pour les ACs non couverts.
     """
     hints: List[str] = []
     for ac in uncovered_acs[:5]:

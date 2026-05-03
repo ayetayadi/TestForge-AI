@@ -12,6 +12,8 @@ import asyncio
 import logging
 from typing import Any, Dict, List
 
+from app.ai_workflows.user_story_refinement.config import MIN_SIMILARITY_THRESHOLD
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +48,7 @@ def _is_garbage(story: str) -> bool:
     return any(re.search(p, s) for p in patterns)
 
 
-def _rule_score(story: str) -> Dict[str, Any]:
+def _syntactic_quality_score(story: str) -> Dict[str, Any]:
     issues: List[str] = []
     suggestions: List[str] = []
     score = 1.0
@@ -90,7 +92,7 @@ def _rule_score(story: str) -> Dict[str, Any]:
     return {"score": round(max(0.0, min(1.0, score)), 3), "issues": issues, "suggestions": suggestions}
 
 
-def _nlp_score(story: str) -> Dict[str, Any]:
+def _semantic_clarity_score(story: str) -> Dict[str, Any]:
     issues: List[str] = []
     suggestions: List[str] = []
     score = 1.0
@@ -307,8 +309,8 @@ async def score_story(
         is_garbage = _is_garbage(story)
 
         rule, nlp, testability = await asyncio.gather(
-            asyncio.to_thread(_rule_score, story),
-            asyncio.to_thread(_nlp_score, story),
+            asyncio.to_thread(_syntactic_quality_score, story),
+            asyncio.to_thread(_semantic_clarity_score, story),
             asyncio.to_thread(_testability_score, story, acceptance_criteria),
         )
 
@@ -405,8 +407,8 @@ async def validate_constraints(
             emb_orig, emb_impr = await asyncio.gather(embed(original_story), embed(improved_story))
             if emb_orig is not None and emb_impr is not None:
                 similarity = float(cosine_similarity(emb_orig, emb_impr))
-                if similarity < 0.65:
-                    violations.append(f"Similarity too low: {similarity:.1%} (minimum 65%)")
+                if similarity < MIN_SIMILARITY_THRESHOLD:
+                    violations.append(f"Similarity too low: {similarity:.1%} (minimum {MIN_SIMILARITY_THRESHOLD:.1%})")
         except ImportError:
             logger.warning("[EVALUATOR] Embedding import failed — skipping similarity check")
         except Exception as emb_err:

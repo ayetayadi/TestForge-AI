@@ -12,17 +12,15 @@ export interface AnalyzeRequest {
   story: string;
   acceptance_criteria?: string[];
   user_story_id?: string;
-  jira_priority?: string;
-  story_points?: number;
-  components?: string[];
-  labels?: string[];
-  epic?: string;
-  issue_key?: string;
 }
 
 export interface BatchAnalysisRequest {
   project_id: string;
-  stories: AnalyzeRequest[];       
+  stories: {
+    story: string;
+    acceptance_criteria?: string[];
+    user_story_id?: string;
+  }[];
   concurrency?: number;
 }
 
@@ -50,6 +48,13 @@ export interface RateLimitStatus {
   rate_limit_tpm: number;
   recommended_batch_size: number;
   message: string;
+}
+
+export interface HumanCorrectionRequest {
+  probability: number;  // 1-5
+  impact: number;       // 1-5
+  modified_by: string;
+  comment?: string;
 }
 
 // ============================================================
@@ -165,7 +170,7 @@ export class RiskService {
   }
 
   // ── High Priority Risks ───────────────────────────────────
-  getHighPriorityRisks(projectId?: string, minScore: number = 2.5): Observable<Risk[]> {
+  getHighPriorityRisks(projectId?: string, minScore: number = 12): Observable<Risk[]> {
     let params = new HttpParams().set('min_score', minScore.toString());
     if (projectId) params = params.set('project_id', projectId);
     return this.http.get<Risk[]>(`${this.risksUrl}/high-priority`, { params });
@@ -211,6 +216,10 @@ export class RiskService {
   deleteProjectRisks(projectId: string): Observable<void> {
     return this.http.delete<void>(`${this.risksUrl}/project/${projectId}`);
   }
+
+humanCorrectRisk(riskId: string, correction: HumanCorrectionRequest): Observable<Risk> {
+  return this.http.patch<Risk>(`${this.risksUrl}/${riskId}/human-correct`, correction);
+}
 }
 
 // ============================================================

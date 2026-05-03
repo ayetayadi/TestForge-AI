@@ -26,6 +26,7 @@ from sklearn.metrics import (
     accuracy_score,
     mean_absolute_error,
 )
+import re
 from xgboost import XGBClassifier
 
 from .config import TFIDF_MAX_FEATURES
@@ -40,6 +41,21 @@ MODEL_DIR = "models"
 MODEL_PATH = os.path.join(MODEL_DIR, "risk_ml_model.pkl")
 METRICS_PATH = os.path.join(MODEL_DIR, "metrics.txt")
 
+
+def clean_text(text: str) -> str:
+    """
+    Nettoie le texte :
+    - Supprime les annotations [X-Y-Z] ou [X-Y] en fin de phrase
+    - Supprime les numéros isolés
+    """
+    # Supprimer [4-1-7], [1-5-12], [5-2], etc.
+    text = re.sub(r'\s*\[\d+-\d+-\d+\]', '', text)
+    text = re.sub(r'\s*\[\d+-\d+\]', '', text)
+    
+    # Supprimer les espaces multiples
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
 
 def load_data(dataset_path: str, feedback_path: str = None) -> pd.DataFrame:
     """
@@ -72,50 +88,96 @@ def load_data(dataset_path: str, feedback_path: str = None) -> pd.DataFrame:
 
 def prepare_data(df: pd.DataFrame) -> tuple:
     """Combine US + AC en un seul texte et extrait les labels."""
+    # Nettoyer d'abord
+    df["user_story"] = df["user_story"].apply(clean_text)
+    df["acceptance_criteria"] = df["acceptance_criteria"].apply(clean_text)
+    
+    # Puis concaténer
     df["text"] = df["user_story"] + " " + df["acceptance_criteria"].fillna("")
     y_P = df["probability"].astype(int)
-    y_I = df["impact"].astype(int)
+    
+    # Fusionner I en 3 classes : 1,2→1  3→2  4,5→3
+    y_I_raw = df["impact"].astype(int)
+    y_I = y_I_raw.map({1:1, 2:1, 3:2, 4:3, 5:3})
+    
     return df["text"].tolist(), y_P.tolist(), y_I.tolist()
 
+def check_consistency(df: pd.DataFrame):
+    """Vérifie la cohérence des annotations."""
+    logger.info("\n📊 VÉRIFICATION DE COHÉRENCE")
+    
+    # Distribution
+    logger.info("\nDistribution P :")
+    for val in sorted(df["probability"].unique()):
+        count = (df["probability"] == val).sum()
+        logger.info(f"  P={val} : {count} ({count/len(df)*100:.0f}%)")
+    
+    logger.info("\nDistribution I :")
+    for val in sorted(df["impact"].unique()):
+        count = (df["impact"] == val).sum()
+        logger.info(f"  I={val} : {count} ({count/len(df)*100:.0f}%)")
+    
+    # Score = P × I
+    df["score"] = df["probability"] * df["impact"]
+    logger.info("\nDistribution Score :")
+    logger.info(f"  Min : {df['score'].min()}")
+    logger.info(f"  Max : {df['score'].max()}")
+    logger.info(f"  Moyenne : {df['score'].mean():.1f}")
+    
+    # Vérifier que P=1 est bien pour des US simples
+    low_p = df[df["probability"] == 1]["user_story"].head(3).tolist()
+    logger.info("\nExemples P=1 (faible risque) :")
+    for us in low_p:
+        logger.info(f"  - {us[:100]}...")
+    
+    high_p = df[df["probability"] == 5]["user_story"].head(3).tolist()
+    logger.info("\nExemples P=5 (haut risque) :")
+    for us in high_p:
+        logger.info(f"  - {us[:100]}...")
 
 def train_model(X_train, y_train_P, y_train_I):
     """
-    Entraîne deux modèles XGBoost : un pour P, un pour I.
+    Entraîne deux modèles XGBoost : un pour P (5 classes), un pour I (3 classes).
     """
     logger.info("Entraînement du modèle...")
 
-    # LabelEncoder transforme [1,2,3,4,5] → [0,1,2,3,4]
-    # On crée un encodeur FIT sur TOUTES les classes possibles (1-5)
-    le = LabelEncoder()
-    le.fit([1, 2, 3, 4, 5])
+    # LabelEncoder pour P : 5 classes [1,2,3,4,5] → [0,1,2,3,4]
+    le_P = LabelEncoder()
+    le_P.fit([1, 2, 3, 4, 5])
+    y_train_P_enc = le_P.transform(y_train_P)
 
-    y_train_P_enc = le.transform(y_train_P)
-    y_train_I_enc = le.transform(y_train_I)
+    # LabelEncoder pour I : 3 classes [1,2,3] → [0,1,2]
+    le_I = LabelEncoder()
+    le_I.fit([1, 2, 3])
+    y_train_I_enc = le_I.transform(y_train_I)
 
-    # Modèle pour P
+    # Poids de classe pour I
+    from sklearn.utils.class_weight import compute_class_weight
+    import numpy as np
+    classes_i = np.unique(y_train_I_enc)
+    weights_i = compute_class_weight('balanced', classes=classes_i, y=y_train_I_enc)
+    sample_weights_i = weights_i[y_train_I_enc]
+
+    # Modèle P (5 classes)
     model_P = XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
-        learning_rate=0.1,
-        random_state=42,
+        n_estimators=150, max_depth=3, learning_rate=0.08,
+        random_state=42, subsample=0.8, colsample_bytree=0.8,
+        objective="multi:softprob", verbosity=0
     )
     model_P.fit(X_train, y_train_P_enc)
 
-    # Modèle pour I
+    # Modèle I (3 classes)
     model_I = XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
-        learning_rate=0.1,
-        random_state=42,
+        n_estimators=150, max_depth=3, learning_rate=0.08,
+        random_state=42, subsample=0.8, colsample_bytree=0.8,
+        objective="multi:softprob", verbosity=0
     )
-    model_I.fit(X_train, y_train_I_enc)
+    model_I.fit(X_train, y_train_I_enc, sample_weight=sample_weights_i)
 
-    # Sauvegarder l'encodeur avec le modèle
-    model_P.label_encoder_ = le
-    model_I.label_encoder_ = le
-
+    model_P.label_encoder_ = le_P
+    model_I.label_encoder_ = le_I
     return model_P, model_I
-
+    
 def evaluate_model(vectorizer, model_P, model_I, X_test, y_test_P, y_test_I) -> dict:
     """Évalue les modèles sur l'ensemble de test."""
     # Prédictions (classes 0-4)
@@ -178,6 +240,55 @@ def save_model(vectorizer, model_P, model_I, metrics: dict):
             f.write(f"{key}={val}\n")
     logger.info(f"✅ Métriques sauvegardées : {METRICS_PATH}")
 
+def auto_correct_labels(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Corrige automatiquement les labels incohérents basés sur des mots-clés.
+    """
+    corrections = 0
+    
+    # Mots qui indiquent FORCÉMENT un risque élevé
+    high_risk_p = [
+        'payment', 'pay', 'transaction', 'checkout', 'billing', 'wire transfer',
+        '2fa', 'mfa', 'multi-factor', 'encrypt', 'fraud', 'oauth', 'otp',
+        'concurrency', 'race condition', 'deadlock', 'rollback',
+        'personal data', 'sensitive', 'api key', 'audit log'
+    ]
+    
+    # Mots qui indiquent FORCÉMENT un impact élevé
+    high_impact = [
+        'payment', 'pay', 'transaction', 'billing', 'wire transfer',
+        'fraud', 'regulatory', 'compliance', 'legal', 'audit',
+        'personal data', 'gdpr', 'pii', 'sensitive', 'financial'
+    ]
+    
+    # Mots qui indiquent FORCÉMENT un risque faible
+    low_risk = [
+        'color', 'colour', 'font', 'tooltip', 'label', 'wording', 'typo',
+        'icon', 'cosmetic', 'spelling', 'grammar', 'bookmark',
+        'sort', 'faq', 'help page', 'documentation'
+    ]
+    
+    for idx, row in df.iterrows():
+        text = (str(row['user_story']) + ' ' + str(row['acceptance_criteria'])).lower()
+        p, i = row['probability'], row['impact']
+        
+        # P trop bas pour du paiement/sécurité (et pas cosmétique)
+        if any(w in text for w in high_risk_p) and p <= 2 and not any(w in text for w in low_risk):
+            df.at[idx, 'probability'] = 4
+            corrections += 1
+        
+        # I trop bas pour du paiement/sécurité
+        if any(w in text for w in high_impact) and i <= 2 and not any(w in text for w in low_risk):
+            df.at[idx, 'impact'] = 4
+            corrections += 1
+        
+        # P trop haut pour du cosmétique (et pas de paiement)
+        if any(w in text for w in low_risk) and p >= 4 and not any(w in text for w in high_risk_p):
+            df.at[idx, 'probability'] = 2
+            corrections += 1
+    
+    logger.info(f"🔧 {corrections} labels corrigés automatiquement")
+    return df
 
 def main():
     """Fonction principale du script d'entraînement."""
@@ -186,7 +297,9 @@ def main():
     logger.info("=" * 60)
 
     # 1. Charger les données
-    df = load_data(DATASET_PATH, FEEDBACK_PATH)
+    df = load_data(DATASET_PATH, FEEDBACK_PATH)  
+    check_consistency(df)
+    # df = auto_correct_labels(df)
     texts, labels_P, labels_I = prepare_data(df)
 
     # 2. Diviser en train/test (80/20)
@@ -196,7 +309,14 @@ def main():
     logger.info(f"Train : {len(X_train_text)}, Test : {len(X_test_text)}")
 
     # 3. Vectoriser le texte avec TF-IDF
-    vectorizer = TfidfVectorizer(max_features=TFIDF_MAX_FEATURES)
+    vectorizer = TfidfVectorizer(
+        max_features=TFIDF_MAX_FEATURES,
+        stop_words='english',      
+        ngram_range=(1, 3),        
+        min_df=2,                  
+        max_df=0.95,
+        sublinear_tf=True                
+    )
     X_train = vectorizer.fit_transform(X_train_text)
     X_test = vectorizer.transform(X_test_text)
     logger.info(f"TF-IDF : {len(vectorizer.get_feature_names_out())} features")
@@ -214,10 +334,10 @@ def main():
         new_acc = (metrics["accuracy_P"] + metrics["accuracy_I"]) / 2
         logger.info(f"Ancien accuracy moyen : {old_acc:.2f}")
         logger.info(f"Nouvel accuracy moyen : {new_acc:.2f}")
-
-        if new_acc < old_acc:
+    
+        # ACCEPTER si MAE < 0.6 (bonne qualité) même si accuracy légèrement inférieure
+        if new_acc < old_acc - 0.05 and metrics["mae_P"] > 0.6:
             logger.warning("⚠️ Le nouveau modèle est MOINS BON. Sauvegarde annulée.")
-            logger.warning("   Vérifiez la qualité des nouvelles annotations.")
             sys.exit(1)
 
     # 7. Sauvegarder

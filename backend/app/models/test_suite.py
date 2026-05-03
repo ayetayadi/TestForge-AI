@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
-from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, ForeignKey
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -45,6 +45,21 @@ class TestSuite(Base):
     # Couverture : {total_us, covered_us, total_ac, covered_ac, coverage_pct}
     coverage_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
 
+    risk_coverage_pct: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True,
+        comment="Pourcentage de couverture des risques (0.0 à 1.0)"
+    )
+    
+    risk_coverage_uncovered: Mapped[Optional[List[str]]] = mapped_column(
+        JSONB, nullable=True, default=lambda: [],
+        comment="IDs des risques non couverts"
+    )
+    
+    mitigation_status: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, default="not_mitigated",
+        comment="fully_mitigated | partially_mitigated | not_mitigated"
+    )
+    
     status: Mapped[str] = mapped_column(
         String(20),
         default=TestSuiteStatus.DRAFT,

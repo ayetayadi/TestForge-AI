@@ -79,19 +79,28 @@ class RiskMLModel:
 
         # Étape 2 : Entraîner un modèle pour P
         self.model_P = XGBClassifier(
-            n_estimators=100,       # 100 arbres de décision
-            max_depth=5,            # Profondeur max de chaque arbre
-            learning_rate=0.1,      # Vitesse d'apprentissage
-            random_state=42,        # Pour des résultats reproductibles
+            n_estimators=200, # nombre d'arbres (Combien d'amis donnent leur avis ?)
+            max_depth=3,  # profondeur maximale de chaque arbre (Jusqu'où chaque ami peut réfléchir?)
+            learning_rate=0.05, # taux d'apprentissage (À quelle vitesse on corrige ?)
+            random_state=42, # pour la reproductibilité
+            reg_alpha=10,    # régularisation L1 pour éviter le surapprentissage  (Pénalité si un ami réfléchit trop) 
+            subsample=0.8,              # ← Chaque arbre voit 80% des US
+            colsample_bytree=0.8,   
+            objective="multi:softprob", # classification multi-classe avec probabilités
         )
+        
         self.model_P.fit(X, labels_P)
 
         # Étape 3 : Entraîner un modèle pour I
         self.model_I = XGBClassifier(
-            n_estimators=100,
-            max_depth=5,
-            learning_rate=0.1,
+            n_estimators=200,
+            max_depth=3,
+            learning_rate=0.05,
             random_state=42,
+            reg_alpha=10,
+            subsample=0.8,              # ← Chaque arbre voit 80% des US
+            colsample_bytree=0.8,       # ← Chaque arbre voit 80% des features
+            objective="multi:softprob",
         )
         self.model_I.fit(X, labels_I)
 

@@ -1,10 +1,11 @@
 """
 Test Suite Organization Pipeline.
 
-3 steps — no agent loop, one optional LLM call (for naming only):
+4 steps:
   1. group(test_cases, strategy)  → divide test cases into logical groups
   2. LLM call                     → generate professional titles and descriptions
-  3. finalize(suites)             → assign execution_order, build records
+  3. compute_coverage             → calculate Risk Coverage for the TestSuite
+  4. finalize(suites)             → assign execution_order, build records
 """
 
 import asyncio
@@ -21,6 +22,9 @@ from app.ai_workflows.test_suite.suite_organizer import (
     group_mixed,
     assign_suite_order,
     build_suite_record,
+)
+from app.ai_workflows.test_suite.test_suite_coverage import (  # 🆕 IMPORT
+    compute_suite_coverage,
 )
 from app.ai_workflows.test_suite.prompts import TEST_SUITE_NAMING_PROMPT
 from app.llm.llm_control import create_llm
@@ -67,10 +71,8 @@ _STRATEGY_MAP = {
 class TestSuitePipeline:
     """
     Organizes generated test cases into TestSuite records.
-
-    Step 1 — group: divide test cases using the chosen strategy
-    Step 2 — LLM: generate professional suite titles and descriptions
-    Step 3 — finalize: assign execution_order, build TestSuite-ready dicts
+    
+    Calcule le Risk Coverage pour vérifier la mitigation.
     """
 
     def __init__(self, temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL):
@@ -94,20 +96,23 @@ class TestSuitePipeline:
         test_plan_id: str,
         project_name: str = "",
         strategy: str = GROUPING_STRATEGY,
+        accepted_risk_ids: List[str] = None,  # 🆕 Paramètre
         progress_callback: Optional[Callable] = None,
     ) -> Dict[str, Any]:
         """
         Args:
             test_cases: list of finalized test case dicts from TestCasePipeline
-                        (must have: tc_code, test_type, priority, tags,
-                         _risk_level, _epic, _component — injected upstream)
             test_plan_id: UUID of the parent TestPlan
             project_name: used in suite titles
             strategy: risk_level | test_type | feature | mixed
+            accepted_risk_ids: IDs de tous les risques acceptés dans le scope
         """
+        accepted_risk_ids = accepted_risk_ids or []
+        
         logger.info(
             f"[TEST SUITE] Starting: plan={test_plan_id} "
-            f"tc_count={len(test_cases)} strategy={strategy}"
+            f"tc_count={len(test_cases)} strategy={strategy} "
+            f"risks={len(accepted_risk_ids)}"
         )
 
         if not test_cases:
@@ -115,6 +120,7 @@ class TestSuitePipeline:
                 "suites": [],
                 "count": 0,
                 "strategy": strategy,
+                "risk_coverage": None,
                 "workflow_status": "success",
                 "note": "No test cases provided",
             }
@@ -147,7 +153,24 @@ class TestSuitePipeline:
                 logger.warning(f"[TEST SUITE] LLM naming failed, using defaults: {e}")
                 names_by_key = {}
 
-            # ── STEP 3: FINALIZE ────────────────────────────────
+            # ── 🆕 STEP 3: COMPUTE RISK COVERAGE ─────────────────
+            await self._emit(progress_callback, "phase", {
+                "phase": "coverage",
+                "message": "Calculating Risk Coverage...",
+            })
+
+            risk_coverage = compute_suite_coverage(
+                test_cases=test_cases,
+                accepted_risk_ids=accepted_risk_ids,
+            )
+
+            logger.info(
+                f"[TEST SUITE] Risk Coverage: {risk_coverage['risk_coverage_pct']:.0%} "
+                f"({risk_coverage['covered_risks']}/{risk_coverage['total_risks']}) - "
+                f"Status: {risk_coverage['mitigation_status']}"
+            )
+
+            # ── STEP 4: FINALIZE ────────────────────────────────
             await self._emit(progress_callback, "phase", {
                 "phase": "finalizing",
                 "message": "Assigning execution order to suites...",
@@ -171,20 +194,26 @@ class TestSuitePipeline:
 
             await self._emit(progress_callback, "phase", {
                 "phase": "done",
-                "message": f"Created {len(ordered_suites)} test suites.",
+                "message": (
+                    f"Created {len(ordered_suites)} test suites. "
+                    f"Risk Coverage: {risk_coverage['risk_coverage_pct']:.0%} "
+                    f"({risk_coverage['mitigation_status']})"
+                ),
                 "count": len(ordered_suites),
+                "risk_coverage": risk_coverage,
                 "suites": [
                     {"title": s["title"], "tc_count": s["_tc_count"], "order": s["execution_order"]}
                     for s in ordered_suites
                 ],
             })
 
-            self._log_summary(test_plan_id, ordered_suites)
+            self._log_summary(test_plan_id, ordered_suites, risk_coverage)
 
             return {
                 "suites": ordered_suites,
                 "count": len(ordered_suites),
                 "strategy": strategy,
+                "risk_coverage": risk_coverage,
                 "workflow_status": "success",
             }
 
@@ -194,6 +223,7 @@ class TestSuitePipeline:
                 "suites": [],
                 "count": 0,
                 "strategy": strategy,
+                "risk_coverage": None,
                 "workflow_status": "error",
                 "error": str(exc),
             }
@@ -220,12 +250,24 @@ class TestSuitePipeline:
         )
         return await self._llm.ainvoke(prompt)
 
-    def _log_summary(self, test_plan_id: str, suites: List[Dict[str, Any]]) -> None:
+    def _log_summary(
+        self, 
+        test_plan_id: str, 
+        suites: List[Dict[str, Any]],
+        risk_coverage: Dict[str, Any] = None,
+    ) -> None:
         for s in suites:
             logger.info(
                 f"[RESULT] plan={test_plan_id} suite='{s['title']}' "
                 f"type={s['suite_type']} order={s['execution_order']} "
                 f"tc_count={s['_tc_count']}"
+            )
+        
+        if risk_coverage:
+            logger.info(
+                f"[RESULT] plan={test_plan_id} "
+                f"Risk Coverage={risk_coverage['risk_coverage_pct']:.0%} "
+                f"({risk_coverage['mitigation_status']})"
             )
 
 

@@ -1,6 +1,6 @@
 """Risk service for business logic (ISTQB - Risk Control with AI Pipeline)."""
 
-import asyncio
+from datetime import datetime
 import logging
 from typing import List, Optional, Dict, Any
 
@@ -17,10 +17,9 @@ from app.schemas.risk_schema import (
 )
 from app.ai_workflows.risk_analysis import (
     get_pipeline,
-    analyse_stories_batch,
-    compute_risk_score,
-    classify_level,
+    analyse_stories_batch
 )
+from app.ai_workflows.risk_analysis.calculator import classify_priority
 
 logger = logging.getLogger(__name__)
 
@@ -35,71 +34,59 @@ class RiskService:
     # ============================================================
     # AI-POWERED RISK ANALYSIS (ISTQB §5.2.3)
     # ============================================================
-    
     async def analyze_user_story(
         self,
         story: str,
         acceptance_criteria: List[str],
         user_story_id: str,
-        project_id: str,  # Pour le contexte uniquement (logging/filtrage futur)
-        jira_priority: Optional[str] = None,
-        story_points: Optional[float] = None,
-        components: Optional[List[str]] = None,
-        labels: Optional[List[str]] = None,
-        epic: Optional[str] = None,
-        issue_key: Optional[str] = None,
+        project_id: str,
     ) -> RiskResponse:
         """
-        Analyse une User Story avec l'IA et crée le risque.
+        Analyse une User Story avec ML + LLM (nouveau pipeline RBT).
         
-        Pipeline:
-          1. estimate_baseline → signaux Jira
-          2. LLM → suggère P et I
-          3. build_risk_record → clamp, compute P×I, classify
-          4. Persiste en base (lié à user_story_id uniquement)
+        Pipeline :
+          1. ML → P (1-5), I (1-5)
+          2. Calculator → Score, Priorité, Effort
+          3. LLM → Description, Mitigation, Reasoning
         """
-        pipeline = get_pipeline()
+        pipeline = await get_pipeline()
         
         result = await pipeline.run(
-            story=story,
+            user_story=story,
             acceptance_criteria=acceptance_criteria,
-            jira_priority=jira_priority,
-            story_points=story_points,
-            components=components or [],
-            labels=labels or [],
-            epic=epic,
-            issue_key=issue_key or "manual",
             user_story_id=user_story_id,
         )
         
-        if result.get("workflow_status") == "error":
-            logger.error(f"AI analysis failed: {result.get('error')}")
-            raise ValueError(f"Risk analysis failed: {result.get('error')}")
+        if result.workflow_status == "error":
+            logger.error(f"Risk analysis failed: {result.error}")
+            raise ValueError(f"Risk analysis failed: {result.error}")
         
         risk_create = RiskCreate(
             user_story_id=user_story_id,
-            description=result["description"],
-            mitigation=result["mitigation"],
-            reasoning=result.get("reasoning", ""),
-            probability=result["probability"],
-            impact=result["impact"],
+            description=result.description,
+            mitigation=result.mitigation,
+            reasoning=result.reasoning,
+            probability=result.probability,
+            impact=result.impact,
             is_ai_generated=True,
             is_accepted=None,
-            source="original",
+            source=result.source,                    # "ml", "llm_fallback", etc.
             source_story_text=story,
             source_acceptance_criteria=acceptance_criteria,
+            ml_confidence=result.ml_confidence,      # Ajouté
         )
-
+    
         risk = await self.repository.create(risk_create)
         await self.db.commit()
-
+    
         logger.info(
-            f"[RISK SERVICE] AI analysis complete for US {user_story_id}: "
-            f"P={risk.probability} I={risk.impact} score={risk.risk_score} level={risk.level}"
+            f"[RISK SERVICE] Analysis complete for US {user_story_id}: "
+            f"P={risk.probability} I={risk.impact} score={risk.risk_score} "
+            f"level={risk.level} source={risk.source}"
         )
         
         return RiskResponse.model_validate(risk)
-    
+
     async def analyze_user_stories_batch(
         self,
         stories_data: List[Dict[str, Any]],
@@ -109,7 +96,7 @@ class RiskService:
         """
         Analyse plusieurs User Stories en batch avec l'IA.
         """
-        pipeline = get_pipeline()
+        pipeline = await get_pipeline()
         
         # Lancer l'analyse batch via le pipeline
         ai_results = await analyse_stories_batch(
@@ -333,11 +320,50 @@ class RiskService:
     async def get_high_priority_risks(
         self, 
         project_id: Optional[str] = None,
-        min_score: float = 2.5
+        min_score: int = 12      # ← High = 12+ (était float 2.5)
     ) -> List[RiskResponse]:
-        """Get high or critical risks (ISTQB: Haute/Critique)."""
+        """Get high or critical risks (High ≥ 12, Critical ≥ 20)."""
         risks = await self.repository.get_high_priority_risks(project_id, min_score)
         return [RiskResponse.model_validate(r) for r in risks]
+    
+
+    async def human_correct_risk(
+        self,
+        risk_id: str,
+        probability: int,
+        impact: int,
+        modified_by: str,
+        comment: Optional[str] = None,
+    ) -> Optional[RiskResponse]:
+        """
+        Correction humaine d'un risque ML.
+        Sauvegarde la correction pour réentraînement futur.
+        """
+        risk = await self.repository.get_by_id(risk_id)
+        if not risk:
+            return None
+        
+        # Sauvegarder les valeurs originales du ML
+        risk.original_probability = risk.probability
+        risk.original_impact = risk.impact
+        
+        # Appliquer la correction humaine
+        risk.probability = probability
+        risk.impact = impact
+        risk.risk_score = probability * impact
+        risk.level = classify_priority(risk.risk_score)  # à importer
+        risk.is_accepted = True
+        risk.source = "human_modified"
+        risk.modified_by = modified_by
+        risk.modified_at = datetime.now()
+        
+        # TODO: Sauvegarder dans la table feedback pour réentraînement
+        
+        await self.db.flush()
+        await self.db.refresh(risk)
+        await self.db.commit()
+        
+        return RiskResponse.model_validate(risk)
     
     # ============================================================
     # UPDATE (Risk Control - ISTQB §5.2.4)
@@ -363,52 +389,46 @@ class RiskService:
         """Propose a mitigation strategy (ISTQB §5.2.4: Atténuation des risques)."""
         return await self.update_risk(risk_id, RiskUpdate(mitigation=mitigation))
     
+    
     async def reanalyze_risk(
         self, 
         risk_id: str, 
         story: str,
         acceptance_criteria: List[str],
     ) -> Optional[RiskResponse]:
-        """
-        Ré-analyser un risque existant avec l'IA.
-        Utile quand la User Story change.
-        """
+        """Ré-analyser un risque existant avec le nouveau pipeline."""
         risk = await self.repository.get_by_id(risk_id)
         if not risk:
             return None
         
-        pipeline = get_pipeline()
+        pipeline = await get_pipeline()
         result = await pipeline.run(
-            story=story,
+            user_story=story,
             acceptance_criteria=acceptance_criteria,
-            jira_priority=None,
-            story_points=None,
-            components=[],
-            labels=[],
-            epic=None,
-            issue_key=risk.user_story_id or "?",
             user_story_id=risk.user_story_id,
         )
         
-        if result.get("workflow_status") == "error":
-            raise ValueError(f"Re-analysis failed: {result.get('error')}")
+        if result.workflow_status == "error":
+            raise ValueError(f"Re-analysis failed: {result.error}")
         
-        # Mettre à jour avec les nouvelles valeurs
-        risk.probability = result["probability"]
-        risk.impact = result["impact"]
-        risk.risk_score = compute_risk_score(risk.probability, risk.impact)
-        risk.level = classify_level(risk.risk_score)
-        risk.description = result["description"]
-        risk.mitigation = result["mitigation"]
+        risk.probability = result.probability
+        risk.impact = result.impact
+        risk.risk_score = result.risk_score
+        risk.level = result.priority     # "critical", "high", etc.
+        risk.description = result.description
+        risk.mitigation = result.mitigation
+        risk.reasoning = result.reasoning
         risk.is_ai_generated = True
-        risk.is_accepted = None  # Reset validation après ré-analyse
+        risk.is_accepted = None
+        risk.source = result.source
+        risk.ml_confidence = result.ml_confidence
         
         await self.db.flush()
         await self.db.refresh(risk)
         await self.db.commit()
         
         return RiskResponse.model_validate(risk)
-    
+
     # ============================================================
     # DELETE
     # ============================================================

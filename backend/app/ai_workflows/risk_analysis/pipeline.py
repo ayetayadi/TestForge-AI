@@ -118,21 +118,32 @@ class RiskAnalysisPipeline:
         logger.warning("Aucun prédicteur disponible. Utilisation des valeurs par défaut.")
         return MLPrediction(probability=3, impact=3, confidence=0.0, source="default")
 
+    
     async def _ask_llm_for_pi(
         self, user_story: str, acceptance_criteria: List[str]
     ) -> tuple:
-        """
-        Demande au LLM d'attribuer P et I (fallback uniquement).
-        À remplacer par le ML une fois entraîné.
-        """
-        # Utilise l'ancien prompt temporairement (juste pour P et I)
+        """Fallback LLM pour P et I."""
+        from pydantic import BaseModel, Field
+        
+        class LLMPIFallback(BaseModel):
+            probability: int = Field(ge=1, le=5)
+            impact: int = Field(ge=1, le=5)
+        
+        # Créer un LLM temporaire avec ce schéma
+        from app.llm.llm_control import create_llm
+        llm_fallback = create_llm(
+            temperature=0.1,
+            model=LLM_MODEL,
+            max_tokens=200,
+        ).with_structured_output(LLMPIFallback)
+        
         ac_text = "\n".join(f"- {ac}" for ac in acceptance_criteria)
         prompt = RISK_ANALYSIS_PROMPT_FALLBACK.format(
             story=user_story,
             acceptance_criteria=ac_text,
         )
         result = await asyncio.wait_for(
-            self._llm.ainvoke(prompt),
+            llm_fallback.ainvoke(prompt),
             timeout=LLM_TIMEOUT_SECONDS,
         )
         return result.probability, result.impact
@@ -177,6 +188,8 @@ class RiskAnalysisPipeline:
                 self._llm.ainvoke(prompt),
                 timeout=LLM_TIMEOUT_SECONDS,
             )
+            if not isinstance(result, LLMExplanation):
+                raise ValueError(f"LLM returned invalid type: {type(result)}")
             return result
         except asyncio.TimeoutError:
             logger.error("LLM explanation timed out")
@@ -311,3 +324,20 @@ def reset_pipeline():
     global _instance
     _instance = None
     logger.info("Pipeline réinitialisé")
+
+
+async def analyse_stories_batch(
+    pipeline: RiskAnalysisPipeline,
+    stories: List[Dict[str, Any]],
+    test_plan_id: Optional[str] = None,
+    concurrency: int = 3,
+) -> List[Dict[str, Any]]:
+    """
+    Run risk analysis on a list of user story dicts concurrently.
+
+    Each story dict must have at minimum: story (str), issue_key (str).
+    Optional keys: acceptance_criteria, jira_priority, story_points, components, labels, epic, user_story_id.
+
+    concurrency: max parallel LLM calls (keep ≤3 to avoid rate limits).
+    """
+    semaphore = asyncio.Semaphore(concurrency)
