@@ -33,7 +33,7 @@ export class RiskDetailComponent implements OnInit {
   mitigationDraft = '';
   saving = signal(false);
   editingFormula = signal(false);
-  probabilityDraft = 0.5;
+  probabilityDraft = 3;
   impactDraft = 3;
   savingFormula = signal(false);
 
@@ -58,7 +58,7 @@ export class RiskDetailComponent implements OnInit {
 
   // Computed: Indique si la source est une version approuvée
   isFromApprovedVersion = computed((): boolean => {
-    return this.risk()?.source === 'approved_version';
+    return this.risk()?.source === 'human_modified';
   });
 
   // Computed: Projet ID récupéré depuis la UserStory (plus de project_id dans Risk)
@@ -68,17 +68,17 @@ export class RiskDetailComponent implements OnInit {
     return this.storyMap().get(risk.user_story_id)?.project_id || null;
   });
 
-  computedScoreDraft = computed((): number => {
-    return Math.round(this.probabilityDraft * this.impactDraft * 100) / 100;
-  });
+computedScoreDraft = computed((): number => {
+  return this.probabilityDraft * this.impactDraft;
+});
 
-  computedLevelDraft = computed((): string => {
-    const score = this.computedScoreDraft();
-    if (score >= 4.0) return 'critical';
-    if (score >= 2.5) return 'high';
-    if (score >= 1.0) return 'medium';
-    return 'low';
-  });
+computedLevelDraft = computed((): string => {
+  const score = this.computedScoreDraft();
+  if (score >= 20) return 'critical';
+  if (score >= 12) return 'high';
+  if (score >= 6) return 'medium';
+  return 'low';
+});
 
   ngOnInit(): void {
     this.loadRisk();
@@ -213,23 +213,18 @@ export class RiskDetailComponent implements OnInit {
     this.editingFormula.set(false);
   }
 
-  onProbabilityChange(value: number): void {
-    this.probabilityDraft = Math.min(0.9, Math.max(0.1, value));
-  }
+onProbabilityChange(value: number): void {
+  this.probabilityDraft = Math.min(5, Math.max(1, Math.round(value)));
+}
 
-  onImpactChange(value: number): void {
-    this.impactDraft = Math.min(5, Math.max(1, Math.round(value)));
-  }
+onImpactChange(value: number): void {
+  this.impactDraft = Math.min(5, Math.max(1, Math.round(value)));
+}
 
-  probBandLabelDraft(): string {
-    const prob = this.probabilityDraft;
-    if (prob >= 0.8) return 'Very High';
-    if (prob >= 0.6) return 'High';
-    if (prob >= 0.4) return 'Medium';
-    if (prob >= 0.2) return 'Low';
-    return 'Very Low';
-  }
-
+probBandLabelDraft(): string {
+  const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
+  return labels[this.probabilityDraft - 1] || 'Unknown';
+}
   impactLabelDraft(): string {
     const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
     return labels[this.impactDraft - 1] || 'Unknown';
@@ -300,23 +295,18 @@ export class RiskDetailComponent implements OnInit {
   // UI HELPERS
   // ============================================================
 
-  formatScore(score: number): string {
-    return score.toFixed(2);
-  }
+formatScore(score: number): string {
+  return score.toString();
+}
 
-  probPercent(p: number): number {
-    return Math.round(p * 100);
-  }
+probPercent(p: number): number {
+  return Math.round(p / 5 * 100);
+}
 
-  probBandLabel(): string {
-    const prob = this.risk()?.probability ?? 0;
-    if (prob >= 0.8) return 'Very High';
-    if (prob >= 0.6) return 'High';
-    if (prob >= 0.4) return 'Medium';
-    if (prob >= 0.2) return 'Low';
-    return 'Very Low';
-  }
-
+probBandLabel(): string {
+  const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
+  return labels[(this.risk()?.probability ?? 1) - 1] || 'Unknown';
+}
   impactLabel(): string {
     const impact = this.risk()?.impact ?? 0;
     const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
@@ -329,7 +319,14 @@ export class RiskDetailComponent implements OnInit {
     return 'Pending Review';
   }
 
-  scoreBarPosition(score: number): number {
-    return (score / 4.5) * 100;
-  }
+scoreBarPosition(score: number): number {
+  return (score / 25) * 100;
+}
+isFromML = computed((): boolean => {
+  return this.risk()?.source === 'ml' || this.risk()?.source === 'ml_low_confidence';
+});
+
+isHumanModified = computed((): boolean => {
+  return this.risk()?.source === 'human_modified';
+});
 }

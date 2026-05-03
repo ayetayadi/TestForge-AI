@@ -94,7 +94,8 @@ class SuiteCoverageSchema(BaseModel):
     has_gherkin: int = 0
     has_steps: int = 0
     risk_coverage_pct: float = 0.0
-    ac_coverage_pct: float = 0.0
+    uncovered_risks: int = 0
+    mitigation_status: str = "not_mitigated"
 
 
 # ============================================================
@@ -195,7 +196,7 @@ class TestSuiteListItemSchema(BaseModel):
     project_key: Optional[str] = None
     test_plan_title: Optional[str] = None
     test_plan_status: Optional[str] = None
-    coverage: Optional[SuiteCoverageSchema] = None  # ✅ Changé en Optional
+    risk_coverage: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -239,7 +240,8 @@ class TestSuiteDetailSchema(BaseModel):
     risks: List[EmbeddedRiskSchema] = Field(default_factory=list)
 
     # Coverage
-    coverage: Optional[SuiteCoverageSchema] = None  # ✅ Changé en Optional
+    risk_coverage: Optional[Dict[str, Any]] = None
+    us_ac_coverages: List[Dict[str, Any]] = Field(default_factory=list)
 
     # Traceability matrix
     traceability_matrix: Optional[TraceabilityMatrixSchema] = None  # ✅ Changé en Optional

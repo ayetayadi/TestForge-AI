@@ -277,17 +277,20 @@
 
           <span class="cases-badge">{{ suite.test_case_count }}</span>
 
-          @if (suite.coverage) {
-            <div class="mini-bar-cell">
-              <div class="mini-bar"><div [style.width.%]="suite.coverage.risk_coverage_pct" [style.background]="getCoverageColor(suite.coverage.risk_coverage_pct)"></div></div>
-              <span [style.color]="getCoverageColor(suite.coverage.risk_coverage_pct)">{{ suite.coverage.risk_coverage_pct }}%</span>
-            </div>
-
-            <div class="mini-bar-cell">
-              <div class="mini-bar"><div [style.width.%]="suite.coverage.ac_coverage_pct" [style.background]="getCoverageColor(suite.coverage.ac_coverage_pct)"></div></div>
-              <span [style.color]="getCoverageColor(suite.coverage.ac_coverage_pct)">{{ suite.coverage.ac_coverage_pct }}%</span>
-            </div>
-          } @else {
+@if (suite.risk_coverage) {
+  <div class="coverage-mini">
+    <div class="coverage-mini-bar">
+      <div [style.width.%]="suite.risk_coverage.risk_coverage_pct" 
+           [style.background]="getCoverageColor(suite.risk_coverage.risk_coverage_pct)"></div>
+    </div>
+    <span [style.color]="getCoverageColor(suite.risk_coverage.risk_coverage_pct)">
+      {{ suite.risk_coverage.risk_coverage_pct }}%
+    </span>
+    <span class="coverage-label">
+      {{ suite.risk_coverage.covered_risks }}/{{ suite.risk_coverage.total_risks }} risks
+    </span>
+  </div>
+} @else {
             <div class="mini-bar-cell">—</div>
             <div class="mini-bar-cell">—</div>
           }

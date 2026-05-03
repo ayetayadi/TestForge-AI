@@ -244,16 +244,16 @@ async def generate_test_cases_for_plan(
             risk_score=effective_risk_score,
             risk_description=risk_description or _build_risk_description(risk_ids),
             risk_ids=risk_ids,
-            total_accepted_risks=len(accepted_risks),
             user_story_id=us.id,
-            total_user_stories=1,
-            covered_user_stories_before=0,
             issue_key=us.issue_key,
             tc_start_index=1,  # Sera réassigné plus tard
             progress_callback=progress_callback,
             scenario_types=scenario_types,
         )
-        
+        if result.get("ac_coverage"):
+           ac_cov = result["ac_coverage"]
+           us.ac_coverage_pct = ac_cov["coverage_pct"]
+           us.ac_coverage_uncovered = ac_cov["uncovered"]
         return result
     
     # ============================================================

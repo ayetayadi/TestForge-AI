@@ -55,6 +55,7 @@ export interface EmbeddedRisk {
   impact?: number | null;
   mitigation?: string | null;
   is_accepted: boolean | null;
+  user_story_id?: string | null;  // 🆕 Pour lier à l'US
 }
 
 // ── Embedded: Test Plan ────────────────────────────────────────
@@ -75,21 +76,30 @@ export interface EmbeddedTestPlan {
   start_date?: string | null;
   end_date?: string | null;
   approved_at?: string | null;
-  coverage_snapshot?: Record<string, unknown> | null;
-  matrix_snapshot?: Record<string, unknown> | null;
 }
 
-// ── Coverage ───────────────────────────────────────────────────
+// ── RISK COVERAGE (TestSuite level) ────────────────────────────
 
-export interface SuiteCoverage {
-  total_cases: number;
-  active_cases: number;
-  by_priority: Record<string, number>;
-  by_type: Record<string, number>;
-  has_gherkin: number;
-  has_steps: number;
-  risk_coverage_pct: number;
-  ac_coverage_pct: number;
+export interface RiskCoverage {
+  risk_coverage_pct: number;        // 0-100
+  covered_risks: number;
+  total_risks: number;
+  uncovered_risk_ids: string[];
+  mitigation_status: 'fully_mitigated' | 'partially_mitigated' | 'not_mitigated';
+}
+
+// ── AC COVERAGE PER US (within TestSuite) ──────────────────────
+
+export interface UsAcCoverage {
+  user_story_id: string;
+  issue_key: string;
+  title: string;
+  ac_coverage_pct: number;      // 0-100
+  covered_ac: number;
+  total_ac: number;
+  uncovered_ac: string[];
+  is_sufficient: boolean;
+  has_tests: boolean;
 }
 
 // ── Traceability Matrix ────────────────────────────────────────
@@ -128,7 +138,6 @@ export interface DependencyNode {
   priority?: Priority | null;
   test_type?: string | null;
   execution_order?: number | null;
-  test_suite_id?: string | null;
 }
 
 export interface DependencyEdge {
@@ -176,7 +185,6 @@ export interface SuiteLifecycle {
     total: number;
     active: number;
     with_gherkin: number;
-    coverage_snapshot?: Record<string, unknown> | null;
   };
 }
 
@@ -202,7 +210,9 @@ export interface SuiteOrderEntry {
   test_case_count: number;
 }
 
-// ── List item ──────────────────────────────────────────────────
+// ============================================================
+// LIST ITEM
+// ============================================================
 
 export interface TestSuiteListItem {
   id: string;
@@ -219,17 +229,17 @@ export interface TestSuiteListItem {
   project_key?: string | null;
   test_plan_title?: string | null;
   test_plan_status?: string | null;
-  coverage: SuiteCoverage | null;
+  
+  // 🆕 Couverture dans la liste
+  risk_coverage?: RiskCoverage;
+  
   created_at?: string | null;
   updated_at?: string | null;
 }
 
-export interface TestSuiteListResponse {
-  items: TestSuiteListItem[];
-  total: number;
-}
-
-// ── Detail ─────────────────────────────────────────────────────
+// ============================================================
+// DETAIL (UN SEUL - PAS DE DOUBLON)
+// ============================================================
 
 export interface TestSuiteDetail {
   id: string;
@@ -254,13 +264,25 @@ export interface TestSuiteDetail {
   test_cases: EmbeddedTestCase[];
   risks: EmbeddedRisk[];
   
+  // 🆕 COUVERTURES (remplacent l'ancien "coverage: SuiteCoverage")
+  risk_coverage: RiskCoverage;              // Globale TestSuite
+  us_ac_coverages: UsAcCoverage[];         // Par US
+  
   // Analysis
-  coverage: SuiteCoverage | null;
   traceability_matrix: TraceabilityMatrix | null;
   dependency_graph: DependencyGraph | null;
   lifecycle: SuiteLifecycle;
   priority_reasoning?: PriorityReasoning | null;
   all_suites_order: SuiteOrderEntry[];
+}
+
+// ============================================================
+// LIST RESPONSE
+// ============================================================
+
+export interface TestSuiteListResponse {
+  items: TestSuiteListItem[];
+  total: number;
 }
 
 // ── Requests ──────────────────────────────────────────────────
@@ -272,9 +294,17 @@ export interface GenerateTestSuitesRequest {
 }
 
 export interface GenerateTestSuitesResponse {
-  suites: Record<string, unknown>[];
+  suites: {
+    id: string;
+    title: string;
+    execution_order: number;
+    tc_count: number;
+    risk_coverage_pct: number;
+    mitigation_status: string;
+  }[];
   count: number;
   strategy: string;
+  risk_coverage: RiskCoverage;
   workflow_status: string;
   error?: string | null;
 }
@@ -297,7 +327,9 @@ export interface UnassignTestCaseRequest {
   test_case_id: string;
 }
 
-// ── UI Configs ─────────────────────────────────────────────────
+// ============================================================
+// UI CONFIGS
+// ============================================================
 
 export const SUITE_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
   feature:     { label: 'Feature',     icon: 'solar:star-line-duotone',           color: '#6366f1' },
@@ -323,4 +355,10 @@ export const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg:
   high:     { label: 'High',     color: '#ea580c', bg: '#ffedd5', dot: '#f97316' },
   medium:   { label: 'Medium',   color: '#ca8a04', bg: '#fef9c3', dot: '#eab308' },
   low:      { label: 'Low',      color: '#16a34a', bg: '#dcfce7', dot: '#22c55e' },
+};
+
+export const MITIGATION_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  fully_mitigated:     { label: 'Fully Mitigated',     color: '#16a34a', bg: '#dcfce7' },
+  partially_mitigated: { label: 'Partially Mitigated', color: '#ca8a04', bg: '#fef9c3' },
+  not_mitigated:       { label: 'Not Mitigated',       color: '#dc2626', bg: '#fee2e2' },
 };

@@ -14,6 +14,9 @@ import {
   SUITE_TYPE_CONFIG,
   SUITE_STATUS_CONFIG,
   PRIORITY_CONFIG,
+  MITIGATION_STATUS_CONFIG,  // 🆕
+  RiskCoverage,               // 🆕
+  UsAcCoverage,               // 🆕
 } from '../../models/test-suite.model';
 
 type DetailTab = 'overview' | 'cases' | 'traceability' | 'graph';
@@ -41,6 +44,7 @@ export class TestSuiteDetailComponent implements OnInit {
   readonly SUITE_TYPE_CONFIG = SUITE_TYPE_CONFIG;
   readonly SUITE_STATUS_CONFIG = SUITE_STATUS_CONFIG;
   readonly PRIORITY_CONFIG = PRIORITY_CONFIG;
+  readonly MITIGATION_STATUS_CONFIG = MITIGATION_STATUS_CONFIG;  // 🆕
 
   readonly tabs: { id: DetailTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
@@ -94,6 +98,10 @@ export class TestSuiteDetailComponent implements OnInit {
     this.router.navigate(['/test-cases', tcId]);
   }
 
+  goToUserStory(usId: string) {
+    this.router.navigate(['/user-stories', usId]);  // 🆕
+  }
+
   // ── UI helpers ────────────────────────────────────────────────
   toggleCase(id: string) {
     this.expandedCase.set(this.expandedCase() === id ? null : id);
@@ -115,17 +123,72 @@ export class TestSuiteDetailComponent implements OnInit {
     return prio ? (PRIORITY_CONFIG[prio] ?? null) : null;
   }
 
-  getCoverageColor(pct: number): string {
-    if (pct >= 80) return '#10b981';
-    if (pct >= 50) return '#f59e0b';
-    return '#ef4444';
+  // ── 🆕 RISK COVERAGE HELPERS ──────────────────────────────────
+
+  getRiskCoverage(): RiskCoverage | null {
+    return this.suite()?.risk_coverage ?? null;
   }
 
-  getCoverageLabel(pct: number): string {
-    if (pct >= 80) return 'Good';
-    if (pct >= 50) return 'Medium';
+  getRiskCoverageColor(pct: number): string {
+    if (pct >= 100) return '#10b981';  // Vert - full
+    if (pct >= 80) return '#f59e0b';   // Orange - partial
+    return '#ef4444';                   // Rouge - low
+  }
+
+  getRiskCoverageLabel(pct: number): string {
+    if (pct >= 100) return 'Fully Mitigated';
+    if (pct >= 80) return 'Partially Mitigated';
+    return 'Not Mitigated';
+  }
+
+  getMitigationConfig(status: string) {
+    return MITIGATION_STATUS_CONFIG[status] ?? { label: status, color: '#6b7280', bg: '#f3f4f6' };
+  }
+
+  // ── 🆕 AC COVERAGE PER US HELPERS ─────────────────────────────
+
+  getUsAcCoverages(): UsAcCoverage[] {
+    return this.suite()?.us_ac_coverages ?? [];
+  }
+
+  getUsWithTests(): UsAcCoverage[] {
+    return this.getUsAcCoverages().filter(us => us.has_tests);
+  }
+
+  getUsWithoutTests(): UsAcCoverage[] {
+    return this.getUsAcCoverages().filter(us => !us.has_tests);
+  }
+
+  getTotalAcCovered(): number {
+    return this.getUsAcCoverages().reduce((sum, us) => sum + us.covered_ac, 0);
+  }
+
+  getTotalAc(): number {
+    return this.getUsAcCoverages().reduce((sum, us) => sum + us.total_ac, 0);
+  }
+
+  getAverageAcCoverage(): number {
+    const usWithTests = this.getUsWithTests();
+    if (usWithTests.length === 0) return 0;
+    const total = usWithTests.reduce((sum, us) => sum + us.ac_coverage_pct, 0);
+    return Math.round(total / usWithTests.length);
+  }
+
+  getAcCoverageColor(pct: number): string {
+    if (pct >= 100) return '#10b981';
+    if (pct >= 80) return '#f59e0b';
+    if (pct > 0) return '#ef4444';
+    return '#9ca3af';  // Gris pour 0%
+  }
+
+  getAcCoverageLabel(us: UsAcCoverage): string {
+    if (!us.has_tests) return 'No tests';
+    if (us.ac_coverage_pct >= 100) return 'Complete';
+    if (us.ac_coverage_pct >= 80) return 'Partial';
     return 'Low';
   }
+
+  // ── RISK LEVEL HELPERS ────────────────────────────────────────
 
   getRiskLevelColor(level?: string | null): string {
     const map: Record<string, string> = {
@@ -217,9 +280,10 @@ export class TestSuiteDetailComponent implements OnInit {
     return this.suite()?.dependency_graph ?? null;
   }
 
-  getCoverage() {
-    return this.suite()?.coverage ?? null;
-  }
+  // ❌ SUPPRIMÉ - Plus de "coverage"
+  // getCoverage() {
+  //   return this.suite()?.coverage ?? null;
+  // }
 
   getTestCases() {
     return this.suite()?.test_cases ?? [];

@@ -82,7 +82,15 @@ class TestSuiteService:
     def _to_list_item(self, suite: TestSuite) -> TestSuiteListItemSchema:
         plan = suite.test_plan
         project = plan.jira_project if plan else None
-        coverage = self._compute_coverage(suite, [], [])
+        risk_coverage = None
+        if suite.risk_coverage_pct is not None:
+            risk_coverage = {
+                "risk_coverage_pct": round(suite.risk_coverage_pct * 100, 1),
+                "covered_risks": 0,  # Sera calculé dans le détail
+                "total_risks": 0,
+                "uncovered_risk_ids": suite.risk_coverage_uncovered or [],
+                "mitigation_status": suite.mitigation_status or "not_mitigated",
+            }
         return TestSuiteListItemSchema(
             id=suite.id,
             test_plan_id=suite.test_plan_id,
@@ -98,7 +106,7 @@ class TestSuiteService:
             project_key=project.project_key if project else None,
             test_plan_title=plan.title if plan else None,
             test_plan_status=plan.status if plan else None,
-            coverage=coverage,
+            risk_coverage=risk_coverage,
             created_at=suite.created_at,
             updated_at=suite.updated_at,
         )
@@ -162,6 +170,14 @@ class TestSuiteService:
         # 5. Persist suites and link test cases
         created_suites = []
         tc_map = {tc.tc_code: tc for tc in test_cases}
+
+        risk_query = select(Risk).where(
+            Risk.user_story_id.in_([tc.user_story_id for tc in test_cases if tc.user_story_id]),
+            Risk.is_accepted == True
+        )
+        risk_result = await self.db.execute(risk_query)
+        all_risks = list(risk_result.scalars().all())
+        accepted_risk_ids = [r.id for r in all_risks]
         
         for suite_data in result["suites"]:
             suite = TestSuite(
@@ -179,19 +195,52 @@ class TestSuiteService:
             await self.db.flush()
             
             linked_count = 0
+            suite_tc_ids = []
             for tc_code in suite_data.get("_tc_codes", []):
                 tc = tc_map.get(tc_code)
                 if tc:
                     tc.test_suite_id = suite.id
                     linked_count += 1
+                    suite_tc_ids.append(tc.id)
             
-            logger.info(f"[SUITE GEN] Suite '{suite.title}' linked to {linked_count} TCs")
+            
+            suite_risk_ids = [
+                r.id for r in all_risks 
+                if r.user_story_id in [
+                    tc.user_story_id 
+                    for tc in test_cases 
+                    if tc.id in suite_tc_ids and tc.user_story_id
+                ]
+            ]
+            
+            suite_covered = len(suite_risk_ids)
+            suite_total = len(accepted_risk_ids)
+            suite_risk_pct = suite_covered / suite_total if suite_total > 0 else 1.0
+            
+            suite.risk_coverage_pct = suite_risk_pct
+            suite.risk_coverage_uncovered = [
+                rid for rid in accepted_risk_ids if rid not in suite_risk_ids
+            ]
+            
+            if suite_risk_pct >= 1.0:
+                suite.mitigation_status = "fully_mitigated"
+            elif suite_risk_pct >= 0.80:
+                suite.mitigation_status = "partially_mitigated"
+            else:
+                suite.mitigation_status = "not_mitigated"
+            
+            logger.info(
+                f"[SUITE GEN] Suite '{suite.title}' - "
+                f"Risk Coverage: {suite_risk_pct:.0%} ({suite.mitigation_status})"
+            )
             
             created_suites.append({
                 "id": suite.id,
                 "title": suite.title,
                 "execution_order": suite.execution_order,
                 "tc_count": linked_count,
+                "risk_coverage_pct": suite_risk_pct,
+                "mitigation_status": suite.mitigation_status,
             })
         
         await self.db.commit()
@@ -199,8 +248,9 @@ class TestSuiteService:
         # ============================================================
         # CRÉER LES DÉPENDANCES ENTRE TCs
         # ============================================================
+        risk_map = {r.user_story_id: r for r in all_risks}
         dependency_count = await self._create_dependencies_for_suites(
-            result["suites"], tc_map, test_plan_id
+            result["suites"], tc_map, test_plan_id, risk_map
         )
         logger.info(f"[SUITE GEN] Created {dependency_count} dependencies between TCs")
         
@@ -215,86 +265,112 @@ class TestSuiteService:
     # ============================================================
     # CRÉER LES DÉPENDANCES
     # ============================================================
-    
     async def _create_dependencies_for_suites(
         self,
         suites_data: List[Dict[str, Any]],
         tc_map: Dict[str, TestCase],
         test_plan_id: str,
+        risk_map: Dict[str, Risk],
     ) -> int:
         """
-        Crée des dépendances entre les TCs d'une même suite.
-        Logique : 
-        - Trier par type (smoke → positive → negative → edge_case)
-        - Trier par execution_order
-        - Créer des dépendances séquentielles (chaque TC dépend du précédent)
-        - Dépendances inter-suites : les TCs d'une suite prioritaire sont prérequis pour la suite suivante
+        Crée des dépendances entre TCs basées sur la PRIORISATION PAR RISQUE.
+        
+        ISTQB §5.2.3 — Risk-Based Testing :
+            "Test cases covering the highest risks are executed first.
+             Dependencies shall reflect risk priority, not just technical order."
+        
+        Source : ISTQB Foundation Level Syllabus v4.0, Section 5.2.3
+        
+        Priorisation :
+        1. RISK LEVEL uniquement : critical (1000) > high (700) > medium (400) > low (100)
+        2. Exécution séquentielle : les TCs de risque élevé sont prérequis pour les autres
         """
         
-        type_order = {"smoke": 0, "positive": 1, "negative": 2, "boundary": 3, "edge_case": 4}
         dep_count = 0
         
-        # Trier les suites par execution_order
+        # Trier les suites par execution_order (risk-based)
         sorted_suites = sorted(suites_data, key=lambda s: s.get("execution_order", 99))
         
-        previous_suite_last_tc = None
-        
+        # Collecter TOUS les TCs avec leur poids de risque
+        all_tcs_with_risk = []
         for suite_data in sorted_suites:
-            # Récupérer les TCs de cette suite
             suite_tcs = [
                 tc_map[tc_code] 
                 for tc_code in suite_data.get("_tc_codes", []) 
                 if tc_code in tc_map
             ]
-            
-            if not suite_tcs:
-                continue
-            
-            # Trier par type puis par execution_order
-            suite_tcs.sort(key=lambda x: (
-                type_order.get((x.test_type or "positive").lower(), 99),
-                x.execution_order or 0
-            ))
-            
-            # 1. Créer dépendance inter-suite (si suite précédente existe)
-            if previous_suite_last_tc and suite_tcs:
-                dep = TestCaseDependency(
-                    id=str(uuid4()),
-                    test_plan_id=test_plan_id,
-                    source_test_case_id=previous_suite_last_tc.id,
-                    target_test_case_id=suite_tcs[0].id,
-                    dependency_type="requires",
-                    is_ai_generated=True,
-                )
-                self.db.add(dep)
-                dep_count += 1
-                logger.debug(
-                    f"[DEP] Inter-suite: {previous_suite_last_tc.tc_code} → {suite_tcs[0].tc_code}"
-                )
-            
-            # 2. Créer dépendances intra-suite (séquentielles)
-            for i in range(1, len(suite_tcs)):
-                dep = TestCaseDependency(
-                    id=str(uuid4()),
-                    test_plan_id=test_plan_id,
-                    source_test_case_id=suite_tcs[i-1].id,
-                    target_test_case_id=suite_tcs[i].id,
-                    dependency_type="requires",
-                    is_ai_generated=True,
-                )
-                self.db.add(dep)
-                dep_count += 1
-                logger.debug(
-                    f"[DEP] Intra-suite: {suite_tcs[i-1].tc_code} → {suite_tcs[i].tc_code}"
-                )
-            
-            # Mémoriser le dernier TC de cette suite pour la liaison inter-suite
-            previous_suite_last_tc = suite_tcs[-1]
+            for tc in suite_tcs:
+                # Calculer le poids de risque du TC
+                risk_weight = self._get_tc_risk_weight(tc, risk_map)
+                all_tcs_with_risk.append((tc, risk_weight))
+        
+        if not all_tcs_with_risk:
+            return 0
+        
+        # 🔥 PRIORISATION PAR RISQUE : Trier par poids de risque décroissant
+        all_tcs_with_risk.sort(key=lambda x: x[1], reverse=True)
+        
+        # Créer des dépendances séquentielles : risque élevé → risque faible
+        sorted_tcs = [tc for tc, _ in all_tcs_with_risk]
+        
+        for i in range(1, len(sorted_tcs)):
+            dep = TestCaseDependency(
+                id=str(uuid4()),
+                test_plan_id=test_plan_id,
+                source_test_case_id=sorted_tcs[i-1].id,  # Risque PLUS élevé (prérequis)
+                target_test_case_id=sorted_tcs[i].id,     # Risque MOINS élevé (dépendant)
+                dependency_type="requires",
+                is_ai_generated=True,
+            )
+            self.db.add(dep)
+            dep_count += 1
+            logger.debug(
+                f"[DEP RISK] {sorted_tcs[i-1].tc_code}(risk={self._get_tc_risk_weight(sorted_tcs[i-1])}) "
+                f"→ {sorted_tcs[i].tc_code}(risk={self._get_tc_risk_weight(sorted_tcs[i])})"
+            )
         
         if dep_count > 0:
             await self.db.commit()
         
+        logger.info(f"[DEP] Created {dep_count} risk-based dependencies between TCs")
         return dep_count
+
+    def _get_tc_risk_weight(self, tc: TestCase) -> int:
+        """
+        Calcule le poids de risque d'un TC basé sur le risque de son US.
+        
+        ISTQB §5.2.3 :
+            "Risk weight = probability × impact of the associated product risk"
+        
+        Poids :
+            critical = 1000
+            high     = 700
+            medium   = 400
+            low      = 100
+        """
+        if tc.user_story_id:
+            # Récupérer le risque de l'US
+            risk = self._get_risk_for_user_story(tc.user_story_id)
+            if risk and risk.level:
+                return _RISK_WEIGHT.get(risk.level, 100)
+        
+        # Si pas de risque, utiliser la priorité du TC comme fallback
+        return _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
+    
+    
+    def _get_tc_risk_weight(self, tc: TestCase, risk_map: Dict[str, Risk]) -> int:
+        """
+        Calcule le poids de risque d'un TC basé sur le risque de son US.
+        
+        ISTQB §5.2.3 :
+            "Risk weight = probability × impact of the associated product risk"
+        """
+        if tc.user_story_id:
+            for risk in risk_map.values():
+                if risk.user_story_id == tc.user_story_id and risk.level:
+                    return _RISK_WEIGHT.get(risk.level, 100)
+        
+        return _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
 
     # ============================================================
     # DETAIL
@@ -310,12 +386,13 @@ class TestSuiteService:
         risk_map: Dict[str, Risk] = {r.id: r for r in risks}
         story_map: Dict[str, UserStory] = {s.id: s for s in stories}
 
-        prioritized_cases = self._prioritize_cases(suite.test_cases, risk_map, story_map)
+        prioritized_cases = self._prioritize_cases_by_risk(suite.test_cases, risk_map)
 
         plan = suite.test_plan
         project = plan.jira_project if plan else None
 
-        coverage = self._compute_coverage(suite, risks, stories)
+        risk_coverage = self._compute_coverage(suite, risks, stories)
+        us_ac_coverages = self._compute_us_ac_coverages(suite, stories)
         matrix = self._build_traceability_matrix(prioritized_cases, story_map, suite)
         graph = self._build_dependency_graph(suite.test_cases, dependencies)
         lifecycle = self._build_lifecycle(suite, risks)
@@ -352,7 +429,8 @@ class TestSuiteService:
             project_key=project.project_key if project else None,
             test_cases=[self._embed_case(tc, risk_map, story_map) for tc in prioritized_cases],
             risks=[self._embed_risk(r) for r in risks],
-            coverage=coverage,
+            risk_coverage=risk_coverage,
+            us_ac_coverages=us_ac_coverages,
             traceability_matrix=matrix,
             dependency_graph=graph,
             lifecycle=lifecycle,
@@ -468,53 +546,56 @@ class TestSuiteService:
             execution_order_reason=order_reason,
         )
 
-    def _prioritize_cases(
+    def _prioritize_cases_by_risk(
         self,
         cases: List[TestCase],
         risk_map: Dict[str, Risk],
-        story_map: Dict[str, UserStory],
     ) -> List[TestCase]:
-        """Sort test cases: highest risk weight → most AC covered → earliest AC index."""
-    
-        def _score(tc: TestCase) -> Tuple[int, int, int, int]:
-            max_risk_weight = 0
-            # ✅ Chercher les risques via l'US
+        """
+        Priorise les TCs UNIQUEMENT par niveau de risque.
+        
+        ISTQB §5.2.3 — Risk-Based Test Prioritization :
+            "Test cases covering higher risks are executed first."
+        
+        Ordre : critical (1000) > high (700) > medium (400) > low (100)
+        
+        Source : ISTQB Foundation Level Syllabus v4.0, Section 5.2.3
+        """
+        
+        def _risk_score(tc: TestCase) -> int:
+            """
+            Calcule le score de risque du TC.
+            Score = poids du risque de l'US associée.
+            """
             if tc.user_story_id:
                 for risk in risk_map.values():
                     if risk.user_story_id == tc.user_story_id and risk.level:
-                        max_risk_weight = max(max_risk_weight, _RISK_WEIGHT.get(risk.level, 0))
-    
-            priority_weight = _PRIORITY_WEIGHT.get(tc.priority or "", 0)
-            ac_count = 0
-            min_ac_idx = 9999
-            if tc.user_story_id:
-                story = story_map.get(tc.user_story_id)
-                if story and story.acceptance_criteria:
-                    ac_count = len(story.acceptance_criteria)
-                    min_ac_idx = 0
-    
-            return (
-                -(max_risk_weight + priority_weight),
-                -ac_count,
-                min_ac_idx,
-                tc.execution_order or 9999,
-            )
-    
-        return sorted(cases, key=_score)
+                        return _RISK_WEIGHT.get(risk.level, 0)
+            
+            # Fallback : priorité du TC
+            return _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
+        
+        # Trier par score de risque décroissant (le plus élevé d'abord)
+        return sorted(cases, key=_risk_score, reverse=True) 
 
+    
     def _compute_priority_score(
         self,
         tc: TestCase,
         risk_map: Dict[str, Risk],
     ) -> int:
-        score = 0
-        # ✅ Chercher les risques via l'US
+        """
+        Calcule le score de priorité basé UNIQUEMENT sur le risque.
+        
+        ISTQB §5.2.3 :
+            "Priority score = Risk weight of the associated product risk"
+        """
         if tc.user_story_id:
             for risk in risk_map.values():
                 if risk.user_story_id == tc.user_story_id and risk.level:
-                    score += _RISK_WEIGHT.get(risk.level, 0)
-        score += _PRIORITY_WEIGHT.get(tc.priority or "", 0)
-        return score
+                    return _RISK_WEIGHT.get(risk.level, 0)
+        
+        return _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
 
     def _build_traceability_matrix(
         self,
@@ -665,7 +746,14 @@ class TestSuiteService:
         suite: TestSuite,
         risks: List[Risk],
         stories: List[UserStory],
-    ) -> SuiteCoverageSchema:
+    ) -> Dict[str, Any]:
+        """
+        Calcule le Risk Coverage pour la TestSuite.
+        
+        Avec 1 US = 1 Risk :
+            Risk Coverage ≡ US Coverage (mathématiquement équivalent)
+            On garde le Risk Coverage car c'est la métrique de MITIGATION.
+        """
         cases = suite.test_cases or []
         active = [c for c in cases if c.is_active]
     
@@ -674,38 +762,57 @@ class TestSuiteService:
         has_gherkin = sum(1 for c in active if c.gherkin_source)
         has_steps = sum(1 for c in active if c.steps)
     
-        # ✅ Couverture des risques via les US
-        covered_risk_ids = set()
-        risk_map = {r.id: r for r in risks}
-        for tc in active:
-            if tc.user_story_id:
-                for risk in risks:
-                    if risk.user_story_id == tc.user_story_id:
-                        covered_risk_ids.add(risk.id)
-        
+        # ============================================================
+        # RISK COVERAGE (seule métrique nécessaire)
+        # ============================================================
         total_risks = len(risks)
-        risk_pct = round(len(covered_risk_ids) / total_risks * 100, 1) if total_risks > 0 else 0.0
-        total_ac = sum(len(s.acceptance_criteria or []) for s in stories)
-        covered_story_ids = {tc.user_story_id for tc in active if tc.user_story_id}
-        covered_ac = sum(
-            len(s.acceptance_criteria or [])
-            for s in stories
-            if s.id in covered_story_ids
-        )
-        ac_pct = round(covered_ac / total_ac * 100, 1) if total_ac > 0 else 0.0
+        
+        if total_risks > 0:
+            # Récupérer les US qui ont des tests actifs
+            covered_us_ids = {tc.user_story_id for tc in active if tc.user_story_id}
+            
+            # Un risque est couvert si SON US a des tests
+            covered_risk_ids = {
+                risk.id for risk in risks 
+                if risk.user_story_id in covered_us_ids
+            }
+            
+            risk_pct = round(len(covered_risk_ids) / total_risks * 100, 1)
+            uncovered = [risk.id for risk in risks if risk.id not in covered_risk_ids]
+        else:
+            risk_pct = 100.0
+            covered_risk_ids = set()
+            uncovered = []
+    
+        # Déterminer le statut de mitigation
+        if risk_pct >= 100:
+            mitigation_status = "fully_mitigated"
+        elif risk_pct >= 80:
+            mitigation_status = "partially_mitigated"
+        else:
+            mitigation_status = "not_mitigated"
+    
+        # Sauvegarder dans la suite
+        suite.risk_coverage_pct = risk_pct / 100  # Stocker en 0.0-1.0
+        suite.risk_coverage_uncovered = uncovered
+        suite.mitigation_status = mitigation_status
+    
+        # ✅ Retourner un DICT (pas un objet Pydantic)
+        return {
+            "risk_coverage_pct": risk_pct,
+            "covered_risks": len(covered_risk_ids),
+            "total_risks": total_risks,
+            "uncovered_risk_ids": uncovered,
+            "mitigation_status": mitigation_status,
+            # Optionnel : stats supplémentaires
+            "total_cases": len(cases),
+            "active_cases": len(active),
+            "by_priority": by_priority,
+            "by_type": by_type,
+            "has_gherkin": has_gherkin,
+            "has_steps": has_steps,
+        }
 
-        coverage = SuiteCoverageSchema(
-            total_cases=len(cases),
-            active_cases=len(active),
-            by_priority=by_priority,
-            by_type=by_type,
-            has_gherkin=has_gherkin,
-            has_steps=has_steps,
-            risk_coverage_pct=risk_pct,
-            ac_coverage_pct=ac_pct,
-        )
-        suite.coverage_snapshot = coverage.model_dump()
-        return coverage
 
     def _build_lifecycle(self, suite: TestSuite, risks: List[Risk]) -> Dict[str, Any]:
         plan = suite.test_plan
@@ -809,7 +916,66 @@ class TestSuiteService:
             mitigation=risk.mitigation,
             is_accepted=risk.is_accepted,
         )
-
+    
+    def _compute_us_ac_coverages(
+        self,
+        suite: TestSuite,
+        stories: List[UserStory],
+    ) -> List[Dict[str, Any]]:
+        """
+        Récupère l'AC Coverage pour chaque US de la TestSuite.
+        L'AC Coverage est déjà calculé et stocké dans UserStory par le pipeline.
+        """
+        cases = suite.test_cases or []
+        
+        # Grouper les TCs par US
+        tcs_by_us: Dict[str, List[TestCase]] = defaultdict(list)
+        for tc in cases:
+            if tc.user_story_id:
+                tcs_by_us[tc.user_story_id].append(tc)
+        
+        us_coverages = []
+        
+        for story in stories:
+            story_tcs = tcs_by_us.get(story.id, [])
+            has_tests = len(story_tcs) > 0
+            
+            if has_tests and story.ac_coverage_pct is not None:
+                # ✅ Utiliser les champs STOCKÉS dans UserStory
+                pct = round(story.ac_coverage_pct * 100, 1)
+                covered = story.ac_coverage_covered
+                total = story.ac_coverage_total
+                uncovered = story.ac_coverage_uncovered or []
+                sufficient = story.ac_coverage_sufficient
+            elif has_tests:
+                # Fallback si pas encore calculé
+                ac_list = story.acceptance_criteria or []
+                total = len(ac_list)
+                # Considérer tous les ACs couverts si l'US a des tests
+                covered = total
+                pct = 100.0
+                uncovered = []
+                sufficient = True
+            else:
+                total = len(story.acceptance_criteria or [])
+                pct = 0.0
+                covered = 0
+                uncovered = story.acceptance_criteria or []
+                sufficient = False
+            
+            us_coverages.append({
+                "user_story_id": story.id,
+                "issue_key": story.issue_key,
+                "title": story.title,
+                "ac_coverage_pct": pct,
+                "covered_ac": covered,
+                "total_ac": total,
+                "uncovered_ac": uncovered,
+                "is_sufficient": sufficient,
+                "has_tests": has_tests,
+            })
+        
+        return us_coverages
 
 # ============================================================
 # Gather helper

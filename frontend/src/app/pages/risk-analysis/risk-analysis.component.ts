@@ -203,18 +203,18 @@ export class RiskAnalysisComponent implements OnInit, OnDestroy {
     return this.searchFilteredRisks().slice(start, start + this.pageSize());
   });
 
-  matrixCells = computed((): RiskMatrixCell[][] =>
-    PROB_BANDS.map((band, row) =>
-      IMPACT_LEVELS.map((impact, col) => {
-        const bgScore   = Math.round(band.pMid * impact.value * 100) / 100;
-        const level     = classifyLevel(bgScore);
-        const cellRisks = this.sprintEpicFilteredRisks().filter(
-          r => mapProbToRow(r.probability) === row && r.impact - 1 === col,
-        );
-        return { row, col, level, bgScore, risks: cellRisks };
-      }),
-    )
-  );
+matrixCells = computed((): RiskMatrixCell[][] =>
+  [5, 4, 3, 2, 1].map((pVal, row) =>    // ← P=5 → row 0, P=1 → row 4
+    IMPACT_LEVELS.map((impact, col) => {
+      const bgScore = pVal * impact.value;  // ← int × int
+      const level = classifyLevel(bgScore);
+      const cellRisks = this.sprintEpicFilteredRisks().filter(
+        r => r.probability === pVal && r.impact === impact.value,  // ← int
+      );
+      return { row, col, level, bgScore, risks: cellRisks };
+    }),
+  )
+);
 
   totalByLevel = computed(() => {
     const s = this.summary();
@@ -650,8 +650,8 @@ export class RiskAnalysisComponent implements OnInit, OnDestroy {
     return this.projects().find(p => p.id === projectId)?.project_name ?? projectId;
   }
 
-  formatScore(score: number): string { return score.toFixed(2); }
-  probPercent(p: number): number     { return Math.round(p * 100); }
+formatScore(score: number): string { return score.toString(); }    // 20
+probPercent(p: number): number { return Math.round(p / 5 * 100); } // 4 → 80%
 
   acceptanceLabel(val: boolean | null): string {
     if (val === true)  return 'Accepted';
