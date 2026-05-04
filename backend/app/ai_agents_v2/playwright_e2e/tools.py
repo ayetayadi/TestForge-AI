@@ -38,8 +38,8 @@ ALLOWED_TOOLS = {
     # browser_take_screenshot excluded: returns MCP image format incompatible with OpenRouter SDK
 }
 
-_MAX_SSE_RETRIES = 2
-_RETRY_BASE_DELAY = 0.5
+_MAX_SSE_RETRIES = 1          # 1 seule tentative SSE — inutile de retenter si le serveur est down
+_RETRY_BASE_DELAY = 0.3
 
 
 # ============================================================
@@ -198,7 +198,7 @@ class PlaywrightMCPClient:
             {
                 "playwright": {
                     "command": "npx",
-                    "args": ["@playwright/mcp@latest"],
+                    "args": ["--yes", "@playwright/mcp"],  # sans @latest = utilise la version en cache npm
                     "transport": "stdio",
                 }
             }
