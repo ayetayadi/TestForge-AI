@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -5,8 +6,10 @@ import time
 from typing import Dict, Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langsmith import traceable
+from langfuse import observe
+from langfuse import get_client as get_langfuse_client
 
+from app.core.observability import fire_evaluation, get_trace_callback
 from app.llm.llm_control import create_llm
 from .tools import PlaywrightMCPClient
 from .prompts import MAPPING_SYSTEM, MAPPING_USER
@@ -53,7 +56,7 @@ class PlaywrightReActAgent:
     eliminating the Groq TPM rate-limit problem.
     """
 
-    @traceable(name="playwright_two_phase_agent")
+    @observe(name="playwright_two_phase_agent")
     async def run(
         self,
         script_v1: str,
@@ -65,6 +68,11 @@ class PlaywrightReActAgent:
         start = time.time()
         actual_headless = headless if headless is not None else True
         actual_browser = browser if browser is not None else "chromium"
+
+        get_langfuse_client().update_current_span(
+            input={"script_v1": script_v1, "app_url": app_url, "test_case_id": test_case_id},
+            metadata={"browser": actual_browser, "headless": actual_headless},
+        )
 
         logger.info(f"Two-phase agent — browser={actual_browser}, headless={actual_headless}")
         logger.info(f"App URL: {app_url}")
@@ -121,7 +129,7 @@ class PlaywrightReActAgent:
 
         logger.info(f"Script v2 ready — {resolved}/{len(placeholders)} resolved, status={status}")
 
-        return self._result(
+        result = self._result(
             script_v2, status,
             steps_passed=resolved,
             steps_failed=0,
@@ -130,17 +138,45 @@ class PlaywrightReActAgent:
             duration=time.time() - start,
         )
 
+        lf = get_langfuse_client()
+        lf.update_current_span(
+            output={
+                "execution_status": result["execution_status"],
+                "steps_passed": result["steps_passed"],
+                "remaining_placeholders": result["remaining_placeholders"],
+                "duration": round(result["duration"], 2),
+            },
+            metadata={"test_case_id": test_case_id, "total_placeholders": len(placeholders)},
+        )
+
+        # Fire DeepEval quality check in background when the script is complete/partial
+        if result["execution_status"] in ("completed", "partial"):
+            trace_id = lf.get_current_trace_id()
+            asyncio.create_task(fire_evaluation(
+                metric="playwright_script_quality",
+                input_text=script_v1,
+                output_text=result["script_v2"],
+                trace_id=trace_id,
+            ))
+
+        return result
+
     # ── helpers ─────────────────────────────────────────────────────────────────
 
     async def _resolve_placeholders(self, llm, placeholders: list, dom: str) -> dict:
         """Single LLM call: compressed DOM + placeholder list → JSON locator mapping."""
-        response = await llm.ainvoke([
-            SystemMessage(content=MAPPING_SYSTEM),
-            HumanMessage(content=MAPPING_USER.format(
-                dom=dom,
-                placeholders=json.dumps(placeholders, indent=2),
-            )),
-        ])
+        cb = get_trace_callback()
+        invoke_config = {"callbacks": [cb]} if cb else {}
+        response = await llm.ainvoke(
+            [
+                SystemMessage(content=MAPPING_SYSTEM),
+                HumanMessage(content=MAPPING_USER.format(
+                    dom=dom,
+                    placeholders=json.dumps(placeholders, indent=2),
+                )),
+            ],
+            config=invoke_config,
+        )
 
         content = response.content.strip()
 

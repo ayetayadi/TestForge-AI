@@ -26,7 +26,7 @@ langchain_huggingface
 beautifulsoup4
 unstructured[pdf]
 redis
-langsmith
+langfuse
 asyncpg
 bcrypt==4.0.1
 passlib[bcrypt]
