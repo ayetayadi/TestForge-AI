@@ -16,6 +16,7 @@ import {
   GenerateEmailBodyResponse,
   JiraNotificationRequest,
   TEST_PLAN_STATUS_CONFIG,
+  RiskMappingEntry,
 } from '../../models/test-plan.model';
 
 type ActiveModal = null | 'share-email' | 'share-jira';
@@ -117,20 +118,34 @@ export class TestPlanDetailComponent implements OnInit {
     this.loadPlan(id);
   }
 
+  // Getter pour les techniques triées par fréquence
+get sortedTechniques(): { key: string; value: number }[] {
+  const dist = this.plan()?.risk_analysis?.aggregated_recommendations?.technique_distribution;
+  if (!dist) return [];
+  return Object.entries(dist)
+    .map(([key, value]) => ({ key, value: value as number }))
+    .sort((a, b) => b.value - a.value);
+}
+
+// Getter pour scope_refs sécurisé
+get scopeRefsDisplay(): string {
+  return this.plan()?.scope_refs?.join(', ') || '—';
+}
+
   // Pagination for risk mapping table
 riskMappingPage = 1;
 riskMappingPageSize = 5;
 
-paginatedRiskMappings() {
+paginatedRiskMappings(): RiskMappingEntry[] {
   const mappings = this.plan()?.risk_analysis?.mapping_table ?? [];
   const start = (this.riskMappingPage - 1) * this.riskMappingPageSize;
   const end = start + this.riskMappingPageSize;
   return mappings.slice(start, end);
 }
-
 totalRiskMappingPages(): number {
   const total = this.plan()?.risk_analysis?.mapping_table?.length ?? 0;
-  return Math.max(1, Math.ceil(total / this.riskMappingPageSize));
+  if (total === 0) return 0;  // ← Évite d'afficher "Page 1 of 1" pour une table vide
+  return Math.ceil(total / this.riskMappingPageSize);
 }
 
 min(a: number, b: number): number {
@@ -140,6 +155,7 @@ min(a: number, b: number): number {
 
   loadPlan(id: string): void {
     this.isLoading.set(true);
+    this.riskMappingPage = 1;
     this.service.getById(id).subscribe({
       next: plan => {
         this.plan.set(plan);
@@ -510,4 +526,28 @@ min(a: number, b: number): number {
   chipList(arr?: string[]): string {
     return arr?.join(', ') ?? '—';
   }
+
+  
+get aggregatedRecommendations() {
+  return this.plan()?.risk_analysis?.aggregated_recommendations ?? null;
+}
+
+get testDepthDistribution() {
+  return this.aggregatedRecommendations?.test_depth_distribution ?? {
+    comprehensive: 0,
+    thorough: 0,
+    standard: 0,
+    smoke: 0
+  };
+}
+
+get effortBreakdown() {
+  return this.aggregatedRecommendations?.effort_breakdown ?? {
+    critical_effort: '0%',
+    high_effort: '0%',
+    medium_effort: '0%',
+    low_effort: '0%'
+  };
+}
+  
 }

@@ -1,78 +1,92 @@
-"""
-Risk-Based Testing Configuration
-Basé sur le document : Risk = Probability (1-5) × Impact (1-5) = Score (1-25)
-"""
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ============================================================
-# ÉCHELLES
+# LLM
 # ============================================================
-# P et I sont des entiers de 1 à 5
+LLM_TEMPERATURE = 0.2
+LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS_RISK", "1500"))
+LLM_TIMEOUT_SECONDS = 240
+
+# ============================================================
+# ÉCHELLES CONFORMES AU DOCUMENT ORIGINAL
+# P et I sont tous les deux sur une échelle 1-5
+# ============================================================
 PROBABILITY_MIN = 1
 PROBABILITY_MAX = 5
 IMPACT_MIN = 1
 IMPACT_MAX = 5
 
-# Score = P × I → entre 1 et 25
-RISK_SCORE_MIN = 1
-RISK_SCORE_MAX = 25
+# ============================================================
+# SEUILS DE CLASSIFICATION (Document original)
+# Critical ≥ 20 | High 12-19 | Medium 6-11 | Low 1-5
+# ============================================================
+LEVEL_CRITICAL_MIN = 20
+LEVEL_HIGH_MIN = 12
+LEVEL_MEDIUM_MIN = 6
+# Low : risk_score 1-5
 
 # ============================================================
-# SEUILS DE PRIORITÉ
+# ALLOCATION EFFORT (Document original)
 # ============================================================
-# Extrait du document :
-# Critical (20-25) → High (12-19) → Medium (6-11) → Low (1-5)
-PRIORITY_CRITICAL_MIN = 20
-PRIORITY_HIGH_MIN = 12
-PRIORITY_MEDIUM_MIN = 6
-# Low = 1 à 5 (pas besoin de constante)
-
-# ============================================================
-# EFFORT ALLOCATION
-# ============================================================
-# Extrait du document : 60% critical, 25% high, 10% medium, 5% low
 EFFORT_ALLOCATION = {
-    "critical": 0.60,
-    "high": 0.25,
-    "medium": 0.10,
-    "low": 0.05,
+    "critical": 0.60,  # 60%
+    "high": 0.25,      # 25%
+    "medium": 0.10,    # 10%
+    "low": 0.05        # 5%
 }
 
 # ============================================================
-# TEST DEPTH PAR PRIORITÉ
+# FACTEURS DE PROBABILITÉ (Document original)
 # ============================================================
-# Extrait du document : quelles techniques de test par priorité
-TEST_DEPTH = {
-    "critical": {
-        "depth": "comprehensive",
-        "techniques": ["unit", "integration", "e2e", "performance", "security"],
+PROBABILITY_FACTORS = {
+    "complexity": {
+        "simple_crud": 1,
+        "business_logic": 3,
+        "algorithms_integrations": 5
     },
-    "high": {
-        "depth": "thorough",
-        "techniques": ["unit", "integration", "e2e"],
+    "change_rate": {
+        "stable_6months": 1,
+        "monthly": 3,
+        "weekly_daily": 5
     },
-    "medium": {
-        "depth": "standard",
-        "techniques": ["unit", "integration"],
+    "developer_experience": {
+        "senior_expert": 1,
+        "mid_level": 3,
+        "junior_new": 5
     },
-    "low": {
-        "depth": "smoke",
-        "techniques": ["smoke"],
-    },
+    "technical_debt": {
+        "clean_code": 1,
+        "some_debt": 3,
+        "legacy_no_tests": 5
+    }
 }
 
 # ============================================================
-# ML CONFIGURATION
+# FACTEURS D'IMPACT (Document original)
 # ============================================================
-# Seuil de confiance en dessous duquel on ignore la prédiction ML
-ML_CONFIDENCE_THRESHOLD = 0.40
-
-# Nombre de features max pour TF-IDF
-TFIDF_MAX_FEATURES = 500
-
-# ============================================================
-# LLM CONFIGURATION
-# ============================================================
-LLM_TEMPERATURE = 0.1  # Bas = réponses plus déterministes
-LLM_MODEL = "openai/gpt-oss-120b"
-LLM_MAX_TOKENS = 2000
-LLM_TIMEOUT_SECONDS = 90
+IMPACT_FACTORS = {
+    "users_affected": {
+        "admin_only": 1,
+        "department": 3,
+        "all_users": 5
+    },
+    "revenue": {
+        "none": 1,
+        "indirect": 3,
+        "direct_checkout": 5
+    },
+    "safety": {
+        "convenience": 1,
+        "data_loss": 3,
+        "physical_harm": 5
+    },
+    "reputation": {
+        "internal": 1,
+        "industry": 3,
+        "public_scandal": 5
+    }
+}

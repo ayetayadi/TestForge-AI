@@ -10,8 +10,8 @@ load_dotenv()
 # LLM Configuration
 # ============================================================
 LLM_TEMPERATURE = 0.3
-LLM_MODEL="openai/gpt-oss-120b"
-LLM_MAX_TOKENS = 800
+LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MAX_TOKENS = 2000
 
 # ============================================================
 # Agent Configuration

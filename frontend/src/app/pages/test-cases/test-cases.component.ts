@@ -135,8 +135,17 @@ export class TestCasesComponent implements OnInit, OnDestroy {
   // Gen panel
   genTotalJobs = computed(() => this.genJobs().length);
   genCompletedJobs = computed(() => this.genJobs().filter(j => j.status === 'generated' || j.status === 'failed').length);
-  genProgress = computed(() => this.genTotalJobs() === 0 ? 0 : Math.round((this.genCompletedJobs() / this.genTotalJobs()) * 100));
   genAllDone = computed(() => this.genTotalJobs() > 0 && this.genCompletedJobs() === this.genTotalJobs());
+
+  // Progression fine par US
+  genProgressTotal = signal(0);
+  genProgressCurrent = signal(0);
+  genCurrentUsKey = signal('');
+  genProgress = computed(() => {
+    if (this.genAllDone()) return 100;
+    if (this.genProgressTotal() > 0) return Math.round((this.genProgressCurrent() / this.genProgressTotal()) * 100);
+    return this.genTotalJobs() === 0 ? 0 : Math.round((this.genCompletedJobs() / this.genTotalJobs()) * 10); // 0-10% pendant init
+  });
 
   filterGroups = computed<FilterGroup[]>(() => {
     const items = this.allTestCases();
@@ -213,8 +222,8 @@ export class TestCasesComponent implements OnInit, OnDestroy {
   // =====================================================================
   // GEN PANEL (TestPlan uniquement)
   // =====================================================================
-  openGenPanel(): void { this.showGenPanel.set(true); this.genJobs.set([]); this.isGenerating.set(false); }
-  closeGenPanel(): void { if (this.isGenerating() && !this.genAllDone()) return; this.showGenPanel.set(false); this.genTestPlanId.set(''); this.genJobs.set([]); this.isGenerating.set(false); }
+  openGenPanel(): void { this.showGenPanel.set(true); this.genJobs.set([]); this.isGenerating.set(false); this.genProgressTotal.set(0); this.genProgressCurrent.set(0); this.genCurrentUsKey.set(''); }
+  closeGenPanel(): void { if (this.isGenerating() && !this.genAllDone()) return; this.showGenPanel.set(false); this.genTestPlanId.set(''); this.genJobs.set([]); this.isGenerating.set(false); this.genProgressTotal.set(0); this.genProgressCurrent.set(0); this.genCurrentUsKey.set(''); }
   onGenTestPlanChange(event: Event): void { this.genTestPlanId.set((event.target as HTMLSelectElement).value); }
 
   genScenarioTypes = signal<string[]>(['positive', 'negative', 'boundary']);
@@ -259,11 +268,24 @@ toggleScenarioType(type: string): void {
 
   private _subscribeToJobStream(planId: string, jobId: string): void {
     const url = this.testCaseService.getStreamUrl(jobId);
-    const sub = this.sseService.connectToStream<any>(url, jobId, ['tc_processing', 'tc_generated', 'tc_failed', 'ping']).subscribe({
+    const sub = this.sseService.connectToStream<any>(url, jobId, ['tc_processing', 'tc_generated', 'tc_failed', 'tc_init', 'us_done', 'ping']).subscribe({
       next: (e) => {
-        if (e.type === 'tc_processing') this._updateJob(planId, { status: 'processing' });
-        else if (e.type === 'tc_generated') { this._updateJob(planId, { status: 'generated', count: e.data.count }); sub.unsubscribe(); this.sseSubscriptions.delete(jobId); this._checkGenerationDone(); }
-        else if (e.type === 'tc_failed') { this._updateJob(planId, { status: 'failed', error: e.data.error }); sub.unsubscribe(); this.sseSubscriptions.delete(jobId); this._checkGenerationDone(); }
+        if (e.type === 'tc_processing') {
+          this._updateJob(planId, { status: 'processing' });
+        } else if (e.type === 'tc_init') {
+          this.genProgressTotal.set(e.data.total_us);
+          this.genProgressCurrent.set(0);
+          this.genCurrentUsKey.set('');
+        } else if (e.type === 'us_done') {
+          this.genProgressCurrent.set(e.data.completed);
+          this.genCurrentUsKey.set(e.data.issue_key ?? '');
+        } else if (e.type === 'tc_generated') {
+          this._updateJob(planId, { status: 'generated', count: e.data.count });
+          sub.unsubscribe(); this.sseSubscriptions.delete(jobId); this._checkGenerationDone();
+        } else if (e.type === 'tc_failed') {
+          this._updateJob(planId, { status: 'failed', error: e.data.error });
+          sub.unsubscribe(); this.sseSubscriptions.delete(jobId); this._checkGenerationDone();
+        }
       },
       error: () => { this._updateJob(planId, { status: 'failed', error: 'SSE error' }); this.sseSubscriptions.delete(jobId); this._checkGenerationDone(); },
     });

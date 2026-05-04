@@ -202,24 +202,50 @@
           </div>
         }
 
-        <!-- Priority Reasoning -->
-        @if (getPriorityReasoning(); as reasoning) {
-          <div class="reasoning-section">
-            <h3>Priority Reasoning</h3>
-            <p><strong>Risk Weight:</strong> {{ reasoning.risk_weight }}</p>
-            <p><strong>Formula:</strong> {{ reasoning.priority_formula }}</p>
-            <p><strong>Reason:</strong> {{ reasoning.execution_order_reason }}</p>
-            <div class="risk-breakdown">
-              @for (level of ['critical', 'high', 'medium', 'low']; track level) {
-                @if (reasoning.risk_breakdown[level]) {
-                  <span class="risk-break-tag" [style.background]="getRiskLevelBg(level)" [style.color]="getRiskLevelColor(level)">
-                    {{ level }}: {{ reasoning.risk_breakdown[level] }}
-                  </span>
-                }
-              }
+        <!-- Execution Strategy -->
+        <div class="exec-strategy-section">
+          <h3>Execution Strategy</h3>
+          <div class="exec-strategy-rules">
+            <div class="exec-rule">
+              <span class="exec-rule-num">1</span>
+              <span class="exec-rule-key">Business Flow</span>
+              <span class="exec-rule-chain">Auth → Dashboard → CRUD → Reporting → Settings → Other</span>
+            </div>
+            <div class="exec-rule">
+              <span class="exec-rule-num">2</span>
+              <span class="exec-rule-key">Risk Level</span>
+              <span class="exec-rule-chain">Critical → High → Medium → Low</span>
             </div>
           </div>
-        }
+          @if (getBusinessFlowGroups().length > 0) {
+            <div class="exec-flow-dist">
+              @for (group of getBusinessFlowGroups(); track group.flow) {
+                <div class="exec-flow-item">
+                  <span class="exec-flow-badge"
+                        [style.background]="group.bg_color"
+                        [style.color]="group.text_color">
+                    {{ group.label }}
+                  </span>
+                  <span class="exec-flow-count">{{ group.count }} TC(s)</span>
+                  <div class="exec-flow-risks">
+                    @for (level of ['critical', 'high', 'medium', 'low']; track level) {
+                      @if (group.by_risk[level]) {
+                        <span class="exec-risk-tag"
+                              [style.background]="getRiskLevelBg(level)"
+                              [style.color]="getRiskLevelColor(level)">
+                          {{ level }}: {{ group.by_risk[level] }}
+                        </span>
+                      }
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+          <p class="exec-algo-note">
+            Algorithm: Prioritized Kahn's BFS — O(V+E)
+          </p>
+        </div>
 
         <!-- All Suites Order -->
         @if (getAllSuitesOrder().length > 0) {
@@ -276,56 +302,292 @@
     }
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- TAB: TRACEABILITY MATRIX                                             -->
+    <!-- TAB: TRACEABILITY MATRIX (vraie matrice 2D)                         -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    
+
     @if (activeTab() === 'traceability') {
       <div class="tab-panel">
         @if (getMatrix(); as matrix) {
-          <div class="matrix-stats">
-            <span>Stories: {{ matrix.total_stories }}</span>
-            <span>ACs: {{ matrix.covered_ac }}/{{ matrix.total_ac }}</span>
-            <span>Coverage: {{ matrix.global_coverage_pct }}%</span>
-          </div>
-          @for (row of matrix.rows; track row.user_story_id) {
-            <div class="matrix-row">
-              <div class="matrix-story">
-                <strong>{{ row.issue_key }}</strong> {{ row.title }}
-              </div>
-              @for (ac of row.acceptance_criteria; track ac.ac_index) {
-                <div class="matrix-ac" [class.covered]="ac.is_covered">
-                  {{ ac.ac_text }}
-                  @if (ac.covered_by.length > 0) {
-                    <span class="ac-codes">{{ ac.covered_by.join(', ') }}</span>
-                  }
-                </div>
-              }
+
+          <!-- KPIs ─────────────────────────────────────────────────────── -->
+          <div class="tm-kpis">
+            <div class="tm-kpi">
+              <span class="tm-kpi-val" [style.color]="matrix.global_coverage_pct >= 100 ? '#10b981' : matrix.global_coverage_pct >= 80 ? '#f59e0b' : '#ef4444'">
+                {{ matrix.global_coverage_pct }}%
+              </span>
+              <span class="tm-kpi-lbl">Global AC Coverage</span>
             </div>
-          }
+            <div class="tm-kpi">
+              <span class="tm-kpi-val">{{ matrix.covered_ac }}/{{ matrix.total_ac }}</span>
+              <span class="tm-kpi-lbl">ACs Covered</span>
+            </div>
+            <div class="tm-kpi">
+              <span class="tm-kpi-val">{{ getCoveredStoriesCount() }}/{{ matrix.total_stories }}</span>
+              <span class="tm-kpi-lbl">Stories Covered</span>
+            </div>
+            <div class="tm-kpi">
+              <span class="tm-kpi-val">{{ getMatrixTestCaseHeaders().length }}</span>
+              <span class="tm-kpi-lbl">Test Cases</span>
+            </div>
+          </div>
+
+          <!-- Legend ───────────────────────────────────────────────────── -->
+          <div class="tm-legend">
+            <span class="tm-legend-item"><span class="tm-dot tm-dot--covered"></span> Covered</span>
+            <span class="tm-legend-item"><span class="tm-dot tm-dot--partial"></span> Partial</span>
+            <span class="tm-legend-item"><span class="tm-dot tm-dot--none"></span> Not covered</span>
+          </div>
+
+          <!-- Matrix table ─────────────────────────────────────────────── -->
+          <div class="tm-wrapper">
+            <table class="tm-table">
+              <thead>
+                <tr>
+                  <!-- Row header: story / AC text -->
+                  <th class="tm-th-story">User Story / Acceptance Criteria</th>
+                  <!-- Coverage column -->
+                  <th class="tm-th-cov">AC Cov.</th>
+                  <!-- One column per active test case -->
+                  @for (tc of getMatrixTestCaseHeaders(); track tc.id) {
+                    <th class="tm-th-tc">
+                      <div class="tm-tc-header">
+                        <span class="tm-tc-code"
+                              [style.color]="getPriorityConfig(tc.priority)?.color">
+                          {{ tc.tc_code }}
+                        </span>
+                        <span class="tm-tc-type">{{ tc.test_type }}</span>
+                      </div>
+                    </th>
+                  }
+                </tr>
+              </thead>
+
+              <tbody>
+                @for (row of matrix.rows; track row.user_story_id) {
+
+                  <!-- ── Story header row ─────────────────────────────── -->
+                  <tr class="tm-us-row">
+                    <td class="tm-us-cell"
+                        [attr.colspan]="2 + getMatrixTestCaseHeaders().length">
+                      <div class="tm-us-label">
+                        <span class="tm-us-key">{{ row.issue_key }}</span>
+                        <span class="tm-us-title">{{ row.title }}</span>
+                        <span class="tm-us-pct"
+                              [style.color]="row.coverage_pct >= 100 ? '#10b981' : row.coverage_pct > 0 ? '#f59e0b' : '#ef4444'">
+                          {{ row.coverage_pct }}%
+                        </span>
+                        <span class="tm-us-count">{{ row.covered_cases }}/{{ row.total_ac }} ACs</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- ── AC rows ─────────────────────────────────────── -->
+                  @for (ac of row.acceptance_criteria; track ac.ac_index) {
+                    <tr class="tm-ac-row" [class.tm-ac-row--covered]="ac.is_covered">
+
+                      <!-- AC label -->
+                      <td class="tm-ac-cell">
+                        <span class="tm-ac-idx">AC {{ ac.ac_index + 1 }}</span>
+                        <span class="tm-ac-text">{{ ac.ac_text }}</span>
+                      </td>
+
+                      <!-- Coverage summary -->
+                      <td class="tm-cov-cell">
+                        @if (ac.covered_by.length > 0) {
+                          <span class="tm-cov-badge tm-cov-badge--ok">
+                            {{ ac.covered_by.length }} TC
+                          </span>
+                        } @else {
+                          <span class="tm-cov-badge tm-cov-badge--none">—</span>
+                        }
+                      </td>
+
+                      <!-- One cell per test case -->
+                      @for (tc of getMatrixTestCaseHeaders(); track tc.id) {
+                        <td class="tm-cell"
+                            [class.tm-cell--covered]="isAcCoveredByTc(ac.covered_by, tc.tc_code)"
+                            [class.tm-cell--empty]="!isAcCoveredByTc(ac.covered_by, tc.tc_code)"
+                            [title]="isAcCoveredByTc(ac.covered_by, tc.tc_code) ? tc.tc_code + ' covers this AC' : 'Not covered'">
+                          @if (isAcCoveredByTc(ac.covered_by, tc.tc_code)) {
+                            <span class="tm-check">✓</span>
+                          } @else {
+                            <span class="tm-empty">·</span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
+                }
+
+                <!-- ── Footer: risk count per TC ─────────────────────── -->
+                <tr class="tm-footer-row">
+                  <td class="tm-footer-label">Risk Coverage (TC)</td>
+                  <td></td>
+                  @for (tc of getMatrixTestCaseHeaders(); track tc.id) {
+                    <td class="tm-footer-cell">
+                      @if (getTcRiskCount(tc) > 0) {
+                        <span class="tm-risk-badge">{{ getTcRiskCount(tc) }}R</span>
+                      } @else {
+                        <span class="tm-risk-badge tm-risk-badge--none">—</span>
+                      }
+                    </td>
+                  }
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        } @else {
+          <div class="empty-panel">No traceability matrix available for this suite.</div>
         }
       </div>
     }
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- TAB: DEPENDENCY GRAPH                                                -->
+    <!-- TAB: DEPENDENCY GRAPH (SVG swim-lane, Kahn's topological sort)      -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    
+
     @if (activeTab() === 'graph') {
       <div class="tab-panel">
         @if (getGraph(); as graph) {
-          <div class="graph-container">
-            @for (node of graph.nodes; track node.id) {
-              <div class="graph-node" [style.border-color]="getPriorityConfig(node.priority)?.color">
-                <span class="node-code">{{ node.tc_code }}</span>
-                <span class="node-title">{{ node.title }}</span>
-                <span class="node-order">#{{ getExecutionPosition(node.tc_code) }}</span>
-              </div>
-            }
-            @for (edge of graph.edges; track edge.source_id + edge.target_id) {
-              <div class="graph-edge" [style.background]="getDependencyEdgeColor(edge.dependency_type)">
-                {{ edge.source }} → {{ edge.target }}
-              </div>
-            }
+
+          <!-- Algorithm justification ──────────────────────────────────── -->
+          <div class="graph-algo-box">
+            <div class="graph-algo-hierarchy">
+              <span class="graph-algo-rule"><strong>1st key — Business Flow</strong></span>
+              <span class="graph-algo-rule"><strong>2nd key — Risk Level</strong></span>
+            </div>
+          </div>
+
+          <!-- Execution order bar ──────────────────────────────────────── -->
+          @if (graph.execution_order.length > 0) {
+            <div class="graph-exec-bar">
+              <span class="graph-exec-title">Execution Order:</span>
+              @for (code of graph.execution_order; let i = $index; track code) {
+                <span class="graph-exec-chip">
+                  <span class="graph-exec-num">{{ i + 1 }}</span>
+                  <span class="graph-exec-code">{{ code }}</span>
+                </span>
+                @if (i < graph.execution_order.length - 1) {
+                  <span class="graph-exec-arrow">→</span>
+                }
+              }
+            </div>
+          }
+
+          <!-- Stats + Legend ───────────────────────────────────────────── -->
+          <div class="graph-meta">
+            <div class="graph-stats">
+              <span class="graph-stat"><strong>{{ graph.nodes.length }}</strong> nodes</span>
+              <span class="graph-stat"><strong>{{ graph.edges.length }}</strong> edges</span>
+            </div>
+            <div class="graph-legend">
+              <span class="gl-item"><span class="gl-node" style="background:#fef2f2;border-color:#ef4444"></span>Critical</span>
+              <span class="gl-item"><span class="gl-node" style="background:#fff7ed;border-color:#f97316"></span>High</span>
+              <span class="gl-item"><span class="gl-node" style="background:#fefce8;border-color:#eab308"></span>Medium</span>
+              <span class="gl-item"><span class="gl-node" style="background:#f0fdf4;border-color:#22c55e"></span>Low</span>
+              <span class="gl-item"><span class="gl-edge" style="background:#6366f1"></span>Requires</span>
+              <span class="gl-item"><span class="gl-edge" style="background:#ef4444"></span>Blocks</span>
+              <span class="gl-item"><span class="gl-edge" style="background:#9ca3af;border-style:dashed"></span>Related</span>
+            </div>
+          </div>
+
+          <!-- SVG Graph ────────────────────────────────────────────────── -->
+          @if (buildGraphLayout(); as layout) {
+            <div class="svg-graph-scroll">
+              <svg
+                [attr.width]="layout.svg_width"
+                [attr.height]="layout.svg_height"
+                xmlns="http://www.w3.org/2000/svg"
+                class="svg-graph">
+
+                <!-- Arrowhead markers -->
+                <defs>
+                  <marker id="arr-requires" markerWidth="8" markerHeight="6"
+                          refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+                  </marker>
+                  <marker id="arr-blocks" markerWidth="8" markerHeight="6"
+                          refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+                  </marker>
+                  <marker id="arr-related" markerWidth="8" markerHeight="6"
+                          refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#9ca3af"/>
+                  </marker>
+                </defs>
+
+                <!-- Swim-lane background bands -->
+                @for (band of layout.bands; track band.label) {
+                  <rect x="0" [attr.y]="band.y"
+                        [attr.width]="layout.svg_width" [attr.height]="band.height"
+                        rx="6" [attr.fill]="band.fill" opacity="0.45"/>
+                  <text x="8" [attr.y]="band.y + band.height / 2 + 4"
+                        font-size="11" font-weight="700"
+                        [attr.fill]="band.text_color">
+                    {{ band.label }}
+                    <tspan font-size="9" font-weight="400"> ({{ band.count }})</tspan>
+                  </text>
+                }
+
+                <!-- Edges (drawn below nodes) -->
+                @for (edge of layout.edges; track edge.source_code + edge.target_code) {
+                  <path
+                    [attr.d]="edge.path"
+                    [attr.stroke]="edge.color"
+                    stroke-width="2"
+                    fill="none"
+                    [attr.stroke-dasharray]="edge.dependency_type === 'related' ? '5,3' : null"
+                    [attr.marker-end]="'url(#arr-' + edge.dependency_type + ')'"/>
+                }
+
+                <!-- Nodes -->
+                @for (node of layout.nodes; track node.id) {
+                  <g [attr.transform]="'translate(' + node.x + ',' + node.y + ')'">
+
+                    <!-- Node card -->
+                    <rect width="160" height="60" rx="8"
+                          [attr.fill]="getNodeFill(node.priority)"
+                          [attr.stroke]="getNodeStroke(node.priority)"
+                          stroke-width="2"/>
+
+                    <!-- Execution-order badge (top-right corner) -->
+                    <circle cx="148" cy="12" r="11"
+                            [attr.fill]="getNodeStroke(node.priority)"/>
+                    <text x="148" y="16" text-anchor="middle"
+                          font-size="9" font-weight="700" fill="white">
+                      #{{ node.exec_pos }}
+                    </text>
+
+                    <!-- TC code -->
+                    <text x="74" y="22" text-anchor="middle"
+                          font-size="11" font-weight="700"
+                          [attr.fill]="getNodeStroke(node.priority)">
+                      {{ node.tc_code }}
+                    </text>
+
+                    <!-- Title (truncated) -->
+                    <text x="74" y="38" text-anchor="middle"
+                          font-size="10" fill="#374151">
+                      {{ node.title }}
+                    </text>
+
+                    <!-- Test type chip -->
+                    <text x="74" y="53" text-anchor="middle"
+                          font-size="9" fill="#9ca3af">
+                      {{ node.test_type ?? '' }}
+                    </text>
+
+                  </g>
+                }
+
+              </svg>
+            </div>
+          }
+
+        } @else {
+          <div class="empty-panel">
+            No dependency graph available. Generate test suites to build the graph.
           </div>
         }
       </div>

@@ -1,330 +1,210 @@
 """
-Pipeline — Orchestre le flux complet Risk-Based Testing.
+Risk Analysis Pipeline - ALIGNED WITH ORIGINAL DOCUMENT.
 
-Flux :
-  1. Feature Extractor → prépare le texte
-  2. ML Model → P (1-5), I (1-5), confiance
-  3. Calculator → Score, Priorité, Effort
-  4. LLM Explainer → Description, Mitigation, Reasoning
-  5. Assemblage → RiskAnalysisResult
+Simple 2-step process:
+  1. LLM analyzes story and suggests P (1-5) + I (1-5)
+  2. Compute risk_score = P × I, classify level
 """
 
 import asyncio
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional, Callable
 
 from langsmith import traceable
-
-from .config import (
-    ML_CONFIDENCE_THRESHOLD,
-    LLM_TEMPERATURE,
-    LLM_MODEL,
-    LLM_MAX_TOKENS,
-    LLM_TIMEOUT_SECONDS,
-)
-from .models import (
-    RiskAnalysisInput,
-    RiskAnalysisResult,
-    MLPrediction,
-    LLMExplanation,
-)
-from .calculator import compute_full_result
-from .ml_model import RiskMLModel
-from .prompts import RBT_EXPLANATION_PROMPT, RISK_ANALYSIS_PROMPT_FALLBACK
+from pydantic import BaseModel, Field
+from app.ai_workflows.risk_analysis.risk_scorer import build_risk_record, get_test_depth
+from app.ai_workflows.risk_analysis.prompts import RISK_ANALYSIS_PROMPT
+from app.llm.llm_control import create_llm
+from .config import LLM_TEMPERATURE, LLM_MODEL, LLM_MAX_TOKENS, LLM_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
 
 
-class RiskAnalysisPipeline:
-    """
-    Pipeline complet d'analyse de risque basé sur le document RBT.
-
-    Usage :
-        pipeline = RiskAnalysisPipeline()
-        await pipeline.initialize()  # Charge le modèle ML
-        result = await pipeline.run(user_story, acceptance_criteria)
-    """
-
-    def __init__(self):
-        self.ml_model = RiskMLModel()
-        self._llm = None
-        self._initialized = False
-
-    async def initialize(self):
-        """
-        Initialise le pipeline : charge le modèle ML en mémoire.
-        À appeler une fois au démarrage.
-        """
-        if not self._initialized:
-            # Charger le modèle ML
-            loaded = self.ml_model.load()
-            if loaded:
-                logger.info("Modèle ML chargé avec succès")
-            else:
-                logger.warning("Aucun modèle ML trouvé. Utilisation du fallback LLM.")
-
-            # Initialiser le LLM (si disponible)
-            try:
-                from app.llm.llm_control import create_llm
-                llm = create_llm(
-                    temperature=LLM_TEMPERATURE,
-                    model=LLM_MODEL,
-                    max_tokens=LLM_MAX_TOKENS,
-                )
-                self._llm = llm.with_structured_output(LLMExplanation)
-                logger.info("LLM initialisé")
-            except Exception as e:
-                logger.warning(f"LLM non disponible : {e}")
-                self._llm = None
-
-            self._initialized = True
-
-    # ============================================================
-    # ÉTAPE 1 : OBTENIR P ET I (ML → Fallback)
-    # ============================================================
-
-    async def _get_p_and_i(
-        self, user_story: str, acceptance_criteria: List[str]
-    ) -> MLPrediction:
-        """
-        Essaie d'obtenir P et I. Ordre : ML → LLM → Défaut.
-        """
-        combined_text = f"{user_story} {' '.join(acceptance_criteria)}"
-
-        # --- Essai 1 : ML ---
-        if self.ml_model.is_trained:
-            try:
-                prediction = self.ml_model.predict(combined_text)
-
-                if prediction.confidence >= ML_CONFIDENCE_THRESHOLD:
-                    logger.info(f"ML: P={prediction.probability}, I={prediction.impact}, conf={prediction.confidence}")
-                    return prediction
-                else:
-                    logger.warning(f"Confiance ML trop basse ({prediction.confidence}), fallback LLM")
-
-            except Exception as e:
-                logger.error(f"Erreur ML : {e}")
-
-        # --- Essai 2 : LLM ---
-        if self._llm:
-            try:
-                logger.info("Fallback LLM pour P et I...")
-                p, i = await self._ask_llm_for_pi(user_story, acceptance_criteria)
-                return MLPrediction(probability=p, impact=i, confidence=0.5, source="llm_fallback")
-            except Exception as e:
-                logger.error(f"Erreur LLM fallback : {e}")
-
-        # --- Essai 3 : Valeurs par défaut ---
-        logger.warning("Aucun prédicteur disponible. Utilisation des valeurs par défaut.")
-        return MLPrediction(probability=3, impact=3, confidence=0.0, source="default")
-
+# ✅ Corrigé - Tous les champs que le LLM doit retourner
+class RiskAnalysisOutput(BaseModel):
+    """LLM output schema - All fields requested in the prompt."""
     
-    async def _ask_llm_for_pi(
-        self, user_story: str, acceptance_criteria: List[str]
-    ) -> tuple:
-        """Fallback LLM pour P et I."""
-        from pydantic import BaseModel, Field
-        
-        class LLMPIFallback(BaseModel):
-            probability: int = Field(ge=1, le=5)
-            impact: int = Field(ge=1, le=5)
-        
-        # Créer un LLM temporaire avec ce schéma
-        from app.llm.llm_control import create_llm
-        llm_fallback = create_llm(
-            temperature=0.1,
-            model=LLM_MODEL,
-            max_tokens=200,
-        ).with_structured_output(LLMPIFallback)
-        
-        ac_text = "\n".join(f"- {ac}" for ac in acceptance_criteria)
-        prompt = RISK_ANALYSIS_PROMPT_FALLBACK.format(
-            story=user_story,
-            acceptance_criteria=ac_text,
-        )
-        result = await asyncio.wait_for(
-            llm_fallback.ainvoke(prompt),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
-        return result.probability, result.impact
+    probability: int = Field(
+        description="Probability of failure: integer from 1 (very unlikely) to 5 (almost certain)"
+    )
+    impact: int = Field(
+        description="Impact severity: integer from 1 (minimal) to 5 (business-critical)"
+    )
+    
+    # Facteurs détaillés
+    probability_factors: dict = Field(
+        description="The 4 probability factors: story_complexity, ac_complexity, dependencies, clarity"
+    )
+    impact_factors: dict = Field(
+        description="The 4 impact factors: users_affected, revenue, safety, reputation"
+    )
+    
+    # Raisonnements
+    probability_reasoning: str = Field(
+        description="One sentence explaining P"
+    )
+    impact_reasoning: str = Field(
+        description="One sentence explaining I"
+    )
+    
+    # Description et mitigation
+    description: str = Field(
+        description="One short sentence describing the risk"
+    )
+    mitigation: str = Field(
+        description="One concrete testing action"
+    )
+    
+    # Raisonnement global
+    reasoning: str = Field(
+        description="Exactly 3 bullet points: why P, why I, calculation"
+    )
+    
+    test_depth: Optional[str] = Field(
+        default=None,
+        description="comprehensive, thorough, standard, or smoke"
+    )
+    test_techniques: Optional[List[str]] = Field(
+        default=None,
+        description="List of test techniques to apply"
+    )
+    effort_allocation: Optional[str] = Field(
+        default=None,
+        description="60%, 25%, 10%, or 5%"
+    )
 
-    # ============================================================
-    # ÉTAPE 2 : GÉNÉRER L'EXPLICATION (LLM)
-    # ============================================================
+class RiskAnalysisPipeline:
+    """Pipeline conforme au document Risk Based Testing original."""
 
-    async def _get_explanation(
-        self,
-        user_story: str,
-        acceptance_criteria: List[str],
-        probability: int,
-        impact: int,
-        risk_score: int,
-        priority: str,
-    ) -> LLMExplanation:
-        """
-        Demande au LLM d'expliquer le score (ne modifie pas P et I).
-        """
-        if not self._llm:
-            # Fallback si LLM non disponible
-            return LLMExplanation(
-                description=f"Risk score: {risk_score}/25 ({priority})",
-                mitigation="Validate with unit and integration tests",
-                reasoning=f"P={probability}, I={impact} → Score={risk_score} ({priority})",
-            )
+    def __init__(self, temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL):
+        logger.info("[RISK ANALYSIS] Initializing pipeline (document-aligned)...")
+        llm = create_llm(temperature=temperature, model=model, max_tokens=LLM_MAX_TOKENS)
+        self._llm = llm.with_structured_output(RiskAnalysisOutput)
+        logger.info("[RISK ANALYSIS] Ready (P:1-5, I:1-5, Score:1-25)")
 
-        ac_text = "\n".join(f"- {ac}" for ac in acceptance_criteria) if acceptance_criteria else "(none)"
-
-        prompt = RBT_EXPLANATION_PROMPT.format(
-            probability=probability,
-            impact=impact,
-            risk_score=risk_score,
-            priority=priority.upper(),
-            user_story=user_story,
-            acceptance_criteria=ac_text,
-        )
-
+    async def _emit(self, callback: Optional[Callable], event_type: str, data: dict) -> None:
+        if callback is None:
+            return
         try:
-            result = await asyncio.wait_for(
-                self._llm.ainvoke(prompt),
-                timeout=LLM_TIMEOUT_SECONDS,
-            )
-            if not isinstance(result, LLMExplanation):
-                raise ValueError(f"LLM returned invalid type: {type(result)}")
-            return result
-        except asyncio.TimeoutError:
-            logger.error("LLM explanation timed out")
-            return LLMExplanation(
-                description=f"Risk score: {risk_score}/{priority}",
-                mitigation="Run standard test suite",
-                reasoning=f"P={probability}, I={impact} → {risk_score}/25",
-            )
-
-    # ============================================================
-    # FLUX PRINCIPAL
-    # ============================================================
+            await callback(event_type, data)
+        except Exception:
+            pass
 
     @traceable(name="risk_analysis_pipeline")
     async def run(
         self,
-        user_story: str,
+        story: str,
         acceptance_criteria: List[str] = None,
+        issue_key: str = "?",
         user_story_id: Optional[str] = None,
         test_plan_id: Optional[str] = None,
-    ) -> RiskAnalysisResult:
-        """
-        Analyse le risque d'une User Story.
-
-        Args:
-            user_story : texte de la User Story
-            acceptance_criteria : liste des critères d'acceptation
-            user_story_id : ID optionnel en base
-            test_plan_id : ID optionnel du plan de test
-
-        Returns:
-            RiskAnalysisResult complet
-        """
+        progress_callback: Optional[Callable] = None,
+    ) -> Dict[str, Any]:
         acceptance_criteria = acceptance_criteria or []
 
-        if not self._initialized:
-            await self.initialize()
-
-        logger.info(f"Début analyse de risque pour US: {user_story[:80]}...")
+        logger.info(f"[RISK ANALYSIS] Starting analysis for {issue_key}")
 
         try:
-            # ── Étape 1 : Obtenir P et I ──
-            prediction = await self._get_p_and_i(user_story, acceptance_criteria)
+            # ── STEP 1: LLM RISK ASSESSMENT ────────────────────
+            await self._emit(progress_callback, "phase", {
+                "phase": "assessing",
+                "message": "AI analyzing story for risk (P: 1-5, I: 1-5)...",
+            })
 
-            # ── Étape 2 : Calculer le score ──
-            scorer_result = compute_full_result(
-                probability=prediction.probability,
-                impact=prediction.impact,
-            )
+            try:
+                result: RiskAnalysisOutput = await asyncio.wait_for(
+                    self._call_llm(story, acceptance_criteria, issue_key),
+                    timeout=LLM_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"[RISK ANALYSIS] LLM timed out after {LLM_TIMEOUT_SECONDS}s")
+                raise RuntimeError("LLM call timed out")
 
-            # ── Étape 3 : Générer l'explication ──
-            explanation = await self._get_explanation(
-                user_story=user_story,
-                acceptance_criteria=acceptance_criteria,
-                probability=scorer_result.probability,
-                impact=scorer_result.impact,
-                risk_score=scorer_result.risk_score,
-                priority=scorer_result.priority,
-            )
+            # ── STEP 2: COMPUTE SCORE & CLASSIFY ───────────────
+            await self._emit(progress_callback, "phase", {
+                "phase": "scoring",
+                "message": f"Computing P({result.probability}) × I({result.impact})...",
+            })
 
-            # ── Étape 4 : Assembler le résultat ──
-            result = RiskAnalysisResult(
+            risk_record = build_risk_record(
+                probability=result.probability,
+                impact=result.impact,
+                description=result.description,
+                mitigation=result.mitigation,
+                reasoning=result.reasoning,
+                probability_factors=result.probability_factors,
+                impact_factors=result.impact_factors,
+                probability_reasoning=result.probability_reasoning,
+                impact_reasoning=result.impact_reasoning,
+                test_depth=result.test_depth,       
+                test_techniques=result.test_techniques, # Du LLM (prioritaire)
+                effort_allocation=result.effort_allocation, # Du LLM (prioritaire)
                 user_story_id=user_story_id,
                 test_plan_id=test_plan_id,
-                probability=scorer_result.probability,
-                impact=scorer_result.impact,
-                risk_score=scorer_result.risk_score,
-                priority=scorer_result.priority,
-                effort=scorer_result.effort,
-                test_depth=scorer_result.test_depth,
-                test_techniques=scorer_result.test_techniques,
-                description=explanation.description,
-                mitigation=explanation.mitigation,
-                reasoning=explanation.reasoning,
-                is_ai_generated=True,
-                is_accepted=None,
-                ml_confidence=prediction.confidence,
-                source=prediction.source,
-                workflow_status="success",
             )
+
+            await self._emit(progress_callback, "phase", {
+                "phase": "done",
+                "message": (
+                    f"Risk: P={risk_record['probability']} × I={risk_record['impact']} "
+                    f"= {risk_record['risk_score']} ({risk_record['level'].upper()}) - "
+                    f"Test depth: {risk_record['test_depth']['depth']}"
+                ),
+                "level": risk_record["level"],
+                "risk_score": risk_record["risk_score"],
+                "test_depth": risk_record["test_depth"],
+            })
 
             logger.info(
-                f"Analyse terminée : P={result.probability}, I={result.impact}, "
-                f"Score={result.risk_score}, Priorité={result.priority}, "
-                f"Source={result.source}"
+                f"[RESULT] {issue_key} → "
+                f"P={result.probability} I={result.impact} "
+                f"Score={risk_record['risk_score']} Level={risk_record['level']}"
             )
 
-            return result
+            return {
+                **risk_record,
+                "issue_key": issue_key,
+                "workflow_status": "success",
+            }
 
-        except Exception as e:
-            logger.error(f"Erreur fatale dans le pipeline : {e}", exc_info=True)
-            return RiskAnalysisResult(
-                user_story_id=user_story_id,
-                test_plan_id=test_plan_id,
-                probability=3,
-                impact=3,
-                risk_score=9,
-                priority="medium",
-                effort=0.10,
-                test_depth="standard",
-                test_techniques=["unit", "integration"],
-                description=f"Risk analysis failed: {str(e)}",
-                mitigation="Review manually",
-                reasoning="",
-                is_ai_generated=False,
-                is_accepted=None,
-                ml_confidence=0.0,
-                source="default",
-                workflow_status="error",
-                error=str(e),
-            )
+        except Exception as exc:
+            logger.error(f"[RISK ANALYSIS] Error: {exc}", exc_info=True)
+            return {
+                "user_story_id": user_story_id,
+                "test_plan_id": test_plan_id,
+                "description": f"Risk analysis failed: {str(exc)}",
+                "mitigation": "",
+                "probability": 3,
+                "impact": 3,
+                "risk_score": 9,
+                "level": "medium",
+                "test_depth": get_test_depth("medium"),
+                "is_ai_generated": True,
+                "is_accepted": None,
+                "reasoning": "",
+                "issue_key": issue_key,
+                "workflow_status": "error",
+                "error": str(exc),
+            }
+
+    async def _call_llm(
+        self,
+        story: str,
+        acceptance_criteria: List[str],
+        issue_key: str,
+    ) -> RiskAnalysisOutput:
+        ac_text = "\n".join(f"- {ac}" for ac in acceptance_criteria) if acceptance_criteria else "(none)"
+        prompt = RISK_ANALYSIS_PROMPT.format(
+            story=story,
+            acceptance_criteria=ac_text,
+            issue_key=issue_key,
+        )
+        return await self._llm.ainvoke(prompt)
 
 
 # ============================================================
-# SINGLETON (optionnel)
+# BATCH HELPER
 # ============================================================
-
-_instance: Optional[RiskAnalysisPipeline] = None
-
-
-async def get_pipeline() -> RiskAnalysisPipeline:
-    """Retourne l'instance unique du pipeline."""
-    global _instance
-    if _instance is None:
-        _instance = RiskAnalysisPipeline()
-        await _instance.initialize()
-    return _instance
-
-
-def reset_pipeline():
-    """Réinitialise le pipeline (utile après réentraînement)."""
-    global _instance
-    _instance = None
-    logger.info("Pipeline réinitialisé")
-
 
 async def analyse_stories_batch(
     pipeline: RiskAnalysisPipeline,
@@ -332,12 +212,38 @@ async def analyse_stories_batch(
     test_plan_id: Optional[str] = None,
     concurrency: int = 3,
 ) -> List[Dict[str, Any]]:
-    """
-    Run risk analysis on a list of user story dicts concurrently.
-
-    Each story dict must have at minimum: story (str), issue_key (str).
-    Optional keys: acceptance_criteria, jira_priority, story_points, components, labels, epic, user_story_id.
-
-    concurrency: max parallel LLM calls (keep ≤3 to avoid rate limits).
-    """
+    """Run risk analysis on multiple user stories concurrently."""
     semaphore = asyncio.Semaphore(concurrency)
+
+    async def _run_one(story_data: Dict[str, Any]) -> Dict[str, Any]:
+        async with semaphore:
+            return await pipeline.run(
+                story=story_data.get("story", ""),
+                acceptance_criteria=story_data.get("acceptance_criteria", []),
+                issue_key=story_data.get("issue_key", "?"),
+                user_story_id=story_data.get("user_story_id"),
+                test_plan_id=test_plan_id,
+            )
+
+    results = await asyncio.gather(*[_run_one(s) for s in stories], return_exceptions=False)
+    return list(results)
+
+
+# ============================================================
+# SINGLETON
+# ============================================================
+
+_instance: Optional[RiskAnalysisPipeline] = None
+
+
+def get_pipeline(temperature: float = LLM_TEMPERATURE) -> RiskAnalysisPipeline:
+    global _instance
+    if _instance is None:
+        _instance = RiskAnalysisPipeline(temperature=temperature)
+    return _instance
+
+
+def reset_pipeline() -> None:
+    global _instance
+    _instance = None
+    logger.info("[RISK ANALYSIS] Singleton reset")

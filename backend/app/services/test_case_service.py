@@ -259,7 +259,26 @@ async def generate_test_cases_for_plan(
     # ============================================================
     # LANCER TOUTES LES GÉNÉRATIONS EN PARALLÈLE
     # ============================================================
-    tasks = [_generate_for_single_us(us) for us in us_list]
+    total_us = len(us_list)
+    if progress_callback:
+        await progress_callback("tc_init", {"total_us": total_us, "message": f"Starting generation for {total_us} user stories..."})
+
+    completed_us_count = 0
+
+    async def _generate_with_progress(us: UserStory) -> Dict[str, Any]:
+        nonlocal completed_us_count
+        result = await _generate_for_single_us(us)
+        completed_us_count += 1
+        if progress_callback:
+            await progress_callback("us_done", {
+                "completed": completed_us_count,
+                "total": total_us,
+                "issue_key": us.issue_key,
+                "count": len(result.get("test_cases", [])) if not isinstance(result, Exception) else 0,
+            })
+        return result
+
+    tasks = [_generate_with_progress(us) for us in us_list]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
     # ============================================================

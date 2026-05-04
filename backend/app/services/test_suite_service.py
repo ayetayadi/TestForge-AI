@@ -4,7 +4,8 @@ import logging
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
-
+from collections import deque
+import heapq
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -51,6 +52,53 @@ _PRIORITY_WEIGHT: Dict[str, int] = {
     "high": 600,
     "medium": 300,
     "low": 100,
+}
+
+# ── Business Flow (MÉTIER) hierarchy ────────────────────────────────────────
+# Rank 1 = executes first (foundational flow), higher rank = executes later.
+# Used as PRIMARY sort key; Risk Level is SECONDARY.
+# ISTQB §5.2.4: "Business-critical paths shall be tested before secondary flows."
+_BUSINESS_FLOW_KEYWORDS: Dict[str, List[str]] = {
+    "authentication": [
+        "auth", "login", "logout", "register", "signup", "sign-in",
+        "password", "credential", "session", "token", "jwt", "oauth", "sso",
+        "2fa", "mfa", "verification", "forgot password", "reset password",
+    ],
+    "dashboard": [
+        "dashboard", "home", "overview", "landing", "summary", "main page",
+        "welcome", "portal", "workspace",
+    ],
+    "crud": [
+        "create", "update", "delete", "edit", "add", "remove", "save",
+        "crud", "form", "submit", "modify", "insert", "record",
+    ],
+    "search": [
+        "search", "filter", "sort", "query", "find", "browse", "lookup",
+        "autocomplete", "pagination",
+    ],
+    "reporting": [
+        "report", "export", "log", "audit", "history", "analytics",
+        "metrics", "statistics", "chart", "download",
+    ],
+    "settings": [
+        "setting", "config", "preference", "profile", "account",
+        "permission", "role", "user management",
+    ],
+    "notifications": [
+        "notification", "alert", "email", "message", "sms", "push",
+        "reminder", "broadcast",
+    ],
+}
+
+_BUSINESS_FLOW_RANK: Dict[str, int] = {
+    "authentication": 1,
+    "dashboard": 2,
+    "crud": 3,
+    "search": 4,
+    "reporting": 5,
+    "settings": 6,
+    "notifications": 7,
+    "other": 8,
 }
 
 
@@ -139,12 +187,20 @@ class TestSuiteService:
         test_cases = list(result.scalars().all())
         
         if not test_cases:
-            raise ValueError("No unassigned test cases found. All TCs are already in suites.")
+            raise ValueError("No unassigned test cases found.")
+        
+        # ── 🔥 RÉCUPÉRER TOUTES LES US DU PLAN (pas seulement celles avec TCs) ──
+        all_plan_stories_result = await self.db.execute(
+            select(UserStory).where(
+                UserStory.project_id == plan.project_id  # Ou via le scope du plan
+            )
+        )
+        all_plan_stories = all_plan_stories_result.scalars().all()
         
         # 3. Convert to dicts with metadata
         tc_dicts = []
         for tc in test_cases:
-            d = {
+            tc_dicts.append({
                 "id": tc.id,
                 "tc_code": tc.tc_code,
                 "title": tc.title,
@@ -152,11 +208,81 @@ class TestSuiteService:
                 "priority": tc.priority or "medium",
                 "tags": tc.tags or [],
                 "user_story_id": tc.user_story_id,
-            }
-            tc_dicts.append(d)
+            })
         
-        # 4. Run AI pipeline
+        # ── 🔥 DÉTERMINER L'ORDRE DES FLUX AVEC TOUTES LES US ──
         pipeline = get_suite_pipeline()
+        
+        # Collecter TOUTES les US pour le contexte LLM
+        us_list = []
+        seen_us = set()
+        
+        # D'abord les US qui ont des TCs
+        for tc in test_cases:
+            if tc.user_story_id and tc.user_story_id not in seen_us:
+                seen_us.add(tc.user_story_id)
+                us = tc.user_story
+                if us:
+                    us_list.append({
+                        "issue_key": us.issue_key,
+                        "title": us.title or "",
+                        "sprint": us.sprint,
+                        "has_tests": True,
+                    })
+        
+        # Ensuite les US sans TCs (pour contexte complet)
+        for us in all_plan_stories:
+            if us.id not in seen_us:
+                seen_us.add(us.id)
+                us_list.append({
+                    "issue_key": us.issue_key,
+                    "title": us.title or "",
+                    "sprint": us.sprint,
+                    "has_tests": False,
+                })
+        
+        logger.info(
+            f"[SUITE GEN] Context for LLM: {len(us_list)} US "
+            f"({sum(1 for u in us_list if u['has_tests'])} with tests, "
+            f"{sum(1 for u in us_list if not u['has_tests'])} without)"
+        )
+        
+        # LLM détermine l'ordre des flux
+        flow_order = None
+        try:
+            flow_order = await pipeline._determine_business_flow_order(
+                test_cases=tc_dicts,
+                user_stories=us_list,
+                project_name=project_name or plan.title or "Project"
+            )
+            
+            # 🔥 VÉRIFIER que tous les flux détectés sont dans l'ordre
+            detected_flows = set()
+            for tc in test_cases:
+                flow = self._get_business_flow(tc)
+                detected_flows.add(flow)
+            
+            missing_flows = detected_flows - set(flow_order.keys())
+            if missing_flows:
+                logger.warning(
+                    f"[SUITE GEN] LLM missed flows: {missing_flows}. "
+                    f"Adding them at the end."
+                )
+                next_rank = max(flow_order.values()) + 1 if flow_order else 99
+                for flow in missing_flows:
+                    flow_order[flow] = next_rank
+                    next_rank += 1
+            
+            # Stocker dans le plan
+            plan.business_flow_order = flow_order
+            await self.db.commit()
+            logger.info(f"[SUITE GEN] ✅ LLM Flow Order saved: {flow_order}")
+            
+        except Exception as e:
+            logger.warning(f"[SUITE GEN] LLM flow order failed: {e}")
+            flow_order = _BUSINESS_FLOW_RANK
+        
+        # 4. Run AI pipeline (naming + grouping)
         result = await pipeline.run(
             test_cases=tc_dicts,
             test_plan_id=test_plan_id,
@@ -272,105 +398,104 @@ class TestSuiteService:
         test_plan_id: str,
         risk_map: Dict[str, Risk],
     ) -> int:
-        """
-        Crée des dépendances entre TCs basées sur la PRIORISATION PAR RISQUE.
-        
-        ISTQB §5.2.3 — Risk-Based Testing :
-            "Test cases covering the highest risks are executed first.
-             Dependencies shall reflect risk priority, not just technical order."
-        
-        Source : ISTQB Foundation Level Syllabus v4.0, Section 5.2.3
-        
-        Priorisation :
-        1. RISK LEVEL uniquement : critical (1000) > high (700) > medium (400) > low (100)
-        2. Exécution séquentielle : les TCs de risque élevé sont prérequis pour les autres
-        """
-        
+        """Crée des dépendances hiérarchiques ENTRE TOUS les TCs."""
         dep_count = 0
         
-        # Trier les suites par execution_order (risk-based)
-        sorted_suites = sorted(suites_data, key=lambda s: s.get("execution_order", 99))
+        # ── 1. Collecter TOUS les TCs ──
+        all_tcs: List[TestCase] = []
+        for suite_data in suites_data:
+            for tc_code in suite_data.get("_tc_codes", []):
+                if tc_code in tc_map:
+                    all_tcs.append(tc_map[tc_code])
         
-        # Collecter TOUS les TCs avec leur poids de risque
-        all_tcs_with_risk = []
-        for suite_data in sorted_suites:
-            suite_tcs = [
-                tc_map[tc_code] 
-                for tc_code in suite_data.get("_tc_codes", []) 
-                if tc_code in tc_map
-            ]
-            for tc in suite_tcs:
-                # Calculer le poids de risque du TC
-                risk_weight = self._get_tc_risk_weight(tc, risk_map)
-                all_tcs_with_risk.append((tc, risk_weight))
-        
-        if not all_tcs_with_risk:
+        if len(all_tcs) < 2:
+            logger.warning("[DEP] Need at least 2 TCs to create dependencies")
             return 0
         
-        # 🔥 PRIORISATION PAR RISQUE : Trier par poids de risque décroissant
-        all_tcs_with_risk.sort(key=lambda x: x[1], reverse=True)
+        # ── 🔥 DÉFINIR flow_order AVANT de l'utiliser ──
+        flow_order = _BUSINESS_FLOW_RANK  # Valeur par défaut
+        tc_classifications = {}  # Classifications LLM
         
-        # Créer des dépendances séquentielles : risque élevé → risque faible
-        sorted_tcs = [tc for tc, _ in all_tcs_with_risk]
+        try:
+            plan_result = await self.db.execute(
+                select(TestPlan).where(TestPlan.id == test_plan_id)
+            )
+            plan = plan_result.scalar_one_or_none()
+            
+            if plan:
+                # Récupérer l'ordre des flux LLM
+                if plan.business_flow_order:
+                    flow_order = plan.business_flow_order
+                    logger.info(f"[DEP] Using LLM flow order: {flow_order}")
+                
+                # Récupérer les classifications LLM
+                if plan.tc_classifications:
+                    tc_classifications = plan.tc_classifications
+                    logger.info(f"[DEP] Using LLM classifications for {len(tc_classifications)} TCs")
+        except Exception as e:
+            logger.warning(f"[DEP] Could not load plan data: {e}")
         
+        # ── 2. Fonction de tri (flow_order est maintenant défini) ──
+        def _sort_key(tc: TestCase) -> Tuple[int, int]:
+            # 🔥 Priorité 1 : Classification LLM
+            if tc.tc_code in tc_classifications:
+                llm = tc_classifications[tc.tc_code]
+                flow = llm.get("business_flow", "other")
+                risk_level = llm.get("risk_level", tc.priority or "medium")
+            else:
+                # Priorité 2 : Détection par mots-clés
+                flow = self._get_business_flow(tc)
+                risk_level = tc.priority or "medium"
+            
+            flow_rank = flow_order.get(flow, 99)  # ← flow_order est défini !
+            risk_wt = _RISK_WEIGHT.get(risk_level, _PRIORITY_WEIGHT.get(tc.priority or "medium", 300))
+            
+            return (flow_rank, -risk_wt)
+        
+        sorted_tcs = sorted(all_tcs, key=_sort_key)
+            
+        logger.info(f"[DEP] Creating dependencies for {len(sorted_tcs)} TCs (flow order: {flow_order}):")
+        for i, tc in enumerate(sorted_tcs):
+            flow = self._get_business_flow(tc)
+            logger.info(
+                f"  {i+1}. {tc.tc_code} "
+                f"(flow={flow}, rank={flow_order.get(flow, 99)}, "
+                f"risk={-_sort_key(tc)[1]})"
+            )
+        
+        # ── 3. Créer les dépendances SÉQUENTIELLES ──
         for i in range(1, len(sorted_tcs)):
+            prev, curr = sorted_tcs[i - 1], sorted_tcs[i]
+            
             dep = TestCaseDependency(
                 id=str(uuid4()),
                 test_plan_id=test_plan_id,
-                source_test_case_id=sorted_tcs[i-1].id,  # Risque PLUS élevé (prérequis)
-                target_test_case_id=sorted_tcs[i].id,     # Risque MOINS élevé (dépendant)
+                source_test_case_id=prev.id,
+                target_test_case_id=curr.id,
                 dependency_type="requires",
                 is_ai_generated=True,
             )
             self.db.add(dep)
             dep_count += 1
+            
             logger.debug(
-                f"[DEP RISK] {sorted_tcs[i-1].tc_code}(risk={self._get_tc_risk_weight(sorted_tcs[i-1])}) "
-                f"→ {sorted_tcs[i].tc_code}(risk={self._get_tc_risk_weight(sorted_tcs[i])})"
+                f"[DEP] {prev.tc_code}({self._get_business_flow(prev)}) "
+                f"→ {curr.tc_code}({self._get_business_flow(curr)})"
             )
         
+        # ── 4. COMMIT ──
         if dep_count > 0:
             await self.db.commit()
+            
+            # VÉRIFICATION
+            verify = await self.db.execute(
+                select(TestCaseDependency)
+                .where(TestCaseDependency.test_plan_id == test_plan_id)
+            )
+            verify_deps = verify.scalars().all()
+            logger.info(f"[DEP] ✅ Committed {dep_count} deps (DB has {len(verify_deps)} total)")
         
-        logger.info(f"[DEP] Created {dep_count} risk-based dependencies between TCs")
         return dep_count
-
-    def _get_tc_risk_weight(self, tc: TestCase) -> int:
-        """
-        Calcule le poids de risque d'un TC basé sur le risque de son US.
-        
-        ISTQB §5.2.3 :
-            "Risk weight = probability × impact of the associated product risk"
-        
-        Poids :
-            critical = 1000
-            high     = 700
-            medium   = 400
-            low      = 100
-        """
-        if tc.user_story_id:
-            # Récupérer le risque de l'US
-            risk = self._get_risk_for_user_story(tc.user_story_id)
-            if risk and risk.level:
-                return _RISK_WEIGHT.get(risk.level, 100)
-        
-        # Si pas de risque, utiliser la priorité du TC comme fallback
-        return _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
-    
-    
-    def _get_tc_risk_weight(self, tc: TestCase, risk_map: Dict[str, Risk]) -> int:
-        """
-        Calcule le poids de risque d'un TC basé sur le risque de son US.
-        
-        ISTQB §5.2.3 :
-            "Risk weight = probability × impact of the associated product risk"
-        """
-        if tc.user_story_id:
-            for risk in risk_map.values():
-                if risk.user_story_id == tc.user_story_id and risk.level:
-                    return _RISK_WEIGHT.get(risk.level, 100)
-        
-        return _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
 
     # ============================================================
     # DETAIL
@@ -546,39 +671,71 @@ class TestSuiteService:
             execution_order_reason=order_reason,
         )
 
+
+    def _get_business_flow(self, tc: TestCase) -> str:
+        """
+        🔥 PRIORITÉ 1 : Classification LLM stockée dans le TestPlan
+        🔥 PRIORITÉ 2 : Détection par mots-clés (fallback)
+        """
+        # ── 1. Essayer la classification LLM ──
+        if tc.test_suite and tc.test_suite.test_plan:
+            plan = tc.test_suite.test_plan
+            if plan.tc_classifications and tc.tc_code in plan.tc_classifications:
+                llm_flow = plan.tc_classifications[tc.tc_code].get("business_flow")
+                if llm_flow:
+                    return llm_flow
+        
+        # ── 2. Fallback : mots-clés ──
+        text = " ".join([
+            (tc.title or "").lower(),
+            " ".join(tc.tags or []).lower(),
+        ])
+        for flow, keywords in _BUSINESS_FLOW_KEYWORDS.items():
+            if any(kw in text for kw in keywords):
+                return flow
+        return "other"
+
     def _prioritize_cases_by_risk(
         self,
         cases: List[TestCase],
         risk_map: Dict[str, Risk],
     ) -> List[TestCase]:
         """
-        Priorise les TCs UNIQUEMENT par niveau de risque.
-        
-        ISTQB §5.2.3 — Risk-Based Test Prioritization :
-            "Test cases covering higher risks are executed first."
-        
-        Ordre : critical (1000) > high (700) > medium (400) > low (100)
-        
-        Source : ISTQB Foundation Level Syllabus v4.0, Section 5.2.3
+        Priorise les TCs de manière HIÉRARCHIQUE.
+        🔥 Utilise les classifications LLM si disponibles.
         """
         
-        def _risk_score(tc: TestCase) -> int:
-            """
-            Calcule le score de risque du TC.
-            Score = poids du risque de l'US associée.
-            """
-            if tc.user_story_id:
-                for risk in risk_map.values():
-                    if risk.user_story_id == tc.user_story_id and risk.level:
-                        return _RISK_WEIGHT.get(risk.level, 0)
-            
-            # Fallback : priorité du TC
-            return _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
+        # ── Récupérer l'ordre LLM du plan ──
+        flow_order = _BUSINESS_FLOW_RANK  # Défaut
+        tc_classifications = {}
         
-        # Trier par score de risque décroissant (le plus élevé d'abord)
-        return sorted(cases, key=_risk_score, reverse=True) 
+        if cases:
+            first_tc = cases[0]
+            if first_tc.test_suite and first_tc.test_suite.test_plan:
+                plan = first_tc.test_suite.test_plan
+                if plan.business_flow_order:
+                    flow_order = plan.business_flow_order
+                if plan.tc_classifications:
+                    tc_classifications = plan.tc_classifications
+        
+        # ── Fonction de tri ──
+        def _sort_key(tc: TestCase) -> Tuple[int, int]:
+            # Classification LLM ou fallback
+            if tc.tc_code in tc_classifications:
+                llm = tc_classifications[tc.tc_code]
+                flow = llm.get("business_flow", "other")
+                risk_level = llm.get("risk_level", tc.priority or "medium")
+            else:
+                flow = self._get_business_flow(tc)
+                risk_level = tc.priority or "medium"
+            
+            flow_rank = flow_order.get(flow, 99)  # ← flow_order est défini
+            risk_wt = _RISK_WEIGHT.get(risk_level, 0) or _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
+            
+            return (flow_rank, -risk_wt)
+        
+        return sorted(cases, key=_sort_key)
 
-    
     def _compute_priority_score(
         self,
         tc: TestCase,
@@ -660,86 +817,108 @@ class TestSuiteService:
         suite.matrix_snapshot = matrix.model_dump()
         return matrix
 
+    
+    
     def _build_dependency_graph(
         self,
         cases: List[TestCase],
         dependencies: List[TestCaseDependency],
     ) -> DependencyGraphSchema:
+        """
+        Construit le graphe de dépendances.
+        🔥 Utilise la classification LLM du plan.
+        """
         tc_map: Dict[str, TestCase] = {tc.id: tc for tc in cases}
-
-        nodes = [
-            DependencyNode(
+        
+        # ── 🔥 RÉCUPÉRER L'ORDRE LLM ──
+        flow_order = _BUSINESS_FLOW_RANK
+        tc_classifications = {}
+        
+        if cases:
+            first_tc = cases[0]
+            if first_tc.test_suite and first_tc.test_suite.test_plan:
+                plan = first_tc.test_suite.test_plan
+                if plan.business_flow_order:
+                    flow_order = plan.business_flow_order
+                if plan.tc_classifications:
+                    tc_classifications = plan.tc_classifications
+        
+        # ── Nœuds avec classification LLM ──
+        flow_colors = {
+            "authentication": "#FF4444",
+            "dashboard": "#FF8C00",
+            "crud": "#FFD700",
+            "search": "#32CD32",
+            "reporting": "#4169E1",
+            "settings": "#8A2BE2",
+            "notifications": "#FF69B4",
+            "error_handling": "#EF4444",
+            "monitoring": "#06B6D4",
+            "api": "#10B981",
+            "testing": "#8B5CF6",
+            "other": "#808080",
+        }
+        
+        nodes = []
+        for tc in cases:
+            # 🔥 Utiliser la classification LLM si disponible
+            if tc.tc_code in tc_classifications:
+                llm = tc_classifications[tc.tc_code]
+                flow = llm.get("business_flow", "other")
+                risk = llm.get("risk_level", tc.priority or "medium")
+            else:
+                flow = self._get_business_flow(tc)
+                risk = tc.priority or "medium"
+            
+            flow_rank = flow_order.get(flow, 99)
+            risk_wt = _RISK_WEIGHT.get(risk, _PRIORITY_WEIGHT.get(tc.priority or "medium", 300))
+            
+            nodes.append(DependencyNode(
                 id=tc.id,
                 tc_code=tc.tc_code,
                 title=tc.title,
-                priority=tc.priority,
+                priority=risk,  # ← Risk level du LLM
                 test_type=tc.test_type,
                 execution_order=tc.execution_order,
-            )
-            for tc in cases
-        ]
-
+                test_suite_id=tc.test_suite_id,
+                business_flow=flow,  # ← Flow du LLM
+                flow_rank=flow_rank,
+                risk_weight=risk_wt,
+                status_color=flow_colors.get(flow, "#808080"),
+            ))
+        
+        # ── Arêtes ──
+        suite_tc_ids = {tc.id for tc in cases}
         edges: List[DependencyEdge] = []
+        
         for dep in dependencies:
-            src = tc_map.get(dep.source_test_case_id)
-            tgt = tc_map.get(dep.target_test_case_id)
-            if src and tgt:
-                edges.append(DependencyEdge(
-                    source=src.tc_code,
-                    target=tgt.tc_code,
-                    source_id=dep.source_test_case_id,
-                    target_id=dep.target_test_case_id,
-                    dependency_type=dep.dependency_type,
-                    is_ai_generated=dep.is_ai_generated,
-                ))
-
-        execution_order = self._topological_sort(cases, dependencies)
-
+            if dep.source_test_case_id in suite_tc_ids and dep.target_test_case_id in suite_tc_ids:
+                src = tc_map.get(dep.source_test_case_id)
+                tgt = tc_map.get(dep.target_test_case_id)
+                if src and tgt:
+                    edges.append(DependencyEdge(
+                        source=src.tc_code,
+                        target=tgt.tc_code,
+                        source_id=dep.source_test_case_id,
+                        target_id=dep.target_test_case_id,
+                        dependency_type=dep.dependency_type or "requires",
+                        is_ai_generated=dep.is_ai_generated,
+                    ))
+        
+        # ── Ordre d'exécution SIMPLE (pas de tri topologique) ──
+        sorted_nodes = sorted(nodes, key=lambda n: (n.flow_rank or 99, -(n.risk_weight or 0)))
+        execution_order = [n.tc_code for n in sorted_nodes]
+        
+        logger.info(
+            f"[GRAPH] {len(nodes)} nodes, {len(edges)} edges, "
+            f"order: {' → '.join(execution_order[:5])}..."
+        )
+        
         return DependencyGraphSchema(
             nodes=nodes,
             edges=edges,
             execution_order=execution_order,
         )
-
-    def _topological_sort(
-        self,
-        cases: List[TestCase],
-        dependencies: List[TestCaseDependency],
-    ) -> List[str]:
-        """Kahn's algorithm — returns tc_codes in safe execution order."""
-        tc_map: Dict[str, TestCase] = {tc.id: tc for tc in cases}
-        tc_ids = set(tc_map.keys())
-
-        in_degree: Dict[str, int] = {tid: 0 for tid in tc_ids}
-        adj: Dict[str, List[str]] = defaultdict(list)
-
-        for dep in dependencies:
-            src = dep.source_test_case_id
-            tgt = dep.target_test_case_id
-            if dep.dependency_type == "requires" and src in tc_ids and tgt in tc_ids:
-                adj[src].append(tgt)
-                in_degree[tgt] += 1
-
-        queue = [tid for tid, deg in in_degree.items() if deg == 0]
-        result: List[str] = []
-
-        while queue:
-            node = queue.pop(0)
-            tc = tc_map.get(node)
-            if tc:
-                result.append(tc.tc_code)
-            for neighbor in adj[node]:
-                in_degree[neighbor] -= 1
-                if in_degree[neighbor] == 0:
-                    queue.append(neighbor)
-
-        remaining = {tid for tid in tc_ids if tc_map[tid].tc_code not in result}
-        for tid in remaining:
-            tc = tc_map.get(tid)
-            if tc:
-                result.append(tc.tc_code)
-
-        return result
 
     def _compute_coverage(
         self,

@@ -110,7 +110,7 @@ class Settings(BaseSettings):
     # =========================
     # WORKER CONFIG
     # =========================
-    MAX_WORKERS: int = 3
+    MAX_WORKERS: int = 5
     # =========================
     # MAIL CONFIG
     # =========================

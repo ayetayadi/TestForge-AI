@@ -162,6 +162,85 @@ class TestPlanExportService:
             story.append(table)
             story.append(Spacer(1, 10))
 
+        # ── Risk Analysis Section ──────────────────────────────────
+        if plan.risk_analysis:
+            story.append(Paragraph("Risk Analysis", h2))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.red, spaceAfter=4))
+            
+            # Distribution
+            dist = plan.risk_analysis.get('distribution', {})
+            if dist:
+                dist_data = [
+                    ["Critical", str(dist.get('critical', 0)), "🔴"],
+                    ["High", str(dist.get('high', 0)), "🟠"],
+                    ["Medium", str(dist.get('medium', 0)), "🟡"],
+                    ["Low", str(dist.get('low', 0)), "🟢"],
+                    ["Total", str(dist.get('total', 0)), ""],
+                ]
+                dist_table = Table(dist_data, colWidths=[60*mm, 40*mm, 20*mm])
+                dist_table.setStyle(TableStyle([
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f0f4ff")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#dddddd")),
+                ]))
+                story.append(dist_table)
+                story.append(Spacer(1, 6))
+            
+            # Risk Mapping Table (Critical & High only)
+            mapping = plan.risk_analysis.get('mapping_table', [])
+            critical_high = [r for r in mapping if r.get('risk_level') in ('critical', 'high')]
+            if critical_high:
+                mapping_data = [["Key", "Title", "Score", "Mitigation"]]
+                for r in critical_high[:10]:
+                    mapping_data.append([
+                        r.get('issue_key', '?'),
+                        r.get('title', '')[:40],
+                        str(r.get('risk_score', 0)),
+                        r.get('mitigation', '')[:80],
+                    ])
+                mapping_table = Table(mapping_data, colWidths=[25*mm, 50*mm, 15*mm, 70*mm])
+                mapping_table.setStyle(TableStyle([
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef2f2")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.red),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#dddddd")),
+                ]))
+                story.append(mapping_table)
+        
+        # ── PERT Estimation Section ────────────────────────────────
+        if plan.estimation:
+            story.append(Paragraph("PERT Estimation", h2))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#6366f1"), spaceAfter=4))
+            
+            est = plan.estimation
+            story.append(Paragraph(
+                f"<b>Formula:</b> {est.get('formula', 'E = (O + 4×M + P) / 6')}<br/>"
+                f"<b>Calculation:</b> {est.get('calculation', '')}<br/>"
+                f"<b>Confidence Interval:</b> {est.get('confidence_interval', '')}<br/>"
+                f"<b>Standard Deviation:</b> {est.get('standard_deviation', '')}",
+                body
+            ))
+            
+            # Breakdown table
+            breakdown = est.get('breakdown_by_risk', [])
+            if breakdown:
+                bd_data = [["Level", "Stories", "Opt.", "Real.", "Pess."]]
+                for item in breakdown:
+                    bd_data.append([
+                        item.get('level', ''),
+                        str(item.get('story_count', 0)),
+                        str(item.get('subtotal_optimistic', 0)),
+                        str(item.get('subtotal_realistic', 0)),
+                        str(item.get('subtotal_pessimistic', 0)),
+                    ])
+                bd_table = Table(bd_data, colWidths=[35*mm, 25*mm, 25*mm, 25*mm, 25*mm])
+                bd_table.setStyle(TableStyle([
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eef2ff")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#dddddd")),
+                ]))
+                story.append(bd_table)
+
         # ── Sections ─────────────────────────────────────────────
         for attr, label in _SECTIONS:
             value = getattr(plan, attr, None)

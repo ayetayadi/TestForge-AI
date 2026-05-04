@@ -9,7 +9,7 @@ from .config import PLACEHOLDER_PREFIX
 
 logger = logging.getLogger(__name__)
 
-LLM_MODEL = "gpt-oss-20b"
+LLM_MODEL = "llama-3.3-70b-versatile"
 LLM_TEMPERATURE = 0.3
 LLM_MAX_TOKENS = 800
 

@@ -12,15 +12,14 @@ export interface AnalyzeRequest {
   story: string;
   acceptance_criteria?: string[];
   user_story_id?: string;
+  issue_key?: string;
+  test_plan_id?: string;
 }
 
 export interface BatchAnalysisRequest {
   project_id: string;
-  stories: {
-    story: string;
-    acceptance_criteria?: string[];
-    user_story_id?: string;
-  }[];
+  stories: AnalyzeRequest[];
+  test_plan_id?: string;
   concurrency?: number;
 }
 
@@ -31,7 +30,7 @@ export interface ProjectAnalysisRequest {
   sprint_ids?: string[];
   jira_priorities?: string[];
   min_story_points?: number;
-  use_approved_version_only?: boolean; 
+  use_approved_version_only?: boolean;
   force_reanalyze?: boolean;
 }
 
@@ -39,22 +38,34 @@ export interface AnalyzeProjectResponse {
   submitted: number;
   project_id: string;
   job_ids: string[];
+  priority_breakdown?: Record<string, number>;
+  already_analyzed?: number;
+  filters_applied?: string[];
   message: string;
 }
 
-export interface RateLimitStatus {
-  pending_analyses: number;
-  estimated_time_minutes: number;
-  rate_limit_tpm: number;
-  recommended_batch_size: number;
-  message: string;
+export interface PendingCountResponse {
+  total_stories: number;
+  analyzed_stories: number;
+  pending_stories: number;
+  completion_percentage: number;
+  priority_breakdown: Record<string, number>;
+  has_pending: boolean;
+  filters_applied: Record<string, any>;
 }
 
 export interface HumanCorrectionRequest {
   probability: number;  // 1-5
   impact: number;       // 1-5
-  modified_by: string;
   comment?: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 // ============================================================
@@ -65,165 +76,277 @@ export interface HumanCorrectionRequest {
 export class RiskService {
   private http = inject(HttpClient);
   private risksUrl = `${environment.apiUrl}/risks`;
-  private projectsUrl = `${environment.apiUrl}/projects`;
 
-  // ── All risks (with enriched filters) ────────────────────
-  getAllRisks(filters?: {
-    project_id?: string;
-    sprint?: string;
-    epic_key?: string;
-    level?: RiskLevel;
-    is_accepted?: boolean;
-    source?: 'original' | 'approved_version';
-  }): Observable<Risk[]> {
-    let params = new HttpParams();
-    if (filters) {
-      if (filters.project_id) params = params.set('project_id', filters.project_id);
-      if (filters.sprint) params = params.set('sprint', filters.sprint);
-      if (filters.epic_key) params = params.set('epic_key', filters.epic_key);
-      if (filters.level) params = params.set('level', filters.level);
-      if (filters.is_accepted !== undefined) params = params.set('is_accepted', filters.is_accepted.toString());
-      if (filters.source) params = params.set('source', filters.source);
-    }
-    return this.http.get<Risk[]>(`${this.risksUrl}/all`, { params });
-  }
+  // ============================================================
+  // AI-POWERED ANALYSIS
+  // ============================================================
 
-  // ── By project (primary) ──────────────────────────────────
-  getRisksByProject(projectId: string, level?: RiskLevel): Observable<Risk[]> {
-    let params = new HttpParams();
-    if (level) params = params.set('level', level);
-    return this.http.get<Risk[]>(`${this.risksUrl}/project/${projectId}`, { params });
-  }
-
-  getRiskSummaryByProject(projectId: string): Observable<RiskSummary> {
-    return this.http.get<RiskSummary>(`${this.risksUrl}/project/${projectId}/summary`);
-  }
-
-  // ── By sprint (NEW) ──────────────────────────────────────
-  getRisksBySprint(projectId: string, sprint: string, level?: RiskLevel): Observable<Risk[]> {
-    let params = new HttpParams();
-    if (level) params = params.set('level', level);
-    return this.http.get<Risk[]>(`${this.risksUrl}/project/${projectId}/sprint/${sprint}`, { params });
-  }
-
-  getRiskSummaryBySprint(projectId: string, sprint: string): Observable<RiskSummary> {
-    return this.http.get<RiskSummary>(`${this.risksUrl}/project/${projectId}/sprint/${sprint}/summary`);
-  }
-
-  // ── By epic (NEW) ────────────────────────────────────────
-  getRisksByEpic(projectId: string, epicKey: string, level?: RiskLevel): Observable<Risk[]> {
-    let params = new HttpParams();
-    if (level) params = params.set('level', level);
-    return this.http.get<Risk[]>(`${this.risksUrl}/project/${projectId}/epic/${epicKey}`, { params });
-  }
-
-  // ── Analyze project with filters ─────────────────────────
+  /** Analyze all matching stories in a project (async via workers) */
   analyzeProjectWithFilters(request: ProjectAnalysisRequest): Observable<AnalyzeProjectResponse> {
-    return this.http.post<AnalyzeProjectResponse>(`${this.risksUrl}/analyze-project`, request);
+    return this.http.post<AnalyzeProjectResponse>(
+      `${this.risksUrl}/analyze-project`, request
+    );
   }
 
+  /** Get count of stories pending analysis */
   getPendingCount(filters: {
     project_id: string;
     epic_keys?: string[];
     sprint_ids?: string[];
     jira_priorities?: string[];
     min_story_points?: number;
-  }): Observable<{
-    total_stories: number;
-    analyzed_stories: number;
-    pending_stories: number;
-    priority_breakdown: Record<string, number>;
-    has_pending: boolean;
-  }> {
+  }): Observable<PendingCountResponse> {
     let params = new HttpParams().set('project_id', filters.project_id);
+    if (filters.epic_keys) params = params.set('epic_keys', filters.epic_keys.join(','));
+    if (filters.sprint_ids) params = params.set('sprint_ids', filters.sprint_ids.join(','));
+    if (filters.jira_priorities) params = params.set('jira_priorities', filters.jira_priorities.join(','));
+    if (filters.min_story_points) params = params.set('min_story_points', filters.min_story_points.toString());
     
-    if (filters.epic_keys?.length) {
-      params = params.set('epic_keys', filters.epic_keys.join(','));
-    }
-    if (filters.sprint_ids?.length) {
-      params = params.set('sprint_ids', filters.sprint_ids.join(','));
-    }
-    if (filters.jira_priorities?.length) {
-      params = params.set('jira_priorities', filters.jira_priorities.join(','));
-    }
-    if (filters.min_story_points) {
-      params = params.set('min_story_points', filters.min_story_points.toString());
-    }
-    
-    return this.http.get<{
-      total_stories: number;
-      analyzed_stories: number;
-      pending_stories: number;
-      priority_breakdown: Record<string, number>;
-      has_pending: boolean;
-    }>(`${this.risksUrl}/pending-count`, { params });
+    return this.http.get<PendingCountResponse>(`${this.risksUrl}/pending-count`, { params });
   }
 
-  // ── Batch Analysis ────────────────────────────────────────
+  /** Analyze a single user story synchronously */
+  analyzeUserStory(request: AnalyzeRequest): Observable<Risk> {
+    return this.http.post<Risk>(`${this.risksUrl}/analyze`, request);
+  }
+
+  /** Analyze multiple user stories in batch */
   analyzeBatch(request: BatchAnalysisRequest): Observable<any> {
     return this.http.post(`${this.risksUrl}/analyze/batch`, request);
   }
 
-  // ── Rate Limit Status ─────────────────────────────────────
-  getRateLimitStatus(): Observable<RateLimitStatus> {
-    return this.http.get<RateLimitStatus>(`${this.risksUrl}/rate-limit-status`);
+  // ============================================================
+  // CREATE (Manual)
+  // ============================================================
+
+  /** Create a risk manually without LLM */
+  createRiskManual(risk: Partial<Risk>): Observable<Risk> {
+    return this.http.post<Risk>(`${this.risksUrl}/manual`, risk);
   }
 
-  // ── High Priority Risks ───────────────────────────────────
+  // ============================================================
+  // READ - Single Risk
+  // ============================================================
+
+  /** Get a single risk by ID */
+  getRiskById(riskId: string): Observable<Risk> {
+    return this.http.get<Risk>(`${this.risksUrl}/${riskId}`);
+  }
+
+  // ============================================================
+  // READ - By User Story
+  // ============================================================
+
+  /** Get all risks for a specific user story */
+  getRisksByUserStory(userStoryId: string): Observable<Risk[]> {
+    return this.http.get<Risk[]>(`${this.risksUrl}/user-story/${userStoryId}`);
+  }
+
+  // ============================================================
+  // READ - By Project
+  // ============================================================
+
+  /** Get all risks for a project with optional filters */
+  getRisksByProject(
+    projectId: string,
+    level?: RiskLevel,
+    isAccepted?: boolean,
+    isAiGenerated?: boolean
+  ): Observable<Risk[]> {
+    let params = new HttpParams();
+    if (level) params = params.set('level', level);
+    if (isAccepted !== undefined) params = params.set('is_accepted', isAccepted.toString());
+    if (isAiGenerated !== undefined) params = params.set('is_ai_generated', isAiGenerated.toString());
+    return this.http.get<Risk[]>(`${this.risksUrl}/project/${projectId}`, { params });
+  }
+
+  /** Get risk summary statistics for a project */
+  getRiskSummaryByProject(projectId: string): Observable<RiskSummary> {
+    return this.http.get<RiskSummary>(`${this.risksUrl}/project/${projectId}/summary`);
+  }
+
+  // ============================================================
+  // READ - By Sprint
+  // ============================================================
+
+  /** Get all risks for a sprint */
+  getRisksBySprint(
+    projectId: string,
+    sprint: string,
+    level?: RiskLevel,
+    isAccepted?: boolean
+  ): Observable<Risk[]> {
+    let params = new HttpParams();
+    if (level) params = params.set('level', level);
+    if (isAccepted !== undefined) params = params.set('is_accepted', isAccepted.toString());
+    return this.http.get<Risk[]>(
+      `${this.risksUrl}/project/${projectId}/sprint/${encodeURIComponent(sprint)}`,
+      { params }
+    );
+  }
+
+  /** Get risk summary for a sprint */
+  getRiskSummaryBySprint(projectId: string, sprint: string): Observable<RiskSummary> {
+    return this.http.get<RiskSummary>(
+      `${this.risksUrl}/project/${projectId}/sprint/${encodeURIComponent(sprint)}/summary`
+    );
+  }
+
+  // ============================================================
+  // READ - By Epic
+  // ============================================================
+
+  /** Get all risks for an epic */
+  getRisksByEpic(
+    projectId: string,
+    epicKey: string,
+    level?: RiskLevel
+  ): Observable<Risk[]> {
+    let params = new HttpParams();
+    if (level) params = params.set('level', level);
+    return this.http.get<Risk[]>(
+      `${this.risksUrl}/project/${projectId}/epic/${encodeURIComponent(epicKey)}`,
+      { params }
+    );
+  }
+
+  /** Get risk summary for an epic */
+  getRiskSummaryByEpic(projectId: string, epicKey: string): Observable<RiskSummary> {
+    return this.http.get<RiskSummary>(
+      `${this.risksUrl}/project/${projectId}/epic/${encodeURIComponent(epicKey)}/summary`
+    );
+  }
+
+  // ============================================================
+  // READ - High Priority / Critical
+  // ============================================================
+
+  /** Get high priority risks (score ≥ minScore) */
   getHighPriorityRisks(projectId?: string, minScore: number = 12): Observable<Risk[]> {
     let params = new HttpParams().set('min_score', minScore.toString());
     if (projectId) params = params.set('project_id', projectId);
     return this.http.get<Risk[]>(`${this.risksUrl}/high-priority`, { params });
   }
 
-  getRiskById(riskId: string): Observable<Risk> {
-    return this.http.get<Risk>(`${this.risksUrl}/${riskId}`);
+  /** Get critical risks only (score ≥ 20) */
+  getCriticalRisks(projectId?: string): Observable<Risk[]> {
+    let params = new HttpParams();
+    if (projectId) params = params.set('project_id', projectId);
+    return this.http.get<Risk[]>(`${this.risksUrl}/critical`, { params });
   }
 
-  // ── User Story specific ───────────────────────────────────
-  getRisksByUserStory(userStoryId: string): Observable<Risk[]> {
-    return this.http.get<Risk[]>(`${this.risksUrl}/user-story/${userStoryId}`);
+  // ============================================================
+  // READ - List (Paginated)
+  // ============================================================
+
+  /** Get paginated list of risks with optional filters */
+  listRisks(filters?: {
+    project_id?: string;
+    sprint?: string;
+    epic_key?: string;
+    user_story_id?: string;
+    level?: RiskLevel;
+    is_accepted?: boolean;
+    source?: string;
+    page?: number;
+    page_size?: number;
+  }): Observable<PaginatedResponse<Risk>> {
+    let params = new HttpParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params = params.set(key, value.toString());
+        }
+      });
+    }
+    return this.http.get<PaginatedResponse<Risk>>(`${this.risksUrl}/list`, { params });
   }
 
-  // ── Actions ───────────────────────────────────────────────
-  analyzeUserStory(projectId: string, req: AnalyzeRequest): Observable<Risk> {
-    return this.http.post<Risk>(`${this.risksUrl}/analyze?project_id=${projectId}`, req);
+  // ============================================================
+  // READ - All (with filters)
+  // ============================================================
+
+  /** Get all risks with optional filters */
+  getAllRisks(filters?: {
+    project_id?: string;
+    sprint?: string;
+    epic_key?: string;
+    level?: RiskLevel;
+    is_accepted?: boolean;
+    source?: 'llm' | 'original' | 'approved_version' | 'human_modified' | 'manual';
+  }): Observable<Risk[]> {
+    let params = new HttpParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params = params.set(key, value.toString());
+        }
+      });
+    }
+    return this.http.get<Risk[]>(`${this.risksUrl}/all`, { params });
   }
 
-  acceptRisk(riskId: string, accepted: boolean): Observable<Risk> {
-    return this.http.patch<Risk>(`${this.risksUrl}/${riskId}/accept?accepted=${accepted}`, {});
-  }
+  // ============================================================
+  // UPDATE
+  // ============================================================
 
-  updateMitigation(riskId: string, mitigation: string): Observable<Risk> {
-    return this.http.patch<Risk>(`${this.risksUrl}/${riskId}/mitigation`, { mitigation });
-  }
-
-  reanalyzeRisk(riskId: string, story: string, acceptanceCriteria: string[]): Observable<Risk> {
-    return this.http.post<Risk>(`${this.risksUrl}/${riskId}/reanalyze`, {
-      story,
-      acceptance_criteria: acceptanceCriteria
-    });
-  }
-
+  /** Update a risk (recomputes score if P or I changes) */
   updateRisk(riskId: string, updates: Partial<Risk>): Observable<Risk> {
     return this.http.patch<Risk>(`${this.risksUrl}/${riskId}`, updates);
   }
 
+  /** Accept or reject a risk analysis */
+  acceptRisk(riskId: string, accepted: boolean): Observable<Risk> {
+    return this.http.patch<Risk>(
+      `${this.risksUrl}/${riskId}/accept?accepted=${accepted}`, {}
+    );
+  }
+
+  /** Update mitigation strategy */
+  updateMitigation(riskId: string, mitigation: string): Observable<Risk> {
+    return this.http.patch<Risk>(
+      `${this.risksUrl}/${riskId}/mitigation`,
+      { mitigation }
+    );
+  }
+
+  /** Human correction of LLM-generated P and I */
+  humanCorrectRisk(riskId: string, correction: HumanCorrectionRequest): Observable<Risk> {
+    return this.http.patch<Risk>(
+      `${this.risksUrl}/${riskId}/human-correct`,
+      correction
+    );
+  }
+
+  /** Re-analyze a risk with updated story */
+  reanalyzeRisk(
+    riskId: string,
+    story: string,
+    acceptanceCriteria: string[]
+  ): Observable<Risk> {
+    return this.http.post<Risk>(
+      `${this.risksUrl}/${riskId}/reanalyze`,
+      { story, acceptance_criteria: acceptanceCriteria }
+    );
+  }
+
+  // ============================================================
+  // DELETE
+  // ============================================================
+
+  /** Delete a single risk */
   deleteRisk(riskId: string): Observable<void> {
     return this.http.delete<void>(`${this.risksUrl}/${riskId}`);
   }
 
+  /** Delete all risks for a project */
   deleteProjectRisks(projectId: string): Observable<void> {
     return this.http.delete<void>(`${this.risksUrl}/project/${projectId}`);
   }
-
-humanCorrectRisk(riskId: string, correction: HumanCorrectionRequest): Observable<Risk> {
-  return this.http.patch<Risk>(`${this.risksUrl}/${riskId}/human-correct`, correction);
-}
 }
 
 // ============================================================
-// STRATÉGIES D'ANALYSE (inchangées - déjà bonnes)
+// STRATÉGIES D'ANALYSE (à ajouter APRÈS la classe RiskService)
 // ============================================================
 
 export class ProgressiveAnalysisStrategy {
@@ -336,29 +459,33 @@ export class ProgressiveAnalysisStrategy {
 }
 
 export class RiskAnalysisValidator {
-  static async canAnalyzeSafely(riskService: RiskService): Promise<{ safe: boolean; reason?: string; estimatedTime?: number }> {
-    const status = await riskService.getRateLimitStatus().toPromise();
-    
-    if (!status) {
-      return { safe: false, reason: 'Unable to get rate limit status' };
-    }
-
-    if (status.pending_analyses === 0) {
-      return { safe: true, reason: 'No pending analyses' };
-    }
-
-    if (status.pending_analyses > 50) {
-      return { 
-        safe: false, 
-        reason: `Too many pending analyses (${status.pending_analyses}). Use filters to analyze in smaller batches.`,
-        estimatedTime: status.estimated_time_minutes
-      };
-    }
-
-    return { 
-      safe: true,
-      estimatedTime: status.estimated_time_minutes
-    };
+  static async canAnalyzeSafely(
+    riskService: RiskService, 
+    projectId: string
+  ): Promise<{ safe: boolean; reason?: string; estimatedTime?: number }> {
+    return new Promise((resolve) => {
+      riskService.getPendingCount({ project_id: projectId }).subscribe({
+        next: (status) => {
+          if (status.pending_stories === 0) {
+            resolve({ safe: true, reason: 'No pending analyses' });
+          } else if (status.pending_stories > 50) {
+            resolve({ 
+              safe: false, 
+              reason: `Too many pending analyses (${status.pending_stories}). Use filters to analyze in smaller batches.`,
+              estimatedTime: Math.round(status.pending_stories * 3 / 60)
+            });
+          } else {
+            resolve({ 
+              safe: true,
+              estimatedTime: Math.round(status.pending_stories * 3 / 60)
+            });
+          }
+        },
+        error: () => {
+          resolve({ safe: false, reason: 'Unable to check analysis status' });
+        }
+      });
+    });
   }
 
   static getRecommendedBatches(totalStories: number): number {

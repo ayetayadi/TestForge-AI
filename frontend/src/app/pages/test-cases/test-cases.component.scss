@@ -2001,6 +2001,12 @@ $transition:     0.2s ease;
     color: $text-primary;
   }
 
+  &__current-us {
+    font-weight: 400;
+    color: $text-secondary;
+    font-size: 12px;
+  }
+
   &__pct {
     font-size: 13px;
     font-weight: 700;

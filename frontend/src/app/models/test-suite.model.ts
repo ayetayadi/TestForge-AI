@@ -135,6 +135,7 @@ export interface DependencyNode {
   id: string;
   tc_code: string;
   title: string;
+  business_flow?: string | null;
   priority?: Priority | null;
   test_type?: string | null;
   execution_order?: number | null;

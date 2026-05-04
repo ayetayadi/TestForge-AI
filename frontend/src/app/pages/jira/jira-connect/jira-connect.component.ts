@@ -126,7 +126,6 @@ export class JiraConnectComponent implements OnInit {
       },
       error: (err) => {
         console.error('loadProjects error:', err);
-        this.errorMessage = 'Failed to load Jira projects.';
         this.loadingProjects = false;
         this.projects = [];
       },

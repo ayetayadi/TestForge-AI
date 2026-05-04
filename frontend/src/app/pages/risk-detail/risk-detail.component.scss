@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════
-// DESIGN TOKENS — alignés avec Story Detail Page
+// DESIGN TOKENS — Risk Based Testing (ISTQB)
 // ══════════════════════════════════════════════════════════
 
 $radius: 8px;
@@ -16,6 +16,7 @@ $shadow-md:      0 4px 6px -1px rgba(0, 0, 0, 0.1);
 $shadow-lg:      0 10px 15px -3px rgba(0, 0, 0, 0.1);
 $transition:     0.15s ease;
 
+// Risk level colors
 $critical-c:  #dc2626;
 $critical-bg: #fef2f2;
 $critical-bd: #fecaca;
@@ -48,7 +49,6 @@ $low-bd:      #a7f3d0;
   margin: 0 auto;
   color: #fff;
 
-  // Gradient selon le niveau
   &--critical { background: linear-gradient(135deg, #7f1d1d, $critical-c); }
   &--high     { background: linear-gradient(135deg, #7c2d12, $high-c);     }
   &--medium   { background: linear-gradient(135deg, #78350f, $medium-c);   }
@@ -122,7 +122,8 @@ $low-bd:      #a7f3d0;
   line-height: 1;
 }
 
-.ai-tag, .manual-tag {
+// Source tags
+.ai-tag, .manual-tag, .modified-tag {
   font-size: 0.65rem;
   padding: 2px 10px;
   border-radius: 20px;
@@ -131,8 +132,8 @@ $low-bd:      #a7f3d0;
 }
 
 .ai-tag {
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(147, 51, 234, 0.3);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .manual-tag {
@@ -140,11 +141,28 @@ $low-bd:      #a7f3d0;
   color: rgba(255, 255, 255, 0.75);
 }
 
+.modified-tag {
+  background: rgba(250, 204, 21, 0.3);
+  color: rgba(255, 255, 255, 0.95);
+}
+
 .header-description {
-  margin: 0;
+  margin: 0 0 8px;
   font-size: 0.85rem;
   line-height: 1.6;
   color: rgba(255, 255, 255, 0.9);
+}
+
+// ✅ Matrix position in header
+.header-matrix-pos {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4px;
+  
+  strong {
+    color: rgba(255, 255, 255, 0.95);
+    font-family: 'JetBrains Mono', monospace;
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -191,6 +209,21 @@ $low-bd:      #a7f3d0;
   }
 }
 
+// Source badges
+.source-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  
+  &--original {
+    background: #f3f4f6;
+    color: $text-secondary;
+  }
+}
+
 .btn-edit {
   margin-left: auto;
   background: none;
@@ -210,6 +243,14 @@ $low-bd:      #a7f3d0;
     border-color: rgba(99, 102, 241, 0.4);
     transform: translateY(-1px);
   }
+}
+
+// ✅ Read-only indicator
+.btn-edit-disabled {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: $text-secondary;
+  font-weight: 500;
 }
 
 // ── USER STORY CARD ────────────────────────────────────────
@@ -237,7 +278,7 @@ $low-bd:      #a7f3d0;
   line-height: 1.5;
 }
 
-// ── USER STORY DETAILS (Description + AC) ──────────────────
+// ── USER STORY DETAILS ─────────────────────────────────────
 
 .us-description, .us-acceptance {
   margin-top: 1rem;
@@ -337,7 +378,7 @@ $low-bd:      #a7f3d0;
     .formula-box-val { color: #0ea5e9; }
   }
 
-  // Résultat selon le niveau
+  // Result by level
   &--critical {
     background: $critical-bg;
     border-color: $critical-bd;
@@ -371,7 +412,91 @@ $low-bd:      #a7f3d0;
   flex-shrink: 0;
 }
 
-// ── SCORE BAR ─────────────────────────────────────────────
+// ── FORMULA EDIT MODE ─────────────────────────────────────
+
+.formula-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.formula-edit-box {
+  flex: 1;
+  min-width: 100px;
+  text-align: center;
+
+  label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .formula-edit-val {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: $text-primary;
+    margin: 4px 0;
+  }
+
+  .formula-preview {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: 4px;
+  }
+}
+
+// ✅ Slider for P and I (1-5)
+.formula-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e5e7eb;
+  border-radius: 3px;
+  outline: none;
+  
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: $primary;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: all $transition;
+    
+    &:hover {
+      transform: scale(1.15);
+      background: $primary-dark;
+    }
+  }
+}
+
+.formula-edit-result {
+  .formula-score-preview {
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  &.formula-edit--critical .formula-score-preview { color: $critical-c; }
+  &.formula-edit--high .formula-score-preview     { color: $high-c;     }
+  &.formula-edit--medium .formula-score-preview   { color: $medium-c;   }
+  &.formula-edit--low .formula-score-preview      { color: $low-c;      }
+}
+
+// ── SCORE BAR (1-25 scale) ────────────────────────────────
+
+.score-bar-wrap {
+  margin-top: 8px;
+}
 
 .score-bar-track {
   position: relative;
@@ -388,10 +513,11 @@ $low-bd:      #a7f3d0;
   overflow: hidden;
 
   .zone { height: 100%; }
-  .zone--low      { width: 22.2%; background: $low-c;      }
-  .zone--medium   { width: 33.3%; background: $medium-c;   }
-  .zone--high     { width: 33.3%; background: $high-c;     }
-  .zone--critical { width: 11.2%; background: $critical-c; }
+  // ✅ 1-5 (Low), 6-11 (Medium), 12-19 (High), 20-25 (Critical)
+  .zone--low      { width: 20%;  background: $low-c;      }  // 1-5   → 20%
+  .zone--medium   { width: 24%;  background: $medium-c;   }  // 6-11  → 24%
+  .zone--high     { width: 32%;  background: $high-c;     }  // 12-19 → 32%
+  .zone--critical { width: 24%;  background: $critical-c; }  // 20-25 → 24%
 }
 
 .score-cursor {
@@ -411,12 +537,110 @@ $low-bd:      #a7f3d0;
   &.cursor-low      { background: $low-c;      }
 }
 
+// ✅ Score labels: 1, 6, 12, 20, 25
 .score-bar-labels {
   display: flex;
   justify-content: space-between;
   font-size: 0.55rem;
   color: $text-secondary;
   padding: 0 2px;
+}
+
+// ── RISK FACTORS ──────────────────────────────────────────
+
+.factors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.factor-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: $radius;
+  border: $border;
+}
+
+.factor-label {
+  font-size: 0.7rem;
+  color: $text-secondary;
+  font-weight: 500;
+}
+
+.factor-value {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: $text-primary;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.factor-reasoning {
+  font-size: 0.75rem;
+  color: $text-secondary;
+  font-style: italic;
+  line-height: 1.5;
+  padding: 8px 12px;
+  background: #fffbeb;
+  border-left: 3px solid $medium-c;
+  border-radius: 0 $radius $radius 0;
+}
+
+// ── TEST RECOMMENDATIONS ──────────────────────────────────
+
+.recommendations {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rec-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rec-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: $text-secondary;
+  min-width: 110px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rec-value {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: $text-primary;
+  padding: 3px 10px;
+  border-radius: $radius;
+  background: #f9fafb;
+  
+  &.rec-depth--comprehensive { color: $critical-c; background: $critical-bg; }
+  &.rec-depth--thorough      { color: $high-c;     background: $high-bg;     }
+  &.rec-depth--standard      { color: $medium-c;   background: $medium-bg;   }
+  &.rec-depth--smoke         { color: $low-c;      background: $low-bg;      }
+}
+
+.rec-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rec-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  text-transform: lowercase;
 }
 
 // ── REASONING ─────────────────────────────────────────────
@@ -429,15 +653,6 @@ $low-bd:      #a7f3d0;
   font-size: 0.8rem;
   line-height: 1.7;
   color: $text-primary;
-}
-
-// ── DESCRIPTION ───────────────────────────────────────────
-
-.description-text {
-  font-size: 0.85rem;
-  line-height: 1.7;
-  color: $text-primary;
-  margin: 0;
 }
 
 // ── MITIGATION ────────────────────────────────────────────
@@ -554,6 +769,48 @@ $low-bd:      #a7f3d0;
   }
 }
 
+// ── CORRECTION HISTORY ────────────────────────────────────
+
+.correction-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.correction-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: $text-secondary;
+  
+  strong {
+    color: $text-primary;
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+.correction-meta {
+  font-size: 0.7rem;
+  color: $text-secondary;
+  margin-top: 4px;
+  
+  strong {
+    color: $text-primary;
+  }
+}
+
+.correction-comment {
+  font-size: 0.75rem;
+  color: $medium-c;
+  font-style: italic;
+  padding: 8px 12px;
+  background: $medium-bg;
+  border-radius: $radius;
+  border-left: 3px solid $medium-c;
+  margin-top: 4px;
+}
+
 // ── DECISION ──────────────────────────────────────────────
 
 .decision-row {
@@ -636,63 +893,6 @@ $low-bd:      #a7f3d0;
   }
 }
 
-// ── STATUS UPDATE MESSAGE ─────────────────────────────────
-
-.status-update-message {
-  margin-top: 16px;
-  padding: 10px 14px;
-  border-radius: $radius;
-  font-size: 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  animation: slideDown 0.3s ease;
-
-  &--success {
-    background: $low-bg;
-    color: $low-c;
-    border: 1px solid $low-bd;
-  }
-
-  &--error {
-    background: $critical-bg;
-    color: $critical-c;
-    border: 1px solid $critical-bd;
-  }
-
-  &--info {
-    background: #eff6ff;
-    color: #2563eb;
-    border: 1px solid #bfdbfe;
-  }
-
-  .status-icon {
-    font-size: 1rem;
-    flex-shrink: 0;
-  }
-
-  .status-text {
-    flex: 1;
-    line-height: 1.4;
-  }
-
-  .status-close {
-    background: none;
-    border: none;
-    font-size: 1rem;
-    cursor: pointer;
-    color: currentColor;
-    opacity: 0.6;
-    padding: 0;
-    line-height: 1;
-    transition: opacity $transition;
-
-    &:hover {
-      opacity: 1;
-    }
-  }
-}
-
 // ── META FOOTER ───────────────────────────────────────────
 
 .meta-footer {
@@ -701,6 +901,7 @@ $low-bd:      #a7f3d0;
   font-size: 0.65rem;
   color: $text-secondary;
   padding: 8px 0 4px;
+  flex-wrap: wrap;
 
   code {
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -761,51 +962,6 @@ $low-bd:      #a7f3d0;
   }
 }
 
-// ── FORMULA EDIT MODE ─────────────────────────────────────
-
-.formula-edit-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.formula-edit-box {
-  flex: 1;
-  min-width: 100px;
-  text-align: center;
-
-  label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 6px;
-    display: block;
-  }
-
-  .formula-preview {
-    font-size: 0.7rem;
-    color: #64748b;
-    margin-top: 4px;
-  }
-}
-
-.formula-edit-result {
-  .formula-score-preview {
-    font-size: 1.8rem;
-    font-weight: 800;
-    line-height: 1;
-  }
-
-  &.formula-edit--critical .formula-score-preview { color: #dc2626; }
-  &.formula-edit--high .formula-score-preview { color: #ea580c; }
-  &.formula-edit--medium .formula-score-preview { color: #d97706; }
-  &.formula-edit--low .formula-score-preview { color: #16a34a; }
-}
-
 .btn-back {
   display: inline-flex;
   align-items: center;
@@ -830,20 +986,7 @@ $low-bd:      #a7f3d0;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  to { transform: rotate(360deg); }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -867,7 +1010,8 @@ $low-bd:      #a7f3d0;
     max-width: 100%;
   }
 
-  .formula-row {
+  .formula-row,
+  .formula-edit-row {
     flex-direction: column;
     align-items: stretch;
   }
@@ -893,9 +1037,23 @@ $low-bd:      #a7f3d0;
     flex-direction: column;
     align-items: flex-start;
   }
-
-  .status-update-message {
-    font-size: 0.7rem;
-    padding: 8px 12px;
+  
+  .factors-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .rec-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .meta-footer {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .correction-row {
+    flex-wrap: wrap;
   }
 }

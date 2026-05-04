@@ -30,91 +30,188 @@ logger = logging.getLogger(__name__)
 # RISK SUMMARIZATION
 # ============================================================
 
+# plan_builder.py
+
 def summarize_risks(risks: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Aggregate risk_analysis results into a summary for the LLM prompt and duration estimate.
-
-    Returns:
-        counts: {critical, high, medium, low}
-        top_risks: List[str] — top 5 risk descriptions sorted by score
-        risk_text: str — formatted for LLM prompt
-        high_risk_ratio: float — (critical + high) / total
-        all_descriptions: List[str] — all descriptions (for keyword detection)
+    Maintenant avec aggregation des test_techniques et mitigations.
     """
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     scored: List[tuple] = []
-
+    
+    # Pour agréger les techniques de test
+    all_techniques = []  # Toutes les techniques recommandées
+    technique_frequency = {}  # Fréquence de chaque technique
+    
     for r in risks:
         level = (r.get("level") or "low").lower()
         if level in counts:
             counts[level] += 1
+        
         score = r.get("risk_score", 0.0)
         description = r.get("description", "")
+        mitigation = r.get("mitigation", "")
+        test_techniques = r.get("test_techniques", [])
+        test_depth = r.get("test_depth", "standard")
+        
+        # Agréger les techniques
+        if isinstance(test_techniques, list):
+            all_techniques.extend(test_techniques)
+            for tech in test_techniques:
+                technique_frequency[tech] = technique_frequency.get(tech, 0) + 1
+        
         if description:
-            scored.append((score, description))
+            scored.append((score, description, mitigation, test_techniques, test_depth))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    top_risks = [desc for _, desc in scored[:5]]
-
+    
+    # Extraire les top risques avec TOUTES les infos
+    top_risks = []
+    risk_lines = []
+    for score, desc, mitigation, techniques, depth in scored[:5]:
+        risk_info = {
+            "description": desc,
+            "score": score,
+            "mitigation": mitigation,
+            "test_techniques": techniques,
+            "test_depth": depth
+        }
+        top_risks.append(risk_info)
+        
+        # Format pour le LLM
+        line = f"  • [{score:.1f}] {desc}"
+        if depth:
+            line += f"\n    Test depth: {depth}"
+        if mitigation:
+            line += f"\n    Mitigation: {mitigation}"
+        if techniques:
+            line += f"\n    Recommended techniques: {', '.join(techniques)}"
+        risk_lines.append(line)
+    
+    risk_text = "\n".join(risk_lines) if risk_lines else "  (none)"
+    
+    # Agréger les techniques les plus fréquentes
+    most_common_techniques = sorted(
+        technique_frequency.items(), 
+        key=lambda x: x[1], 
+        reverse=True
+    )[:5]  # Top 5
+    
+    aggregated_techniques = [tech for tech, freq in most_common_techniques]
+    
     total = len(risks)
     high_risk_ratio = (counts["critical"] + counts["high"]) / total if total > 0 else 0.0
 
-    risk_text = "\n".join(f"  • [{score:.1f}] {desc}" for score, desc in scored[:5]) or "  (none)"
-
-    logger.debug(f"[PLAN BUILDER] risk summary: {counts} high_ratio={high_risk_ratio:.0%}")
+    logger.debug(
+        f"[PLAN BUILDER] risk summary: {counts} "
+        f"high_ratio={high_risk_ratio:.0%} "
+        f"top_techniques={aggregated_techniques}"
+    )
 
     return {
         "counts": counts,
-        "top_risks": top_risks,
-        "risk_text": risk_text,
+        "top_risks": top_risks,  # ← Maintenant avec mitigation + techniques
+        "risk_text": risk_text,  # ← Format enrichi pour le LLM
         "high_risk_ratio": high_risk_ratio,
-        "all_descriptions": [desc for _, desc in scored],
+        "all_descriptions": [desc for _, desc, _, _, _ in scored],
+        "all_mitigations": [mit for _, _, mit, _, _ in scored if mit],
+        "all_techniques": [tech for _, _, _, techs, _ in scored for tech in techs],
+        "aggregated_techniques": aggregated_techniques,  # ← NOUVEAU
+        "technique_frequency": technique_frequency,  # ← NOUVEAU
     }
-
 
 # ============================================================
 # TEST TYPE RECOMMENDATION
 # ============================================================
 
-def recommend_test_types(risk_summary: Dict[str, Any], stories_text: str = "") -> Dict[str, Any]:
-    """
-    Derive recommended test_types and test_levels from the risk distribution and story content.
+# plan_builder.py
 
-    Returns:
-        test_types: List[str]
-        test_levels: List[str]
-        reasoning: List[str]
+def recommend_test_types(
+    risk_summary: Dict[str, Any], 
+    stories_text: str = ""
+) -> Dict[str, Any]:
     """
-    types: list = ["functional"]
+    Derive recommended test_types and test_levels from the risk distribution,
+    story content, AND aggregated test_techniques from risks.
+    """
+    types: list = ["functional"]  # Base obligatoire
     levels: list = ["system", "acceptance", "e2e"]
-    reasons: list = ["functional tests are always required",  "e2e execution via Playwright MCP is the target" ]
-
+    reasons: list = [
+        "functional tests are always required",
+        "e2e execution via Playwright MCP is the target"
+    ]
+    
+    # ✅ PRIORITÉ 1 : Utiliser les test_techniques agrégées des risques
+    aggregated_techniques = risk_summary.get("aggregated_techniques", [])
+    technique_frequency = risk_summary.get("technique_frequency", {})
+    
+    if aggregated_techniques:
+        # Mapper les techniques vers les types de test
+        TECHNIQUE_TO_TYPE = {
+            "unit": "functional",  # Unit tests → functional testing
+            "integration": "api",  # Integration tests → API testing
+            "e2e": "e2e",  # E2E → end-to-end
+            "performance": "performance",  # Performance → performance testing
+            "security": "security",  # Security → security testing
+            "smoke": "smoke",  # Smoke tests
+            "regression": "regression",  # Regression testing
+            "exploratory": "functional",  # Exploratory → functional
+            "uat": "functional",  # UAT → functional acceptance
+        }
+        
+        for technique in aggregated_techniques:
+            test_type = TECHNIQUE_TO_TYPE.get(technique)
+            if test_type and test_type not in types:
+                types.append(test_type)
+                freq = technique_frequency.get(technique, 0)
+                reasons.append(
+                    f"risk analysis recommends '{technique}' testing "
+                    f"(in {freq} risk{'s' if freq > 1 else ''})"
+                )
+        
+        # Déduire les niveaux de test des techniques
+        if "integration" in aggregated_techniques:
+            if "integration" not in levels:
+                levels.append("integration")
+        if "unit" in aggregated_techniques:
+            if "component" not in levels:
+                levels.append("component")
+    
+    # ✅ PRIORITÉ 2 : Analyse du texte des stories (fallback)
     all_text = (stories_text + " " + " ".join(risk_summary.get("all_descriptions", []))).lower()
-
+    
     if risk_summary["high_risk_ratio"] >= REGRESSION_THRESHOLD:
-        types.append("regression")
-        reasons.append(f"{risk_summary['high_risk_ratio']:.0%} high/critical stories → regression required")
-
+        if "regression" not in types:
+            types.append("regression")
+            reasons.append(
+                f"{risk_summary['high_risk_ratio']:.0%} high/critical stories → regression required"
+            )
+    
     counts = risk_summary["counts"]
     if counts.get("critical", 0) > 0:
-        types.append("smoke")
-        levels.append("integration")
+        if "smoke" not in types:
+            types.append("smoke")
+        if "integration" not in levels:
+            levels.append("integration")
         reasons.append("critical risks detected → smoke tests needed before full test run")
-
-    if any(kw in all_text for kw in SECURITY_KEYWORDS):
+    
+    # ✅ PRIORITÉ 3 : Détection de mots-clés (fallback si pas déjà ajouté)
+    if any(kw in all_text for kw in SECURITY_KEYWORDS) and "security" not in types:
         types.append("security")
         reasons.append("security-related keywords found in stories")
-
-    if any(kw in all_text for kw in PERFORMANCE_KEYWORDS):
+    
+    if any(kw in all_text for kw in PERFORMANCE_KEYWORDS) and "performance" not in types:
         types.append("performance")
         reasons.append("performance-related keywords found in stories")
-
-    if "api" in all_text or "endpoint" in all_text or "rest" in all_text:
+    
+    if any(term in all_text for term in ["api", "endpoint", "rest"]) and "api" not in types:
         types.append("api")
-        levels.append("component")
+        if "component" not in levels:
+            levels.append("component")
         reasons.append("API usage detected in stories")
-
-    # Deduplicate preserving order
+    
+    # Déduplication préservant l'ordre
     test_types = list(dict.fromkeys(types))
     test_levels = list(dict.fromkeys(levels))
 
@@ -123,7 +220,6 @@ def recommend_test_types(risk_summary: Dict[str, Any], stories_text: str = "") -
         "test_levels": test_levels,
         "reasoning": reasons,
     }
-
 
 # ============================================================
 # PERT 3-POINT ESTIMATION
@@ -179,6 +275,14 @@ def sanitize_list(values: List[str], allowed: set) -> List[str]:
     """Keep only allowed values, lowercase, deduped."""
     return list(dict.fromkeys(v.lower() for v in values if v.lower() in allowed))
 
+
+def _safe_parse_effort(value: str) -> float:
+    """Parse effort allocation string like '60%' → 60.0 safely."""
+    try:
+        return float(str(value).rstrip('%').strip())
+    except (ValueError, AttributeError):
+        return 0.0
+
 def build_plan_record(
     llm_output: Dict[str, Any],
     risk_summary: Dict[str, Any],
@@ -197,14 +301,24 @@ def build_plan_record(
     now = datetime.now(timezone.utc)
     user_stories = user_stories or []
 
-    # ... sanitize environment, test_types, test_levels (existant) ...
+    # Sanitize environment
     env = (environment_override or llm_output.get("environment", "staging")).lower()
     if env not in VALID_ENVIRONMENTS:
         env = "staging"
-
-    test_types = sanitize_list(llm_output.get("test_types", []), VALID_TEST_TYPES)
-    test_levels = sanitize_list(llm_output.get("test_levels", []), VALID_TEST_LEVELS)
-
+    
+    # Sanitize test_types et test_levels UNE SEULE FOIS
+    if recommendations and recommendations.get("test_types"):
+        test_types = sanitize_list(recommendations["test_types"], VALID_TEST_TYPES)
+        logger.info(f"[PLAN BUILDER] Using computed test_types: {test_types}")
+    else:
+        test_types = sanitize_list(llm_output.get("test_types", []), VALID_TEST_TYPES)
+        logger.warning("[PLAN BUILDER] Falling back to LLM test_types")
+    
+    if recommendations and recommendations.get("test_levels"):
+        test_levels = sanitize_list(recommendations["test_levels"], VALID_TEST_LEVELS)
+    else:
+        test_levels = sanitize_list(llm_output.get("test_levels", []), VALID_TEST_LEVELS)
+    
     if not test_types:
         test_types = ["functional"]
     if not test_levels:
@@ -229,12 +343,41 @@ def build_plan_record(
             "risk_description": story.get("risk_description", ""),
             "probability": story.get("probability", None),
             "impact": story.get("impact", None),
+            "mitigation": story.get("risk_mitigation", ""),
+            "test_techniques": story.get("test_techniques", []),
+            "test_depth": story.get("test_depth", "standard"),
+            "effort_allocation": story.get("effort_allocation", "N/A"),
+            "reasoning": story.get("reasoning", ""),
         }
         risk_mapping_table.append(risk_info)
     
     # Trier par risque décroissant
     risk_mapping_table.sort(key=lambda x: x["risk_score"], reverse=True)
+
+    # ============================================================
+    # SECTION : AGRÉGATION DES TECHNIQUES PAR RISQUE
+    # ============================================================
+    aggregated_techniques = risk_summary.get("aggregated_techniques", [])
+    technique_frequency = risk_summary.get("technique_frequency", {})
     
+    # Recommandations agrégées
+    aggregated_recommendations = {
+        "most_recommended_techniques": aggregated_techniques,
+        "technique_distribution": technique_frequency,
+        "test_depth_distribution": {
+            "comprehensive": sum(1 for s in user_stories if s.get("test_depth") == "comprehensive"),
+            "thorough": sum(1 for s in user_stories if s.get("test_depth") == "thorough"),
+            "standard": sum(1 for s in user_stories if s.get("test_depth") == "standard"),
+            "smoke": sum(1 for s in user_stories if s.get("test_depth") == "smoke"),
+        },
+        "effort_breakdown": {
+            "critical_effort": f"{sum(_safe_parse_effort(s.get('effort_allocation', '0')) for s in user_stories if s.get('risk_level') == 'critical')}%",
+            "high_effort": f"{sum(_safe_parse_effort(s.get('effort_allocation', '0')) for s in user_stories if s.get('risk_level') == 'high')}%",
+            "medium_effort": f"{sum(_safe_parse_effort(s.get('effort_allocation', '0')) for s in user_stories if s.get('risk_level') == 'medium')}%",
+            "low_effort": f"{sum(_safe_parse_effort(s.get('effort_allocation', '0')) for s in user_stories if s.get('risk_level') == 'low')}%",
+        }
+    }
+
     # Distribution pour graphique
     risk_distribution = {
         "critical": risk_summary["counts"].get("critical", 0),
@@ -342,6 +485,7 @@ def build_plan_record(
             "formulas": risk_formulas,
             "mapping_table": risk_mapping_table,  # ← Tableau US → Risque
             "top_risks": risk_summary.get("top_risks", []),
+            "aggregated_recommendations": aggregated_recommendations,
         },
         
         # Section Estimation (TOUT est visible)

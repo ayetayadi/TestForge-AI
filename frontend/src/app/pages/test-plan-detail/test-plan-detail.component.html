@@ -185,7 +185,7 @@
 
           <!-- Formula -->
           <div class="risk-formula-card">
-            <h4>📐 Risk Calculation (ISTQB §5.2.1)</h4>
+            <h4>📐 Risk Calculation</h4>
             <div class="formula-box">
               <code>{{ plan.risk_analysis.formulas.risk_score }}</code>
             </div>
@@ -204,27 +204,26 @@
 
         </div>
 
-        <!-- Row 2: Mapping Table -->
+<!-- Row 2: Mapping Table -->
 <div class="risk-mapping-card" *ngIf="plan.risk_analysis.mapping_table.length > 0">
   <h4>🔗 User Story → Risk Mapping (Traceability Matrix)</h4>
   <p class="mapping-subtitle">
-    Each User Story is linked to its risk level. Tests will be prioritized based on these risks.
-  </p>
-  <p class="mapping-count">
-    Showing {{ (riskMappingPage - 1) * riskMappingPageSize + 1 }}–{{ min(riskMappingPage * riskMappingPageSize, plan.risk_analysis.mapping_table.length) }} of {{ plan.risk_analysis.mapping_table.length }} stories
+    Each User Story is linked to its risk level, mitigation strategy, and recommended test techniques.
   </p>
   
   <div class="table-responsive">
     <table class="risk-table">
       <thead>
         <tr>
-          <th>Issue Key</th>
+          <th>Issue</th>
           <th>User Story</th>
-          <th>Risk Level</th>
+          <th>Level</th>
           <th>Score</th>
-          <th>P</th>
-          <th>I</th>
-          <th>Formula</th>
+          <th>P×I</th>
+          <th>Mitigation</th>
+          <th>Techniques</th>
+          <th>Depth</th>
+          <th>Effort</th>
         </tr>
       </thead>
       <tbody>
@@ -238,23 +237,41 @@
               {{ entry.risk_level | uppercase }}
             </span>
           </td>
-          <td class="score">{{ entry.risk_score.toFixed(2) }}</td>
-          <td>{{ entry.probability ?? '—' }}</td>
-          <td>{{ entry.impact ?? '—' }}</td>
+          <td class="score">{{ entry.risk_score.toFixed(1) }}</td>
           <td class="formula-cell">
             <code *ngIf="entry.probability && entry.impact">
-              {{ entry.probability }} × {{ entry.impact }} = {{ entry.risk_score.toFixed(2) }}
+              {{ entry.probability }} × {{ entry.impact }}
             </code>
             <span *ngIf="!entry.probability || !entry.impact">—</span>
+          </td>
+          <td class="mitigation-cell">
+            {{ entry.mitigation || '—' }}
+          </td>
+          <td>
+            <span class="technique-chip" *ngFor="let tech of entry.test_techniques">
+              {{ tech }}
+            </span>
+            <span *ngIf="!entry.test_techniques?.length">—</span>
+          </td>
+          <td>
+            <span class="depth-badge" [class]="entry.test_depth">
+              {{ entry.test_depth }}
+            </span>
+          </td>
+          <td>
+            <span class="effort-badge" *ngIf="entry.effort_allocation !== 'N/A'">
+              {{ entry.effort_allocation }}
+            </span>
+            <span *ngIf="entry.effort_allocation === 'N/A'">—</span>
           </td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <!-- Pagination -->
+  <!-- Pagination (inchangée) -->
   <div class="table-pagination" *ngIf="plan.risk_analysis.mapping_table.length > riskMappingPageSize">
-    <button 
+        <button 
       class="page-btn" 
       [disabled]="riskMappingPage === 1"
       (click)="riskMappingPage = 1">
@@ -286,7 +303,78 @@
     </div>
   </div>
 
-  <!--
+  <!-- Aggregated Recommendations -->
+<div class="aggregated-recommendations" 
+     *ngIf="plan.risk_analysis?.aggregated_recommendations as aggr">
+  
+  <div class="agg-grid">
+    
+    <!-- Most Recommended Techniques -->
+    <div class="agg-card">
+      <h4>🧪 Most Recommended Techniques</h4>
+      <div class="technique-list">
+        <div 
+          class="technique-item" 
+          *ngFor="let item of sortedTechniques">
+          <span class="tech-name">{{ item.key }}</span>
+          <span class="tech-count">{{ item.value }} risks</span>
+        </div>
+        <div class="technique-item" *ngIf="sortedTechniques.length === 0">
+          <span class="tech-name">No techniques defined</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Test Depth Distribution -->
+    <div class="agg-card">
+      <h4>📏 Test Depth Distribution</h4>
+      <div class="depth-list">
+        <div class="depth-item">
+          <span>Comprehensive</span>
+          <span class="depth-val critical">{{ aggr.test_depth_distribution.comprehensive }}</span>
+        </div>
+        <div class="depth-item">
+          <span>Thorough</span>
+          <span class="depth-val high">{{ aggr.test_depth_distribution.thorough }}</span>
+        </div>
+        <div class="depth-item">
+          <span>Standard</span>
+          <span class="depth-val medium">{{ aggr.test_depth_distribution.standard }}</span>
+        </div>
+        <div class="depth-item">
+          <span>Smoke</span>
+          <span class="depth-val low">{{ aggr.test_depth_distribution.smoke }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Effort Breakdown -->
+    <div class="agg-card">
+      <h4>⚡ Effort Allocation</h4>
+      <div class="effort-list">
+        <div class="effort-item">
+          <span>Critical</span>
+          <span class="effort-val critical">{{ aggr.effort_breakdown.critical_effort }}</span>
+        </div>
+        <div class="effort-item">
+          <span>High</span>
+          <span class="effort-val high">{{ aggr.effort_breakdown.high_effort }}</span>
+        </div>
+        <div class="effort-item">
+          <span>Medium</span>
+          <span class="effort-val medium">{{ aggr.effort_breakdown.medium_effort }}</span>
+        </div>
+        <div class="effort-item">
+          <span>Low</span>
+          <span class="effort-val low">{{ aggr.effort_breakdown.low_effort }}</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!--
   <div class="pert-section" *ngIf="plan.estimation && !isEditMode()">
     <div class="section-card">
       <div class="section-header">
@@ -371,8 +459,7 @@
       </div>
     </div>
   </div>
-  -->
-
+-->
 
   <!-- ══════════════════════════════════════════════════════════
        RECOMMENDATIONS SECTION

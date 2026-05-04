@@ -7,9 +7,9 @@ load_dotenv()
 # LLM
 # ============================================================
 LLM_TEMPERATURE = 0.4
-LLM_MODEL = "openai/gpt-oss-20b"
+LLM_MODEL = "llama-3.3-70b-versatile"
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS_TEST_CASE", "6000"))
-LLM_TIMEOUT_SECONDS = 120      # Gherkin + steps + test_data = verbose
+LLM_TIMEOUT_SECONDS = 240      # Gherkin + steps + test_data = verbose
 
 # ============================================================
 # MINIMUM ACCEPTANCE CRITERIA COVERAGE
@@ -27,6 +27,7 @@ RISK_LEVEL_TEST_COUNTS: dict[str, dict[str, int]] = {
     "low":      {"positive": 1, "negative": 0, "boundary": 0},
     "default":  {"positive": 1, "negative": 1, "boundary": 0},
 }
+
 # ============================================================
 # GHERKIN VALIDATION
 # ============================================================

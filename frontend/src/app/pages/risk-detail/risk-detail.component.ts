@@ -5,7 +5,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { RiskService } from '../../services/risk.service';
 import { StoriesService } from '../../services/stories.service';
 import { ToastService } from '../../services/toast.service';
-import { Risk, RISK_LEVEL_CONFIG } from '../../models/risk.model';
+import { Risk, RiskLevel, RISK_LEVEL_CONFIG, classifyLevel } from '../../models/risk.model';
 import { UserStory } from '../../models/user_story.model';
 
 @Component({
@@ -22,25 +22,26 @@ export class RiskDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private toast = inject(ToastService);
 
-  // Données
+  // ── Data ─────────────────────────────────────────────────
   risk = signal<Risk | null>(null);
   allStories = signal<UserStory[]>([]);
   loading = signal(true);
   notFound = signal(false);
   
-  // Édition mitigation
+  // ── Edition ──────────────────────────────────────────────
   editingMitigation = signal(false);
   mitigationDraft = '';
   saving = signal(false);
+  
   editingFormula = signal(false);
   probabilityDraft = 3;
   impactDraft = 3;
   savingFormula = signal(false);
 
-  // Configuration
+  // ── Configuration ────────────────────────────────────────
   readonly levelConfig = RISK_LEVEL_CONFIG;
 
-  // Computed: Map pour lookup rapide des stories
+  // ── Computed ─────────────────────────────────────────────
   storyMap = computed((): Map<string, UserStory> => {
     const map = new Map<string, UserStory>();
     for (const story of this.allStories()) {
@@ -49,37 +50,54 @@ export class RiskDetailComponent implements OnInit {
     return map;
   });
 
-  // Computed: Liste des steps de mitigation
   mitigationSteps = computed((): string[] => {
     const mitigation = this.risk()?.mitigation;
     if (!mitigation) return [];
     return mitigation.split('\n').filter(step => step.trim().length > 0);
   });
 
-  // Computed: Indique si la source est une version approuvée
+  // ✅ Source checks
   isFromApprovedVersion = computed((): boolean => {
+    return this.risk()?.source === 'approved_version';
+  });
+
+  isFromLLM = computed((): boolean => {
+    return this.risk()?.source === 'llm';
+  });
+
+  isHumanModified = computed((): boolean => {
     return this.risk()?.source === 'human_modified';
   });
 
-  // Computed: Projet ID récupéré depuis la UserStory (plus de project_id dans Risk)
+  isManual = computed((): boolean => {
+    return this.risk()?.source === 'manual';
+  });
+
+  canModify = computed((): boolean => {
+    return true;
+  });
+
   projectId = computed((): string | null => {
     const risk = this.risk();
     if (!risk?.user_story_id) return null;
     return this.storyMap().get(risk.user_story_id)?.project_id || null;
   });
 
-computedScoreDraft = computed((): number => {
-  return this.probabilityDraft * this.impactDraft;
-});
+  computedScoreDraft = computed((): number => {
+    return this.probabilityDraft * this.impactDraft;
+  });
 
-computedLevelDraft = computed((): string => {
-  const score = this.computedScoreDraft();
-  if (score >= 20) return 'critical';
-  if (score >= 12) return 'high';
-  if (score >= 6) return 'medium';
-  return 'low';
-});
+  computedLevelDraft = computed((): RiskLevel => {
+    return classifyLevel(this.computedScoreDraft());
+  });
 
+  // ✅ Test recommendations
+  testRecommendations = computed(() => {
+    const level = this.risk()?.level || 'medium';
+    return this.getTestRecommendations(level);
+  });
+
+  // ── Lifecycle ────────────────────────────────────────────
   ngOnInit(): void {
     this.loadRisk();
     this.loadAllStories();
@@ -113,10 +131,7 @@ computedLevelDraft = computed((): string => {
     });
   }
 
-  // ============================================================
-  // USER STORY HELPERS — PRIORITÉ À LA SOURCE STOCKÉE
-  // ============================================================
-  
+  // ── User Story Helpers ───────────────────────────────────
   getStoryDescription(): string | null {
     const risk = this.risk();
     if (!risk) return null;
@@ -167,10 +182,7 @@ computedLevelDraft = computed((): string => {
     return story?.title || null;
   }
 
-  // ============================================================
-  // MITIGATION EDITING
-  // ============================================================
-
+  // ── Mitigation Editing ───────────────────────────────────
   startEditMitigation(): void {
     this.mitigationDraft = this.risk()?.mitigation || '';
     this.editingMitigation.set(true);
@@ -201,6 +213,7 @@ computedLevelDraft = computed((): string => {
     });
   }
 
+  // ── Formula Editing (P/I Correction) ─────────────────────
   startEditFormula(): void {
     const risk = this.risk();
     if (!risk) return;
@@ -213,31 +226,34 @@ computedLevelDraft = computed((): string => {
     this.editingFormula.set(false);
   }
 
-onProbabilityChange(value: number): void {
-  this.probabilityDraft = Math.min(5, Math.max(1, Math.round(value)));
-}
+  onProbabilityChange(value: number): void {
+    this.probabilityDraft = Math.min(5, Math.max(1, Math.round(value)));
+  }
 
-onImpactChange(value: number): void {
-  this.impactDraft = Math.min(5, Math.max(1, Math.round(value)));
-}
+  onImpactChange(value: number): void {
+    this.impactDraft = Math.min(5, Math.max(1, Math.round(value)));
+  }
 
-probBandLabelDraft(): string {
-  const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
-  return labels[this.probabilityDraft - 1] || 'Unknown';
-}
+  probBandLabelDraft(): string {
+    const labels = ['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost Certain'];
+    return labels[this.probabilityDraft - 1] || 'Unknown';
+  }
+
   impactLabelDraft(): string {
-    const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
+    const labels = ['Negligible', 'Minor', 'Moderate', 'Major', 'Critical'];
     return labels[this.impactDraft - 1] || 'Unknown';
   }
 
+  // ✅ Utilise humanCorrectRisk() au lieu de updateRisk()
   saveFormula(): void {
     const risk = this.risk();
     if (!risk) return;
 
     this.savingFormula.set(true);
-    this.riskService.updateRisk(risk.id, {
+    this.riskService.humanCorrectRisk(risk.id, {
       probability: this.probabilityDraft,
       impact: this.impactDraft,
+      comment: `Manual correction: P${risk.probability}→${this.probabilityDraft}, I${risk.impact}→${this.impactDraft}`
     }).subscribe({
       next: (updatedRisk) => {
         this.risk.set(updatedRisk);
@@ -252,10 +268,7 @@ probBandLabelDraft(): string {
     });
   }
 
-  // ============================================================
-  // RISK DECISION
-  // ============================================================
-
+  // ── Risk Decision ────────────────────────────────────────
   acceptRisk(accepted: boolean): void {
     const risk = this.risk();
     if (!risk) return;
@@ -266,7 +279,6 @@ probBandLabelDraft(): string {
         const action = accepted ? 'accepted' : 'rejected';
         this.toast.success(`Risk ${action} successfully!`);
         setTimeout(() => {
-          // ✅ Navigation sans project_id (récupéré via UserStory)
           const projectId = this.projectId();
           this.router.navigate(['/risk-analysis'], {
             queryParams: projectId ? { project: projectId } : {}
@@ -279,37 +291,32 @@ probBandLabelDraft(): string {
     });
   }
 
-  // ============================================================
-  // NAVIGATION
-  // ============================================================
-
+  // ── Navigation ───────────────────────────────────────────
   goBack(): void {
-    // ✅ Navigation sans risk.project_id
     const projectId = this.projectId();
     this.router.navigate(['/risk-analysis'], {
       queryParams: projectId ? { project: projectId } : {}
     });
   }
 
-  // ============================================================
-  // UI HELPERS
-  // ============================================================
+  // ── UI Helpers ───────────────────────────────────────────
+  formatScore(score: number): string {
+    return score.toString();
+  }
 
-formatScore(score: number): string {
-  return score.toString();
-}
+  probPercent(p: number): number {
+    return Math.round(p / 5 * 100);
+  }
 
-probPercent(p: number): number {
-  return Math.round(p / 5 * 100);
-}
+  // ✅ Labels corrigés (document original)
+  probBandLabel(): string {
+    const labels = ['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost Certain'];
+    return labels[(this.risk()?.probability ?? 1) - 1] || 'Unknown';
+  }
 
-probBandLabel(): string {
-  const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
-  return labels[(this.risk()?.probability ?? 1) - 1] || 'Unknown';
-}
   impactLabel(): string {
     const impact = this.risk()?.impact ?? 0;
-    const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
+    const labels = ['Negligible', 'Minor', 'Moderate', 'Major', 'Critical'];
     return labels[impact - 1] || 'Unknown';
   }
 
@@ -319,14 +326,18 @@ probBandLabel(): string {
     return 'Pending Review';
   }
 
-scoreBarPosition(score: number): number {
-  return (score / 25) * 100;
-}
-isFromML = computed((): boolean => {
-  return this.risk()?.source === 'ml' || this.risk()?.source === 'ml_low_confidence';
-});
+  scoreBarPosition(score: number): number {
+    return (score / 25) * 100;
+  }
 
-isHumanModified = computed((): boolean => {
-  return this.risk()?.source === 'human_modified';
-});
+  // ✅ Test recommendations (document original)
+  getTestRecommendations(level: string): { techniques: string[]; effort: string } {
+    const config: Record<string, { techniques: string[]; effort: string }> = {
+      critical: { techniques: ['unit', 'integration', 'e2e', 'performance', 'security'], effort: '60%'},
+      high:     { techniques: ['unit', 'integration', 'e2e'], effort: '25%' },
+      medium:   { techniques: ['unit', 'integration'], effort: '10%' },
+      low:      { techniques: ['smoke'], effort: '5%' },
+    };
+    return config[level] || config['medium'];
+  }
 }

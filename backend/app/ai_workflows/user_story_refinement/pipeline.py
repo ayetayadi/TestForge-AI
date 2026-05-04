@@ -309,17 +309,18 @@ class UserStoryRefinementPipeline:
 # SINGLETON
 # ============================================================
 
-_instance: Optional[UserStoryRefinementPipeline] = None
+_instances: dict[str, UserStoryRefinementPipeline] = {}
 
 
 def get_pipeline(temperature: float = LLM_TEMPERATURE) -> UserStoryRefinementPipeline:
-    global _instance
-    if _instance is None:
-        _instance = UserStoryRefinementPipeline(temperature=temperature)
-    return _instance
+    from app.llm.llm_control import get_worker_api_key
+    api_key = get_worker_api_key() or "default"
+    if api_key not in _instances:
+        logger.info(f"[US REFINEMENT] Creating pipeline instance for key: {api_key[:12]}...")
+        _instances[api_key] = UserStoryRefinementPipeline(temperature=temperature)
+    return _instances[api_key]
 
 
 def reset_pipeline() -> None:
-    global _instance
-    _instance = None
-    logger.info("[PIPELINE] Singleton reset")
+    _instances.clear()
+    logger.info("[US REFINEMENT] All pipeline instances reset")

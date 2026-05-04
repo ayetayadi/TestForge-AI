@@ -1,8 +1,10 @@
+# models/test_plan.py
+
 import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import Date, DateTime, ForeignKey, Index, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -35,32 +37,20 @@ class TestPlan(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     objective: Mapped[Optional[str]] = mapped_column(Text)
-    scope_type: Mapped[Optional[str]] = mapped_column(String(50))# epic | sprint | release | manual | spec_document
-    scope_refs: Mapped[List[str]] = mapped_column(JSONB, default=lambda: [], server_default="[]")# Ex: ["SCRUM-12", "SCRUM-13"] ou ["Sprint 4"]
+    scope_type: Mapped[Optional[str]] = mapped_column(String(50))
+    scope_refs: Mapped[List[str]] = mapped_column(JSONB, default=lambda: [], server_default="[]")
     in_scope: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     out_of_scope: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     test_types: Mapped[List[str]] = mapped_column(
-        JSONB,
-        default=lambda: [],
-        server_default="[]",
-        nullable=False,
+        JSONB, default=lambda: [], server_default="[]", nullable=False
     )
-    # functional | regression | smoke | security | performance | e2e | api
-
     test_levels: Mapped[List[str]] = mapped_column(
-        JSONB,
-        default=lambda: [],
-        server_default="[]",
-        nullable=False,
+        JSONB, default=lambda: [], server_default="[]", nullable=False
     )
-    # component | integration | system | acceptance | e2e
-    
-    environment: Mapped[Optional[str]] = mapped_column(String(100)) # dev | staging | prod | uat
-
+    environment: Mapped[Optional[str]] = mapped_column(String(100))
     start_date: Mapped[Optional[date]] = mapped_column(Date)
     end_date: Mapped[Optional[date]] = mapped_column(Date)
-
     entry_criteria: Mapped[Optional[str]] = mapped_column(Text)
     exit_criteria: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -71,13 +61,45 @@ class TestPlan(Base):
     approach: Mapped[Optional[str]] = mapped_column(Text)
     assumptions: Mapped[Optional[str]] = mapped_column(Text)
     constraints: Mapped[Optional[str]] = mapped_column(Text)
-
     stakeholders: Mapped[Optional[str]] = mapped_column(Text)
     communication: Mapped[Optional[str]] = mapped_column(Text)
-
     risk_analysis: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     estimation: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     recommendations_detail: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+    # ==============================
+    # 🔥 NOUVEAU : Business Flow Order (LLM-determined)
+    # ==============================
+    
+    business_flow_order: Mapped[Optional[dict]] = mapped_column(
+        JSONB, 
+        nullable=True,
+        comment="LLM-determined business flow execution order {flow: rank}"
+    )
+    
+    tc_classifications: Mapped[Optional[dict]] = mapped_column(
+        JSONB, 
+        nullable=True,
+        comment="LLM-determined test case classifications {tc_code: {business_flow, risk_level, reasoning}}"
+    )
+    
+    flow_reasoning: Mapped[Optional[str]] = mapped_column(
+        Text, 
+        nullable=True,
+        comment="LLM reasoning for the business flow order"
+    )
+    
+    flow_details: Mapped[Optional[dict]] = mapped_column(
+        JSONB, 
+        nullable=True,
+        comment="LLM flow details {flow: {tc_count, risk_breakdown, reason}}"
+    )
+    
+    project_context_summary: Mapped[Optional[str]] = mapped_column(
+        Text, 
+        nullable=True,
+        comment="LLM summary of project context analyzed"
+    )
 
     # ==============================
     # STATUT & TRACKING
@@ -107,15 +129,11 @@ class TestPlan(Base):
     jira_project: Mapped["JiraProject"] = relationship("JiraProject", back_populates="test_plans")
 
     test_suites: Mapped[List["TestSuite"]] = relationship(
-        "TestSuite",
-        back_populates="test_plan",
-        cascade="all, delete-orphan"
+        "TestSuite", back_populates="test_plan", cascade="all, delete-orphan"
     )
 
     test_cases: Mapped[List["TestCase"]] = relationship(
-        "TestCase",
-        back_populates="test_plan",
-        foreign_keys="TestCase.test_plan_id",
+        "TestCase", back_populates="test_plan", foreign_keys="TestCase.test_plan_id",
         cascade="all, delete-orphan"
     )
 

@@ -99,7 +99,14 @@
       @if (genJobs().length > 0) {
         <div class="gen-progress">
           <div class="gen-progress__header">
-            <span class="gen-progress__label">{{ genCompletedJobs() }} / {{ genTotalJobs() }} completed</span>
+            @if (genProgressTotal() > 0 && !genAllDone()) {
+              <span class="gen-progress__label">
+                {{ genProgressCurrent() }} / {{ genProgressTotal() }} user stories
+                @if (genCurrentUsKey()) { <span class="gen-progress__current-us">— {{ genCurrentUsKey() }}</span> }
+              </span>
+            } @else {
+              <span class="gen-progress__label">{{ genCompletedJobs() }} / {{ genTotalJobs() }} completed</span>
+            }
             <span class="gen-progress__pct">{{ genProgress() }}%</span>
           </div>
           <div class="gen-progress__bar-track">
