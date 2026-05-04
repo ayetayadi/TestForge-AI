@@ -100,10 +100,6 @@ class Settings(BaseSettings):
     # WORKER CONFIG
     # =========================
     MAX_WORKERS: int = 3
-
-    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
-    GITHUB_MODEL: str = "gpt-4o"
-
     # =========================
     # MAIL CONFIG
     # =========================

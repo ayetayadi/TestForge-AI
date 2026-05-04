@@ -22,17 +22,6 @@ MIN_SIMILARITY_THRESHOLD = 0.65
 
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2000"))
 
-
-
-# =========================
-# ATLAS CLOUD CONFIGURATION
-# =========================
-ATLAS_API_KEY: str = os.getenv("ATLAS_API_KEY", "")
-ATLAS_BASE_URL: str = os.getenv("ATLAS_BASE_URL", "https://api.atlascloud.ai/v1")
-
-GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
-GITHUB_MODEL: str = os.getenv("GITHUB_MODEL", "gpt-4o")
-
 # ============================================================
 # Tool Configuration
 # ============================================================
