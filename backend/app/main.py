@@ -1,14 +1,10 @@
 # app/main.py
 # =========================
-# ENV LOADING
+# ENV LOADING — must run before ANY app import so that langfuse
+# auto-initialises with real credentials (not a disabled no-op client).
 # =========================
-# from dotenv import load_dotenv
-# load_dotenv()
-
-# import os
-# print("[LANGSMITH] TRACING:", os.getenv("LANGSMITH_TRACING"))
-# print("[LANGSMITH] PROJECT:", os.getenv("LANGSMITH_PROJECT"))
-# print("[LANGSMITH] API_KEY:", os.getenv("LANGSMITH_API_KEY", "")[:20] + "..." if os.getenv("LANGSMITH_API_KEY") else "NOT SET")
+from dotenv import load_dotenv
+load_dotenv()
 
 # =========================
 # LOGGING CONFIGURATION
@@ -70,7 +66,19 @@ def preload_models():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[STARTUP] Initializing application...")
-    
+
+    # LANGFUSE
+    if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
+        from app.core.observability import init_langfuse
+        init_langfuse(
+            public_key=settings.LANGFUSE_PUBLIC_KEY,
+            secret_key=settings.LANGFUSE_SECRET_KEY,
+            host=settings.LANGFUSE_HOST,
+        )
+        print("[LANGFUSE] Tracing enabled")
+    else:
+        print("[LANGFUSE] Keys not set — tracing disabled")
+
     # HF TOKEN
     if settings.HF_TOKEN:
         os.environ["HF_TOKEN"] = settings.HF_TOKEN
@@ -91,10 +99,16 @@ async def lifespan(app: FastAPI):
     print("[STARTUP] Application ready!")
     
     yield
-    
+
     print("[SHUTDOWN] Stopping workers...")
     await stop_workers()
     print("[SHUTDOWN] Workers stopped")
+
+    from app.core.observability import is_langfuse_enabled
+    if is_langfuse_enabled():
+        from langfuse import get_client
+        get_client().flush()
+        print("[LANGFUSE] Flushed pending spans")
 # =========================
 # APP
 # =========================

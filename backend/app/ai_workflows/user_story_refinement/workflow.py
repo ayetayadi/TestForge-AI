@@ -12,8 +12,11 @@ import asyncio
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from langsmith import traceable
+from langfuse import observe
+from langfuse import get_client as get_langfuse_client
 from pydantic import BaseModel, Field
+
+from app.core.observability import fire_evaluation, get_trace_callback
 
 from app.ai_workflows.user_story_refinement.evaluators import (
     extract_acceptance_criteria,
@@ -72,7 +75,7 @@ class UserStoryRefinementPipeline:
         except Exception:
             pass
 
-    @traceable(name="user_story_refinement_pipeline")
+    @observe(name="user_story_refinement_pipeline")
     async def run(
         self,
         story: str,
@@ -84,7 +87,12 @@ class UserStoryRefinementPipeline:
         acceptance_criteria = acceptance_criteria or []
         original_actor = extract_actor_from_story(story)
         clean_story = clean_story_text(story)
-    
+
+        get_langfuse_client().update_current_span(
+            input={"story": story, "language": language, "jira_id": jira_id},
+            metadata={"jira_id": jira_id, "language": language},
+        )
+
         logger.info(f"[PIPELINE] Starting: jira_id={jira_id}")
     
         try:
@@ -221,6 +229,34 @@ class UserStoryRefinementPipeline:
                 original_story=clean_story,
             )
             self._log_summary(result)
+
+            lf = get_langfuse_client()
+            lf.update_current_span(
+                output={
+                    "improved_story": result["improved_story"],
+                    "final_score": result["final_score"],
+                    "initial_score": result["initial_score"],
+                    "is_improved": result["is_improved"],
+                    "workflow_status": result["workflow_status"],
+                },
+                metadata={
+                    "jira_id": jira_id,
+                    "iterations": result["iterations"],
+                    "similarity": result["similarity"],
+                    "is_testable": result["is_testable"],
+                },
+            )
+
+            # Fire DeepEval evaluation in background — does not block the response
+            if result.get("is_improved"):
+                trace_id = lf.get_current_trace_id()
+                asyncio.create_task(fire_evaluation(
+                    metric="user_story_quality",
+                    input_text=clean_story,
+                    output_text=result["improved_story"],
+                    trace_id=trace_id,
+                ))
+
             return result
     
         except Exception as exc:
@@ -265,15 +301,17 @@ class UserStoryRefinementPipeline:
             suggestions="\n".join(f"- {s}" for s in score_result.get("suggestions", [])) or "(none)",
             threshold=MIN_SCORE_THRESHOLD,
         )
+        cb = get_trace_callback()
+        invoke_config = {"callbacks": [cb]} if cb else {}
         try:
-            return await self._llm.ainvoke(prompt)
+            return await self._llm.ainvoke(prompt, config=invoke_config)
         except Exception as e:
             # Groq returns 400 when max_tokens cuts the JSON mid-stream.
             # Fall back: trim reasoning to force a shorter response.
             if "tool_use_failed" in str(e) or "Failed to parse" in str(e):
                 logger.warning("[PIPELINE] JSON parse error from Groq — retrying with shorter reasoning hint")
                 short_prompt = prompt + "\n\nIMPORTANT: Keep the reasoning field under 80 words."
-                return await self._llm.ainvoke(short_prompt)
+                return await self._llm.ainvoke(short_prompt, config=invoke_config)
             raise
 
     def _build_result(

@@ -122,5 +122,12 @@ class Settings(BaseSettings):
     # =========================
     TESTOMATIO_API_KEY: str | None = None
 
+    # =========================
+    # LANGFUSE CONFIG
+    # =========================
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_SECRET_KEY: str | None = None
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+
 
 settings = Settings()
