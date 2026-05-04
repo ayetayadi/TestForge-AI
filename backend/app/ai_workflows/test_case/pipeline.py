@@ -21,7 +21,7 @@ from app.ai_workflows.test_case.test_case_builder import (
     build_tc_code,
 )
 from app.ai_workflows.test_case.coverage_checker import (
-    validate_ac_coverage,  # ← RENOMMÉ
+    validate_ac_coverage,
     suggest_hints,
 )
 from app.ai_workflows.test_case.prompts import TEST_CASE_GENERATION_PROMPT
@@ -136,13 +136,18 @@ class TestCasePipeline:
             RISK_LEVEL_TEST_COUNTS.get("default", {"positive": 1, "negative": 1, "boundary": 0})
         )
 
-        if scenario_types:
+        _ALL_TYPES = {"positive", "negative", "boundary"}
+        if scenario_types and set(scenario_types) != _ALL_TYPES:
+            # Partial selection: guarantee at least 1 TC for each chosen type,
+            # regardless of what RISK_LEVEL_TEST_COUNTS says for this risk level.
+            selected = set(scenario_types)
             counts = {
-                "positive": base_counts["positive"] if "positive" in scenario_types else 0,
-                "negative": base_counts["negative"] if "negative" in scenario_types else 0,
-                "boundary": base_counts["boundary"] if "boundary" in scenario_types else 0,
+                "positive": 1 if "positive" in selected else 0,
+                "negative": 1 if "negative" in selected else 0,
+                "boundary": 1 if "boundary" in selected else 0,
             }
         else:
+            # All 3 selected (or none specified): honour RISK_LEVEL_TEST_COUNTS.
             counts = {
                 "positive": base_counts["positive"],
                 "negative": base_counts["negative"],
@@ -416,17 +421,18 @@ class TestCasePipeline:
 # SINGLETON
 # ============================================================
 
-_instance: Optional[TestCasePipeline] = None
+_instances: dict[str, TestCasePipeline] = {}
 
 
 def get_pipeline(temperature: float = LLM_TEMPERATURE) -> TestCasePipeline:
-    global _instance
-    if _instance is None:
-        _instance = TestCasePipeline(temperature=temperature)
-    return _instance
+    from app.llm.llm_control import get_worker_api_key
+    api_key = get_worker_api_key() or "default"
+    if api_key not in _instances:
+        logger.info(f"[TEST CASE] Creating pipeline instance for key: {api_key[:12]}...")
+        _instances[api_key] = TestCasePipeline(temperature=temperature)
+    return _instances[api_key]
 
 
 def reset_pipeline() -> None:
-    global _instance
-    _instance = None
-    logger.info("[TEST CASE] Singleton reset")
+    _instances.clear()
+    logger.info("[TEST CASE] All pipeline instances reset")

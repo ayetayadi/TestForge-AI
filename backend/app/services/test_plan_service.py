@@ -98,19 +98,17 @@ class TestPlanService:
         # Filtrer par sprint/epic si spécifié
         filtered_stories = []
         for s in stories_raw:
-            if s.id not in accepted_user_story_ids:
-                continue
-            
-            # Filtre sprint
+            # ÉTAPE 1 : Filtrer par sprint
             if request.sprint_ids and s.sprint not in request.sprint_ids:
                 continue
             
-            # Filtre epic
+            # ÉTAPE 2 : Filtrer par epic
             if request.epic_keys:
                 epic_match = s.epic_key in request.epic_keys or s.epic_name in request.epic_keys
                 if not epic_match:
                     continue
-            
+            if s.id not in accepted_user_story_ids:
+                continue
             filtered_stories.append(s)
         
         user_stories = [
@@ -507,12 +505,17 @@ Subject: <subject here>
     def _risk_to_dict(risk) -> dict:
         return {
             "id": risk.id,
+            "user_story_id": risk.user_story_id,
             "description": risk.description,
             "mitigation": risk.mitigation,
             "probability": risk.probability,
             "impact": risk.impact,
             "risk_score": risk.risk_score,
             "level": risk.level,
+            "test_techniques": risk.test_techniques or [],
+            "test_depth": risk.test_depth or "standard",
+            "effort_allocation": risk.effort_allocation or "N/A",
+            "reasoning": risk.reasoning or "",
         }
 
     @staticmethod
@@ -530,6 +533,10 @@ Subject: <subject here>
                 "risk_mitigation": risk_info.get("mitigation", ""),
                 "probability": risk_info.get("probability", None),
                 "impact": risk_info.get("impact", None),
+                "test_techniques": risk_info.get("test_techniques", []),
+                "test_depth": risk_info.get("test_depth", "standard"),
+                "effort_allocation": risk_info.get("effort_allocation", "N/A"),
+                "reasoning": risk_info.get("reasoning", ""),
             })
         
         return result
@@ -635,7 +642,225 @@ Subject: <subject here>
             info_row("Scope References", scope_refs)
         )
         
-        # HTML final
+        # ============================================================
+        # SECTIONS ENRICHIES (Risques, PERT, Recommandations)
+        # ============================================================
+        
+        # 1. SECTION RISQUES
+        risks_html = ''
+        if plan.risk_analysis:
+            mapping = plan.risk_analysis.get('mapping_table', [])
+            distribution = plan.risk_analysis.get('distribution', {})
+            
+            if distribution:
+                total = distribution.get('total', 1)
+                critical_pct = round(distribution.get('critical', 0) / total * 100) if total > 0 else 0
+                high_pct = round(distribution.get('high', 0) / total * 100) if total > 0 else 0
+                medium_pct = round(distribution.get('medium', 0) / total * 100) if total > 0 else 0
+                low_pct = round(distribution.get('low', 0) / total * 100) if total > 0 else 0
+                
+                critical_risks = [r for r in mapping if r.get('risk_level') == 'critical']
+                high_risks = [r for r in mapping if r.get('risk_level') == 'high']
+                
+                risks_rows = ''
+                for r in (critical_risks + high_risks)[:5]:
+                    level_color = "#dc2626" if r.get('risk_level') == 'critical' else "#d97706"
+                    level_bg = "#fef2f2" if r.get('risk_level') == 'critical' else "#fffbeb"
+                    level_icon = "🔴" if r.get('risk_level') == 'critical' else "🟠"
+                    
+                    mitigation = r.get('mitigation', 'No mitigation defined')
+                    techniques = ', '.join(r.get('test_techniques', []))
+                    test_depth = r.get('test_depth', 'N/A')
+                    effort = r.get('effort_allocation', 'N/A')
+                    
+                    risks_rows += f'''
+                    <tr>
+                        <td style="padding:12px;border-bottom:1px solid #e5e7eb;background:{level_bg};">
+                            <div style="font-weight:700;color:{level_color};font-size:13px;margin-bottom:4px;">
+                                {level_icon} [{r.get('issue_key')}] {r.get('title', 'N/A')}
+                            </div>
+                            <div style="font-size:12px;color:#374151;margin-bottom:6px;">
+                                <strong>Risk:</strong> {r.get('risk_description', 'N/A')[:120]}
+                            </div>
+                            <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">
+                                <strong>Score:</strong> {r.get('risk_score')} (P{r.get('probability')}×I{r.get('impact')}) 
+                                | <strong>Depth:</strong> {test_depth} 
+                                | <strong>Effort:</strong> {effort}
+                            </div>
+                            <div style="font-size:12px;color:#059669;margin-bottom:4px;background:#f0fdf4;padding:6px;border-radius:4px;">
+                                <strong>🛡️ Mitigation:</strong> {mitigation[:150]}
+                            </div>
+                            <div style="font-size:11px;color:#6366f1;">
+                                <strong>🧪 Techniques:</strong> {techniques}
+                            </div>
+                        </td>
+                    </tr>'''
+                
+                risks_html = f'''
+                <hr style="border:none;border-top:2px solid #dc2626;margin:24px 0;">
+                
+                <h2 style="font-size:13px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.04em;margin:0 0 12px 0;">
+                    ⚠️ Risk Analysis Summary
+                </h2>
+                
+                <!-- Distribution -->
+                <div style="margin-bottom:16px;background:#f9fafb;padding:12px;border-radius:8px;">
+                    <div style="font-size:12px;font-weight:600;color:#111827;margin-bottom:8px;">Risk Distribution</div>
+                    <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:8px;">
+                        <div style="flex:1;text-align:center;background:#fef2f2;padding:8px;border-radius:6px;">
+                            <div style="font-size:20px;font-weight:800;color:#dc2626;">{distribution.get('critical', 0)}</div>
+                            <div style="font-size:10px;color:#6b7280;">CRITICAL ({critical_pct}%)</div>
+                        </div>
+                        <div style="flex:1;text-align:center;background:#fffbeb;padding:8px;border-radius:6px;">
+                            <div style="font-size:20px;font-weight:800;color:#d97706;">{distribution.get('high', 0)}</div>
+                            <div style="font-size:10px;color:#6b7280;">HIGH ({high_pct}%)</div>
+                        </div>
+                        <div style="flex:1;text-align:center;background:#f0fdf4;padding:8px;border-radius:6px;">
+                            <div style="font-size:20px;font-weight:800;color:#059669;">{distribution.get('medium', 0)}</div>
+                            <div style="font-size:10px;color:#6b7280;">MEDIUM ({medium_pct}%)</div>
+                        </div>
+                        <div style="flex:1;text-align:center;background:#f3f4f6;padding:8px;border-radius:6px;">
+                            <div style="font-size:20px;font-weight:800;color:#6b7280;">{distribution.get('low', 0)}</div>
+                            <div style="font-size:10px;color:#6b7280;">LOW ({low_pct}%)</div>
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:#6b7280;text-align:center;">
+                        High Risk Ratio: {(distribution.get('high_risk_ratio', 0) * 100):.0f}% 
+                        ({distribution.get('critical', 0) + distribution.get('high', 0)}/{distribution.get('total', 0)} stories)
+                    </div>
+                </div>
+                
+                <!-- Critical & High Risks Table -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">
+                    {risks_rows}
+                </table>
+                '''
+        
+        # 2. SECTION PERT ESTIMATION
+        estimation_html = ''
+        if plan.estimation:
+            est = plan.estimation
+            inputs = est.get('inputs', {})
+            
+            breakdown_rows = ''
+            for item in est.get('breakdown_by_risk', []):
+                breakdown_rows += f'''
+                <tr>
+                    <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;font-weight:600;text-transform:uppercase;">
+                        {item.get('level', 'N/A')}
+                    </td>
+                    <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:center;">
+                        {item.get('story_count', 0)}
+                    </td>
+                    <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:center;">
+                        {item.get('subtotal_optimistic', 0)}
+                    </td>
+                    <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:center;">
+                        {item.get('subtotal_realistic', 0)}
+                    </td>
+                    <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:center;">
+                        {item.get('subtotal_pessimistic', 0)}
+                    </td>
+                </tr>'''
+            
+            estimation_html = f'''
+            <hr style="border:none;border-top:2px solid #6366f1;margin:24px 0;">
+            
+            <h2 style="font-size:13px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.04em;margin:0 0 12px 0;">
+                📊 PERT Estimation
+            </h2>
+            
+            <div style="margin-bottom:16px;background:#f9fafb;padding:12px;border-radius:8px;">
+                <div style="font-size:12px;font-weight:600;color:#111827;margin-bottom:8px;">
+                    {est.get('formula', 'E = (O + 4×M + P) / 6')}
+                </div>
+                <div style="display:flex;gap:12px;margin-bottom:12px;">
+                    <div style="flex:1;text-align:center;background:#fef2f2;padding:10px;border-radius:6px;">
+                        <div style="font-size:11px;color:#6b7280;">OPTIMISTIC</div>
+                        <div style="font-size:24px;font-weight:800;color:#dc2626;">{inputs.get('optimistic', '?')}</div>
+                        <div style="font-size:10px;color:#6b7280;">working days</div>
+                    </div>
+                    <div style="flex:1;text-align:center;background:#f0fdf4;padding:10px;border-radius:6px;">
+                        <div style="font-size:11px;color:#6b7280;">MOST LIKELY</div>
+                        <div style="font-size:24px;font-weight:800;color:#059669;">{inputs.get('most_likely', '?')}</div>
+                        <div style="font-size:10px;color:#6b7280;">working days</div>
+                    </div>
+                    <div style="flex:1;text-align:center;background:#fffbeb;padding:10px;border-radius:6px;">
+                        <div style="font-size:11px;color:#6b7280;">PESSIMISTIC</div>
+                        <div style="font-size:24px;font-weight:800;color:#d97706;">{inputs.get('pessimistic', '?')}</div>
+                        <div style="font-size:10px;color:#6b7280;">working days</div>
+                    </div>
+                </div>
+                <div style="text-align:center;background:linear-gradient(135deg,#6366f1,#4f46e5);padding:12px;border-radius:8px;">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.8);">PERT ESTIMATE</div>
+                    <div style="font-size:32px;font-weight:800;color:#fff;">{est.get('calculation', '?').split('= ')[-1] if '= ' in est.get('calculation', '') else '?'}</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.8);">{est.get('confidence_interval', '')}</div>
+                </div>
+            </div>
+            
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;border-collapse:collapse;">
+                <tr style="background:#f3f4f6;">
+                    <td style="padding:8px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;">Risk Level</td>
+                    <td style="padding:8px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;text-align:center;">Stories</td>
+                    <td style="padding:8px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;text-align:center;">Optimistic</td>
+                    <td style="padding:8px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;text-align:center;">Realistic</td>
+                    <td style="padding:8px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;text-align:center;">Pessimistic</td>
+                </tr>
+                {breakdown_rows}
+            </table>
+            '''
+        
+        # 3. SECTION RECOMMENDATIONS
+        recommendations_html = ''
+        if plan.risk_analysis and plan.risk_analysis.get('aggregated_recommendations'):
+            aggr = plan.risk_analysis['aggregated_recommendations']
+            
+            techniques_list = '<br>'.join(
+                f'✓ {tech} ({freq} risks)' 
+                for tech, freq in aggr.get('technique_distribution', {}).items()
+            ) if aggr.get('technique_distribution') else 'N/A'
+            
+            depth_items = aggr.get('test_depth_distribution', {})
+            effort_items = aggr.get('effort_breakdown', {})
+            
+            recommendations_html = f'''
+            <hr style="border:none;border-top:2px solid #059669;margin:24px 0;">
+            
+            <h2 style="font-size:13px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.04em;margin:0 0 12px 0;">
+                🧪 Test Recommendations
+            </h2>
+            
+            <div style="display:flex;gap:12px;margin-bottom:12px;">
+                <div style="flex:1;background:#f0fdf4;padding:12px;border-radius:8px;">
+                    <div style="font-size:12px;font-weight:600;color:#059669;margin-bottom:8px;">Recommended Techniques</div>
+                    <div style="font-size:12px;color:#374151;line-height:1.8;">{techniques_list}</div>
+                </div>
+                <div style="flex:1;background:#eef2ff;padding:12px;border-radius:8px;">
+                    <div style="font-size:12px;font-weight:600;color:#6366f1;margin-bottom:8px;">Test Depth</div>
+                    <div style="font-size:11px;color:#374151;">
+                        Comprehensive: {depth_items.get('comprehensive', 0)} stories<br>
+                        Thorough: {depth_items.get('thorough', 0)} stories<br>
+                        Standard: {depth_items.get('standard', 0)} stories<br>
+                        Smoke: {depth_items.get('smoke', 0)} stories
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background:#fffbeb;padding:12px;border-radius:8px;">
+                <div style="font-size:12px;font-weight:600;color:#d97706;margin-bottom:8px;">Effort Allocation</div>
+                <div style="font-size:11px;color:#374151;">
+                    Critical: {effort_items.get('critical_effort', '0%')}<br>
+                    High: {effort_items.get('high_effort', '0%')}<br>
+                    Medium: {effort_items.get('medium_effort', '0%')}<br>
+                    Low: {effort_items.get('low_effort', '0%')}
+                </div>
+            </div>
+            '''
+        
+        # ============================================================
+        # HTML FINAL
+        # ============================================================
+        
         html = f'''<!DOCTYPE html>
     <html>
     <head><meta charset="UTF-8"><title>Test Plan: {plan.title}</title></head>
@@ -676,6 +901,10 @@ Subject: <subject here>
                         {in_scope_html}
                         {out_of_scope_html}
                         
+                        {risks_html}
+                        {estimation_html}
+                        {recommendations_html}
+                        
                         <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
                         
                         <!-- Call to Action -->
@@ -702,4 +931,3 @@ Subject: <subject here>
     </html>'''
         
         return html
-    

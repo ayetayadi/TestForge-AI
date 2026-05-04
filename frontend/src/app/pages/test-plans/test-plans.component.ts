@@ -99,6 +99,7 @@ export class TestPlansComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadProjects();
+    this.loadTestPlans();
   }
 
   // ── Data loading ──────────────────────────────────────────────
@@ -107,11 +108,6 @@ export class TestPlansComponent implements OnInit {
     this.projectsService.getProjects().subscribe({
       next: projects => {
         this.projects.set(projects);
-        if (projects.length === 1) {
-          this.selectedProjectId.set(projects[0].id);
-          this.loadTestPlans();
-          this.loadProjectMetadata(projects[0].id);
-        }
       },
       error: () => this.toast.error('Failed to load projects'),
     });
@@ -119,11 +115,24 @@ export class TestPlansComponent implements OnInit {
 
   loadTestPlans(): void {
     const projectId = this.selectedProjectId();
-    if (!projectId) return;
-
     this.isLoading.set(true);
-    
-    // ✅ Utilise les filtres sprint/epic si sélectionnés
+
+    if (!projectId) {
+      this.testPlanService.getAll({ page: this.page(), pageSize: 20 }).subscribe({
+        next: res => {
+          this.testPlans.set(res.items);
+          this.totalPages.set(res.total_pages);
+          this.isLoading.set(false);
+        },
+        error: () => {
+          this.toast.error('Failed to load test plans');
+          this.isLoading.set(false);
+        },
+      });
+      this.summary.set(null);
+      return;
+    }
+
     this.testPlanService.getByProject(projectId, {
       page: this.page(),
       pageSize: 20,
@@ -235,7 +244,9 @@ export class TestPlansComponent implements OnInit {
     this.selectedSprintIds.set([]);
     this.selectedEpicKeys.set([]);
     this.loadTestPlans();
-    this.loadProjectMetadata(projectId);
+    if (projectId) {
+      this.loadProjectMetadata(projectId);
+    }
   }
 
   // ── AI Generation ─────────────────────────────────────────────

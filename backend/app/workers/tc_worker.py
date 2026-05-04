@@ -17,18 +17,20 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
-# ✅ Charger .env AVANT les autres imports (comme dans llm_control.py)
 load_dotenv()
 
 from app.core.database import async_session_maker
 from app.services import test_case_service as service
 from app.streaming.sse_manager import push_event
 from .tc_queue import tc_job_queue
+from app.core.config import settings
+from app.llm.llm_control import set_worker_api_key
 
 logger = logging.getLogger(__name__)
 
-MAX_TC_WORKERS = 5
-TC_WORKER_TIMEOUT = 600
+MAX_TC_WORKERS = settings.MAX_WORKERS
+TC_WORKER_TIMEOUT = 120
+MAX_RETRIES = 3
 
 _tc_workers: List[asyncio.Task] = []
 
@@ -39,13 +41,12 @@ _tc_workers: List[asyncio.Task] = []
 
 def _get_api_key_for_worker(worker_id: int) -> str:
     """Retourne la clé API dédiée à ce worker (1→KEY_1, 2→KEY_2, etc.)."""
-    # ✅ CORRIGÉ : OPENROUTER pas OPEN_ROUTER (comme dans le .env)
-    key_name = f"OPENROUTER_API_KEY_{worker_id}"
+    key_name = f"GROQ_API_KEY_{worker_id}"
     api_key = os.getenv(key_name, "")
     
     if not api_key:
         logger.warning(f"[TC WORKER-{worker_id}] ⚠️ {key_name} not found, using fallback")
-        api_key = os.getenv("OPENROUTER_API_KEY_1", os.getenv("OPENROUTER_API_KEY", ""))
+        api_key = os.getenv("GROQ_API_KEY_1", os.getenv("GROQ_API_KEY", ""))
     
     return api_key
 
@@ -65,11 +66,12 @@ def _make_progress_callback(job_id: str):
 # ============================================================
 
 async def tc_worker(worker_id: int) -> None:
-    # ✅ Assigner la clé API DÉDIÉE à ce worker
     api_key = _get_api_key_for_worker(worker_id)
-    # ✅ CORRIGÉ : OPENROUTER_API_KEY pas OPEN_ROUTER
-    os.environ["OPENROUTER_API_KEY"] = api_key
-    
+
+    # Assigne la clé dans le ContextVar de cette tâche asyncio.
+    # Chaque tâche a son propre contexte isolé — aucun risque d'écrasement entre workers.
+    set_worker_api_key(api_key)
+
     key_preview = api_key[:15] + "..." if api_key else "NO_KEY"
     logger.info(f"[TC WORKER-{worker_id}] 🚀 Started with dedicated key: {key_preview}")
     

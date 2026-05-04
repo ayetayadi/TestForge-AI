@@ -1,10 +1,10 @@
-"""API endpoints for Risk management with AI analysis (ISTQB)."""
+"""API endpoints for Risk management with LLM-based analysis (Risk Based Testing)."""
 
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from pydantic import BaseModel, Field
-
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
@@ -15,11 +15,14 @@ from app.schemas.risk_schema import (
     RiskFilters,
     RiskListResponse,
     RiskBatchResponse,
+    RiskSummary,
 )
 from app.services.risk_service import RiskService
 from app.workers.risk_worker import submit_risk_job
 
 router = APIRouter(prefix="/risks", tags=["Risks"])
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -27,52 +30,93 @@ router = APIRouter(prefix="/risks", tags=["Risks"])
 # ============================================================
 
 class UserStoryAnalysisRequest(BaseModel):
-    """Request body for AI-powered user story analysis."""
-    story: str
-    acceptance_criteria: List[str] = []
-    user_story_id: Optional[str] = None
+    """Request body for LLM-powered user story risk analysis."""
+    story: str = Field(..., description="The user story text to analyze")
+    acceptance_criteria: List[str] = Field(
+        default_factory=list,
+        description="Acceptance criteria for the story"
+    )
+    user_story_id: Optional[str] = Field(
+        None,
+        description="Existing user story ID (if already in database)"
+    )
+    issue_key: Optional[str] = Field(
+        None,
+        description="Jira issue key (e.g., PROJ-123)"
+    )
+    test_plan_id: Optional[str] = Field(
+        None,
+        description="Optional test plan to link the risk to"
+    )
 
 
 class BatchAnalysisRequest(BaseModel):
     """Request body for batch analysis of multiple user stories."""
-    project_id: str
-    stories: List[UserStoryAnalysisRequest]
-    concurrency: int = 3
+    project_id: str = Field(..., description="Project ID for context")
+    stories: List[UserStoryAnalysisRequest] = Field(..., min_length=1)
+    test_plan_id: Optional[str] = Field(None)
+    concurrency: int = Field(2, ge=1, le=5, description="Max parallel LLM calls")
 
 
 class ProjectAnalysisRequest(BaseModel):
     """Request body for project-wide risk analysis with filters."""
     project_id: str
-    limit: Optional[int] = Field(None, ge=1, description="Limit number of stories to analyze (max 100)")
+    limit: Optional[int] = Field(
+        None, ge=1, le=100,
+        description="Limit number of stories to analyze (max 100)"
+    )
     epic_keys: Optional[List[str]] = Field(None, description="Filter by epic keys")
     sprint_ids: Optional[List[str]] = Field(None, description="Filter by sprint IDs")
-    jira_priorities: Optional[List[str]] = Field(None, description="Filter by priorities")
-    min_story_points: Optional[float] = Field(None, ge=0, description="Minimum story points")
-    use_approved_version_only: bool = Field(False, description="Use approved version only")
-    force_reanalyze: bool = Field(False, description="Force reanalysis even if already analyzed")
+    jira_priorities: Optional[List[str]] = Field(
+        None, description="Filter by Jira priorities"
+    )
+    min_story_points: Optional[float] = Field(
+        None, ge=0, description="Minimum story points"
+    )
+    use_approved_version_only: bool = Field(
+        False, description="Use approved version of stories only"
+    )
+    force_reanalyze: bool = Field(
+        False, description="Force reanalysis even if already analyzed"
+    )
+
+
+class HumanCorrectionRequest(BaseModel):
+    """Request body for human correction of LLM-generated risk."""
+    probability: int = Field(
+        ..., ge=1, le=5,
+        description="Corrected probability (1-5)"
+    )
+    impact: int = Field(
+        ..., ge=1, le=5,
+        description="Corrected impact (1-5)"
+    )
+    comment: Optional[str] = Field(None, description="Reason for correction")
 
 
 # ============================================================
-# AI-POWERED ENDPOINTS (ISTQB PIPELINE)
+# AI-POWERED ENDPOINTS (LLM PIPELINE)
 # ============================================================
 
 @router.post(
     "/analyze-project",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Launch risk analysis for user stories with filters",
+    summary="Launch LLM risk analysis for project stories with filters",
 )
 async def analyze_project_risks(
     request: ProjectAnalysisRequest,
     db: AsyncSession = Depends(deps.get_db),
 ) -> dict:
-    """Lance l'analyse avec filtres - priority order: Highest → High → Medium → Low"""
+    """
+    Launch LLM risk analysis for user stories matching filters.
     
-    from sqlalchemy import select, case
+    Priority order: Highest → High → Medium → Low → None.
+    Returns immediately with job IDs - analysis runs asynchronously.
+    """
     from app.models.user_story import UserStory
     from app.repositories.risk_repository import RiskRepository
     
-    print(f"🔵 RECEIVED analyze-project request")
-    print(f"📦 Request body: {request.model_dump()}")
+    logger.info(f" analyze-project request: {request.model_dump()}")
 
     priority_order = {
         "Highest": 1, "High": 2, "Medium": 3, "Low": 4, None: 5
@@ -103,10 +147,10 @@ async def analyze_project_risks(
         query = query.where(UserStory.story_points >= request.min_story_points)
         filters_applied.append(f"min_story_points={request.min_story_points}")
 
-    # Apply sorting by priority
+    # Sort by priority (Highest first), then story points (desc), then creation date
     query = query.order_by(
         case(
-            *[(UserStory.priority == priority, order) for priority, order in priority_order.items() if priority],
+            *[(UserStory.priority == p, o) for p, o in priority_order.items() if p],
             else_=5
         ),
         UserStory.story_points.desc().nulls_last(),
@@ -122,10 +166,11 @@ async def analyze_project_risks(
     if not stories:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No user stories found with the specified filters: {filters_applied}",
+            detail=f"No user stories found with filters: {filters_applied}",
         )
     
-    # Check already analyzed stories
+    # Handle reanalysis logic
+    already_analyzed = 0
     if not request.force_reanalyze:
         risk_repo = RiskRepository(db)
         stories_to_analyze = []
@@ -133,18 +178,18 @@ async def analyze_project_risks(
             existing = await risk_repo.get_by_user_story(story.id)
             if not existing:
                 stories_to_analyze.append(story)
+            else:
+                already_analyzed += 1
         
-        analyzed_count = len(stories) - len(stories_to_analyze)
-        stories = stories_to_analyze
-        
-        if not stories:
+        if not stories_to_analyze:
             return {
                 "submitted": 0,
-                "message": "All matching user stories already analyzed. Use force_reanalyze=true to re-analyze.",
-                "already_analyzed": analyzed_count,
+                "message": "All matching stories already analyzed. Use force_reanalyze=true.",
+                "already_analyzed": already_analyzed,
             }
+        stories = stories_to_analyze
     
-    # Submit jobs
+    # Submit jobs to worker
     job_ids = []
     priority_stats = {"Highest": 0, "High": 0, "Medium": 0, "Low": 0, "None": 0}
     
@@ -155,11 +200,9 @@ async def analyze_project_risks(
             "project_id": request.project_id,
             "user_story_id": story.id,
             "issue_key": story.issue_key,
-            "jira_priority": story.priority,
-            "story_points": story.story_points,
-            "components": story.components or [],
-            "labels": story.labels or [],
-            "epic": story.epic_key,
+            "story_title": story.title,
+            "story_description": story.description or "",
+            "acceptance_criteria": story.acceptance_criteria or [],
             "use_approved_version_only": request.use_approved_version_only,
         })
         job_ids.append(job_id)
@@ -171,32 +214,25 @@ async def analyze_project_risks(
         "project_id": request.project_id,
         "job_ids": job_ids,
         "priority_breakdown": {k: v for k, v in priority_stats.items() if v > 0},
-        "filters_applied": {
-            "epic_keys": request.epic_keys,
-            "sprint_ids": request.sprint_ids,
-            "priorities": request.jira_priorities,
-            "min_points": request.min_story_points,
-            "limit": request.limit,
-            "use_approved_version_only": request.use_approved_version_only,
-        },
-        "message": f"{len(job_ids)} risk analysis jobs queued.",
+        "already_analyzed": already_analyzed,
+        "filters_applied": filters_applied,
+        "message": f"{len(job_ids)} risk analysis jobs queued successfully.",
     }
 
 
 @router.get(
     "/pending-count",
-    summary="Get count of pending user stories to analyze",
+    summary="Get count of stories pending risk analysis",
 )
 async def get_pending_analysis_count(
-    project_id: str = Query(...),
+    project_id: str = Query(..., description="Project ID"),
     epic_keys: Optional[str] = Query(None, description="Comma-separated epic keys"),
     sprint_ids: Optional[str] = Query(None, description="Comma-separated sprint IDs"),
     jira_priorities: Optional[str] = Query(None, description="Comma-separated priorities"),
     min_story_points: Optional[float] = None,
     db: AsyncSession = Depends(deps.get_db),
 ) -> dict:
-    """Retourne le nombre de US non encore analysées selon les filtres"""
-    
+    """Get count of user stories that haven't been analyzed yet."""
     from app.models.user_story import UserStory
     from app.models.risk import Risk
     
@@ -211,10 +247,7 @@ async def get_pending_analysis_count(
     
     if epic_list:
         total_query = total_query.where(
-            or_(
-                UserStory.epic_key.in_(epic_list),
-                UserStory.epic_name.in_(epic_list)
-            )
+            or_(UserStory.epic_key.in_(epic_list), UserStory.epic_name.in_(epic_list))
         )
     if sprint_list:
         total_query = total_query.where(UserStory.sprint.in_(sprint_list))
@@ -225,8 +258,10 @@ async def get_pending_analysis_count(
     
     total_stories = await db.scalar(total_query) or 0
     
-    # Already analyzed stories (via Risk.user_story_id)
-    analyzed_subquery = select(Risk.user_story_id.distinct()).where(Risk.user_story_id.isnot(None))
+    # Already analyzed stories (have at least one Risk)
+    analyzed_subquery = select(Risk.user_story_id.distinct()).where(
+        Risk.user_story_id.isnot(None)
+    )
     
     analyzed_query = select(func.count(UserStory.id)).where(
         UserStory.project_id == project_id,
@@ -235,10 +270,7 @@ async def get_pending_analysis_count(
     
     if epic_list:
         analyzed_query = analyzed_query.where(
-            or_(
-                UserStory.epic_key.in_(epic_list),
-                UserStory.epic_name.in_(epic_list)
-            )
+            or_(UserStory.epic_key.in_(epic_list), UserStory.epic_name.in_(epic_list))
         )
     if sprint_list:
         analyzed_query = analyzed_query.where(UserStory.sprint.in_(sprint_list))
@@ -248,7 +280,6 @@ async def get_pending_analysis_count(
         analyzed_query = analyzed_query.where(UserStory.story_points >= min_story_points)
     
     analyzed_stories = await db.scalar(analyzed_query) or 0
-    
     pending_count = max(0, total_stories - analyzed_stories)
     
     # Priority breakdown of pending stories
@@ -262,10 +293,7 @@ async def get_pending_analysis_count(
             )
             if epic_list:
                 priority_query = priority_query.where(
-                    or_(                                      
-                        UserStory.epic_key.in_(epic_list),
-                        UserStory.epic_name.in_(epic_list)
-                    )
+                    or_(UserStory.epic_key.in_(epic_list), UserStory.epic_name.in_(epic_list))
                 )
             if sprint_list:
                 priority_query = priority_query.where(UserStory.sprint.in_(sprint_list))
@@ -278,6 +306,7 @@ async def get_pending_analysis_count(
         "total_stories": total_stories,
         "analyzed_stories": analyzed_stories,
         "pending_stories": pending_count,
+        "completion_percentage": round(analyzed_stories / total_stories * 100, 1) if total_stories > 0 else 0,
         "priority_breakdown": priority_breakdown,
         "has_pending": pending_count > 0,
         "filters_applied": {
@@ -293,20 +322,24 @@ async def get_pending_analysis_count(
     "/analyze",
     response_model=RiskResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Analyze a user story with AI (ISTQB)",
+    summary="Analyze a single user story with LLM",
 )
 async def analyze_user_story(
     request: UserStoryAnalysisRequest,
-    project_id: str = Query(..., description="ID du projet (contexte)"),
     db: AsyncSession = Depends(deps.get_db),
 ) -> RiskResponse:
-    """Analyse une User Story avec l'IA et crée le risque associé."""
+    """
+    Analyze a single user story with LLM for risk assessment.
+    
+    Returns P (1-5), I (1-5), Score = P × I, Level, and test recommendations.
+    """
     service = RiskService(db)
     return await service.analyze_user_story(
         story=request.story,
         acceptance_criteria=request.acceptance_criteria,
-        project_id=project_id,
         user_story_id=request.user_story_id,
+        issue_key=request.issue_key or "?",
+        test_plan_id=request.test_plan_id,
     )
 
 
@@ -320,19 +353,20 @@ async def analyze_user_stories_batch(
     request: BatchAnalysisRequest,
     db: AsyncSession = Depends(deps.get_db),
 ) -> RiskBatchResponse:
-    """Analyse un lot de User Stories avec l'IA."""
+    """Analyze multiple user stories in batch with LLM."""
     service = RiskService(db)
     stories_data = [
         {
             "story": s.story,
             "acceptance_criteria": s.acceptance_criteria,
             "user_story_id": s.user_story_id,
+            "issue_key": s.issue_key or "?",
         }
-        for idx, s in enumerate(request.stories)
+        for s in request.stories
     ]
     return await service.analyze_user_stories_batch(
         stories_data=stories_data,
-        project_id=request.project_id,
+        test_plan_id=request.test_plan_id,
         concurrency=request.concurrency,
     )
 
@@ -341,13 +375,13 @@ async def analyze_user_stories_batch(
     "/manual",
     response_model=RiskResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a risk manually (no AI)",
+    summary="Create a risk manually (no LLM)",
 )
 async def create_risk_manual(
     data: RiskCreate,
     db: AsyncSession = Depends(deps.get_db),
 ) -> RiskResponse:
-    """Création manuelle d'un risque (sans utilisation de l'IA)."""
+    """Create a risk manually without using LLM analysis."""
     service = RiskService(db)
     return await service.create_risk_manual(data)
 
@@ -355,6 +389,43 @@ async def create_risk_manual(
 # ============================================================
 # READ ENDPOINTS
 # ============================================================
+
+@router.get("/all", response_model=List[RiskResponse],
+    summary="Get all risks with optional filters")
+async def get_all_risks(
+    project_id: Optional[str] = Query(None),
+    sprint: Optional[str] = Query(None),
+    epic_key: Optional[str] = Query(None),
+    level: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
+    is_accepted: Optional[bool] = Query(None),
+    source: Optional[str] = Query(None),
+    db: AsyncSession = Depends(deps.get_db),
+) -> List[RiskResponse]:
+    """Get all risks across all projects with optional filters."""
+    service = RiskService(db)
+    return await service.get_all_risks(
+        project_id=project_id, sprint=sprint, epic_key=epic_key,
+        level=level, is_accepted=is_accepted, source=source,
+    )
+
+@router.get(
+    "/{risk_id}",
+    response_model=RiskResponse,
+    summary="Get a single risk by ID",
+)
+async def get_risk(
+    risk_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+) -> RiskResponse:
+    """Get a single risk by its ID."""
+    service = RiskService(db)
+    risk = await service.get_risk(risk_id)
+    if not risk:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Risk {risk_id} not found",
+        )
+    return risk
 
 @router.get(
     "/project/{project_id}",
@@ -421,35 +492,6 @@ async def get_risks_by_epic(
 
 
 @router.get(
-    "/project/{project_id}/summary",
-    response_model=dict,
-    summary="Get risk distribution summary for a project",
-)
-async def get_risk_summary_by_project(
-    project_id: str,
-    db: AsyncSession = Depends(deps.get_db),
-) -> dict:
-    """Get summary statistics for risks in a project."""
-    service = RiskService(db)
-    return await service.get_risk_summary_by_project(project_id)
-
-
-@router.get(
-    "/project/{project_id}/sprint/{sprint}/summary",
-    response_model=dict,
-    summary="Get risk distribution summary for a sprint",
-)
-async def get_risk_summary_by_sprint(
-    project_id: str,
-    sprint: str,
-    db: AsyncSession = Depends(deps.get_db),
-) -> dict:
-    """Get summary statistics for risks in a sprint."""
-    service = RiskService(db)
-    return await service.get_risk_summary_by_sprint(project_id, sprint)
-
-
-@router.get(
     "/user-story/{user_story_id}",
     response_model=List[RiskResponse],
     summary="Get all risks for a user story",
@@ -464,29 +506,47 @@ async def get_risks_by_user_story(
 
 
 @router.get(
-    "/all",
-    response_model=List[RiskResponse],
-    summary="Get all risks with optional filters",
+    "/project/{project_id}/summary",
+    response_model=RiskSummary,
+    summary="Get risk distribution summary for a project",
 )
-async def get_all_risks(
-    project_id: Optional[str] = Query(None),
-    sprint: Optional[str] = Query(None),
-    epic_key: Optional[str] = Query(None),
-    level: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
-    is_accepted: Optional[bool] = Query(None),
-    source: Optional[str] = Query(None, pattern="^(original|approved_version)$"),
+async def get_risk_summary_by_project(
+    project_id: str,
     db: AsyncSession = Depends(deps.get_db),
-) -> List[RiskResponse]:
-    """Get all risks across all projects with optional filters."""
+) -> dict:
+    """Get summary statistics for risks in a project."""
     service = RiskService(db)
-    return await service.get_all_risks(
-        project_id=project_id,
-        sprint=sprint,
-        epic_key=epic_key,
-        level=level,
-        is_accepted=is_accepted,
-        source=source,
-    )
+    return await service.get_risk_summary_by_project(project_id)
+
+
+@router.get(
+    "/project/{project_id}/sprint/{sprint}/summary",
+    response_model=RiskSummary,
+    summary="Get risk distribution summary for a sprint",
+)
+async def get_risk_summary_by_sprint(
+    project_id: str,
+    sprint: str,
+    db: AsyncSession = Depends(deps.get_db),
+) -> dict:
+    """Get summary statistics for risks in a sprint."""
+    service = RiskService(db)
+    return await service.get_risk_summary_by_sprint(project_id, sprint)
+
+
+@router.get(
+    "/project/{project_id}/epic/{epic_key}/summary",
+    response_model=RiskSummary,
+    summary="Get risk distribution summary for an epic",
+)
+async def get_risk_summary_by_epic(
+    project_id: str,
+    epic_key: str,
+    db: AsyncSession = Depends(deps.get_db),
+) -> dict:
+    """Get summary statistics for risks in an epic."""
+    service = RiskService(db)
+    return await service.get_risk_summary_by_epic(project_id, epic_key)
 
 
 @router.get(
@@ -496,58 +556,67 @@ async def get_all_risks(
 )
 async def get_high_priority_risks(
     project_id: Optional[str] = Query(None),
-    min_score: float = Query(12, ge=0, le=4.5),
+    min_score: int = Query(
+        12, ge=1, le=25,
+        description="Minimum risk score (12=High, 20=Critical)"
+    ),
     db: AsyncSession = Depends(deps.get_db),
 ) -> List[RiskResponse]:
-    """Get risks with score >= threshold (ISTQB: Haute ou Critique)."""
+    """
+    Get risks with score >= threshold.
+    Document original: High ≥ 12, Critical ≥ 20.
+    """
     service = RiskService(db)
-    return await service.get_high_priority_risks(project_id, min_score)
-
-
-@router.get(
-    "/rate-limit-status",
-    summary="Check current rate limit status",
-)
-async def get_rate_limit_status(
-    db: AsyncSession = Depends(deps.get_db),
-) -> dict:
-    """Retourne le statut actuel du rate limiting."""
-    from app.models.user_story import UserStory
-    from app.models.risk import Risk
-    
-    query = select(func.count(UserStory.id)).where(
-        ~UserStory.id.in_(select(Risk.user_story_id).where(Risk.is_ai_generated == True))
+    return await service.get_high_priority_risks(
+        project_id=project_id,
+        min_score=min_score,
     )
-    pending_count = await db.execute(query)
-    pending = pending_count.scalar() or 0
-    
-    return {
-        "pending_analyses": pending,
-        "estimated_time_minutes": round(pending * 3 / 60, 1),
-        "rate_limit_tpm": 12000,
-        "recommended_batch_size": 10,
-        "message": "Analyse par lots de 10 US maximum recommandée",
-    }
 
 
 @router.get(
-    "/{risk_id}",
-    response_model=RiskResponse,
-    summary="Get risk by ID",
+    "/critical",
+    response_model=List[RiskResponse],
+    summary="Get critical risks only (score ≥ 20)",
 )
-async def get_risk(
-    risk_id: str,
+async def get_critical_risks(
+    project_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(deps.get_db),
-) -> RiskResponse:
-    """Get a single risk."""
+) -> List[RiskResponse]:
+    """Get critical risks (score ≥ 20) that require comprehensive testing."""
     service = RiskService(db)
-    risk = await service.get_risk(risk_id)
-    if not risk:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Risk {risk_id} not found",
-        )
-    return risk
+    return await service.get_critical_risks(project_id=project_id)
+
+
+@router.get(
+    "/list",
+    response_model=RiskListResponse,
+    summary="List risks with pagination and filters",
+)
+async def list_risks(
+    project_id: Optional[str] = Query(None),
+    sprint: Optional[str] = Query(None),
+    epic_key: Optional[str] = Query(None),
+    user_story_id: Optional[str] = Query(None),
+    level: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
+    is_accepted: Optional[bool] = Query(None),
+    source: Optional[str] = Query(None, pattern="^(llm|original|approved_version|human_modified|manual)$"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    db: AsyncSession = Depends(deps.get_db),
+) -> RiskListResponse:
+    """Get paginated list of risks with optional filters."""
+    service = RiskService(db)
+    return await service.list_risks(
+        project_id=project_id,
+        sprint=sprint,
+        epic_key=epic_key,
+        user_story_id=user_story_id,
+        level=level,
+        is_accepted=is_accepted,
+        source=source,
+        page=page,
+        page_size=page_size,
+    )
 
 
 # ============================================================
@@ -564,7 +633,10 @@ async def update_risk(
     data: RiskUpdate,
     db: AsyncSession = Depends(deps.get_db),
 ) -> RiskResponse:
-    """Update a risk. If P or I changes, risk_score and level are recomputed."""
+    """
+    Update a risk. If P or I changes, Score, Level, and test 
+    recommendations are automatically recomputed.
+    """
     service = RiskService(db)
     risk = await service.update_risk(risk_id, data)
     if not risk:
@@ -578,14 +650,14 @@ async def update_risk(
 @router.patch(
     "/{risk_id}/accept",
     response_model=RiskResponse,
-    summary="Accept or reject a risk",
+    summary="Accept or reject a risk analysis",
 )
 async def accept_risk(
     risk_id: str,
     accepted: bool = Query(..., description="True to accept, False to reject"),
     db: AsyncSession = Depends(deps.get_db),
 ) -> RiskResponse:
-    """Accept (true) or reject (false) a risk."""
+    """Accept (true) or reject (false) a risk analysis."""
     service = RiskService(db)
     risk = await service.accept_risk(risk_id, accepted)
     if not risk:
@@ -599,16 +671,45 @@ async def accept_risk(
 @router.patch(
     "/{risk_id}/mitigation",
     response_model=RiskResponse,
-    summary="Propose mitigation actions",
+    summary="Update mitigation strategy",
 )
 async def propose_mitigation(
     risk_id: str,
-    mitigation: str = Body(..., min_length=3, embed=True),
+    mitigation: str = Body(..., min_length=3, max_length=5000, embed=True),
     db: AsyncSession = Depends(deps.get_db),
 ) -> RiskResponse:
-    """Add or update mitigation actions for a risk."""
+    """Add or update the mitigation strategy for a risk."""
     service = RiskService(db)
     risk = await service.propose_mitigation(risk_id, mitigation)
+    if not risk:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Risk {risk_id} not found",
+        )
+    return risk
+
+
+@router.patch(
+    "/{risk_id}/human-correct",
+    response_model=RiskResponse,
+    summary="Human correction of LLM-generated risk",
+)
+async def human_correct_risk(
+    risk_id: str,
+    correction: HumanCorrectionRequest,
+    db: AsyncSession = Depends(deps.get_db),
+) -> RiskResponse:
+    """
+    QA lead corrects an LLM-generated risk analysis.
+    Overrides P and I values with human judgment.
+    """
+    service = RiskService(db)
+    risk = await service.human_correct_risk(
+        risk_id=risk_id,
+        probability=correction.probability,
+        impact=correction.impact,
+        comment=correction.comment,
+    )
     if not risk:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -620,17 +721,27 @@ async def propose_mitigation(
 @router.post(
     "/{risk_id}/reanalyze",
     response_model=RiskResponse,
-    summary="Re-analyze a risk with AI",
+    summary="Re-analyze a risk with LLM",
 )
 async def reanalyze_risk(
     risk_id: str,
-    story: str = Body(...),
-    acceptance_criteria: List[str] = Body(default=[]),
+    story: str = Body(..., description="Updated user story text"),
+    acceptance_criteria: List[str] = Body(
+        default_factory=list,
+        description="Updated acceptance criteria"
+    ),
     db: AsyncSession = Depends(deps.get_db),
 ) -> RiskResponse:
-    """Réanalyse un risque existant (quand la User Story change)."""
+    """
+    Re-analyze an existing risk when the user story changes.
+    Runs fresh LLM analysis with updated story and ACs.
+    """
     service = RiskService(db)
-    risk = await service.reanalyze_risk(risk_id, story, acceptance_criteria)
+    try:
+        risk = await service.reanalyze_risk(risk_id, story, acceptance_criteria)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
     if not risk:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -652,7 +763,7 @@ async def delete_risk(
     risk_id: str,
     db: AsyncSession = Depends(deps.get_db),
 ) -> None:
-    """Delete a single risk."""
+    """Delete a single risk by ID."""
     service = RiskService(db)
     deleted = await service.delete_risk(risk_id)
     if not deleted:
@@ -674,35 +785,6 @@ async def delete_project_risks(
 ) -> None:
     """Delete all risks associated with a project."""
     service = RiskService(db)
-    await service.delete_project_risks(project_id)
+    count = await service.delete_project_risks(project_id)
+    logger.info(f"Deleted {count} risks for project {project_id}")
     return None
-
-
-class HumanCorrectionRequest(BaseModel):
-    probability: int = Field(ge=1, le=5)
-    impact: int = Field(ge=1, le=5)
-    modified_by: str
-    comment: Optional[str] = None
-
-@router.patch(
-    "/{risk_id}/human-correct",
-    response_model=RiskResponse,
-    summary="Human correction of ML risk analysis",
-)
-async def human_correct_risk(
-    risk_id: str,
-    correction: HumanCorrectionRequest,
-    db: AsyncSession = Depends(deps.get_db),
-) -> RiskResponse:
-    """Correction humaine d'un risque prédit par le ML."""
-    service = RiskService(db)
-    risk = await service.human_correct_risk(
-        risk_id=risk_id,
-        probability=correction.probability,
-        impact=correction.impact,
-        modified_by=correction.modified_by,
-        comment=correction.comment,
-    )
-    if not risk:
-        raise HTTPException(status_code=404, detail=f"Risk {risk_id} not found")
-    return risk

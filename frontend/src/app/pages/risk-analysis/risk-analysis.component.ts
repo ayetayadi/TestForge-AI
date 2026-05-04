@@ -162,24 +162,46 @@ export class RiskAnalysisComponent implements OnInit, OnDestroy {
   });
 
   /** Summary computed client-side from current risks */
-  summary = computed((): RiskSummary | null => {
-    const r = this.sprintEpicFilteredRisks();  // ✅ Utilise les risques filtrés
+summary = computed((): RiskSummary | null => {
+    const r = this.sprintEpicFilteredRisks();
     if (!r.length) return null;
+    
     const by_level = { critical: 0, high: 0, medium: 0, low: 0 };
     let total_score = 0, accepted = 0, rejected = 0;
+    let max_score = 0, min_score = 25;  
+    
     for (const risk of r) {
       by_level[risk.level as RiskLevel] = (by_level[risk.level as RiskLevel] ?? 0) + 1;
       total_score += risk.risk_score;
       if (risk.is_accepted === true) accepted++;
       else if (risk.is_accepted === false) rejected++;
+      if (risk.risk_score > max_score) max_score = risk.risk_score;    // ✅
+      if (risk.risk_score < min_score) min_score = risk.risk_score;    // ✅
     }
+    
+    const criticalCount = by_level.critical;
+    const highCount = by_level.high;
+    const mediumCount = by_level.medium;
+    const lowCount = by_level.low;
+    const totalWeight = (criticalCount * 60) + (highCount * 25) + (mediumCount * 10) + (lowCount * 5);
+    
+    const effort_distribution = {
+      critical: totalWeight > 0 ? `${Math.round(criticalCount * 60 / totalWeight * 100)}%` : '0%',
+      high: totalWeight > 0 ? `${Math.round(highCount * 25 / totalWeight * 100)}%` : '0%',
+      medium: totalWeight > 0 ? `${Math.round(mediumCount * 10 / totalWeight * 100)}%` : '0%',
+      low: totalWeight > 0 ? `${Math.round(lowCount * 5 / totalWeight * 100)}%` : '0%',
+    };
+    
     return {
       total: r.length,
       by_level,
-      avg_score: Math.round(total_score / r.length * 100) / 100,
+      avg_score: r.length > 0 ? Math.round(total_score / r.length) : 0,
+      max_score,                                                       
+      min_score: r.length > 0 ? min_score : 0,                        
       accepted_count: accepted,
       rejected_count: rejected,
       pending_count: r.length - accepted - rejected,
+      effort_distribution,                                             
     };
   });
 
@@ -191,11 +213,11 @@ export class RiskAnalysisComponent implements OnInit, OnDestroy {
       : this.sprintEpicFilteredRisks().filter(r => r.level === f);
     if (!q) return list;
     return list.filter(r =>
-      r.description.toLowerCase().includes(q) ||
-      (r.user_story_key  ?? '').toLowerCase().includes(q) ||
-      (r.user_story_title ?? '').toLowerCase().includes(q) ||
-      r.level.includes(q),
-    );
+  r.description.toLowerCase().includes(q) ||
+  (r.user_story_key  ?? '').toLowerCase().includes(q) ||
+  (r.user_story_title ?? '').toLowerCase().includes(q) ||
+  r.level === q,  // Match exact du level
+);
   });
 
   paginatedRisks = computed(() => {
@@ -272,18 +294,33 @@ matrixCells = computed((): RiskMatrixCell[][] =>
     this.loadingRisks.set(true);
     this.riskService.getAllRisks().subscribe({
       next: risks => { this.allRisks.set(risks); this.loadingRisks.set(false); },
-      error: ()    => { this.loadingRisks.set(false); this.toast.error('Failed to load risks'); },
+      error: ()    => { this.loadingRisks.set(false);},
     });
   }
 
-  /** Charge les risques pour un projet spécifique (via JOIN UserStory côté serveur) */
-  loadRisksByProject(projectId: string): void {
-    this.loadingRisks.set(true);
-    this.riskService.getRisksByProject(projectId).subscribe({
-      next: risks => { this.allRisks.set(risks); this.loadingRisks.set(false); },
-      error: ()    => { this.loadingRisks.set(false); this.toast.error('Failed to load risks for project'); },
-    });
-  }
+loadRisksByProject(projectId: string): void {
+  this.loadingRisks.set(true);
+  
+  // Charger les risques
+  this.riskService.getRisksByProject(projectId).subscribe({
+    next: risks => {
+      this.allRisks.set(risks);
+      this.loadingRisks.set(false);
+    },
+    error: () => {
+      this.loadingRisks.set(false);
+      this.toast.error('Failed to load risks for project');
+    },
+  });
+  
+  // Charger le summary (optionnel, déjà calculé côté client)
+  this.riskService.getRiskSummaryByProject(projectId).subscribe({
+    next: summary => {
+      // Le summary est déjà calculé via computed(), mais on peut logger
+      console.log('Server summary:', summary);
+    },
+  });
+}
 
   loadAllStories(): void {
     this.storiesService.getAllStories().subscribe({
@@ -313,6 +350,27 @@ matrixCells = computed((): RiskMatrixCell[][] =>
     this.availableSprints.set(Array.from(sprintsSet).sort());
   }
 
+humanCorrectRisk(risk: Risk, newProbability: number, newImpact: number): void {
+  const correction = {
+    probability: newProbability,
+    impact: newImpact,
+    comment: 'Manual correction from risk matrix view'
+  };
+  
+  this.riskService.humanCorrectRisk(risk.id, correction).subscribe({
+    next: (updatedRisk) => {
+      // Mettre à jour le risque dans la liste locale
+      this.allRisks.update(risks => 
+        risks.map(r => r.id === updatedRisk.id ? updatedRisk : r)
+      );
+      this.toast.success('Risk updated', `P=${updatedRisk.probability} I=${updatedRisk.impact} Score=${updatedRisk.risk_score}`);
+    },
+    error: (err) => {
+      this.toast.error('Failed to update risk', err.message);
+    }
+  });
+}
+
   // ============================================================
   // SELECTION HANDLERS
   // ============================================================
@@ -338,11 +396,13 @@ matrixCells = computed((): RiskMatrixCell[][] =>
   onSprintFilterChange(sprint: string): void {
     this.selectedSprintFilter.set(sprint);
     this.currentPage.set(1);
+    this.analysisFilters.update(f => ({ ...f, sprint_ids: sprint ? [sprint] : [] }));
   }
 
   onEpicFilterChange(epic: string): void {
     this.selectedEpicFilter.set(epic);
     this.currentPage.set(1);
+    this.analysisFilters.update(f => ({ ...f, epic_keys: epic ? [epic] : [] }));
   }
 
   setAnalysisLimit(value: string): void {
@@ -431,7 +491,7 @@ matrixCells = computed((): RiskMatrixCell[][] =>
     const projectId = this.selectedProjectId();
     if (!projectId || this.analyzing()) return;
 
-    const canAnalyze = await RiskAnalysisValidator.canAnalyzeSafely(this.riskService);
+    const canAnalyze = await RiskAnalysisValidator.canAnalyzeSafely(this.riskService, projectId);
     if (!canAnalyze.safe) {
       this.toast.warning('Rate limit warning', canAnalyze.reason ?? 'Use filters to analyze in smaller batches.');
       return;
@@ -441,7 +501,7 @@ matrixCells = computed((): RiskMatrixCell[][] =>
     this.analyzeProgress.set({ done: 0, total: 0 });
 
     const filters = this.analysisFilters();
-    const cleanRequest: any = { project_id: projectId };  // ✅ Plus de test_plan_id
+    const cleanRequest: any = { project_id: projectId }; 
 
     if (filters.limit) cleanRequest.limit = filters.limit;
     if (filters.min_story_points !== undefined && filters.min_story_points !== null) {
@@ -552,7 +612,7 @@ matrixCells = computed((): RiskMatrixCell[][] =>
   }
 
   private finishAnalysis(success: number, failed: number): void {
-    this.loadRisksByProject(this.selectedProjectId());  // ✅ Recharge par projet
+    this.loadRisksByProject(this.selectedProjectId()); 
     this.storiesService.getAllStories().subscribe({
       next: (stories) => {
         this.allStories.set(stories);
@@ -650,7 +710,12 @@ matrixCells = computed((): RiskMatrixCell[][] =>
     return this.projects().find(p => p.id === projectId)?.project_name ?? projectId;
   }
 
-formatScore(score: number): string { return score.toString(); }    // 20
+formatScore(score: number): string { return score.toString(); }    
+formatScoreWithLevel(score: number): string {
+  const level = classifyLevel(score);
+  const icon = RISK_LEVEL_CONFIG[level].icon;
+  return `${icon} ${score}`;
+}
 probPercent(p: number): number { return Math.round(p / 5 * 100); } // 4 → 80%
 
   acceptanceLabel(val: boolean | null): string {
@@ -682,6 +747,7 @@ probPercent(p: number): number { return Math.round(p / 5 * 100); } // 4 → 80%
     this.selectedSprintFilter.set('');
     this.selectedEpicFilter.set('');
     this.currentPage.set(1);
+    this.analysisFilters.update(f => ({ ...f, sprint_ids: [], epic_keys: [] }));
   }
 
   getProgressPercentage(): number {

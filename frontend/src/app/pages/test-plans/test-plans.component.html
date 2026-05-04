@@ -5,7 +5,7 @@
     <div class="header-content">
       <div class="header-title">
         <h1>Test Plans</h1>
-        <p class="subtitle">AI-powered ISTQB test plan generation & management</p>
+        <p class="subtitle">AI-powered test plan generation & management</p>
       </div>
       <div class="header-actions">
         <button
@@ -57,7 +57,7 @@
   </div>
 
   <!-- ── STATUS TABS ────────────────────────────────────────── -->
-  <div class="status-tabs" *ngIf="selectedProjectId()">
+  <div class="status-tabs">
     <button
       *ngFor="let tab of statusTabs"
       class="status-tab"
@@ -69,17 +69,10 @@
   </div>
 
   <!-- ── EMPTY STATE ────────────────────────────────────────── -->
-  <div class="empty-state" *ngIf="!selectedProjectId()">
-    <div class="empty-icon">📋</div>
-    <h3>Select a project</h3>
-    <p>Choose a project to view and generate test plans.</p>
-  </div>
-
-  <div class="empty-state" *ngIf="selectedProjectId() && !isLoading() && filteredPlans().length === 0">
+  <div class="empty-state" *ngIf="!isLoading() && filteredPlans().length === 0">
     <div class="empty-icon">✦</div>
     <h3>No test plans yet</h3>
-    <p>Generate your first AI-powered test plan based on your risk analysis.</p>
-    <button class="btn-primary" (click)="openGenerateModal()">Generate with AI</button>
+    <p>Select a project and generate your first AI-powered test plan based on your risk analysis.</p>
   </div>
 
   <!-- ── LOADING ────────────────────────────────────────────── -->
@@ -170,7 +163,7 @@
       <div>
         <h2>Generate Test Plan with AI</h2>
         <p class="modal-subtitle">
-          An ISTQB-compliant draft will be generated from your accepted risk analysis results.
+          A Compliant draft will be generated from your accepted risk analysis results.
         </p>
       </div>
       <button class="close-btn" (click)="closeGenerateModal()">✕</button>

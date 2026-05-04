@@ -1,7 +1,7 @@
 <div class="risk-page">
 
   <!-- ══════════════════════════════════════════════
-       HEADER
+       HEADER — title only, clean
   ══════════════════════════════════════════════ -->
   <div class="page-header">
     <div class="header-left">
@@ -12,89 +12,178 @@
       </div>
       <div>
         <h1 class="page-title">Risk Analysis</h1>
-        <p class="page-subtitle">ISTQB — Risk Score = Probability × Impact</p>
+        <p class="page-subtitle">AI-powered risk scoring — Score = Probability × Impact</p>
       </div>
     </div>
 
-    <div class="header-controls">
-      <!-- Project filter -->
-      <div class="select-group">
-        <label>Project</label>
-        <select class="select-input"
-          [ngModel]="selectedProjectId()"
-          (ngModelChange)="onProjectChange($event)">
-          <option value="">All projects</option>
-          <option *ngFor="let p of projects()" [value]="p.id">
-            {{ p.project_name }} ({{ p.project_key }})
-          </option>
-        </select>
-      </div>
-
-      <!-- Sprint filter -->
-      <div class="select-group" *ngIf="viewSprints().length > 0">
-        <label>Sprint</label>
-        <select class="select-input"
-          [ngModel]="selectedSprintFilter()"
-          (ngModelChange)="onSprintFilterChange($event)">
-          <option value="">All sprints</option>
-          <option *ngFor="let s of viewSprints()" [value]="s">{{ s }}</option>
-        </select>
-      </div>
-
-      <!-- Epic filter -->
-      <div class="select-group" *ngIf="viewEpics().length > 0">
-        <label>Epic</label>
-        <select class="select-input"
-          [ngModel]="selectedEpicFilter()"
-          (ngModelChange)="onEpicFilterChange($event)">
-          <option value="">All epics</option>
-          <option *ngFor="let e of viewEpics()" [value]="e">{{ e }}</option>
-        </select>
-      </div>
-
-      <!-- Clear view filters -->
-      <button class="btn-icon btn-icon--clear" *ngIf="hasViewFilters()" (click)="clearViewFilters()" title="Clear sprint/epic filters">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-          <path d="M18 6L6 18M6 6l12 12"/>
+    <div class="header-meta" *ngIf="selectedProjectId()">
+      <span class="header-project-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
         </svg>
-        Clear
-      </button>
+        {{ projectName(selectedProjectId()) }}
+      </span>
+    </div>
+  </div>
 
-      <button class="btn-icon" [class.btn-icon--active]="showFilterPanel()"
-        (click)="toggleFilterPanel()" *ngIf="selectedProjectId()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <polygon points="22 3 2 3 10 13 10 21 14 18 14 13 22 3"/>
+  <!-- ══════════════════════════════════════════════
+       SETUP CARD — configure & launch analysis
+  ══════════════════════════════════════════════ -->
+  <div class="setup-card">
+    <div class="setup-card-header">
+      <div class="setup-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
         </svg>
-        Filters
-        <span class="filter-dot" *ngIf="hasActiveFilters()"></span>
-      </button>
-      <button class="btn-analyze" [disabled]="!selectedProjectId() || analyzing()"
-        [title]="!selectedProjectId() ? 'Select a project to analyze' : ''"
-        (click)="analyzeProject()">
-        <ng-container *ngIf="!analyzing()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
-          </svg>
-          Analyze
+        Configure Analysis
+      </div>
+
+      <div class="setup-status">
+        <ng-container *ngIf="!selectedProjectId()">
+          <span class="status-badge status-badge--idle">Select a project to start</span>
+        </ng-container>
+        <ng-container *ngIf="selectedProjectId() && pendingStories() > 0 && !analyzing()">
+          <span class="status-badge status-badge--pending">
+            {{ pendingStories() }} stories pending analysis
+          </span>
+        </ng-container>
+        <ng-container *ngIf="selectedProjectId() && pendingStories() === 0 && allRisks().length > 0 && !analyzing()">
+          <span class="status-badge status-badge--done">All stories analyzed</span>
         </ng-container>
         <ng-container *ngIf="analyzing()">
-          <span class="spinner-sm"></span>
-          <span *ngIf="analyzeProgress().currentBatch; else defaultProg">{{ analyzeProgress().currentBatch }}</span>
-          <ng-template #defaultProg>{{ analyzeProgress().done }}/{{ analyzeProgress().total }}</ng-template>
+          <span class="status-badge status-badge--running">
+            <span class="status-dot"></span>
+            Analysis running…
+          </span>
         </ng-container>
-      </button>
-      <!-- Accept All -->
-      <button class="btn-accept-all" 
-        *ngIf="selectedProjectId()"
-        [disabled]="analyzing()"
-        (click)="acceptAllVisibleRisks()"
-        title="Accept all pending risks in current view">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </div>
+    </div>
+
+    <div class="setup-filters-row">
+
+      <!-- Project (mandatory) -->
+      <div class="setup-field setup-field--project">
+        <label class="setup-label">
+          Project
+          <span class="setup-required">*</span>
+        </label>
+        <div class="setup-select-wrap">
+          <svg class="setup-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
+          </svg>
+          <select class="setup-select"
+            [ngModel]="selectedProjectId()"
+            (ngModelChange)="onProjectChange($event)">
+            <option value="">Choose a project…</option>
+            <option *ngFor="let p of projects()" [value]="p.id">
+              {{ p.project_name }} ({{ p.project_key }})
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Sprint (appears after project selected) -->
+      <div class="setup-field" *ngIf="selectedProjectId() && availableSprints().length > 0">
+        <label class="setup-label">Sprint</label>
+        <div class="setup-select-wrap">
+          <svg class="setup-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 6v4l3 3"/>
+          </svg>
+          <select class="setup-select"
+            [ngModel]="selectedSprintFilter()"
+            (ngModelChange)="onSprintFilterChange($event)">
+            <option value="">All sprints</option>
+            <option *ngFor="let s of availableSprints()" [value]="s">{{ s }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Epic (appears after project selected) -->
+      <div class="setup-field" *ngIf="selectedProjectId() && availableEpics().length > 0">
+        <label class="setup-label">Epic</label>
+        <div class="setup-select-wrap">
+          <svg class="setup-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          <select class="setup-select"
+            [ngModel]="selectedEpicFilter()"
+            (ngModelChange)="onEpicFilterChange($event)">
+            <option value="">All epics</option>
+            <option *ngFor="let e of availableEpics()" [value]="e">{{ e }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Limit (appears after project selected) -->
+      <div class="setup-field setup-field--limit" *ngIf="selectedProjectId()">
+        <label class="setup-label">Stories limit</label>
+        <div class="setup-select-wrap">
+          <svg class="setup-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M3 3h18M3 9h12M3 15h8"/>
+          </svg>
+          <select class="setup-select"
+            [ngModel]="analysisLimit()"
+            (ngModelChange)="setAnalysisLimit($event)">
+            <option value="20">20 stories</option>
+            <option value="50">50 stories</option>
+            <option value="100">100 stories (recommended)</option>
+            <option value="200">200 stories</option>
+            <option value="500">500 stories</option>
+            <option value="all">All stories</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Force reanalyze checkbox -->
+      <div class="setup-field setup-field--check" *ngIf="selectedProjectId()">
+        <label class="setup-label">&nbsp;</label>
+        <label class="check-wrap">
+          <input type="checkbox"
+            [ngModel]="analysisFilters().force_reanalyze"
+            (ngModelChange)="updateFilter('force_reanalyze', $event)">
+          <span class="check-text">Force reanalyze</span>
+        </label>
+      </div>
+
+      <!-- RUN CTA — always last -->
+      <div class="setup-field setup-field--cta">
+        <label class="setup-label">&nbsp;</label>
+        <button class="btn-run-analysis"
+          [disabled]="!selectedProjectId() || analyzing()"
+          (click)="analyzeProject()">
+          <ng-container *ngIf="!analyzing()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Run Analysis
+          </ng-container>
+          <ng-container *ngIf="analyzing()">
+            <span class="spinner-sm"></span>
+            Analyzing…
+          </ng-container>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Active filter chips -->
+    <div class="active-chips" *ngIf="selectedSprintFilter() || selectedEpicFilter()">
+      <span class="active-chip-label">Active filters:</span>
+      <span class="active-chip" *ngIf="selectedSprintFilter()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+          <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 6v4l3 3"/>
         </svg>
-        Accept All
-      </button>
-      
+        Sprint: {{ selectedSprintFilter() }}
+        <button class="chip-x" (click)="onSprintFilterChange('')">×</button>
+      </span>
+      <span class="active-chip" *ngIf="selectedEpicFilter()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        Epic: {{ selectedEpicFilter() }}
+        <button class="chip-x" (click)="onEpicFilterChange('')">×</button>
+      </span>
+      <button class="chip-clear" (click)="clearViewFilters()">Clear all</button>
     </div>
   </div>
 
@@ -117,16 +206,17 @@
           </span>
         </div>
       </div>
-      
+
       <div class="progress-bar-wrapper">
-        <div class="progress-bar-fill" 
+        <div class="progress-bar-fill"
              [style.width.%]="getProgressPercentage()">
         </div>
       </div>
-      
+
       <div class="progress-footer">
         <div class="progress-remaining">
-          ⏳ <strong>{{ analyzeProgress().total - analyzeProgress().done }}</strong> story{{ (analyzeProgress().total - analyzeProgress().done) > 1 ? 's' : '' }} remaining
+          ⏳ <strong>{{ analyzeProgress().total - analyzeProgress().done }}</strong>
+          {{ (analyzeProgress().total - analyzeProgress().done) === 1 ? 'user story' : 'user stories' }} remaining
         </div>
         <div class="progress-current" *ngIf="analyzeProgress().currentBatch">
           📍 {{ analyzeProgress().currentBatch }}
@@ -142,7 +232,7 @@
     <div class="banner-content">
       <div class="banner-icon">📊</div>
       <div class="banner-text">
-        <strong>{{ pendingStories() }} stories remaining to analyze</strong>
+        <strong>{{ pendingStories() }} user stories remaining to analyze</strong>
         <span class="banner-detail">
           ({{ totalStories() }} total, {{ analyzedStories() }} already analyzed)
         </span>
@@ -169,173 +259,111 @@
   </div>
 
   <!-- ══════════════════════════════════════════════
-       FILTER PANEL
-  ══════════════════════════════════════════════ -->
-  <div class="filter-panel" *ngIf="showFilterPanel() && selectedProjectId()">
-    <div class="filter-panel-header">
-      <span class="filter-panel-title">Analysis Filters</span>
-      <button class="btn-link" (click)="clearFilters()">Reset all</button>
-    </div>
-
-    <div class="filter-grid">
-      <div class="filter-field">
-        <label>Epics</label>
-        <div class="tag-list" *ngIf="analysisFilters().epic_keys?.length">
-          <span class="tag" *ngFor="let e of analysisFilters().epic_keys">
-            {{ e }}<button class="tag-remove" (click)="removeFilterValue('epic_keys', e)">×</button>
-          </span>
-        </div>
-        <select class="filter-select" #epicSel (change)="addFilterValue('epic_keys', epicSel.value); epicSel.value=''">
-          <option value="">+ Add an epic…</option>
-          <option *ngFor="let e of availableEpics()" [value]="e">{{ e }}</option>
-        </select>
-      </div>
-
-      <div class="filter-field">
-        <label>Sprints</label>
-        <div class="tag-list" *ngIf="analysisFilters().sprint_ids?.length">
-          <span class="tag" *ngFor="let s of analysisFilters().sprint_ids">
-            {{ s }}<button class="tag-remove" (click)="removeFilterValue('sprint_ids', s)">×</button>
-          </span>
-        </div>
-        <select class="filter-select" #sprintSel (change)="addFilterValue('sprint_ids', sprintSel.value); sprintSel.value=''">
-          <option value="">+ Add a sprint…</option>
-          <option *ngFor="let s of availableSprints()" [value]="s">{{ s }}</option>
-        </select>
-      </div>
-
-      <div class="filter-field">
-        <label>Jira Priority</label>
-        <div class="tag-list" *ngIf="analysisFilters().jira_priorities?.length">
-          <span class="tag" *ngFor="let p of analysisFilters().jira_priorities">
-            {{ p }}<button class="tag-remove" (click)="removeFilterValue('jira_priorities', p)">×</button>
-          </span>
-        </div>
-        <select class="filter-select" #prioSel (change)="addFilterValue('jira_priorities', prioSel.value); prioSel.value=''">
-          <option value="">+ Add a priority…</option>
-          <option *ngFor="let p of PRIORITY_OPTIONS" [value]="p">{{ p }}</option>
-        </select>
-      </div>
-
-      <div class="filter-field">
-        <label>Min. Story Points</label>
-        <input type="number" class="filter-input"
-          [ngModel]="analysisFilters().min_story_points"
-          (ngModelChange)="updateFilter('min_story_points', $event)"
-          placeholder="e.g. 5" min="0">
-      </div>
-
-      <div class="filter-field">
-        <label>Analysis Limit</label>
-        <select class="filter-select"
-          [ngModel]="analysisLimit()"
-          (ngModelChange)="setAnalysisLimit($event)">
-          <option value="all">📊 All stories (no limit)</option>
-          <option value="20">📈 20 stories (quick check)</option>
-          <option value="50">📊 50 stories (medium)</option>
-          <option value="100">🔥 100 stories (recommended)</option>
-          <option value="200">⚡ 200 stories (full project)</option>
-          <option value="500">🚀 500 stories (enterprise)</option>
-        </select>
-        <small *ngIf="analysisLimit() === 'all'">Analyzes ALL stories (takes longer)</small>
-        <small *ngIf="analysisLimit() !== 'all'">Analyzes max {{ analysisLimit() }} stories</small>
-      </div>
-
-      <div class="filter-field filter-field--checkbox">
-        <label class="checkbox-label">
-          <input type="checkbox"
-            [ngModel]="analysisFilters().force_reanalyze"
-            (ngModelChange)="updateFilter('force_reanalyze', $event)">
-          Force reanalysis
-        </label>
-      </div>
-    </div>
-
-    <div class="filter-quick-actions">
-      <button class="btn-quick" (click)="analyzeByPriority('Highest')">⚡ Highest Priority</button>
-      <button class="btn-quick" (click)="analyzeByPriority('High')">⚡ High Priority</button>
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════════
        STATS BAR
   ══════════════════════════════════════════════ -->
-  <div class="stats-bar" *ngIf="!analyzing() && allRisks().length > 0">
-    <div class="stat-card stat-card--total">
-      <div class="stat-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
+  <div class="stats-section" *ngIf="!analyzing() && allRisks().length > 0">
+    <div class="stats-bar">
+      <div class="stat-card stat-card--total">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="stat-value">{{ summary()?.total ?? risks().length }}</div>
+          <div class="stat-label">Total Risks</div>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card--critical" [class.is-active]="activeFilter()==='critical'"
+        (click)="setFilter('critical')">
+        <span class="stat-badge">⛔</span>
+        <div>
+          <div class="stat-value">{{ totalByLevel().critical }}</div>
+          <div class="stat-label">Critical</div>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card--high" [class.is-active]="activeFilter()==='high'"
+        (click)="setFilter('high')">
+        <span class="stat-badge">⚠️</span>
+        <div>
+          <div class="stat-value">{{ totalByLevel().high }}</div>
+          <div class="stat-label">High</div>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card--medium" [class.is-active]="activeFilter()==='medium'"
+        (click)="setFilter('medium')">
+        <span class="stat-badge">🔶</span>
+        <div>
+          <div class="stat-value">{{ totalByLevel().medium }}</div>
+          <div class="stat-label">Medium</div>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card--low" [class.is-active]="activeFilter()==='low'"
+        (click)="setFilter('low')">
+        <span class="stat-badge">✅</span>
+        <div>
+          <div class="stat-value">{{ totalByLevel().low }}</div>
+          <div class="stat-label">Low</div>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card--score">
+        <div class="stat-icon stat-icon--score">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/>
+          </svg>
+        </div>
+        <div>
+          <div class="stat-value">{{ formatScore(summary()?.avg_score ?? 0) }}</div>
+          <div class="stat-label">Avg Score</div>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card--reviewed">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="stat-value">{{ acceptanceRate() }}%</div>
+          <div class="stat-label">Reviewed</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Secondary actions -->
+    <div class="stats-actions">
+      <button class="btn-secondary"
+        [class.btn-secondary--active]="showMatrix()"
+        (click)="toggleMatrix()"
+        title="Show/Hide Risk Matrix">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
         </svg>
-      </div>
-      <div>
-        <div class="stat-value">{{ summary()?.total ?? risks().length }}</div>
-        <div class="stat-label">Total Risks</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--critical" [class.is-active]="activeFilter()==='critical'"
-      (click)="setFilter('critical')">
-      <span class="stat-badge">⛔</span>
-      <div>
-        <div class="stat-value">{{ totalByLevel().critical }}</div>
-        <div class="stat-label">Critical</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--high" [class.is-active]="activeFilter()==='high'"
-      (click)="setFilter('high')">
-      <span class="stat-badge">⚠️</span>
-      <div>
-        <div class="stat-value">{{ totalByLevel().high }}</div>
-        <div class="stat-label">High</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--medium" [class.is-active]="activeFilter()==='medium'"
-      (click)="setFilter('medium')">
-      <span class="stat-badge">🔶</span>
-      <div>
-        <div class="stat-value">{{ totalByLevel().medium }}</div>
-        <div class="stat-label">Medium</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--low" [class.is-active]="activeFilter()==='low'"
-      (click)="setFilter('low')">
-      <span class="stat-badge">✅</span>
-      <div>
-        <div class="stat-value">{{ totalByLevel().low }}</div>
-        <div class="stat-label">Low</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--score">
-      <div class="stat-icon stat-icon--score">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/>
-        </svg>
-      </div>
-      <div>
-        <div class="stat-value">{{ formatScore(summary()?.avg_score ?? 0) }}</div>
-        <div class="stat-label">Avg Score</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--reviewed">
-      <div class="stat-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        Matrix
+      </button>
+      <button class="btn-secondary btn-secondary--accept"
+        *ngIf="sprintEpicFilteredRisks().length > 0"
+        (click)="acceptAllVisibleRisks()"
+        title="Accept all pending risks in current view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
           <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-      </div>
-      <div>
-        <div class="stat-value">{{ acceptanceRate() }}%</div>
-        <div class="stat-label">Reviewed</div>
-      </div>
+        Accept All
+      </button>
     </div>
   </div>
 
   <!-- ══════════════════════════════════════════════
-       RISK REGISTER — cards grid
+       RISK REGISTER
   ══════════════════════════════════════════════ -->
   <div class="section-card">
 
@@ -384,7 +412,7 @@
       </button>
     </div>
 
-    <!-- ── CARDS GRID ───────────────────────────────── -->
+    <!-- CARDS GRID -->
     <div class="risk-grid" *ngIf="!loadingRisks() && paginatedRisks().length > 0">
       <div class="risk-card risk-card--{{ risk.level }}"
         *ngFor="let risk of paginatedRisks(); trackBy: trackByRiskId"
@@ -393,7 +421,6 @@
         tabindex="0"
         (keydown.enter)="openRisk(risk)">
 
-        <!-- Top row: level badge + score + AI icon -->
         <div class="card-top">
           <span class="level-badge badge-{{ risk.level }}">{{ risk.level | uppercase }}</span>
           <div class="card-top-right">
@@ -402,7 +429,6 @@
           </div>
         </div>
 
-        <!-- User story reference -->
         <div class="card-us" *ngIf="risk.user_story_key">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -412,7 +438,6 @@
           <span class="us-title" *ngIf="risk.user_story_title">{{ risk.user_story_title }}</span>
         </div>
 
-        <!-- Sprint & Epic tags -->
         <div class="card-meta-tags">
           <span class="meta-tag meta-tag--sprint" *ngIf="getStorySprint(risk) as sprint">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
@@ -428,10 +453,8 @@
           </span>
         </div>
 
-        <!-- Description -->
         <p class="card-description">{{ risk.description }}</p>
 
-        <!-- ISTQB formula -->
         <div class="card-formula">
           <span class="formula-part">P <strong>{{ probPercent(risk.probability) }}%</strong></span>
           <span class="formula-op">×</span>
@@ -440,7 +463,6 @@
           <span class="formula-result score-{{ risk.level }}">{{ formatScore(risk.risk_score) }}</span>
         </div>
 
-        <!-- Footer: status + arrow -->
         <div class="card-footer">
           <span class="status-chip"
             [class.chip-accepted]="risk.is_accepted === true"
@@ -448,16 +470,16 @@
             [class.chip-pending]="risk.is_accepted === null">
             {{ acceptanceLabel(risk.is_accepted) }}
           </span>
-            <button class="btn-delete-card" 
-    (click)="deleteRisk(risk.id, $event)"
-    title="Delete this risk">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-      <polyline points="3 6 5 6 21 6"/>
-      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-      <line x1="10" y1="11" x2="10" y2="17"/>
-      <line x1="14" y1="11" x2="14" y2="17"/>
-    </svg>
-  </button>
+          <button class="btn-delete-card"
+            (click)="deleteRisk(risk.id, $event)"
+            title="Delete this risk">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </button>
           <span class="card-arrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
               <path d="M9 18l6-6-6-6"/>
@@ -467,7 +489,7 @@
       </div>
     </div>
 
-    <!-- ── PAGINATION ────────────────────────────────── -->
+    <!-- PAGINATION -->
     <div class="pagination-wrap" *ngIf="!loadingRisks() && searchFilteredRisks().length > 0">
       <app-pagination
         [totalItems]="searchFilteredRisks().length"
@@ -494,7 +516,6 @@
         Risk Matrix — {{ selectedProjectId() ? projectName(selectedProjectId()) : 'All Projects' }}
       </h2>
       <div class="section-header-right">
-        <span class="badge-istqb">ISTQB</span>
         <svg class="chevron" [class.chevron--open]="showMatrix()"
           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <path d="M6 9l6 6 6-6"/>
@@ -532,7 +553,7 @@
                 <div class="cell-bubbles" *ngIf="cell.risks.length > 0">
                   <span class="bubble bubble-{{r.level}}"
                     *ngFor="let r of cell.risks.slice(0,3)" [title]="r.description">
-                    {{ r.risk_score.toFixed(1) }}
+                    {{ formatScore(r.risk_score) }}
                   </span>
                   <span class="bubble bubble-more" *ngIf="cell.risks.length > 3">
                     +{{ cell.risks.length - 3 }}
@@ -556,5 +577,5 @@
       </ng-template>
     </div>
   </div>
-  
+
 </div>

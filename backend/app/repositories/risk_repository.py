@@ -33,21 +33,29 @@ class RiskRepository:
 
         risk_score = data.compute_risk_score()
         level = data.compute_level()
+        test_depth = self._get_test_depth(level)
 
         risk = Risk(
             id=str(uuid4()),
             user_story_id=data.user_story_id,
+            test_plan_id=data.test_plan_id,
             description=data.description,
             mitigation=data.mitigation,
             reasoning=data.reasoning,
             probability=data.probability,
+            probability_factors=data.probability_factors,
+            probability_reasoning=data.probability_reasoning,
             impact=data.impact,
+            impact_factors=data.impact_factors,
+            impact_reasoning=data.impact_reasoning,
             risk_score=risk_score,
             level=level,
+            test_depth=test_depth,
+            test_techniques=data.test_techniques or self._get_default_techniques(level),
+            effort_allocation=data.effort_allocation or self._get_effort_allocation(level),
             is_ai_generated=data.is_ai_generated,
             is_accepted=data.is_accepted,
             source=data.source,
-            source_version_id=data.source_version_id,
             source_story_text=data.source_story_text,
             source_acceptance_criteria=data.source_acceptance_criteria,
         )
@@ -56,7 +64,7 @@ class RiskRepository:
         await self.db.flush()
         await self.db.refresh(risk)
         
-        logger.info(f"[RISK REPO] Created risk {risk.id} score={risk_score} level={level}")
+        logger.info(f"[RISK REPO] Created risk {risk.id} P={risk.probability} I={risk.impact} Score={risk_score} Level={level}")
         return risk
     
     async def create_for_stories(
@@ -68,14 +76,14 @@ class RiskRepository:
         base_data: Optional[RiskCreate] = None,
     ) -> Tuple[List[Risk], List[dict]]:
         """
-        Crée des risques pour toutes les UserStories correspondant aux filtres.
+        Create risks for all UserStories matching the filters.
         
         Args:
-            project_id: Projet Jira concerné
-            sprint: Filtrer par sprint
-            epic_key: Filtrer par epic
-            use_approved_version_only: Utiliser uniquement les versions approuvées
-            base_data: Données de base pour chaque risque
+            project_id: Jira project concerned
+            sprint: Filter by sprint
+            epic_key: Filter by epic
+            use_approved_version_only: Use only approved versions
+            base_data: Base data for each risk
         """
         stmt = select(UserStory).where(UserStory.project_id == project_id)
         
@@ -108,7 +116,6 @@ class RiskRepository:
                 
                 risk_data = RiskCreate(
                     user_story_id=us.id,
-                    source_version_id=version_id,
                     source_story_text=source_text,
                     source_acceptance_criteria=ac_criteria,
                     source=source,
@@ -190,24 +197,22 @@ class RiskRepository:
         user_story_id: Optional[str] = None,
         level: Optional[str] = None,
         is_accepted: Optional[bool] = None,
-        source: Optional[str] = None,  # "original" | "approved_version"
-        page: int = 1,
-        page_size: int = 50,
+        source: Optional[str] = None,
     ) -> Tuple[List[Risk], int]:
         """
-        Récupère TOUS les risques avec filtres optionnels.
+        Get all risks with optional filters.
         
-        Exemples d'utilisation :
-        - get_all() → Tous les risques
-        - get_all(project_id="proj-1") → Risques du projet
-        - get_all(project_id="proj-1", sprint="Sprint 4") → Risques du sprint
-        - get_all(project_id="proj-1", epic_key="SCRUM-12") → Risques de l'epic
-        - get_all(level="critical") → Risques critiques tous projets
-        - get_all(source="approved_version") → Risques basés sur versions approuvées
+        Examples:
+        - get_all() → All risks
+        - get_all(project_id="proj-1") → Project risks
+        - get_all(project_id="proj-1", sprint="Sprint 4") → Sprint risks
+        - get_all(project_id="proj-1", epic_key="SCRUM-12") → Epic risks
+        - get_all(level="critical") → Critical risks across all projects
+        - get_all(source="approved_version") → Risks from approved versions
         """
         stmt = select(Risk).options(selectinload(Risk.user_story))
         
-        # JOINTURE uniquement si filtre projet/sprint/epic
+        # JOIN only if filtering by project/sprint/epic
         if project_id or sprint or epic_key:
             stmt = stmt.join(UserStory, Risk.user_story_id == UserStory.id)
             
@@ -218,7 +223,7 @@ class RiskRepository:
             if epic_key:
                 stmt = stmt.where(UserStory.epic_key == epic_key)
         
-        # Filtres directs sur Risk
+        # Direct Risk filters
         if user_story_id:
             stmt = stmt.where(Risk.user_story_id == user_story_id)
         if level:
@@ -232,7 +237,6 @@ class RiskRepository:
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = await self.db.scalar(count_stmt)
         
-        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
         stmt = stmt.order_by(Risk.risk_score.desc())
         
         result = await self.db.execute(stmt)
@@ -241,7 +245,7 @@ class RiskRepository:
     async def get_high_priority_risks(
         self,
         project_id: Optional[str] = None,
-        min_score: float = 2.5
+        min_score: int = 12  # Document original: High ≥ 12
     ) -> List[Risk]:
         """Get risks above threshold for a project."""
         stmt = (
@@ -258,12 +262,19 @@ class RiskRepository:
         result = await self.db.execute(stmt)
         return result.scalars().all()
     
+    async def get_critical_risks(self, project_id: Optional[str] = None) -> List[Risk]:
+        """Get critical risks (score ≥ 20) for a project."""
+        return await self.get_high_priority_risks(
+            project_id=project_id, 
+            min_score=20  # Critical threshold per original document
+        )
+    
     # ============================================================
     # UPDATE
     # ============================================================
     
     async def update(self, risk_id: str, data: RiskUpdate) -> Optional[Risk]:
-        """Update a risk and recompute risk_score and level if P or I changed."""
+        """Update a risk and recompute score/level if P or I changed."""
         risk = await self.get_by_id(risk_id)
         if not risk:
             return None
@@ -276,9 +287,29 @@ class RiskRepository:
             setattr(risk, field, value)
         
         if p_i_changed:
-            risk.risk_score = round(risk.probability * risk.impact, 2)
-            risk.level = self._compute_level(risk.risk_score)
-            logger.info(f"[RISK REPO] Recomputed risk {risk_id}: score={risk.risk_score} level={risk.level}")
+            # Recalculate score (P × I, integer 1-25)
+            risk.risk_score = risk.probability * risk.impact
+            
+            # Reclassify level (document original thresholds)
+            if risk.risk_score >= 20:
+                risk.level = "critical"
+            elif risk.risk_score >= 12:
+                risk.level = "high"
+            elif risk.risk_score >= 6:
+                risk.level = "medium"
+            else:
+                risk.level = "low"
+            
+            # Update test depth accordingly
+            risk.test_depth = self._get_test_depth(risk.level)
+            risk.test_techniques = self._get_default_techniques(risk.level)
+            risk.effort_allocation = self._get_effort_allocation(risk.level)
+            
+            logger.info(
+                f"[RISK REPO] Recomputed risk {risk_id}: "
+                f"P={risk.probability} I={risk.impact} "
+                f"Score={risk.risk_score} Level={risk.level}"
+            )
         
         await self.db.flush()
         await self.db.refresh(risk)
@@ -286,12 +317,12 @@ class RiskRepository:
         return risk
     
     async def accept_risk(self, risk_id: str, accepted: bool) -> Optional[Risk]:
-        """Accept or reject a risk."""
+        """Accept or reject a risk analysis."""
         risk = await self.get_by_id(risk_id)
         if not risk:
             return None
         
-        risk.is_accepted = accepted
+        risk.accept() if accepted else risk.reject()
         await self.db.flush()
         await self.db.refresh(risk)
         
@@ -359,12 +390,24 @@ class RiskRepository:
         result = await self.db.execute(stmt)
         return self._build_summary(result.scalars().all())
 
+    async def get_risk_summary_by_epic(self, project_id: str, epic_key: str) -> dict:
+        """Get risk distribution summary for an epic."""
+        stmt = (
+            select(Risk)
+            .join(UserStory, Risk.user_story_id == UserStory.id)
+            .where(UserStory.project_id == project_id)
+            .where(UserStory.epic_key == epic_key)
+            .order_by(Risk.risk_score.desc())
+        )
+        result = await self.db.execute(stmt)
+        return self._build_summary(result.scalars().all())
+
     # ============================================================
     # PRIVATE HELPERS
     # ============================================================
 
     async def _get_last_approved_version(self, user_story_id: str) -> Optional[UserStoryVersion]:
-        """Récupère la dernière version approuvée d'une UserStory."""
+        """Get the last approved version of a UserStory."""
         from app.models.enums import StoryDecision
         
         stmt = (
@@ -378,26 +421,57 @@ class RiskRepository:
         return result.scalar_one_or_none()
       
     def _build_summary(self, risks) -> dict:
+        """Build a summary dictionary from a list of risks."""
         summary = {
             "total": len(risks),
             "by_level": {"critical": 0, "high": 0, "medium": 0, "low": 0},
-            "avg_score": 0.0,
+            "avg_score": 0,
+            "max_score": 0,
+            "min_score": 25 if risks else 0,
             "accepted_count": 0,
             "rejected_count": 0,
             "pending_count": 0,
+            "effort_distribution": {
+                "critical": "0%",
+                "high": "0%", 
+                "medium": "0%",
+                "low": "0%"
+            }
         }
-        total_score = 0.0
+        
+        total_score = 0
         for risk in risks:
             summary["by_level"][risk.level] = summary["by_level"].get(risk.level, 0) + 1
             total_score += risk.risk_score
+            
+            if risk.risk_score > summary["max_score"]:
+                summary["max_score"] = risk.risk_score
+            if risk.risk_score < summary["min_score"]:
+                summary["min_score"] = risk.risk_score
+            
             if risk.is_accepted is True:
                 summary["accepted_count"] += 1
             elif risk.is_accepted is False:
                 summary["rejected_count"] += 1
             else:
                 summary["pending_count"] += 1
+        
         if risks:
-            summary["avg_score"] = round(total_score / len(risks), 2)
+            summary["avg_score"] = round(total_score / len(risks), 0)  # Integer average
+        
+        # Calculate effort distribution (document original: 60/25/10/5)
+        critical_count = summary["by_level"]["critical"]
+        high_count = summary["by_level"]["high"]
+        medium_count = summary["by_level"]["medium"]
+        low_count = summary["by_level"]["low"]
+        
+        total_weight = (critical_count * 60 + high_count * 25 + medium_count * 10 + low_count * 5)
+        if total_weight > 0:
+            summary["effort_distribution"]["critical"] = f"{round(critical_count * 60 / total_weight * 100, 1)}%"
+            summary["effort_distribution"]["high"] = f"{round(high_count * 25 / total_weight * 100, 1)}%"
+            summary["effort_distribution"]["medium"] = f"{round(medium_count * 10 / total_weight * 100, 1)}%"
+            summary["effort_distribution"]["low"] = f"{round(low_count * 5 / total_weight * 100, 1)}%"
+        
         return summary
     
     async def _validate_foreign_keys(self, user_story_id: Optional[str]) -> None:
@@ -423,15 +497,57 @@ class RiskRepository:
             stmt = stmt.where(Risk.risk_score >= filters.min_risk_score)
         if filters.max_risk_score is not None:
             stmt = stmt.where(Risk.risk_score <= filters.max_risk_score)
+        if filters.test_depth:
+            stmt = stmt.where(Risk.test_depth == filters.test_depth)
         return stmt
     
     @staticmethod
-    def _compute_level(risk_score: float) -> str:
-        """ISTQB classification based on risk score."""
-        if risk_score >= 4.0:
+    def _compute_level(risk_score: int) -> str:
+        """
+        ISTQB classification based on risk score.
+        ALIGNED WITH ORIGINAL DOCUMENT:
+        - Critical: 20-25
+        - High: 12-19
+        - Medium: 6-11
+        - Low: 1-5
+        """
+        if risk_score >= 20:
             return "critical"
-        if risk_score >= 2.5:
+        if risk_score >= 12:
             return "high"
-        if risk_score >= 1.0:
+        if risk_score >= 6:
             return "medium"
         return "low"
+    
+    @staticmethod
+    def _get_test_depth(level: str) -> str:
+        """Get test depth based on risk level (document original)."""
+        depth_map = {
+            "critical": "comprehensive",
+            "high": "thorough",
+            "medium": "standard",
+            "low": "smoke"
+        }
+        return depth_map.get(level, "standard")
+    
+    @staticmethod
+    def _get_default_techniques(level: str) -> list:
+        """Get default test techniques based on risk level (document original)."""
+        techniques_map = {
+            "critical": ["unit", "integration", "e2e", "performance", "security"],
+            "high": ["unit", "integration", "e2e"],
+            "medium": ["unit", "integration"],
+            "low": ["smoke"]
+        }
+        return techniques_map.get(level, ["unit"])
+    
+    @staticmethod
+    def _get_effort_allocation(level: str) -> str:
+        """Get effort allocation based on risk level (document original)."""
+        allocation_map = {
+            "critical": "60%",
+            "high": "25%",
+            "medium": "10%",
+            "low": "5%"
+        }
+        return allocation_map.get(level, "10%")

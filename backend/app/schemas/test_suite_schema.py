@@ -141,8 +141,11 @@ class DependencyNode(BaseModel):
     priority: Optional[str] = None
     test_type: Optional[str] = None
     execution_order: Optional[int] = None
-    test_suite_id: Optional[str] = None  # ✅ Ajouté pour contexte
-
+    test_suite_id: Optional[str] = None
+    business_flow: Optional[str] = None  # ← Déjà présent    
+    flow_rank: Optional[int] = Field(None, description="Business flow rank (1-8)")
+    risk_weight: Optional[int] = Field(None, description="Risk weight (100-1000)")
+    status_color: Optional[str] = Field(None, description="Couleur selon le flow")
 
 class DependencyEdge(BaseModel):
     source: str = Field(description="tc_code of source test case")

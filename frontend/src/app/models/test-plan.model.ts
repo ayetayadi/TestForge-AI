@@ -34,9 +34,12 @@ export interface TestPlan {
   generation_completed_at?: string;
   created_at: string;
   updated_at: string;
+  
+  // ✅ Sections enrichies
   risk_analysis?: RiskAnalysisDisplay;
   estimation?: PertEstimationDisplay;
   recommendations_detail?: RecommendationsDetail;
+  ai_reasoning?: string;  // ← AJOUTÉ
 }
 
 export interface TestPlanListResponse {
@@ -102,7 +105,6 @@ export interface GenerateTestPlanRequest {
   environment?: string;
   limit_risks?: number;
   limit_stories?: number;
-  // ✅ Nouveaux champs pour filtrage
   sprint_ids?: string[];
   epic_keys?: string[];
 }
@@ -199,6 +201,7 @@ export interface JiraNotificationResponse {
 // RISK ANALYSIS DISPLAY (visible dans le Test Plan)
 // ============================================================
 
+// ✅ ENRICHIE : Ajout de mitigation, test_techniques, test_depth, effort_allocation
 export interface RiskMappingEntry {
   issue_key: string;
   title: string;
@@ -207,6 +210,10 @@ export interface RiskMappingEntry {
   risk_description?: string;
   probability?: number;
   impact?: number;
+  mitigation?: string;           // ← Plan d'atténuation du risque
+  test_techniques?: string[];    // ← Techniques de test recommandées
+  test_depth?: string;           // ← comprehensive | thorough | standard | smoke
+  effort_allocation?: string;    // ← "60%" | "25%" | "10%" | "5%"
 }
 
 export interface RiskDistribution {
@@ -230,11 +237,30 @@ export interface RiskFormulas {
   };
 }
 
+// ✅ ENRICHIE : Ajout de aggregated_recommendations
+export interface AggregatedRecommendations {
+  most_recommended_techniques: string[];
+  technique_distribution: Record<string, number>;  // { "e2e": 8, "integration": 6 }
+  test_depth_distribution: {
+    comprehensive: number;
+    thorough: number;
+    standard: number;
+    smoke: number;
+  };
+  effort_breakdown: {
+    critical_effort: string;   // "180%"
+    high_effort: string;       // "125%"
+    medium_effort: string;     // "20%"
+    low_effort: string;        // "5%"
+  };
+}
+
 export interface RiskAnalysisDisplay {
   distribution: RiskDistribution;
   formulas: RiskFormulas;
   mapping_table: RiskMappingEntry[];
   top_risks: string[];
+  aggregated_recommendations?: AggregatedRecommendations;  // ← AJOUTÉ
 }
 
 // ============================================================

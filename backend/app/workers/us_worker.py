@@ -1,4 +1,5 @@
 import asyncio
+import os
 import traceback
 import logging
 from typing import Dict, Any, List, Optional
@@ -15,6 +16,7 @@ from app.ai_workflows.user_story_refinement.pipeline import get_pipeline
 from app.models.user_story_version import UserStoryVersion
 from app.services.defect_service import create_defect
 from .us_queue import job_queue
+from app.llm.llm_control import set_worker_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,18 @@ async def save_ai_version(
 ) -> UserStoryVersion:
     """Persist agent result as a new version — no commit (caller commits)."""
 
+    from sqlalchemy import func
+    
+    # Obtenir le max version_number pour cette user story
+    stmt = select(func.max(UserStoryVersion.version_number)).where(
+        UserStoryVersion.user_story_id == user_story_id
+    )
+    max_version = await db.execute(stmt)
+    max_num = max_version.scalar() or 0
+    next_version_number = max_num + 1
+    
+    logger.info(f"Creating version {next_version_number} for story {user_story_id}")
+
     improved_story = result.get("improved_story", state["raw_story"])
     generated_ac = result.get("acceptance_criteria", state.get("acceptance_criteria", []))
     initial_score = float(result.get("initial_score", 0.0))
@@ -79,6 +93,7 @@ async def save_ai_version(
     version = UserStoryVersion(
         id=version_id,
         user_story_id=user_story_id,
+        version_number=next_version_number,
         improved_story=improved_story,
         generated_acceptance_criteria=generated_ac,
         initial_score=initial_score,
@@ -100,7 +115,7 @@ async def save_ai_version(
         story.current_score = final_score
         await db.flush()
 
-    logger.info(f"Version created: {version.id}, score={final_score:.3f}")
+    logger.info(f"Version created: {version.id} (v{next_version_number}), score={final_score:.3f}")
     return version
 
 
@@ -193,9 +208,23 @@ async def _notify_product_owner(
 # WORKER LOOP
 # ============================================================
 
+def _get_api_key_for_worker(worker_id: int) -> str:
+    """Retourne la clé API dédiée à ce worker (1→KEY_1, 2→KEY_2, etc.)."""
+    key_name = f"GROQ_API_KEY_{worker_id}"
+    api_key = os.getenv(key_name, "")
+    if not api_key:
+        logger.warning(f"[US WORKER-{worker_id}] ⚠️ {key_name} not found, using fallback")
+        api_key = os.getenv("GROQ_API_KEY_1", os.getenv("GROQ_API_KEY", ""))
+    return api_key
+
+
 async def async_worker(worker_id: int) -> None:
-    logger.info(f"Worker {worker_id} started")
-    print(f"[WORKER-{worker_id}] started")
+    api_key = _get_api_key_for_worker(worker_id)
+    set_worker_api_key(api_key)
+
+    key_preview = api_key[:15] + "..." if api_key else "NO_KEY"
+    logger.info(f"[US WORKER-{worker_id}] 🚀 Started with dedicated key: {key_preview}")
+    print(f"[WORKER-{worker_id}] started with key: {key_preview}")
 
     while True:
         state: Dict[str, Any] = await job_queue.get()

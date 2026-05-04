@@ -1,116 +1,165 @@
 """
-Prompts pour le Risk-Based Testing.
-
-Deux prompts :
-  1. RBT_EXPLANATION_PROMPT — Prompt principal : le LLM explique P et I déjà calculés
-  2. RISK_ANALYSIS_PROMPT_FALLBACK — Prompt de secours : le LLM calcule P et I
-     (utilisé uniquement si le ML n'est pas disponible)
+LLM prompt for Risk Based Testing - Simple language.
+Scale P: 1-5, Scale I: 1-5, Score = P × I
 """
 
-# ============================================================
-# PROMPT PRINCIPAL : EXPLICATION
-# ============================================================
-# Le LLM reçoit P et I déjà calculés. Il les EXPLIQUE.
-# Il ne les modifie PAS.
+RISK_ANALYSIS_PROMPT = """You are a test manager. Your job is to analyze risks in user stories like ISTQB.
 
-RBT_EXPLANATION_PROMPT = """You are a senior test manager specialized in Risk-Based Testing (ISTQB).
+Look at this user story and tell me:
+- What could go wrong?
+- How bad would it be?
+- What should the tester do?
 
-## CONTEXT
-A Machine Learning model has already analyzed the user story and assigned:
-- Probability (P): {probability}/5
-- Impact (I): {impact}/5
-- Risk Score: {risk_score}/25 (P × I)
-- Priority: {priority}
-
-Your job is NOT to change these scores. Your job is to EXPLAIN them.
-
----
-
-## USER STORY
-{user_story}
-
-## ACCEPTANCE CRITERIA
-{acceptance_criteria}
-
----
-
-## YOUR TASKS
-
-### 1. RISK DESCRIPTION (max 15 words)
-Describe the MOST LIKELY defect scenario for this story.
-Format: "[Component] may [failure mode] causing [consequence]"
-Good example: "Payment gateway timeout may create duplicate charges causing revenue loss"
-Bad example: "The payment module might have some issues that could affect users"
-
-### 2. MITIGATION (max 12 words)
-Propose a concrete test action to detect this risk.
-Start with an action verb.
-Good example: "Test payment with network delays and retry mechanisms"
-Bad example: "Perform thorough testing of the payment functionality"
-
-### 3. REASONING (exactly 3 bullet points)
-- Bullet 1: Why is P={probability}/5 justified for this story? (1 sentence)
-- Bullet 2: Why is I={impact}/5 justified for this story? (1 sentence)
-- Bullet 3: What does the score {risk_score}/25 ({priority}) mean for testing? (1 sentence)
-
-Example:
-• P=4 is justified because the story involves payment integration with multiple external APIs and complex business rules
-• I=5 is justified because a failure affects all customers, involves real money transactions, and could cause regulatory issues
-• Score 20/25 (CRITICAL) means comprehensive testing is required: unit, integration, E2E, performance, and security tests
-
----
-
-## RULES
-- Do NOT suggest changing P or I values
-- Do NOT add extra bullet points
-- Keep description under 15 words
-- Keep mitigation under 12 words
-- Be specific, not generic
-"""
-
-
-# ============================================================
-# PROMPT DE FALLBACK : CALCUL P ET I
-# ============================================================
-# Utilisé UNIQUEMENT si le ML n'est pas disponible.
-# Le LLM attribue P et I selon les règles du document RBT.
-
-RISK_ANALYSIS_PROMPT_FALLBACK = """You are a test manager. Assess risk for this user story.
-
-## RISK FORMULA
-Risk Score = Probability (1-5) × Impact (1-5)
-
-## WHAT YOU CAN EVALUATE FROM THE TEXT
-
-### PROBABILITY (1-5)
-Look at the story and acceptance criteria. Ask yourself:
-- Does it involve complex logic, algorithms, or external integrations?
-- Does it have many conditions (if/when/unless)?
-- Is it a new feature (words like "new", "create", "migrate")?
-- Does it mention legacy code or refactoring?
-
-→ If many of these are true → Higher P (4-5)
-→ If few of these are true → Lower P (1-2)
-
-### IMPACT (1-5)
-Look at who and what is affected. Ask yourself:
-- Who is affected? All users, customers, or just admins?
-- Is money involved? Payment, transaction, checkout?
-- Is security involved? Passwords, personal data, authentication?
-- Is it public-facing or internal only?
-
-→ If core feature, all users, money, security → Higher I (4-5)
-→ If internal, admin-only, cosmetic → Lower I (1-2)
-
-## USER STORY
+USER STORY:
 {story}
 
-## ACCEPTANCE CRITERIA
+ACCEPTANCE CRITERIA:
 {acceptance_criteria}
 
-## TASK
-Based ONLY on what you can detect in the text above:
-1. Assign P (1-5) : probability of defects
-2. Assign I (1-5) : impact if defect reaches users
-3. Brief justification (1 sentence each)
+Issue key: {issue_key}
+
+═══════════════════════════════════════════════════════
+STEP 1: HOW LIKELY IS A BUG? (P: 1 to 5)
+═══════════════════════════════════════════════════════
+
+Look at the story and ask yourself:
+
+Is the story simple or complex?
+  1 = Very simple (just show data, no logic)
+  3 = Some rules and conditions
+  5 = Very complex (many rules, calculations)
+
+How many acceptance criteria?
+  1 = 1 or 2 simple ones
+  3 = 3 to 5 with some detail
+  5 = 6 or more with lots of conditions
+
+Does it need other systems to work?
+  1 = No, it works alone
+  3 = Needs one other system (like database)
+  5 = Needs many systems (payment, email, login)
+
+Is the story clear?
+  1 = Very clear, no confusing words
+  3 = Some unclear words like "fast" or "easy"
+  5 = Hard to understand, missing details
+
+Give me a number from 1 to 5 for P (Probability).
+1 = very unlikely to fail, 5 = almost certain to fail.
+
+═══════════════════════════════════════════════════════
+STEP 2: HOW BAD IF IT FAILS? (I: 1 to 5)
+═══════════════════════════════════════════════════════
+
+Who will be affected?
+  1 = Only admin or internal people
+  3 = A group or department
+  5 = Everyone, all users
+
+Does it affect money?
+  1 = No money impact
+  3 = Indirect (like reports)
+  5 = Direct money (like payments, orders)
+
+Can it cause data loss or security problems?
+  1 = Just a small display problem
+  3 = Could lose or damage data
+  5 = Security breach, legal trouble
+
+Can it hurt the company image?
+  1 = Only seen inside the company
+  3 = Seen by some clients
+  5 = Public, everyone can see
+
+Give me a number from 1 to 5 for I (Impact).
+1 = small problem, 5 = very serious.
+
+═══════════════════════════════════════════════════════
+STEP 3: EXPLAIN THE RISK
+═══════════════════════════════════════════════════════
+
+description:
+  Tell me what could go wrong.
+  Use simple words. Be specific.
+  Say WHEN it happens and WHAT bad thing happens.
+  
+  Good example:
+  "User cannot pay when using an old promo code. The company loses money."
+  
+  Good example:
+  "Login does not work for users with special characters in password."
+  
+  Bad example:
+  "Bug in payment" (too short, not helpful)
+
+mitigation:
+  Tell the tester exactly what to test.
+  Start with a verb (Test, Check, Try, Verify).
+  Be specific about what to do.
+  
+  Good example:
+  "Test payment with 10 different promo codes: valid, expired, and used ones."
+  
+  Good example:
+  "Try to login with passwords that have @, #, $, % and spaces."
+  
+  Bad example:
+  "Test payment" (not specific enough)
+
+═══════════════════════════════════════════════════════
+STEP 4: EXPLAIN YOUR NUMBERS
+═══════════════════════════════════════════════════════
+
+probability_factors:
+  Tell me the 4 numbers you used:
+  {{
+    "story_complexity": (1-5),
+    "ac_complexity": (1-5),
+    "dependencies": (1-5),
+    "clarity": (1-5)
+  }}
+
+impact_factors:
+  Tell me the 4 numbers you used:
+  {{
+    "users_affected": (1-5),
+    "revenue": (1-5),
+    "safety": (1-5),
+    "reputation": (1-5)
+  }}
+
+probability_reasoning:
+  One short sentence. Explain why you chose this P.
+  Example: "P=3 because the story has some rules (3) + 4 criteria (3) + needs database (2) + clear writing (1) = average 3"
+
+impact_reasoning:
+  One short sentence. Explain why you chose this I.
+  Example: "I=4 because all users affected (5) + direct money impact (5) + could lose data (3) + seen by everyone (3) = average 4"
+
+reasoning:
+  Write exactly 3 lines:
+  Line 1: Why this P? (talk about the story)
+  Line 2: Why this I? (talk about who and what is affected)
+  Line 3: P × I = Score (Level)
+  
+  Example:
+  P=4 because complex discount rules (4) + 6 detailed criteria (5) + payment system needed (4) = average 4
+  I=5 because all users (5) + direct money (5) + wrong charges possible (4) + public image (4) = average 5
+  Score = 4 × 5 = 20 (CRITICAL) - needs full testing, spend 60% of time here
+
+═══════════════════════════════════════════════════════
+IMPORTANT RULES
+═══════════════════════════════════════════════════════
+- Use simple words. Write like you are talking to a colleague.
+- P and I must be whole numbers between 1 and 5.
+- ⚠️ USE THE FULL RANGE 1-5. Not everything is a 3 or 4.
+  - A simple CRUD page with 2 ACs and no external systems = P=1 or P=2
+  - A complex payment system with 6+ ACs and external APIs = P=4 or P=5
+  - An internal admin tool affecting 2 people = I=1 or I=2
+  - A public-facing payment page = I=5
+- DO NOT default to P=3, I=4 for every story.
+- Think carefully: Is this REALLY a medium probability? Or is it low? Or high?
+- Base P only on what you see in the story.
+- Risk Score = P × I
+- Critical = 20-25, High = 12-19, Medium = 6-11, Low = 1-5
 """

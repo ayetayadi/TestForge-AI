@@ -277,17 +277,18 @@ class TestPlanPipeline:
 # SINGLETON
 # ============================================================
 
-_instance: Optional[TestPlanPipeline] = None
+_instances: dict[str, TestPlanPipeline] = {}
 
 
 def get_pipeline(temperature: float = LLM_TEMPERATURE) -> TestPlanPipeline:
-    global _instance
-    if _instance is None:
-        _instance = TestPlanPipeline(temperature=temperature)
-    return _instance
+    from app.llm.llm_control import get_worker_api_key
+    api_key = get_worker_api_key() or "default"
+    if api_key not in _instances:
+        logger.info(f"[TEST PLAN] Creating pipeline instance for key: {api_key[:12]}...")
+        _instances[api_key] = TestPlanPipeline(temperature=temperature)
+    return _instances[api_key]
 
 
 def reset_pipeline() -> None:
-    global _instance
-    _instance = None
-    logger.info("[TEST PLAN] Singleton reset")
+    _instances.clear()
+    logger.info("[TEST PLAN] All pipeline instances reset")
