@@ -53,6 +53,7 @@ MIN_SCORE_THRESHOLD = 0.7
 #     légitimes qui améliorent la qualité
 # ============================================================
 MIN_SIMILARITY_THRESHOLD = 0.70
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2000"))
 
 # ============================================================
 # Tool Configuration
