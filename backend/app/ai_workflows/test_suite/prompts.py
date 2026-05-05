@@ -53,7 +53,8 @@ A) BUSINESS FLOW — What does this TC ACTUALLY test?
    - What is the END GOAL of this test?
 
    Available flows:
-   - authentication : login, logout, register, tokens, sessions, SSO, 2FA, password reset
+   - authentication : login, register, tokens, sessions, SSO, 2FA, password reset
+   - session_cleanup : logout, signout, session termination
    - authorization : permissions, roles, access control, admin vs user
    - crud : create, read, update, delete operations on data
    - dashboard : overview, home, landing, visualization, display, view
@@ -104,8 +105,9 @@ Ask yourself for each flow:
 Ordering rules:
   1. Flows with NO dependencies go first
   2. Flows that CREATE shared state (auth tokens, base records) go before flows that USE that state
-  3. Core business transactions (payment, booking, order) precede secondary features (FAQ, help, notifications)
-  4. Risk level is SECONDARY — a low-risk authentication test still runs before a high-risk payment test
+  3. session_cleanup (logout) MUST always be the LAST flow — it destroys the auth token
+  4. Core business transactions like (payment, booking, order) precede secondary features like (FAQ, help, notifications)
+  5. Risk level is SECONDARY — a low-risk authentication test still runs before a high-risk payment test
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT:
