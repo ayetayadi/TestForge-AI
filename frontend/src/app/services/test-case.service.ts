@@ -1,151 +1,234 @@
 // services/test-case.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
-import { 
-  TestCase, 
-  TestCaseUI, 
-  TestCaseFilters, 
-  TestCaseFormData,
-  PaginatedQueryParams,
+import {
+  TestCase,
+  TestCaseUI,
   toTestCaseUI,
   Priority,
   TestCaseStatus
 } from '../models/test-case.model';
+
+// ─── Coverage table row ───────────────────────────────────────────────────────
+
+export interface TcCoverageRow {
+  id: string;
+  test_plan_id: string;
+  user_story_id: string | null;
+  issue_key: string | null;
+  user_story_title: string | null;
+  scenario_type: 'positive' | 'negative' | 'boundary';
+  coverage_pct: number;
+  covered_count: number;
+  total_ac_count: number;
+  tc_count: number;
+  generated_at: string | null;
+}
+
+// ─── Generation response shapes ──────────────────────────────────────────────
+
+// 🆕 SIMPLIFIÉ : Pas de coverage dans TestCase
+export interface WorkflowGenerationResponse {
+  count: number;
+  test_plan_id: string;
+  test_suite_id: string | null;
+  workflow_status: 'success' | 'error';
+  feature_gherkin: string;
+  test_cases: TestCase[];
+  error?: string;
+}
+
+export interface AsyncJobResponse {
+  job_id: string;
+  test_plan_id: string;
+  test_suite_id: string | null;
+  status: string;
+}
+
+export interface WorkflowGenerationOptions {
+  test_suite_id?: string;
+  scenario_type?: 'positive' | 'negative' | 'boundary';
+  risk_level?: 'critical' | 'high' | 'medium' | 'low';
+  risk_score?: number;
+  risk_description?: string;
+}
+
+// SSE Event types for async generation
+export interface TcGenerationEvent {
+  event: 'tc_processing' | 'tc_generated' | 'tc_failed' | 'ping';
+  data: {
+    test_plan_id?: string;
+    test_suite_id?: string | null;
+    count?: number;
+    total?: number;
+    test_cases?: TestCase[];
+    error?: string;
+    message?: string;
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class TestCaseService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.apiUrl}/test-cases`;
 
-  /**
-   * Récupère tous les test cases avec filtres
-   */
+  // ============================================================
+  // READ (CRUD)
+  // ============================================================
+
   getTestCases(filters?: {
+    test_suite_id?: string;
+    test_plan_id?: string;
     project_id?: string;
-    user_story_id?: string;
     search?: string;
     status?: TestCaseStatus[];
     priority?: Priority[];
     tags?: string[];
-    hasScript?: boolean;
+    order_by?: string;
+    order_direction?: string;
+    limit?: number;
+    offset?: number;
   }): Observable<TestCase[]> {
     let params = new HttpParams();
 
     if (filters) {
+      if (filters.test_suite_id) params = params.set('test_suite_id', filters.test_suite_id);
+      if (filters.test_plan_id) params = params.set('test_plan_id', filters.test_plan_id);
       if (filters.project_id) params = params.set('project_id', filters.project_id);
-      if (filters.user_story_id) params = params.set('user_story_id', filters.user_story_id);
       if (filters.search) params = params.set('search', filters.search);
-      if (filters.hasScript !== undefined) params = params.set('has_script', filters.hasScript.toString());
-      
-      // Pour les tableaux, on les envoie plusieurs fois
-      if (filters.status && filters.status.length > 0) {
-        filters.status.forEach(status => {
-          params = params.append('status', status);
-        });
+      if (filters.order_by) params = params.set('order_by', filters.order_by);
+      if (filters.order_direction) params = params.set('order_direction', filters.order_direction);
+      if (filters.limit) params = params.set('limit', filters.limit.toString());
+      if (filters.offset) params = params.set('offset', filters.offset.toString());
+
+      if (filters.status?.length) {
+        filters.status.forEach(s => { params = params.append('status', s); });
       }
-      
-      if (filters.priority && filters.priority.length > 0) {
-        filters.priority.forEach(priority => {
-          params = params.append('priority', priority);
-        });
+      if (filters.priority?.length) {
+        filters.priority.forEach(p => { params = params.append('priority', p); });
       }
-      
-      if (filters.tags && filters.tags.length > 0) {
-        filters.tags.forEach(tag => {
-          params = params.append('tags', tag);
-        });
+      if (filters.tags?.length) {
+        filters.tags.forEach(t => { params = params.append('tags', t); });
       }
     }
-    
-    // Le backend retourne directement un tableau, pas un objet avec pagination
+
     return this.http.get<TestCase[]>(this.apiUrl, { params });
   }
 
-  /**
-   * Récupère un test case par ID (GET /test-cases/{id})
-   */
   getTestCaseById(id: string): Observable<TestCase> {
     return this.http.get<TestCase>(`${this.apiUrl}/${id}`);
   }
 
-  /**
-   * Récupère un test case par code (GET /test-cases/by-code/{tcCode})
-   */
   getTestCaseByCode(tcCode: string): Observable<TestCase> {
     return this.http.get<TestCase>(`${this.apiUrl}/by-code/${tcCode}`);
   }
 
-  /**
-   * Récupère tous les test cases d'une user story (GET /test-cases/user-story/{userStoryId})
-   */
-  getTestCasesByUserStory(userStoryId: string): Observable<TestCase[]> {
-    return this.http.get<TestCase[]>(`${this.apiUrl}/user-story/${userStoryId}`);
+  getCoverageForPlan(testPlanId: string): Observable<TcCoverageRow[]> {
+    return this.http.get<TcCoverageRow[]>(`${this.apiUrl}/coverage/${testPlanId}`);
   }
 
-  /**
-   * Crée un test case (POST /test-cases)
-   */
-  createTestCase(data: TestCaseFormData): Observable<TestCase> {
+  getTestCasesBySuite(testSuiteId: string): Observable<TestCase[]> {
+    return this.http.get<TestCase[]>(`${this.apiUrl}/suite/${testSuiteId}`);
+  }
+
+  getTestCasesByPlan(testPlanId: string): Observable<TestCase[]> {
+    return this.http.get<TestCase[]>(`${this.apiUrl}/plan/${testPlanId}`);
+  }
+
+  // ============================================================
+  // WRITE (CRUD)
+  // ============================================================
+
+  createTestCase(data: any): Observable<TestCase> {
     return this.http.post<TestCase>(this.apiUrl, data);
   }
 
-  /**
-   * Met à jour un test case (PUT /test-cases/{id})
-   */
-  updateTestCase(id: string, data: Partial<TestCaseFormData>): Observable<TestCase> {
+  updateTestCase(id: string, data: any): Observable<TestCase> {
     return this.http.put<TestCase>(`${this.apiUrl}/${id}`, data);
   }
 
-  /**
-   * Supprime (soft delete) un test case (DELETE /test-cases/{id})
-   */
-  deleteTestCase(id: string): Observable<{ message: string }> {
-    return this.http.delete<{ message: string }>(`${this.apiUrl}/${id}`);
+  deleteTestCase(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 
+  // ============================================================
+  // AI GENERATION (ISTQB workflow pipeline)
+  // ============================================================
+
   /**
-   * Run AI test case generator for a user story and persist results
-   * POST /ai-generate/test-cases/{userStoryId}
+   * Synchronous: generates TCs for a TestPlan.
+   * POST /test-cases/generate/{testPlanId}?test_suite_id=...
+   * 
+   * Returns test cases WITHOUT coverage (coverage is in TestSuite).
    */
-  generateTestCases(userStoryId: string): Observable<{
-    generated_count: number;
-    quality_score: number;
-    flagged_for_human: boolean;
-    user_story_analysis: Record<string, any> | null;
-    test_cases: TestCase[];
-  }> {
-    return this.http.post<any>(
-      `${environment.apiUrl}/ai-generate/test-cases/${userStoryId}`,
-      {}
+  generateWorkflow(
+    testPlanId: string,
+    opts: WorkflowGenerationOptions = {}
+  ): Observable<WorkflowGenerationResponse> {
+    let params = new HttpParams();
+    if (opts.test_suite_id) params = params.set('test_suite_id', opts.test_suite_id);
+    if (opts.risk_level) params = params.set('risk_level', opts.risk_level);
+    if (opts.risk_score != null) params = params.set('risk_score', String(opts.risk_score));
+    if (opts.risk_description) params = params.set('risk_description', opts.risk_description);
+
+    return this.http.post<WorkflowGenerationResponse>(
+      `${this.apiUrl}/generate/${testPlanId}`,
+      null,
+      { params }
     );
   }
 
-  // ============================================================
-  // MÉTHODES UTILITAIRES
-  // ============================================================
+  /**
+   * Asynchronous: enqueues a TC generation job handled by the backend worker.
+   * POST /test-cases/generate/{testPlanId}/async?test_suite_id=...
+   */
+  generateAsync(
+    testPlanId: string,
+    opts: WorkflowGenerationOptions = {}
+  ): Observable<AsyncJobResponse> {
+    let params = new HttpParams();
+    if (opts.test_suite_id) params = params.set('test_suite_id', opts.test_suite_id);
+    if (opts.scenario_type) params = params.set('scenario_type', opts.scenario_type);
+    if (opts.risk_level) params = params.set('risk_level', opts.risk_level);
+    if (opts.risk_score != null) params = params.set('risk_score', String(opts.risk_score));
+    if (opts.risk_description) params = params.set('risk_description', opts.risk_description);
+
+    return this.http.post<AsyncJobResponse>(
+      `${this.apiUrl}/generate/${testPlanId}/async`,
+      null,
+      { params }
+    );
+  }
 
   /**
-   * Convertit un TestCase backend en TestCaseUI pour l'affichage
+   * URL of the SSE stream for a TC generation job.
+   * GET /test-cases/generate/stream/{jobId}
    */
+  getStreamUrl(jobId: string): string {
+    return `${this.apiUrl}/generate/stream/${jobId}`;
+  }
+
+  /**
+   * Creates an EventSource for SSE stream to receive real-time generation events.
+   */
+  createEventSource(jobId: string): EventSource {
+    return new EventSource(this.getStreamUrl(jobId));
+  }
+
+  // ============================================================
+  // UTILITIES
+  // ============================================================
+
   toUI(testCase: TestCase, extra?: Partial<TestCaseUI>): TestCaseUI {
     return toTestCaseUI(testCase, extra);
   }
 
-  /**
-   * Convertit une liste de TestCase en TestCaseUI
-   */
   toUIList(testCases: TestCase[], extras?: Map<string, Partial<TestCaseUI>>): TestCaseUI[] {
-    return testCases.map(tc => {
-      const extra = extras?.get(tc.id);
-      return this.toUI(tc, extra);
-    });
+    return testCases.map(tc => this.toUI(tc, extras?.get(tc.id)));
   }
 
-  /**
-   * Extrait la priorité des tags
-   */
   extractPriorityFromTags(tags: string[] | null): Priority {
     if (!tags) return Priority.MEDIUM;
     if (tags.includes('critical')) return Priority.CRITICAL;
@@ -154,54 +237,16 @@ export class TestCaseService {
     return Priority.MEDIUM;
   }
 
-  /**
-   * Extrait le module du code TC (TC-AUTH-001 → AUTH)
-   */
-  extractModuleFromTcCode(tcCode: string): string | null {
-    const match = tcCode.match(/TC-([A-Z]+)-\d+/);
-    return match ? match[1] : null;
-  }
-
-  /**
-   * Extrait un aperçu du scénario depuis gherkin_source
-   */
-  extractScenarioPreview(gherkinSource: string | null, maxLength: number = 100): string | null {
+  extractScenarioPreview(gherkinSource: string | null, maxLength = 100): string | null {
     if (!gherkinSource) return null;
-    
-    const lines = gherkinSource.split('\n');
-    for (const line of lines) {
+    for (const line of gherkinSource.split('\n')) {
       const trimmed = line.trim();
       if (trimmed.startsWith('Scenario:') || trimmed.startsWith('Feature:')) {
         let preview = trimmed.replace(/^(Scenario:|Feature:)/, '').trim();
-        if (preview.length > maxLength) {
-          preview = preview.substring(0, maxLength) + '...';
-        }
+        if (preview.length > maxLength) preview = preview.substring(0, maxLength) + '...';
         return preview;
       }
     }
     return null;
-  }
-
-  /**
-   * Génère un code TC unique basé sur le module
-   */
-  generateTcCode(module: string, existingCodes: string[]): string {
-    const prefix = `TC-${module.toUpperCase()}`;
-    const existingNumbers = existingCodes
-      .filter(code => code.startsWith(prefix))
-      .map(code => {
-        const match = code.match(/TC-[A-Z]+-(\d+)/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-    
-    const nextNumber = Math.max(0, ...existingNumbers) + 1;
-    return `${prefix}-${nextNumber.toString().padStart(3, '0')}`;
-  }
-
-  /**
-   * Valide un code TC
-   */
-  isValidTcCode(tcCode: string): boolean {
-    return /^TC-[A-Z]+-\d{3}$/.test(tcCode);
   }
 }

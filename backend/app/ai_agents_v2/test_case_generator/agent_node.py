@@ -6,7 +6,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from openai import OpenAI, BadRequestError, APIStatusError

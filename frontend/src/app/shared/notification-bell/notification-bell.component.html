@@ -1,0 +1,102 @@
+<button
+  mat-icon-button
+  class="bell-btn"
+  [matMenuTriggerFor]="notifMenu"
+  aria-label="Notifications">
+  <mat-icon
+    [matBadge]="unreadCount()"
+    [matBadgeHidden]="unreadCount() === 0"
+    matBadgeColor="warn"
+    matBadgeSize="small">
+    notifications
+  </mat-icon>
+</button>
+
+<!-- ═══════════════════════════════════════════════════════════
+     NOTIFICATION PANEL (mat-menu)
+     ═══════════════════════════════════════════════════════════ -->
+<mat-menu #notifMenu="matMenu" class="notif-dropdown" xPosition="before">
+
+  <!-- ── Header ─────────────────────────────────────────────── -->
+  <div class="notif-header" (click)="$event.stopPropagation()">
+    <div class="notif-header-left">
+      <span class="notif-title">Notifications</span>
+      @if (unreadCount() > 0) {
+        <span class="unread-badge">{{ unreadCount() }}</span>
+      }
+    </div>
+    @if (unreadCount() > 0) {
+      <button class="mark-all-btn" (click)="markAllRead($event)">
+        Tout marquer lu
+      </button>
+    }
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <!-- ── List ───────────────────────────────────────────────── -->
+  <div class="notif-list" (click)="$event.stopPropagation()">
+
+    @if (loading()) {
+      <div class="notif-loading">
+        <mat-spinner diameter="24"></mat-spinner>
+        <span>Chargement...</span>
+      </div>
+    } @else if (notifications().length === 0) {
+      <div class="notif-empty">
+        <mat-icon>notifications_none</mat-icon>
+        <span>Aucune notification</span>
+        @if (projectKey()) {
+          <small>Les changements Jira apparaîtront ici</small>
+        } @else {
+          <small>Sélectionnez un projet pour commencer</small>
+        }
+      </div>
+    } @else {
+      @for (notif of notifications(); track notif.id) {
+        <div
+          class="notif-item"
+          [class.unread]="!notif.is_read"
+          [class]="getSeverityClass(notif.severity)"
+          (click)="markRead(notif, $event)">
+
+          <!-- Severity icon -->
+          <div class="notif-icon" [class]="'icon-' + notif.severity">
+            <mat-icon>{{ getIcon(notif.type) }}</mat-icon>
+          </div>
+
+          <!-- Content -->
+          <div class="notif-content">
+            <p class="notif-item-title" [class.bold]="!notif.is_read">
+              {{ notif.title }}
+            </p>
+            @if (notif.issue_key) {
+              <span class="issue-chip">{{ notif.issue_key }}</span>
+            }
+            @for (line of getChangedLines(notif); track line) {
+              <span class="notif-change-line">{{ line }}</span>
+            }
+            <span class="notif-time">{{ getRelativeTime(notif.created_at) }}</span>
+          </div>
+
+          <!-- Unread dot -->
+          @if (!notif.is_read) {
+            <div class="unread-dot"></div>
+          }
+        </div>
+      }
+    }
+  </div>
+
+  <!-- ── Footer (Sync Jira) ─────────────────────────────────── -->
+  @if (projectKey()) {
+    <mat-divider></mat-divider>
+    <div class="notif-footer" (click)="$event.stopPropagation()">
+      <button class="sync-btn" (click)="syncJira($event)" [disabled]="syncing()">
+        <mat-icon [class.spinning]="syncing()">sync</mat-icon>
+        {{ syncing() ? 'Synchronisation en cours...' : 'Synchroniser avec Jira' }}
+      </button>
+    </div>
+  }
+
+</mat-menu>

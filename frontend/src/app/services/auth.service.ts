@@ -98,7 +98,7 @@ export class AuthService {
       }),
       catchError((error) => {
         this.isRefreshing = false;
-        this.logout();
+        this.refreshTokenSubject.next(null);
         return throwError(() => error);
       })
     );

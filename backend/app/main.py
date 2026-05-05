@@ -40,12 +40,20 @@ from app.api.test_cases import router as test_cases_router
 from app.api.playwright import router as playwright_router
 from app.api.ai_generate import router as ai_generate_router
 from app.api.dashboard import router as dashboard_router
+from app.api.defects import router as defects_router
+from app.api.notifications import router as notifications_router
+from app.api.sync_jira import router as sync_jira_router
+from app.api.risks import router as risk_router
+from app.api.test_plans import router as test_plans_router
+from app.api.test_suites import router as test_suites_router
 from app.api.chatbot import router as chatbot_router
 from app.core.database import Base, engine
 from app.streaming.sse_manager import set_main_loop
 from app.core.model_manager import preload_embedding_model
 from app.core.config import settings
-from app.workers.asyncio_workers import start_workers , stop_workers
+from app.workers.us_worker import start_workers, stop_workers
+from app.workers.risk_worker import start_risk_workers, stop_risk_workers
+from app.workers.tc_worker import start_tc_workers, stop_tc_workers
 
 
 
@@ -96,12 +104,16 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(preload_embedding_model)
     
     await start_workers()
+    await start_risk_workers()
+    await start_tc_workers()
     print("[STARTUP] Application ready!")
-    
+
     yield
 
     print("[SHUTDOWN] Stopping workers...")
     await stop_workers()
+    await stop_risk_workers()
+    await stop_tc_workers()
     print("[SHUTDOWN] Workers stopped")
 
     from app.core.observability import is_langfuse_enabled
@@ -145,11 +157,13 @@ app.include_router(test_cases_router)
 app.include_router(playwright_router)
 app.include_router(ai_generate_router)
 app.include_router(dashboard_router)
+app.include_router(defects_router)
+app.include_router(notifications_router)
+app.include_router(risk_router)
+app.include_router(test_plans_router)
+app.include_router(test_suites_router)
 app.include_router(chatbot_router)
 
-# =========================
-# HEALTH
-# =========================
 @app.get("/health")
 async def health():
     return {"status": "ok"}

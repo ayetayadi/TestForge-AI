@@ -1,0 +1,918 @@
+<!-- test-suite-detail.component.html -->
+<div class="tsd-page">
+
+  <!-- ── Loading ──────────────────────────────────────────────────────────── -->
+  @if (isLoading()) {
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading test suite…</p>
+    </div>
+  }
+
+  <!-- ── Content ───────────────────────────────────────────────────────────── -->
+  @if (!isLoading() && suite(); as suite) {
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- HEADER                                                                  -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div class="tsd-header">
+      <div class="tsd-header-left">
+        <div class="tsd-breadcrumb">
+          <button class="btn-back" (click)="goBack()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Test Suites
+          </button>
+          <span class="breadcrumb-sep">›</span>
+          <span class="breadcrumb-current">{{ suite.title }}</span>
+        </div>
+
+        <h1 class="tsd-title">{{ suite.title }}</h1>
+
+        @if (suite.description) {
+          <p class="tsd-description">{{ suite.description }}</p>
+        }
+
+        <div class="tsd-badges">
+          <span class="badge" [style.background]="getSuiteTypeConfig(suite.suite_type)?.bg" [style.color]="getSuiteTypeConfig(suite.suite_type)?.color">
+            {{ getSuiteTypeConfig(suite.suite_type)?.label || suite.suite_type }}
+          </span>
+          <span class="badge status-badge" [style.background]="getStatusConfig(suite.status).bg" [style.color]="getStatusConfig(suite.status).color">
+            {{ getStatusConfig(suite.status).label }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="tsd-header-actions">
+        @if (suite.status === 'draft' || suite.status === 'archived') {
+          <button class="btn-action btn-confirm" [disabled]="isActivating()" (click)="activateSuite()">
+            @if (isActivating()) { <span class="spinner-xs"></span> } @else {
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            }
+            Activate
+          </button>
+        }
+        @if (suite.status === 'draft' || suite.status === 'active') {
+          <button class="btn-action btn-archive" [disabled]="isArchiving()" (click)="archiveSuite()">
+            @if (isArchiving()) { <span class="spinner-xs"></span> } @else {
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            }
+            Archive
+          </button>
+        }
+        @if (!showDeleteConfirm()) {
+          <button class="btn-action btn-delete" (click)="showDeleteConfirm.set(true)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            Delete
+          </button>
+        } @else {
+          <div class="delete-confirm-inline">
+            <span class="delete-confirm-label">Delete this suite?</span>
+            <button class="btn-action btn-confirm-danger" [disabled]="isDeletingSuite()" (click)="deleteSuite()">
+              @if (isDeletingSuite()) { <span class="spinner-xs"></span> } @else { Yes, delete }
+            </button>
+            <button class="btn-action btn-cancel" (click)="showDeleteConfirm.set(false)">Cancel</button>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- QUICK STATS BAR                                                         -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <span class="stat-value">{{ getTestCases().length }}</span>
+        <span class="stat-label">Test Cases</span>
+      </div>
+      <div class="stat-item stat-item--divider">
+        <span class="stat-value" [style.color]="getRiskCoverageColor(getRiskCoverage()?.risk_coverage_pct ?? 0)">
+          {{ getRiskCoverage()?.risk_coverage_pct ?? 0 }}%
+        </span>
+        <span class="stat-label">Risk Coverage</span>
+      </div>
+      <div class="stat-item stat-item--divider">
+        <span class="stat-value">{{ getTotalAcCovered() }}<span class="stat-denom">/{{ getTotalAc() }}</span></span>
+        <span class="stat-label">ACs Covered</span>
+      </div>
+      <div class="stat-item stat-item--divider">
+        <span class="stat-value">{{ getUsAcCoverages().length }}</span>
+        <span class="stat-label">User Stories</span>
+      </div>
+      <div class="stat-item stat-item--divider">
+        <span class="stat-value">{{ getRiskCount() }}</span>
+        <span class="stat-label">Risks</span>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- COVERAGE SECTION                                                         -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div class="coverage-section">
+
+      <!-- Risk Coverage Card -->
+      @if (getRiskCoverage(); as riskCov) {
+        <div class="coverage-card coverage-card--risk">
+          <div class="coverage-card-header" (click)="toggleRiskCoverage()" role="button">
+            <div class="coverage-card-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <h2>Risk Coverage</h2>
+            </div>
+            <div class="coverage-card-header-right">
+              <span class="mitigation-badge"
+                    [style.background]="getMitigationConfig(riskCov.mitigation_status).bg"
+                    [style.color]="getMitigationConfig(riskCov.mitigation_status).color">
+                {{ getMitigationConfig(riskCov.mitigation_status).label }}
+              </span>
+              <span class="section-chevron" [class.open]="riskCoverageOpen()">▾</span>
+            </div>
+          </div>
+
+          @if (riskCoverageOpen()) {
+            <div class="coverage-card-body">
+              <div class="coverage-main">
+                <!-- Donut circle -->
+                <div class="coverage-circle"
+                     [style.--pct]="riskCov.risk_coverage_pct"
+                     [style.--color]="getRiskCoverageColor(riskCov.risk_coverage_pct)">
+                  <div class="coverage-circle-inner">
+                    <span class="coverage-pct">{{ riskCov.risk_coverage_pct }}%</span>
+                    <span class="coverage-label">{{ riskCov.covered_risks }}/{{ riskCov.total_risks }} risks</span>
+                  </div>
+                </div>
+
+                <!-- Progress bar -->
+                <div class="coverage-bar-wrap">
+                  <div class="coverage-bar">
+                    <div class="coverage-bar-fill"
+                         [style.width.%]="riskCov.risk_coverage_pct"
+                         [style.background]="getRiskCoverageColor(riskCov.risk_coverage_pct)">
+                    </div>
+                  </div>
+                  <span class="coverage-bar-pct" [style.color]="getRiskCoverageColor(riskCov.risk_coverage_pct)">
+                    {{ riskCov.risk_coverage_pct }}%
+                  </span>
+                </div>
+              </div>
+
+              <!-- Uncovered risks -->
+              @if (riskCov.uncovered_risk_ids.length > 0) {
+                <div class="uncovered-section">
+                  <div class="uncovered-header">
+                    <span class="uncovered-title">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      Uncovered Risks ({{ riskCov.uncovered_risk_ids.length }})
+                    </span>
+                  </div>
+                  <div class="uncovered-chips">
+                    @for (riskId of riskCov.uncovered_risk_ids; track riskId) {
+                      <span class="uncovered-chip">{{ riskId }}</span>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (riskCov.uncovered_risk_ids.length === 0 && riskCov.total_risks > 0) {
+                <div class="all-covered">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  All risks are covered!
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- AC Coverage per User Story -->
+      @if (getUsAcCoverages().length > 0) {
+        <div class="coverage-card coverage-card--ac">
+          <div class="coverage-card-header" (click)="toggleAcCoverage()" role="button">
+            <div class="coverage-card-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              <h2>AC Coverage per User Story</h2>
+            </div>
+            <div class="coverage-card-header-right">
+              <span class="coverage-summary">{{ getTotalAcCovered() }}/{{ getTotalAc() }} ACs</span>
+              <span class="section-chevron" [class.open]="acCoverageOpen()">▾</span>
+            </div>
+          </div>
+
+          @if (acCoverageOpen()) {
+            <div class="coverage-card-body">
+              <!-- US with tests -->
+              @for (us of getUsWithTests(); track us.user_story_id) {
+                <div class="us-coverage-row">
+                  <div class="us-coverage-info">
+                    <a [routerLink]="['/user-stories', us.user_story_id]" class="us-coverage-link">
+                      <span class="us-key">{{ us.issue_key }}</span>
+                      <span class="us-title">{{ us.title }}</span>
+                    </a>
+                    <span class="us-ac-count">{{ us.covered_ac }}/{{ us.total_ac }} ACs</span>
+                  </div>
+                  <div class="us-coverage-bar-wrapper">
+                    <div class="us-coverage-bar">
+                      <div class="us-coverage-fill"
+                           [style.width.%]="us.ac_coverage_pct"
+                           [style.background]="getAcCoverageColor(us.ac_coverage_pct)">
+                      </div>
+                    </div>
+                    <span class="us-coverage-pct" [style.color]="getAcCoverageColor(us.ac_coverage_pct)">
+                      {{ us.ac_coverage_pct }}%
+                    </span>
+                  </div>
+                  @if (us.uncovered_ac.length > 0) {
+                    <div class="us-uncovered">
+                      @for (ac of us.uncovered_ac; track ac) {
+                        <span class="uncovered-ac">{{ ac }}</span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- US without tests -->
+              @if (getUsWithoutTests().length > 0) {
+                <div class="us-no-tests-section">
+                  <div class="us-no-tests-header">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    Without Tests ({{ getUsWithoutTests().length }})
+                  </div>
+                  @for (us of getUsWithoutTests(); track us.user_story_id) {
+                    <div class="us-no-test-row">
+                      <a [routerLink]="['/user-stories', us.user_story_id]" class="us-coverage-link">
+                        <span class="us-key">{{ us.issue_key }}</span>
+                        <span class="us-title">{{ us.title }}</span>
+                      </a>
+                      <span class="no-tests-badge">No tests</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB NAVIGATION                                                           -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <div class="tab-nav">
+      @for (tab of tabs; track tab.id) {
+        <button class="tab-btn" [class.active]="activeTab() === tab.id" (click)="onTabChange(tab.id)">
+          @if (tab.id === 'overview') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          }
+          @if (tab.id === 'cases') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          }
+          @if (tab.id === 'traceability') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          }
+          @if (tab.id === 'graph') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          }
+          {{ tab.label }}
+          @if (tab.id === 'cases') {
+            <span class="tab-count">{{ getTestCases().length }}</span>
+          }
+          @if (tab.id === 'traceability' && getMatrix()) {
+            <span class="tab-count">{{ getMatrix()!.global_coverage_pct }}%</span>
+          }
+        </button>
+      }
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: OVERVIEW                                                            -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    @if (activeTab() === 'overview') {
+      <div class="tab-panel">
+
+        <!-- Section: Lifecycle ─────────────────────────────────────────────── -->
+        @if (getLifecycle(); as lifecycle) {
+          <div class="panel-section">
+            <div class="panel-section-header" (click)="toggleLifecycle()" role="button">
+              <div class="panel-section-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                <h3>Lifecycle Summary</h3>
+              </div>
+              <span class="section-chevron" [class.open]="lifecycleOpen()">▾</span>
+            </div>
+            @if (lifecycleOpen()) {
+              <div class="panel-section-body">
+                <div class="lifecycle-grid">
+                  <div class="lifecycle-col">
+                    <div class="lifecycle-col-header">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                      Risk Analysis
+                    </div>
+                    <div class="lifecycle-stats">
+                      <div class="lifecycle-stat">
+                        <span class="lifecycle-stat-val">{{ lifecycle.risk_analysis.total_risks }}</span>
+                        <span class="lifecycle-stat-lbl">Total Risks</span>
+                      </div>
+                      <div class="lifecycle-stat">
+                        <span class="lifecycle-stat-val">{{ lifecycle.risk_analysis.accepted_count }}</span>
+                        <span class="lifecycle-stat-lbl">Accepted</span>
+                      </div>
+                    </div>
+                    <div class="risk-dist">
+                      @for (level of ['critical', 'high', 'medium', 'low']; track level) {
+                        @if (lifecycle.risk_analysis.distribution[level]) {
+                          <span class="risk-tag"
+                                [style.background]="getRiskLevelBg(level)"
+                                [style.color]="getRiskLevelColor(level)">
+                            {{ level }}: {{ lifecycle.risk_analysis.distribution[level] }}
+                          </span>
+                        }
+                      }
+                    </div>
+                  </div>
+                  <div class="lifecycle-col">
+                    <div class="lifecycle-col-header">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                      Test Cases
+                    </div>
+                    <div class="lifecycle-stats">
+                      <div class="lifecycle-stat">
+                        <span class="lifecycle-stat-val">{{ lifecycle.test_cases.total }}</span>
+                        <span class="lifecycle-stat-lbl">Total</span>
+                      </div>
+                      <div class="lifecycle-stat">
+                        <span class="lifecycle-stat-val">{{ lifecycle.test_cases.active }}</span>
+                        <span class="lifecycle-stat-lbl">Active</span>
+                      </div>
+                      <div class="lifecycle-stat">
+                        <span class="lifecycle-stat-val">{{ lifecycle.test_cases.with_gherkin }}</span>
+                        <span class="lifecycle-stat-lbl">With Gherkin</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Section: Execution Strategy ────────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="panel-section-header" (click)="toggleExecStrategy()" role="button">
+            <div class="panel-section-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <h3>Execution Strategy</h3>
+            </div>
+            <span class="section-chevron" [class.open]="execStrategyOpen()">▾</span>
+          </div>
+          @if (execStrategyOpen()) {
+            <div class="panel-section-body">
+              <div class="exec-rules">
+                <div class="exec-rule">
+                  <span class="exec-rule-num">1</span>
+                  <span class="exec-rule-key">Business Flow</span>
+                  <span class="exec-rule-desc">Group and order by functional area</span>
+                </div>
+                <div class="exec-rule">
+                  <span class="exec-rule-num">2</span>
+                  <span class="exec-rule-key">Risk Level</span>
+                  <span class="exec-rule-chain">Critical → High → Medium → Low</span>
+                </div>
+              </div>
+              @if (getBusinessFlowGroups().length > 0) {
+                <div class="exec-flow-grid">
+                  @for (group of getBusinessFlowGroups(); track group.flow) {
+                    <div class="exec-flow-card">
+                      <div class="exec-flow-top">
+                        <span class="exec-flow-badge"
+                              [style.background]="group.bg_color"
+                              [style.color]="group.text_color">
+                          {{ group.label }}
+                        </span>
+                        <span class="exec-flow-count">{{ group.count }} TC(s)</span>
+                      </div>
+                      <div class="exec-flow-risks">
+                        @for (level of ['critical', 'high', 'medium', 'low']; track level) {
+                          @if (group.by_risk[level]) {
+                            <span class="exec-risk-tag"
+                                  [style.background]="getRiskLevelBg(level)"
+                                  [style.color]="getRiskLevelColor(level)">
+                              {{ level }}: {{ group.by_risk[level] }}
+                            </span>
+                          }
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Section: Execution Order ─────────────────────────────────────── -->
+        @if (getAllSuitesOrder().length > 0) {
+          <div class="panel-section">
+            <div class="panel-section-header" (click)="toggleExecOrder()" role="button">
+              <div class="panel-section-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                <h3>Execution Order</h3>
+                <span class="section-badge">{{ getAllSuitesOrder().length }} suites</span>
+              </div>
+              <span class="section-chevron" [class.open]="execOrderOpen()">▾</span>
+            </div>
+            @if (execOrderOpen()) {
+              <div class="panel-section-body">
+                <div class="order-list">
+                  @for (s of getAllSuitesOrder(); track s.id) {
+                    <div class="order-item" [class.active]="s.id === suite.id">
+                      <span class="order-num">{{ s.execution_order }}</span>
+                      <div class="order-info">
+                        <span class="order-title">{{ s.title }}</span>
+                        @if (s.id === suite.id) {
+                          <span class="order-current-badge">Current</span>
+                        }
+                      </div>
+                      <span class="order-count">{{ s.test_case_count }} TCs</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+      </div>
+    }
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: TEST CASES                                                          -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    @if (activeTab() === 'cases') {
+      <div class="tab-panel">
+
+        <!-- Toolbar ─────────────────────────────────────────────────────────── -->
+        <div class="tc-toolbar">
+          <div class="tc-search-wrap">
+            <svg class="tc-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="tc-search"
+                   type="text"
+                   placeholder="Search by title or code…"
+                   [value]="tcSearch()"
+                   (input)="setTcSearch($any($event.target).value)" />
+            @if (tcSearch()) {
+              <button class="tc-search-clear" (click)="setTcSearch('')">×</button>
+            }
+          </div>
+
+          <div class="tc-filter-group">
+            <select class="tc-filter-select" [value]="tcPriorityFilter()" (change)="setTcPriority($any($event.target).value)">
+              <option value="all">All Priorities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+
+            <select class="tc-filter-select" [value]="tcTypeFilter()" (change)="setTcType($any($event.target).value)">
+              <option value="all">All Types</option>
+              @for (type of getAvailableTcTypes(); track type) {
+                <option [value]="type">{{ type }}</option>
+              }
+            </select>
+
+            <label class="tc-toggle-label">
+              <input type="checkbox" [checked]="tcShowInactive()" (change)="toggleShowInactive()" />
+              <span>Show inactive</span>
+            </label>
+          </div>
+
+          <div class="tc-toolbar-right">
+            @if (tcSearch() || tcPriorityFilter() !== 'all' || tcTypeFilter() !== 'all') {
+              <button class="btn-clear-filters" (click)="setTcSearch(''); setTcPriority('all'); setTcType('all')">
+                Clear filters
+              </button>
+            }
+            <span class="tc-count-info">
+              @if (getFilteredTestCases().length === getTestCases().length) {
+                {{ getTestCases().length }} cases
+              } @else {
+                {{ getFilteredTestCases().length }} / {{ getTestCases().length }} cases
+              }
+            </span>
+          </div>
+        </div>
+
+        <!-- Test Case List ──────────────────────────────────────────────────── -->
+        <div class="tc-list">
+          @for (tc of getPaginatedTestCases(); track tc.id) {
+            <div class="tc-item" [class.tc-expanded]="isCaseExpanded(tc.id)" [class.tc-inactive]="!tc.is_active">
+              <div class="tc-header" (click)="toggleCase(tc.id)">
+                <div class="tc-header-left">
+                  <span class="tc-code">{{ tc.tc_code }}</span>
+                  @if (!tc.is_active) {
+                    <span class="tc-inactive-badge">Inactive</span>
+                  }
+                </div>
+
+                <span class="tc-title">{{ tc.title }}</span>
+
+                <div class="tc-header-right">
+                  @if (tc.priority) {
+                    <span class="tc-priority-chip"
+                          [style.background]="getRiskLevelBg(tc.priority)"
+                          [style.color]="getRiskLevelColor(tc.priority)">
+                      {{ tc.priority }}
+                    </span>
+                  }
+                  @if (tc.test_type) {
+                    <span class="tc-type-chip">{{ tc.test_type }}</span>
+                  }
+                  @if (tc.risk_ids.length) {
+                    <span class="tc-risk-chip">{{ tc.risk_ids.length }}R</span>
+                  }
+                  <span class="tc-chevron" [class.tc-chevron--open]="isCaseExpanded(tc.id)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                  </span>
+                </div>
+              </div>
+
+              @if (isCaseExpanded(tc.id)) {
+                <div class="tc-detail">
+                  <!-- Meta info -->
+                  <div class="tc-meta-row">
+                    @if (tc.test_type) {
+                      <div class="tc-meta-item">
+                        <span class="tc-meta-label">Type</span>
+                        <span class="tc-meta-val">{{ tc.test_type }}</span>
+                      </div>
+                    }
+                    @if (tc.priority) {
+                      <div class="tc-meta-item">
+                        <span class="tc-meta-label">Priority</span>
+                        <span class="tc-meta-val" [style.color]="getRiskLevelColor(tc.priority)">{{ tc.priority }}</span>
+                      </div>
+                    }
+                    @if (tc.risk_ids.length) {
+                      <div class="tc-meta-item">
+                        <span class="tc-meta-label">Risks covered</span>
+                        <span class="tc-meta-val">{{ tc.risk_ids.length }}</span>
+                      </div>
+                    }
+                    @if (tc.execution_order) {
+                      <div class="tc-meta-item">
+                        <span class="tc-meta-label">Exec. order</span>
+                        <span class="tc-meta-val">#{{ tc.execution_order }}</span>
+                      </div>
+                    }
+                    @if (tc.tags.length) {
+                      <div class="tc-meta-item">
+                        <span class="tc-meta-label">Tags</span>
+                        <div class="tc-tags">
+                          @for (tag of tc.tags; track tag) {
+                            <span class="tc-tag">{{ tag }}</span>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Gherkin -->
+                  @if (tc.gherkin_source) {
+                    <div class="tc-gherkin-wrap">
+                      <div class="tc-gherkin-label">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#89b4fa" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        Gherkin Scenario
+                      </div>
+                      <div class="gherkin-block">
+                        @for (line of gherkinLines(tc.gherkin_source); track $index) {
+                          <div class="gh-line" [class]="'gh-' + line.type">{{ line.text || ' ' }}</div>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  <div class="tc-detail-actions">
+                    <button class="btn-open-tc" (click)="openTestCase(tc.id)">
+                      Open Full Detail
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @if (getFilteredTestCases().length === 0) {
+            <div class="tc-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <p>No test cases match your filters.</p>
+              <button class="btn-clear-filters" (click)="setTcSearch(''); setTcPriority('all'); setTcType('all')">
+                Clear filters
+              </button>
+            </div>
+          }
+        </div>
+
+        <!-- Pagination ──────────────────────────────────────────────────────── -->
+        @if (getTcTotalPages() > 1) {
+          <div class="pagination">
+            <button class="pag-btn" [disabled]="tcPage() === 0" (click)="tcPrevPage()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              Previous
+            </button>
+
+            <div class="pag-pages">
+              @for (p of getPaginationPages(); let i = $index; track p) {
+                @if (isEllipsisBefore(i)) {
+                  <span class="pag-ellipsis">…</span>
+                }
+                <button class="pag-page" [class.active]="tcPage() === p" (click)="tcGoToPage(p)">
+                  {{ p + 1 }}
+                </button>
+              }
+            </div>
+
+            <span class="pag-info">
+              {{ getTcStartIndex() }}–{{ getTcEndIndex() }} of {{ getFilteredTestCases().length }}
+            </span>
+
+            <button class="pag-btn" [disabled]="tcPage() >= getTcTotalPages() - 1" (click)="tcNextPage()">
+              Next
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        }
+
+      </div>
+    }
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: TRACEABILITY MATRIX                                                 -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    @if (activeTab() === 'traceability') {
+      <div class="tab-panel">
+        @if (getMatrix(); as matrix) {
+
+          <!-- KPIs ──────────────────────────────────────────────────────────── -->
+          <div class="tm-kpis">
+            <div class="tm-kpi">
+              <span class="tm-kpi-val"
+                    [style.color]="matrix.global_coverage_pct >= 100 ? '#10b981' : matrix.global_coverage_pct >= 80 ? '#f59e0b' : '#ef4444'">
+                {{ matrix.global_coverage_pct }}%
+              </span>
+              <span class="tm-kpi-lbl">Global AC Coverage</span>
+            </div>
+            <div class="tm-kpi tm-kpi--divider">
+              <span class="tm-kpi-val">{{ matrix.covered_ac }}/{{ matrix.total_ac }}</span>
+              <span class="tm-kpi-lbl">ACs Covered</span>
+            </div>
+            <div class="tm-kpi tm-kpi--divider">
+              <span class="tm-kpi-val">{{ getCoveredStoriesCount() }}/{{ matrix.total_stories }}</span>
+              <span class="tm-kpi-lbl">Stories Covered</span>
+            </div>
+            <div class="tm-kpi tm-kpi--divider">
+              <span class="tm-kpi-val">{{ getMatrixTestCaseHeaders().length }}</span>
+              <span class="tm-kpi-lbl">Test Cases</span>
+            </div>
+          </div>
+
+          <!-- Filter + Legend row ────────────────────────────────────────────── -->
+          <div class="tm-toolbar">
+            <div class="tm-filter-group">
+              <span class="tm-filter-label">Filter by US coverage:</span>
+              <div class="tm-filter-tabs">
+                <button class="tm-filter-tab" [class.active]="tmCoverageFilter() === 'all'" (click)="setTmFilter('all')">All ({{ matrix.rows.length }})</button>
+                <button class="tm-filter-tab" [class.active]="tmCoverageFilter() === 'covered'" (click)="setTmFilter('covered')">
+                  <span class="tm-dot tm-dot--covered"></span> 100%
+                </button>
+                <button class="tm-filter-tab" [class.active]="tmCoverageFilter() === 'partial'" (click)="setTmFilter('partial')">
+                  <span class="tm-dot tm-dot--partial"></span> Partial
+                </button>
+                <button class="tm-filter-tab" [class.active]="tmCoverageFilter() === 'none'" (click)="setTmFilter('none')">
+                  <span class="tm-dot tm-dot--none"></span> Not covered
+                </button>
+              </div>
+            </div>
+            <div class="tm-legend">
+              <span class="tm-legend-item"><span class="tm-dot tm-dot--covered"></span> Covered</span>
+              <span class="tm-legend-item"><span class="tm-dot tm-dot--partial"></span> Partial</span>
+              <span class="tm-legend-item"><span class="tm-dot tm-dot--none"></span> Not covered</span>
+            </div>
+          </div>
+
+          <!-- Matrix table ───────────────────────────────────────────────────── -->
+          <div class="tm-wrapper">
+            <table class="tm-table">
+              <thead>
+                <tr>
+                  <th class="tm-th-story">User Story / Acceptance Criteria</th>
+                  <th class="tm-th-cov">AC Cov.</th>
+                  @for (tc of getMatrixTestCaseHeaders(); track tc.id) {
+                    <th class="tm-th-tc">
+                      <div class="tm-tc-header">
+                        <span class="tm-tc-code" [style.color]="getPriorityConfig(tc.priority)?.color">{{ tc.tc_code }}</span>
+                        <span class="tm-tc-type">{{ tc.test_type }}</span>
+                      </div>
+                    </th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of getFilteredMatrixRows(); track row.user_story_id) {
+                  <!-- Story header row -->
+                  <tr class="tm-us-row">
+                    <td class="tm-us-cell" [attr.colspan]="2 + getMatrixTestCaseHeaders().length">
+                      <div class="tm-us-label">
+                        <span class="tm-us-key">{{ row.issue_key }}</span>
+                        <span class="tm-us-title">{{ row.title }}</span>
+                        <span class="tm-us-pct"
+                              [style.color]="row.coverage_pct >= 100 ? '#10b981' : row.coverage_pct > 0 ? '#f59e0b' : '#ef4444'">
+                          {{ row.coverage_pct }}%
+                        </span>
+                        <span class="tm-us-count">{{ row.covered_cases }}/{{ row.total_ac }} ACs</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- AC rows -->
+                  @for (ac of row.acceptance_criteria; track ac.ac_index) {
+                    <tr class="tm-ac-row" [class.tm-ac-row--covered]="ac.is_covered">
+                      <td class="tm-ac-cell">
+                        <span class="tm-ac-idx">AC {{ ac.ac_index + 1 }}</span>
+                        <span class="tm-ac-text">{{ ac.ac_text }}</span>
+                      </td>
+                      <td class="tm-cov-cell">
+                        @if (ac.covered_by.length > 0) {
+                          <span class="tm-cov-badge tm-cov-badge--ok">{{ ac.covered_by.length }} TC</span>
+                        } @else {
+                          <span class="tm-cov-badge tm-cov-badge--none">—</span>
+                        }
+                      </td>
+                      @for (tc of getMatrixTestCaseHeaders(); track tc.id) {
+                        <td class="tm-cell"
+                            [class.tm-cell--covered]="isAcCoveredByTc(ac.covered_by, tc.tc_code)"
+                            [class.tm-cell--empty]="!isAcCoveredByTc(ac.covered_by, tc.tc_code)"
+                            [title]="isAcCoveredByTc(ac.covered_by, tc.tc_code) ? tc.tc_code + ' covers this AC' : 'Not covered'">
+                          @if (isAcCoveredByTc(ac.covered_by, tc.tc_code)) {
+                            <span class="tm-check">✓</span>
+                          } @else {
+                            <span class="tm-empty">·</span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
+                }
+                <!-- Footer -->
+                <tr class="tm-footer-row">
+                  <td class="tm-footer-label">Risk Coverage (TC)</td>
+                  <td></td>
+                  @for (tc of getMatrixTestCaseHeaders(); track tc.id) {
+                    <td class="tm-footer-cell">
+                      @if (getTcRiskCount(tc) > 0) {
+                        <span class="tm-risk-badge">{{ getTcRiskCount(tc) }}R</span>
+                      } @else {
+                        <span class="tm-risk-badge tm-risk-badge--none">—</span>
+                      }
+                    </td>
+                  }
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          @if (getFilteredMatrixRows().length === 0) {
+            <div class="empty-panel">No user stories match this filter.</div>
+          }
+
+        } @else {
+          <div class="empty-panel">No traceability matrix available for this suite.</div>
+        }
+      </div>
+    }
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: DEPENDENCY GRAPH                                                   -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    @if (activeTab() === 'graph') {
+      <div class="tab-panel tab-panel--graph">
+        @if (getGraph(); as graph) {
+
+          <div class="graph-algo-box">
+            <span class="graph-algo-rule"><strong>1st key — Business Flow</strong></span>
+            <span class="graph-algo-sep"> | </span>
+            <span class="graph-algo-rule"><strong>2nd key — Risk Level</strong></span>
+          </div>
+
+          @if (graph.execution_order.length > 0) {
+            <div class="graph-exec-bar">
+              <span class="graph-exec-title">Execution Order:</span>
+              @for (code of graph.execution_order; let i = $index; track code) {
+                <span class="graph-exec-chip">
+                  <span class="graph-exec-num">{{ i + 1 }}</span>
+                  <span class="graph-exec-code">{{ code }}</span>
+                </span>
+                @if (i < graph.execution_order.length - 1) {
+                  <span class="graph-exec-arrow">→</span>
+                }
+              }
+            </div>
+          }
+
+          <div class="graph-meta">
+            <div class="graph-stats">
+              <span class="graph-stat"><strong>{{ graph.nodes.length }}</strong> nodes</span>
+              <span class="graph-stat"><strong>{{ graph.edges.length }}</strong> edges</span>
+            </div>
+            <div class="graph-legend">
+              <span class="gl-item"><span class="gl-node" style="background:#fef2f2;border-color:#ef4444"></span>Critical</span>
+              <span class="gl-item"><span class="gl-node" style="background:#fff7ed;border-color:#f97316"></span>High</span>
+              <span class="gl-item"><span class="gl-node" style="background:#fefce8;border-color:#eab308"></span>Medium</span>
+              <span class="gl-item"><span class="gl-node" style="background:#f0fdf4;border-color:#22c55e"></span>Low</span>
+              <span class="gl-item"><span class="gl-edge" style="background:#6366f1"></span>Requires</span>
+              <span class="gl-item"><span class="gl-edge" style="background:#ef4444"></span>Blocks</span>
+              <span class="gl-item"><span class="gl-edge" style="background:#9ca3af"></span>Related</span>
+            </div>
+          </div>
+
+          @if (buildGraphLayout(); as layout) {
+            <div class="graph-toolbar">
+              <div class="graph-toolbar-left">
+                <button class="graph-tool-btn" (click)="zoomOut()" title="Zoom out">−</button>
+                <div class="graph-zoom-track">
+                  <div class="graph-zoom-fill" [style.width.%]="getZoomFillPct()"></div>
+                </div>
+                <button class="graph-tool-btn" (click)="zoomIn()" title="Zoom in">+</button>
+                <span class="graph-zoom-label">{{ getZoomPercent() }}%</span>
+                <button class="graph-tool-btn graph-tool-btn--outline" (click)="resetZoom()" title="Reset view">↺</button>
+              </div>
+              <div class="graph-toolbar-right">
+                <span class="graph-hint">Scroll to zoom · Drag to pan</span>
+                <button class="graph-tool-btn graph-tool-btn--export" (click)="exportGraphSvg()">↓ SVG</button>
+                <button class="graph-tool-btn graph-tool-btn--export graph-tool-btn--png" (click)="exportGraphPng()">↓ PNG</button>
+              </div>
+            </div>
+
+            <div class="graph-canvas"
+                 #graphCanvas
+                 [class.graph-canvas--dragging]="isDragging()"
+                 (wheel)="onGraphWheel($event)"
+                 (mousedown)="onGraphMouseDown($event)"
+                 (mousemove)="onGraphMouseMove($event)"
+                 (mouseup)="onGraphMouseUp()"
+                 (mouseleave)="onGraphMouseUp()">
+              <svg #graphSvg
+                   [attr.width]="layout.svg_width"
+                   [attr.height]="layout.svg_height"
+                   xmlns="http://www.w3.org/2000/svg"
+                   class="svg-graph"
+                   [style.transform]="getGraphTransform()"
+                   style="transform-origin: 0 0; display: block; overflow: visible;">
+                <defs>
+                  <filter id="node-shadow" x="-10%" y="-10%" width="120%" height="130%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0002"/>
+                  </filter>
+                  <marker id="arr-requires" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+                  </marker>
+                  <marker id="arr-blocks" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+                  </marker>
+                  <marker id="arr-related" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#9ca3af"/>
+                  </marker>
+                </defs>
+                @for (band of layout.bands; track band.label) {
+                  <rect x="0" [attr.y]="band.y" [attr.width]="layout.svg_width" [attr.height]="band.height" rx="6" [attr.fill]="band.fill" opacity="0.5"/>
+                  <text x="10" [attr.y]="band.y + band.height / 2 + 4" font-size="11" font-weight="700" [attr.fill]="band.text_color">
+                    {{ band.label }}<tspan font-size="9" font-weight="400"> ({{ band.count }})</tspan>
+                  </text>
+                }
+                @for (edge of layout.edges; track edge.source_code + edge.target_code) {
+                  <path [attr.d]="edge.path" [attr.stroke]="edge.color" stroke-width="2" fill="none"
+                        [attr.stroke-dasharray]="edge.dependency_type === 'related' ? '5,3' : null"
+                        [attr.marker-end]="'url(#arr-' + edge.dependency_type + ')'"/>
+                }
+                @for (node of layout.nodes; track node.id) {
+                  <g [attr.transform]="'translate(' + node.x + ',' + node.y + ')'">
+                    <rect width="160" height="64" rx="10" [attr.fill]="getNodeFill(node.priority)" [attr.stroke]="getNodeStroke(node.priority)" stroke-width="2" filter="url(#node-shadow)"/>
+                    <rect width="160" height="6" rx="10" [attr.fill]="getNodeStroke(node.priority)"/>
+                    <rect x="0" y="3" width="160" height="3" [attr.fill]="getNodeStroke(node.priority)"/>
+                    <circle cx="148" cy="18" r="12" [attr.fill]="getNodeStroke(node.priority)"/>
+                    <text x="148" y="22" text-anchor="middle" font-size="9" font-weight="700" fill="white">#{{ node.exec_pos }}</text>
+                    <text x="76" y="28" text-anchor="middle" font-size="11" font-weight="700" [attr.fill]="getNodeStroke(node.priority)">{{ node.tc_code }}</text>
+                    <text x="76" y="44" text-anchor="middle" font-size="10" fill="#374151">{{ node.title }}</text>
+                    <text x="76" y="57" text-anchor="middle" font-size="9" fill="#9ca3af">{{ node.test_type ?? '' }}</text>
+                  </g>
+                }
+              </svg>
+            </div>
+          }
+
+        } @else {
+          <div class="empty-panel">No dependency graph available. Generate test suites to build the graph.</div>
+        }
+      </div>
+    }
+
+  }
+</div>

@@ -40,3 +40,14 @@ psycopg[binary,pool]
 langchain_openrouter
 langchain-mcp-adapters
 langchain-groq
+reportlab
+python-docx
+
+
+# ML - Risk Analysis
+xgboost
+scikit-learn
+joblib
+openpyxl
+pandas
+numpy

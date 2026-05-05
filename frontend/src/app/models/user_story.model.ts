@@ -37,6 +37,7 @@ export interface UserStory {
   reporter?: string;
 
   epic_key?: string;
+  epic_name?: string;
   sprint?: string;
   labels?: string[];
   components?: string[];
@@ -273,6 +274,7 @@ export type SSEEventType =
   | 'phase'           // ✅ Pipeline phase progress
   | 'version_created'
   | 'version_updated'
+  | 'defect_created'  // ✅ Tech Lead: story trop mauvaise → défaut reporté
 
 export interface SSEEvent {
   type: SSEEventType;
@@ -301,6 +303,11 @@ export interface SSEEvent {
 
     // Au failure
     error?: string;
+
+    // defect_created
+    defect_id?: string;
+    jira_issue_key?: string;
+    severity?: string;
   };
   timestamp: string;
 }

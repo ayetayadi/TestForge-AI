@@ -10,11 +10,12 @@ import { MaterialModule } from 'src/app/material.module';
 import { RouterModule } from '@angular/router';
 import { AuthService, UserRead } from 'src/app/services/auth.service';
 import { UserService } from 'src/app/services/user.service';
+import { NotificationBellComponent } from 'src/app/shared/notification-bell/notification-bell.component';
 
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [CommonModule, RouterModule, MaterialModule],
+  imports: [CommonModule, RouterModule, MaterialModule, NotificationBellComponent],
   templateUrl: './header.component.html',
   styleUrls: ['./header.component.scss'],
 })

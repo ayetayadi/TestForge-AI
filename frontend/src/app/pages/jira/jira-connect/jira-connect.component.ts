@@ -9,7 +9,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-
+import { signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -25,6 +25,7 @@ import {
   JiraStatus,
   UserStory,
 } from '../../../services/jira.service';
+import { ConfirmDialogComponent } from 'src/app/components/confirm-dialog/confirm-dialog.component';
 
 function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
   const newPassword = control.get('new_password')?.value;
@@ -50,6 +51,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
     MatIconModule,
     MatButtonModule,
     MatChipsModule,
+    ConfirmDialogComponent
   ],
 })
 export class JiraConnectComponent implements OnInit {
@@ -73,6 +75,25 @@ export class JiraConnectComponent implements OnInit {
   hideCurrentPassword = true;
   hideNewPassword = true;
   hideConfirmPassword = true;
+
+  showConfirmDialog = signal(false);
+confirmDialogData = signal<{
+  title: string;
+  message: string;
+  icon: string;
+  confirmText: string;
+  cancelText: string;
+  variant: 'primary' | 'danger' | 'warning' | 'success';
+  onConfirm: () => void;
+}>({
+  title: '',
+  message: '',
+  icon: '⚠️',
+  confirmText: 'Confirm',
+  cancelText: 'Cancel',
+  variant: 'primary',
+  onConfirm: () => {},
+});
 
   constructor(
     private fb: FormBuilder,
@@ -126,7 +147,6 @@ export class JiraConnectComponent implements OnInit {
       },
       error: (err) => {
         console.error('loadProjects error:', err);
-        this.errorMessage = 'Failed to load Jira projects.';
         this.loadingProjects = false;
         this.projects = [];
       },
@@ -186,27 +206,35 @@ export class JiraConnectComponent implements OnInit {
     });
   }
 
-  disconnect(): void {
-    if (!confirm('Disconnect Jira?')) return;
+disconnect(): void {
+  this.confirmDialogData.set({
+    title: 'Disconnect Jira',
+    message: 'Disconnect Jira?\n\nYou will need to reconnect to access Jira data again.',
+    icon: '🔌',
+    confirmText: 'Disconnect',
+    cancelText: 'Cancel',
+    variant: 'warning',
+    onConfirm: () => {
+      this.disconnecting = true;
 
-    this.disconnecting = true;
-
-    this.jiraService.disconnect().subscribe({
-      next: () => {
-        this.disconnecting = false;
-        this.status = { connected: false };
-        this.projects = [];
-        this.stories = [];
-        this.selectedProject = null;
-      },
-      error: (err) => {
-        console.error('disconnect error:', err);
-        this.disconnecting = false;
-        this.errorMessage = 'Failed to disconnect Jira.';
-      },
-    });
-  }
-
+      this.jiraService.disconnect().subscribe({
+        next: () => {
+          this.disconnecting = false;
+          this.status = { connected: false };
+          this.projects = [];
+          this.stories = [];
+          this.selectedProject = null;
+        },
+        error: (err) => {
+          console.error('disconnect error:', err);
+          this.disconnecting = false;
+          this.errorMessage = 'Failed to disconnect Jira.';
+        },
+      });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
   changePassword(): void {
     if (this.changePasswordForm.invalid) {
       this.changePasswordForm.markAllAsTouched();

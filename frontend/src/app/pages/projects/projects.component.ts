@@ -9,6 +9,8 @@ import { ImportModalComponent } from '../../components/import-modal/import-modal
 import { ProjectsService, ToastService } from '../../services';
 import { Project } from '../../models/user_story.model';
 import { JiraService } from 'src/app/services/jira.service';
+import { InAppNotificationService } from 'src/app/services/in-app-notification.service';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-projects',
@@ -20,6 +22,7 @@ import { JiraService } from 'src/app/services/jira.service';
     FilterBarComponent,
     PaginationComponent,
     ImportModalComponent,
+    ConfirmDialogComponent,
   ],
   templateUrl: './projects.component.html',
   styleUrl: './projects.component.scss',
@@ -29,6 +32,7 @@ export class ProjectsComponent implements OnInit {
   private toastService = inject(ToastService);
   private router = inject(Router);
   private jiraService = inject(JiraService);
+  private notifService = inject(InAppNotificationService);
 
   @ViewChild('importModal') importModal!: ImportModalComponent;
 
@@ -40,6 +44,25 @@ export class ProjectsComponent implements OnInit {
   page = signal(1);
   pageSize = signal(10);
   viewMode: 'grid' | 'list' = 'grid';
+
+  confirmDialogData = signal<{
+  title: string;
+  message: string;
+  icon: string;
+  confirmText: string;
+  cancelText: string;
+  variant: 'primary' | 'danger' | 'warning' | 'success';
+  onConfirm: () => void;
+}>({
+  title: '',
+  message: '',
+  icon: '⚠️',
+  confirmText: 'Confirm',
+  cancelText: 'Cancel',
+  variant: 'primary',
+  onConfirm: () => {},
+});
+showConfirmDialog = signal(false);
 
   private searchQuery = signal('');
   activeFilters = signal<ActiveFilters>({});
@@ -163,10 +186,10 @@ export class ProjectsComponent implements OnInit {
 
   onImported(result: { imported: number; skipped: number; total: number } | null): void {
     if (result && result.imported > 0) {
-      this.toastService.success(
-        'Import completed',
-        `${result.imported} new stories imported, ${result.skipped} already existed`
-      );
+      // this.toastService.success(
+      //   'Import completed',
+      //   `${result.imported} new stories imported, ${result.skipped} already existed`
+      // );
     } else if (result && result.skipped > 0 && result.imported === 0) {
       this.toastService.info(
         'Already up to date',
@@ -189,7 +212,9 @@ export class ProjectsComponent implements OnInit {
       );
       return;
     }
-    
+
+    this.notifService.connect(project.project_key);
+
     this.router.navigate(['/user-stories'], {
       queryParams: {
         projectId: project.id,
@@ -200,32 +225,37 @@ export class ProjectsComponent implements OnInit {
     });
   }
 
-  deleteProject(project: Project): void {
-    if (!confirm(`Delete project "${project.project_name}" ?`)) {
-      return;
-    }
-
-    this.projectsService.deleteProject(project.id).subscribe({
-      next: () => {
-        this.toastService.success('Project deleted', project.project_name);
-        
-        // Mise à jour locale
-        this.projects.update(list =>
-          (list ?? []).filter(p => p.id !== project.id)
-        );
-        
-        // Ajuster la pagination si nécessaire
-        if (this.paginatedProjects().length === 0 && this.page() > 1) {
-          this.page.set(this.page() - 1);
+deleteProject(project: Project): void {
+  this.confirmDialogData.set({
+    title: 'Delete Project',
+    message: `Delete project "${project.project_name}"?\n\nThis action cannot be undone.`,
+    icon: '🗑️',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {
+      this.projectsService.deleteProject(project.id).subscribe({
+        next: () => {
+          this.toastService.success('Project deleted', project.project_name);
+          
+          this.projects.update(list =>
+            (list ?? []).filter(p => p.id !== project.id)
+          );
+          
+          if (this.paginatedProjects().length === 0 && this.page() > 1) {
+            this.page.set(this.page() - 1);
+          }
+        },
+        error: (err) => {
+          console.error('[DELETE PROJECT ERROR]', err);
+          const msg = err?.error?.detail || err?.message || 'Unknown error';
+          this.toastService.error('Delete failed', msg);
         }
-      },
-      error: (err) => {
-        console.error('[DELETE PROJECT ERROR]', err);
-        const msg = err?.error?.detail || err?.message || 'Unknown error';
-        this.toastService.error('Delete failed', msg);
-      }
-    });
-  }
+      });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
 
   toggleViewMode(mode: 'grid' | 'list'): void {
     this.viewMode = mode;

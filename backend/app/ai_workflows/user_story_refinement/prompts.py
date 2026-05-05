@@ -30,7 +30,8 @@ RULES:
 - Keep the actor/role exactly as-is (the "As a [role]" part)
 - Keep the core business intent — do not invent new features
 - Target testability_score >= {threshold}
-- Write at least 3 concrete, verifiable acceptance criteria using action verbs (displays, creates, validates, returns)
+- KEEP ALL {ac_count} existing acceptance criteria — do not drop any. Rewrite each one to add action verbs and measurable conditions.
+- Each criterion must start with an action verb (affiche, retourne, crée, valide, génère, sélectionne, supprime, envoie / displays, returns, creates, validates, generates, selects, deletes, sends)
 - Replace any vague terms (quickly, easily, efficiently) with measurable conditions
 - Remove any implementation technology prescriptions (framework, database, API type)
 - Remove any references to other stories or external dependencies

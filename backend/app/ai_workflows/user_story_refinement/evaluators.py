@@ -12,6 +12,8 @@ import asyncio
 import logging
 from typing import Any, Dict, List
 
+from app.ai_workflows.user_story_refinement.config import MIN_SIMILARITY_THRESHOLD
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,13 +84,14 @@ def _extract_role(text: str) -> str:
 def _is_garbage(story: str) -> bool:
     if not story or len(story.strip()) < 10 or len(story) > 5000:
         return True
+    if len(story.split()) < 4:
+        return True
     s = story.lower().strip()
     patterns = [r"^[0-9\s]+$", r"^[a-zA-Z\s]{0,5}$", r"lorem ipsum", r"test test test", r"^[^a-zA-Z]+$"]
     return any(re.search(p, s) for p in patterns)
 
 
-def _rule_score(story: str) -> Dict[str, Any]:
-    """Format and structure rules — covers V (Valuable) and S (Small) of INVEST."""
+def _syntactic_quality_score(story: str) -> Dict[str, Any]:
     issues: List[str] = []
     suggestions: List[str] = []
     score = 1.0
@@ -133,8 +136,7 @@ def _rule_score(story: str) -> Dict[str, Any]:
     return {"score": round(max(0.0, min(1.0, score)), 3), "issues": issues, "suggestions": suggestions}
 
 
-def _nlp_score(story: str) -> Dict[str, Any]:
-    """NLP quality — passive voice, non-testable patterns. Vague terms handled by _rule_score."""
+def _semantic_clarity_score(story: str) -> Dict[str, Any]:
     issues: List[str] = []
     suggestions: List[str] = []
     score = 1.0
@@ -242,12 +244,12 @@ def _invest_score(story: str, ac_list: List[str]) -> Dict[str, Any]:
 
 _VERIFIABLE = re.compile(
     r"\b(doit|must|shall|should|will|can|peut|"
-    r"display|show|affiche|montre|présente|"
-    r"return|retourne|renvoie|send|envoie|receive|reçoit|"
-    r"create|crée|delete|supprime|update|modifie|"
-    r"validate|valide|verify|vérifie|check|contrôle|"
-    r"generate|génère|select|sélectionne|"
-    r"accept|accepte|reject|rejette)\b",
+    r"display|show|affich(?:e|er|ez)|montr(?:e|er)|présent(?:e|er)|"
+    r"return|retourn(?:e|er)|renvoi(?:e|er)|send|envo(?:ie|yer)|receiv(?:e|er)|reçoi(?:t|re)|"
+    r"creat(?:e|er)|cré(?:e|er)|delet(?:e|er)|supprim(?:e|er)|updat(?:e|er)|modifi(?:e|er)|"
+    r"validat(?:e|er)|valid(?:e|er)|verif(?:y|ier)|vérifi(?:e|er)|check|contrôl(?:e|er)|"
+    r"generat(?:e|er)|génér(?:e|er)|select|sélectionn(?:e|er)|"
+    r"accept(?:e|er)|rejet(?:te|er)|reject)\b",
     re.IGNORECASE,
 )
 
@@ -255,7 +257,8 @@ _MEASURABLE = re.compile(
     r"\b\d+\s*(ms|secondes?|seconds?|sec|minutes?|min|heures?|hours?|"
     r"caractères?|characters?|chars?|items?|%)\b|"
     r"(at least|at most|minimum|maximum|less than|more than|within|"
-    r"au moins|au plus|moins de|plus de|dans un délai de)\s*\d+",
+    r"au moins|au plus|moins de|plus de|dans un délai de)\s*\d+|"
+    r"\[SPECIFY\s+\w+\]",
     re.IGNORECASE,
 )
 
@@ -435,8 +438,8 @@ async def score_story(
         is_garbage = _is_garbage(story)
 
         rule, nlp, testability, invest = await asyncio.gather(
-            asyncio.to_thread(_rule_score, story),
-            asyncio.to_thread(_nlp_score, story),
+            asyncio.to_thread(_syntactic_quality_score, story),
+            asyncio.to_thread(_semantic_clarity_score, story),
             asyncio.to_thread(_testability_score, story, acceptance_criteria),
             asyncio.to_thread(_invest_score, story, acceptance_criteria),
         )
@@ -547,8 +550,8 @@ async def validate_constraints(
             emb_orig, emb_impr = await asyncio.gather(embed(original_story), embed(improved_story))
             if emb_orig is not None and emb_impr is not None:
                 similarity = float(cosine_similarity(emb_orig, emb_impr))
-                if similarity < 0.65:
-                    violations.append(f"Similarity too low: {similarity:.1%} (minimum 65%)")
+                if similarity < MIN_SIMILARITY_THRESHOLD:
+                    violations.append(f"Similarity too low: {similarity:.1%} (minimum {MIN_SIMILARITY_THRESHOLD:.1%})")
         except ImportError:
             logger.warning("[EVALUATOR] Embedding import failed — skipping similarity check")
         except Exception as emb_err:
