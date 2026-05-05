@@ -58,6 +58,63 @@
               </div>
             }
           </div>
+
+          <!-- Filters (epic / sprint) — appear once a project is selected -->
+          @if (selectedProject()) {
+            <div class="filters-section">
+              <p class="filters-title">Optional filters</p>
+
+              @if (filtersLoading()) {
+                <div class="filters-loading">
+                  <app-spinner text="Loading epics & sprints..." />
+                </div>
+              } @else {
+                <div class="filters-row">
+                  <!-- Epic filter -->
+                  <div class="filter-group">
+                    <label class="filter-label" for="epicSelect">Epic</label>
+                    @if (epics().length === 0) {
+                      <p class="filter-empty">No epics found</p>
+                    } @else {
+                      <select
+                        id="epicSelect"
+                        class="filter-select"
+                        [ngModel]="selectedEpicKey()"
+                        (ngModelChange)="selectedEpicKey.set($event)"
+                        [disabled]="importing()"
+                      >
+                        <option value="">All epics</option>
+                        @for (epic of epics(); track epic.key) {
+                          <option [value]="epic.key">{{ epic.summary }} ({{ epic.key }})</option>
+                        }
+                      </select>
+                    }
+                  </div>
+
+                  <!-- Sprint filter -->
+                  <div class="filter-group">
+                    <label class="filter-label" for="sprintSelect">Sprint</label>
+                    @if (sprints().length === 0) {
+                      <p class="filter-empty">No sprints found</p>
+                    } @else {
+                      <select
+                        id="sprintSelect"
+                        class="filter-select"
+                        [ngModel]="selectedSprintName()"
+                        (ngModelChange)="selectedSprintName.set($event)"
+                        [disabled]="importing()"
+                      >
+                        <option value="">All sprints</option>
+                        @for (sprint of sprints(); track sprint.id) {
+                          <option [value]="sprint.name">{{ sprint.name }} <span class="sprint-state">({{ sprint.state }})</span></option>
+                        }
+                      </select>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
         }
 
       </div>
@@ -70,7 +127,7 @@
           </button>
           <button
             class="btn btn-primary"
-            [disabled]="!selectedProject() || importing()"
+            [disabled]="!selectedProject() || importing() || filtersLoading()"
             (click)="confirmImport()"
           >
             @if (importing()) {

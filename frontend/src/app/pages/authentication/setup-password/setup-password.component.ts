@@ -43,6 +43,7 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, MaterialModule, RouterModule],
   templateUrl: './setup-password.component.html',
+  styleUrl: './setup-password.component.scss'
 })
 export class SetupPasswordComponent implements OnInit {
 

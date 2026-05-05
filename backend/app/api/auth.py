@@ -85,14 +85,17 @@ async def refresh_access_token(
     Le frontend appelle ce endpoint quand il reçoit un 401
     """
     if not refresh_token:
+        print("[REFRESH DEBUG] No cookie received")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
             detail="No refresh token provided"
         )
     
     # 1. Vérifier et décoder le refresh token
+    print(f"[REFRESH DEBUG] Cookie received, token prefix: {refresh_token[:20]}...")
     payload = decode_refresh_token(refresh_token)
     if not payload:
+        print("[REFRESH DEBUG] Token decode failed (invalid or expired)")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
             detail="Invalid refresh token"

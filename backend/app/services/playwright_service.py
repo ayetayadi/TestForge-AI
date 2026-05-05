@@ -44,7 +44,6 @@ async def generate_script_v1(
         "title": test_case.title,
         "description": test_case.description,
         "priority": test_case.priority,
-        "tags": test_case.tags,
         "preconditions": test_case.preconditions,
         "postconditions": test_case.postconditions,
         "steps": test_case.steps,

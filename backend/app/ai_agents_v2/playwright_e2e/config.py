@@ -8,7 +8,7 @@ load_dotenv()
 # ============================================================
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # Must be a model with tool/function calling support for the ReAct agent
-LLM_MODEL = os.getenv("PLAYWRIGHT_LLM_MODEL", "openai/gpt-oss-120b")
+LLM_MODEL ="llama-3.3-70b-versatile"
 LLM_TEMPERATURE = 0.1
 
 # ============================================================
@@ -16,6 +16,7 @@ LLM_TEMPERATURE = 0.1
 # ============================================================
 PLACEHOLDER_PREFIX = "TESTFORGEAI"
 
+LLM_MAX_TOKENS = 800
 # ============================================================
 # ReAct Agent Configuration
 # ============================================================

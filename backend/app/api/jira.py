@@ -131,7 +131,37 @@ async def stories(
 
 
 # =========================
-# 6. DISCONNECT
+# 6. EPICS
+# =========================
+@router.get("/epics/{project_key}")
+async def epics(
+    project_key: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    manager = JiraSessionManager(db)
+    conn    = await manager.get_connection(user.id)
+    client  = await manager.get_client(conn)
+    return await client.get_epics(project_key)
+
+
+# =========================
+# 7. SPRINTS
+# =========================
+@router.get("/sprints/{project_key}")
+async def sprints(
+    project_key: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    manager = JiraSessionManager(db)
+    conn    = await manager.get_connection(user.id)
+    client  = await manager.get_client(conn)
+    return await client.get_sprints(project_key)
+
+
+# =========================
+# 8. DISCONNECT
 # =========================
 @router.delete("/disconnect", status_code=204)
 async def disconnect(

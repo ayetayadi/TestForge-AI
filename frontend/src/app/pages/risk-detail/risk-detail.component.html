@@ -1,0 +1,405 @@
+<div class="detail-page">
+
+  <!-- ══════════════════════════════════════════════
+       LOADING
+  ══════════════════════════════════════════════ -->
+  <div class="loading-state" *ngIf="loading()">
+    <div class="spinner"></div>
+    <span>Loading risk…</span>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       NOT FOUND
+  ══════════════════════════════════════════════ -->
+  <div class="not-found" *ngIf="!loading() && notFound()">
+    <div class="not-found-icon">🔍</div>
+    <h3>Risk not found</h3>
+    <p>This risk does not exist or has been deleted.</p>
+    <button class="btn-back" (click)="goBack()">← Back to list</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       MAIN CONTENT
+  ══════════════════════════════════════════════ -->
+  <ng-container *ngIf="!loading() && !notFound() && risk() as risk">
+
+    <!-- HEADER -->
+    <div class="detail-header" [class]="'detail-header--' + risk.level">
+      <div class="header-breadcrumb">
+        <button class="btn-back-inline" (click)="goBack()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M19 12H5M12 5l-7 7 7 7"/>
+          </svg>
+          Back to list
+        </button>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-current">Risk Details</span>
+      </div>
+
+      <div class="header-main">
+        <div class="header-level">
+          <span class="level-badge badge-{{risk.level}}">
+            {{ levelConfig[risk.level].icon }} {{ levelConfig[risk.level].label | uppercase }}
+          </span>
+          <span class="header-score">{{ formatScore(risk.risk_score) }}</span>
+          <span class="ai-tag" *ngIf="isFromLLM()">🤖 LLM Analysis</span>
+          <span class="manual-tag" *ngIf="isManual()">✍️ Manual</span>
+          <span class="modified-tag" *ngIf="isHumanModified()">✏️ Human Corrected</span>
+        </div>
+        <p class="header-description">{{ risk.description }}</p>
+        
+        <!-- ✅ Risk matrix position -->
+        <div class="header-matrix-pos" *ngIf="risk.probability && risk.impact">
+          Position: <strong>P{{ risk.probability }}-I{{ risk.impact }}</strong>
+          in the Risk Matrix
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="detail-content">
+
+      <!-- ── 1. USER STORY ──────────────────────────── -->
+      <div class="detail-card us-card" *ngIf="risk.user_story_id || risk.user_story_key">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          Associated User Story
+          <span class="source-badge" *ngIf="isFromApprovedVersion()">📋 Approved Version</span>
+          <span class="source-badge source-badge--original" *ngIf="!isFromApprovedVersion()">📄 Original</span>
+        </div>
+        <div class="us-info">
+          <span class="us-key">{{ usLabel() }}</span>
+          <span class="us-title" *ngIf="usTitle()">{{ usTitle() }}</span>
+        </div>
+      </div>
+
+      <!-- ── 2. STORY CONTENT ───────────────────────── -->
+      <div class="detail-card" *ngIf="getStoryDescription() || getStoryAcceptanceCriteria()">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M4 4h16v16H4zM9 9h6M9 13h6M9 17h4"/>
+          </svg>
+          {{ isFromApprovedVersion() ? 'Approved Version Analyzed' : 'Original Story Analyzed' }}
+        </div>
+
+        <div class="us-description" *ngIf="getStoryDescription() as desc">
+          <div class="subsection-title">
+            {{ isFromApprovedVersion() ? 'Improved Story' : 'Description' }}
+          </div>
+          <p class="description-text">{{ desc }}</p>
+        </div>
+
+        <div class="us-acceptance" *ngIf="getStoryAcceptanceCriteria() as criteria">
+          <div class="subsection-title">
+            Acceptance Criteria ({{ criteria.length }})
+          </div>
+          <ul class="acceptance-list">
+            <li *ngFor="let c of criteria">{{ c }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── 3. ISTQB FORMULA ───────────────────────── -->
+      <div class="detail-card">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4l3 3"/>
+          </svg>
+          Risk Score = P × I
+          <button class="btn-edit" (click)="startEditFormula()" *ngIf="!editingFormula() && canModify()">
+            ✏️ Modify P/I
+          </button>
+        </div>
+
+        <!-- ✅ Mode Édition P et I (échelle 1-5) -->
+        <ng-container *ngIf="editingFormula()">
+          <div class="formula-edit-row">
+            <div class="formula-edit-box">
+              <label>P — Probability (1–5)</label>
+              <input
+                type="range"
+                class="formula-slider"
+                [ngModel]="probabilityDraft"
+                (ngModelChange)="onProbabilityChange($event)"
+                min="1" max="5" step="1">
+              <div class="formula-edit-val">{{ probabilityDraft }}</div>
+              <div class="formula-preview">{{ probBandLabelDraft() }}</div>
+            </div>
+            <div class="formula-op">×</div>
+            <div class="formula-edit-box">
+              <label>I — Impact (1–5)</label>
+              <input
+                type="range"
+                class="formula-slider"
+                [ngModel]="impactDraft"
+                (ngModelChange)="onImpactChange($event)"
+                min="1" max="5" step="1">
+              <div class="formula-edit-val">{{ impactDraft }}</div>
+              <div class="formula-preview">{{ impactLabelDraft() }}</div>
+            </div>
+            <div class="formula-op">=</div>
+            <div class="formula-edit-box formula-edit-result" [class]="'formula-edit--' + computedLevelDraft()">
+              <label>Risk Score</label>
+              <div class="formula-score-preview">{{ computedScoreDraft() }}</div>
+              <div class="formula-preview">{{ levelConfig[computedLevelDraft()].icon }} {{ computedLevelDraft() | uppercase }}</div>
+            </div>
+          </div>
+          <div class="editor-actions">
+            <button class="btn-save" (click)="saveFormula()" [disabled]="savingFormula()">
+              {{ savingFormula() ? 'Saving…' : 'Save Changes' }}
+            </button>
+            <button class="btn-cancel" (click)="cancelEditFormula()">Cancel</button>
+          </div>
+        </ng-container>
+
+        <!-- ✅ Mode Lecture -->
+        <ng-container *ngIf="!editingFormula()">
+          <div class="formula-row">
+            <div class="formula-box formula-box--prob">
+              <div class="formula-box-label">P — Probability</div>
+              <div class="formula-box-val">{{ risk.probability }}/5</div>
+              <div class="formula-box-sub">{{ probPercent(risk.probability) }}% · {{ probBandLabel() }}</div>
+            </div>
+            <div class="formula-op">×</div>
+            <div class="formula-box formula-box--impact">
+              <div class="formula-box-label">I — Impact</div>
+              <div class="formula-box-val">{{ risk.impact }}/5</div>
+              <div class="formula-box-sub">{{ impactLabel() }}</div>
+            </div>
+            <div class="formula-op">=</div>
+            <div class="formula-box formula-box--result" [class]="'formula-box--' + risk.level">
+              <div class="formula-box-label">Risk Score</div>
+              <div class="formula-box-val">{{ formatScore(risk.risk_score) }}</div>
+              <div class="formula-box-sub">{{ levelConfig[risk.level].icon }} {{ risk.level | uppercase }}</div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- ✅ Score bar (1-25 scale) -->
+        <div class="score-bar-wrap">
+          <div class="score-bar-track">
+            <div class="score-zones">
+              <div class="zone zone--low" title="Low : 1–5"></div>
+              <div class="zone zone--medium" title="Medium : 6–11"></div>
+              <div class="zone zone--high" title="High : 12–19"></div>
+              <div class="zone zone--critical" title="Critical : 20–25"></div>
+            </div>
+            <div class="score-cursor" 
+              [class]="'cursor-' + (editingFormula() ? computedLevelDraft() : risk.level)"
+              [style.left.%]="editingFormula() ? scoreBarPosition(computedScoreDraft()) : scoreBarPosition(risk.risk_score)">
+            </div>
+          </div>
+          <div class="score-bar-labels">
+            <span>1</span><span>6</span><span>12</span><span>20</span><span>25</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 4. RISK FACTORS (Probability) ──────────── -->
+      <div class="detail-card" *ngIf="risk.probability_factors">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 6v4l3 3"/>
+          </svg>
+          Probability Factors
+        </div>
+        <div class="factors-grid">
+          <div class="factor-item" *ngIf="risk.probability_factors.complexity">
+            <span class="factor-label">Complexity</span>
+            <span class="factor-value">{{ risk.probability_factors.complexity }}/5</span>
+          </div>
+          <div class="factor-item" *ngIf="risk.probability_factors.change_rate">
+            <span class="factor-label">Change Rate</span>
+            <span class="factor-value">{{ risk.probability_factors.change_rate }}/5</span>
+          </div>
+          <div class="factor-item" *ngIf="risk.probability_factors.dev_experience">
+            <span class="factor-label">Dev Experience</span>
+            <span class="factor-value">{{ risk.probability_factors.dev_experience }}/5</span>
+          </div>
+          <div class="factor-item" *ngIf="risk.probability_factors.tech_debt">
+            <span class="factor-label">Technical Debt</span>
+            <span class="factor-value">{{ risk.probability_factors.tech_debt }}/5</span>
+          </div>
+        </div>
+        <div class="factor-reasoning" *ngIf="risk.probability_reasoning">
+          {{ risk.probability_reasoning }}
+        </div>
+      </div>
+
+      <!-- ── 5. RISK FACTORS (Impact) ──────────────── -->
+      <div class="detail-card" *ngIf="risk.impact_factors">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          Impact Factors
+        </div>
+        <div class="factors-grid">
+          <div class="factor-item" *ngIf="risk.impact_factors.users_affected">
+            <span class="factor-label">Users Affected</span>
+            <span class="factor-value">{{ risk.impact_factors.users_affected }}/5</span>
+          </div>
+          <div class="factor-item" *ngIf="risk.impact_factors.revenue">
+            <span class="factor-label">Revenue</span>
+            <span class="factor-value">{{ risk.impact_factors.revenue }}/5</span>
+          </div>
+          <div class="factor-item" *ngIf="risk.impact_factors.safety">
+            <span class="factor-label">Safety</span>
+            <span class="factor-value">{{ risk.impact_factors.safety }}/5</span>
+          </div>
+          <div class="factor-item" *ngIf="risk.impact_factors.reputation">
+            <span class="factor-label">Reputation</span>
+            <span class="factor-value">{{ risk.impact_factors.reputation }}/5</span>
+          </div>
+        </div>
+        <div class="factor-reasoning" *ngIf="risk.impact_reasoning">
+          {{ risk.impact_reasoning }}
+        </div>
+      </div>
+
+      <!-- ── 6. TEST RECOMMENDATIONS ─────────────────── -->
+      <div class="detail-card">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          Test Recommendations
+        </div>
+        <div class="recommendations">
+          <div class="rec-item">
+            <span class="rec-label">Test Depth</span>
+            <span class="rec-value rec-depth--{{ risk.test_depth }}">{{ risk.test_depth | titlecase }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 7. AI REASONING ────────────────────────── -->
+      <div class="detail-card" *ngIf="risk.reasoning">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+          AI Reasoning
+        </div>
+        <div class="reasoning-box">{{ risk.reasoning }}</div>
+      </div>
+
+      <!-- ── 8. MITIGATION ─────────────────────────── -->
+      <div class="detail-card">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Mitigation Strategy
+          <button class="btn-edit" (click)="startEditMitigation()" *ngIf="!editingMitigation()">
+            ✏️ Edit
+          </button>
+        </div>
+
+        <ng-container *ngIf="editingMitigation()">
+          <textarea class="mitigation-editor"
+            [(ngModel)]="mitigationDraft"
+            placeholder="Describe mitigation actions…"
+            rows="5">
+          </textarea>
+          <div class="editor-actions">
+            <button class="btn-save" (click)="saveMitigation()" [disabled]="saving()">
+              {{ saving() ? 'Saving…' : 'Save' }}
+            </button>
+            <button class="btn-cancel" (click)="cancelEdit()">Cancel</button>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="!editingMitigation()">
+          <ul class="mitigation-list" *ngIf="mitigationSteps().length > 0">
+            <li *ngFor="let step of mitigationSteps()">{{ step }}</li>
+          </ul>
+          <p class="no-mitigation" *ngIf="mitigationSteps().length === 0">
+            No mitigation strategy defined.
+            <button class="btn-link" (click)="startEditMitigation()">Add one</button>
+          </p>
+        </ng-container>
+      </div>
+
+      <!-- ── 9. HUMAN CORRECTION HISTORY ────────────── -->
+      <div class="detail-card" *ngIf="isHumanModified() && risk.previous_probability">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+          Correction History
+        </div>
+        <div class="correction-info">
+          <div class="correction-row">
+            <span>Original P:</span>
+            <strong>{{ risk.previous_probability }}/5</strong>
+            <span>→</span>
+            <strong>{{ risk.probability }}/5</strong>
+          </div>
+          <div class="correction-row">
+            <span>Original I:</span>
+            <strong>{{ risk.previous_impact }}/5</strong>
+            <span>→</span>
+            <strong>{{ risk.impact }}/5</strong>
+          </div>
+          <div class="correction-row">
+            <span>Original Score:</span>
+            <strong>{{ risk.previous_risk_score }}</strong>
+            <span>→</span>
+            <strong>{{ risk.risk_score }}</strong>
+          </div>
+          <div class="correction-meta" *ngIf="risk.corrected_by">
+            Corrected by <strong>{{ risk.corrected_by }}</strong>
+            <span *ngIf="risk.corrected_at"> on {{ risk.corrected_at | date:'medium' }}</span>
+          </div>
+          <div class="correction-comment" *ngIf="risk.correction_comment">
+            "{{ risk.correction_comment }}"
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 10. DECISION ──────────────────────────── -->
+      <div class="detail-card decision-card">
+        <div class="card-section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Decision
+        </div>
+
+        <div class="decision-row">
+          <div class="decision-status"
+            [class.status-accepted]="risk.is_accepted === true"
+            [class.status-rejected]="risk.is_accepted === false"
+            [class.status-pending]="risk.is_accepted === null">
+            {{ acceptanceLabel(risk.is_accepted) }}
+          </div>
+          <div class="decision-buttons">
+            <button class="btn-accept" [class.is-active]="risk.is_accepted === true"
+              (click)="acceptRisk(true)">
+              ✓ Accept Risk
+            </button>
+            <button class="btn-reject" [class.is-active]="risk.is_accepted === false"
+              (click)="acceptRisk(false)">
+              ✗ Reject Risk
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metadata footer -->
+      <div class="meta-footer">
+        <span>ID: <code>{{ risk.id }}</code></span>
+        <span>Source: <code>{{ risk.source }}</code></span>
+        <span *ngIf="risk.created_at">Created: {{ risk.created_at | date:'medium' }}</span>
+        <span *ngIf="risk.updated_at">Updated: {{ risk.updated_at | date:'medium' }}</span>
+      </div>
+
+    </div>
+  </ng-container>
+
+</div>

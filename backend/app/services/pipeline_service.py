@@ -1,6 +1,8 @@
-from typing import List, Dict, Optional, Any
-from sqlalchemy import select
 import asyncio
+import logging
+from typing import List, Dict, Optional, Any, Tuple
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user_story import UserStory
@@ -11,7 +13,66 @@ from app.repositories.user_story_repository import (
 )
 from app.repositories.project_repository import get_project_by_id
 from app.services.user_story_version_service import start_version
-from app.workers.asyncio_workers import submit_version
+from app.workers.us_worker import submit_version
+
+logger = logging.getLogger(__name__)
+
+
+async def _notify_skipped_story(db: AsyncSession, us: UserStory, reason: str) -> None:
+    """Post a Jira comment + in-app notification when a story is skipped."""
+    print(f"[NOTIFY_SKIPPED] ▶ Début notification pour {us.issue_key} | raison: {reason}")
+    try:
+        from app.models.jira_project import JiraProject
+        from app.models.jira_connection import JiraConnection
+        from app.services.jira_session_manager import JiraSessionManager
+        from app.services.notification_service import NotificationService
+
+        # Récupérer le project_key pour le channel SSE
+        proj_row = await db.execute(
+            select(JiraProject).where(JiraProject.id == us.project_id)
+        )
+        jira_project = proj_row.scalar_one_or_none()
+        project_key = jira_project.project_key if jira_project else None
+
+        # ── In-app notification (DB + SSE) ──────────────────────────
+        if project_key:
+            jira_client = None
+            try:
+                row = await db.execute(
+                    select(JiraConnection)
+                    .join(JiraProject, JiraProject.jira_connection_id == JiraConnection.id)
+                    .where(JiraProject.id == us.project_id)
+                )
+                conn = row.scalar_one_or_none()
+                if conn and conn.is_active:
+                    manager = JiraSessionManager(db)
+                    jira_client = await manager.get_client(conn)
+            except Exception as exc:
+                print(f"[NOTIFY_SKIPPED] ⚠️ Impossible d'obtenir le client Jira: {exc}")
+
+            notif_service = NotificationService(db, jira_client)
+            await notif_service.notify_ambiguous_story(
+                issue_key=us.issue_key,
+                project_key=project_key,
+                ambiguity_reasons=[reason],
+            )
+            print(f"[NOTIFY_SKIPPED] ✅ Notification in-app créée pour {us.issue_key}")
+
+        # ── Jira comment (best-effort, only if client available) ────
+        if project_key and jira_client:
+            paragraphs = [
+                "⚠️ TestForge AI — User Story incomplète",
+                f"La user story {us.issue_key} ne peut pas être traitée par TestForge AI car elle ne contient pas de description.",
+                f"Raison : {reason}",
+                "Merci d'ajouter une description et des critères d'acceptation avant de relancer l'analyse TestForge AI.",
+            ]
+            print(f"[NOTIFY_SKIPPED] 📤 Envoi du commentaire sur {us.issue_key}...")
+            await jira_client.add_comment(us.issue_key, paragraphs)
+            print(f"[NOTIFY_SKIPPED] ✅ Commentaire posté sur {us.issue_key}")
+
+    except Exception as exc:
+        print(f"[NOTIFY_SKIPPED] ❌ EXCEPTION pour {us.issue_key}: {type(exc).__name__}: {exc}")
+        logger.warning(f"[NOTIFY_SKIPPED] Failed to notify {us.issue_key}: {exc}")
 
 
 def validate_input(issue_keys: Optional[List[str]], project_id: Optional[str]) -> None:
@@ -94,6 +155,7 @@ async def run_pipeline(
     # ============================================================
     versions = []
     skipped = []
+    skipped_stories: List[Tuple[UserStory, str]] = []
     states = []
 
     try:
@@ -101,10 +163,9 @@ async def run_pipeline(
             try:
                 version_id, state = await start_version(db, us, reset=False)
             except ValueError as e:
-                skipped.append({
-                    "issue_key": us.issue_key,
-                    "reason": str(e)
-                })
+                reason = str(e)
+                skipped.append({"issue_key": us.issue_key, "reason": reason})
+                skipped_stories.append((us, reason))
                 continue
 
             states.append(state)
@@ -126,6 +187,13 @@ async def run_pipeline(
     await asyncio.gather(*[
         submit_version(state) for state in states
     ], return_exceptions=True)
+
+    # Notify PO on Jira for each story that was skipped (best-effort)
+    if skipped_stories:
+        await asyncio.gather(*[
+            _notify_skipped_story(db, us, reason)
+            for us, reason in skipped_stories
+        ], return_exceptions=True)
 
     return {
         "total_requests": len(user_stories),

@@ -93,5 +93,47 @@ export const PagesRoutes: Routes = [
     canActivate: [authGuard],
     data: { title: 'Script Detail' },
   },
+  {
+    path: 'risk-analysis',
+    loadComponent: () =>
+      import('./risk-analysis/risk-analysis.component').then(m => m.RiskAnalysisComponent),
+    canActivate: [authGuard],
+    data: { title: 'Risk Analysis' },
+  },
+  {
+    path: 'risk-analysis/:riskId',
+    loadComponent: () =>
+      import('./risk-detail/risk-detail.component').then(m => m.RiskDetailComponent),
+    canActivate: [authGuard],
+    data: { title: 'Risk Detail' },
+  },
+  {
+    path: 'test-plans',
+    loadComponent: () =>
+      import('./test-plans/test-plans.component').then(m => m.TestPlansComponent),
+    canActivate: [authGuard],
+    data: { title: 'Test Plans' },
+  },
+  {
+    path: 'test-plans/:planId',
+    loadComponent: () =>
+      import('./test-plan-detail/test-plan-detail.component').then(m => m.TestPlanDetailComponent),
+    canActivate: [authGuard],
+    data: { title: 'Test Plan Detail' },
+  },
+  {
+    path: 'test-suites',
+    loadComponent: () =>
+      import('./test-suites/test-suites.component').then(m => m.TestSuitesComponent),
+    canActivate: [authGuard],
+    data: { title: 'Test Suites' },
+  },
+  {
+    path: 'test-suites/:suiteId',
+    loadComponent: () =>
+      import('./test-suite-detail/test-suite-detail.component').then(m => m.TestSuiteDetailComponent),
+    canActivate: [authGuard],
+    data: { title: 'Test Suite Detail' },
+  },
 
 ];

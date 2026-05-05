@@ -1,0 +1,657 @@
+<!-- ══════════════════════════════════════════════════════════
+     LOADING
+══════════════════════════════════════════════════════════ -->
+<div class="loading-state" *ngIf="isLoading()">
+  <div class="spinner"></div>
+  <p>Loading test plan...</p>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     MAIN LAYOUT
+══════════════════════════════════════════════════════════ -->
+<div class="detail-page" *ngIf="!isLoading() && plan() as plan">
+
+  <!-- ── TOP BAR ────────────────────────────────────────────── -->
+  <div class="top-bar">
+    <button class="back-btn" (click)="goBack()">← Test Plans</button>
+
+    <div class="action-cluster">
+
+      <!-- Export group -->
+      <div class="btn-group">
+        <button
+          class="btn-outline"
+          (click)="exportPdf()"
+          [disabled]="isExporting() !== null"
+          title="Export as PDF">
+          <span *ngIf="isExporting() !== 'pdf'">↓ PDF</span>
+          <span *ngIf="isExporting() === 'pdf'"><span class="spinner-sm"></span></span>
+        </button>
+        <button
+          class="btn-outline"
+          (click)="exportDocx()"
+          [disabled]="isExporting() !== null"
+          title="Export as Word">
+          <span *ngIf="isExporting() !== 'docx'">↓ DOCX</span>
+          <span *ngIf="isExporting() === 'docx'"><span class="spinner-sm"></span></span>
+        </button>
+      </div>
+
+      <!-- Share group -->
+      <div class="btn-group">
+        <button class="btn-outline" (click)="openEmailModal()" title="Send via email">
+          ✉ Email
+        </button>
+        <button class="btn-outline" (click)="openJiraModal()" title="Create Jira ticket">
+          🔗 Jira
+        </button>
+      </div>
+
+      <!-- Edit / Save / Cancel -->
+      <ng-container *ngIf="!isEditMode()">
+        <button class="btn-secondary" (click)="enterEditMode()">✏ Edit</button>
+      </ng-container>
+      <ng-container *ngIf="isEditMode()">
+        <button class="btn-secondary" (click)="cancelEdit()">Cancel</button>
+        <button class="btn-primary" (click)="saveEdit()">Save Changes</button>
+      </ng-container>
+    </div>
+  </div>
+
+
+  <!-- ── HERO ───────────────────────────────────────────────── -->
+  <div class="hero-card">
+    <div class="hero-left">
+      <span
+        class="status-badge"
+        [style.color]="statusConfig().color"
+        [style.background]="statusConfig().bg">
+        {{ statusConfig().label }}
+      </span>
+
+      <h1 class="plan-title" *ngIf="!isEditMode()">{{ plan.title }}</h1>
+      <input
+        *ngIf="isEditMode()"
+        class="form-control title-input"
+        [value]="getEditValue('title')"
+        (input)="updateField('title', $any($event.target).value)"
+        placeholder="Test plan title">
+
+    </div>
+
+    <div class="hero-right">
+      <div class="timestamp" *ngIf="plan.ai_draft_generated_at">
+        <span class="ts-label">AI Generated</span>
+        <span class="ts-value">{{ formatDate(plan.ai_draft_generated_at) }}</span>
+      </div>
+      <div class="timestamp" *ngIf="plan.approved_at">
+        <span class="ts-label">Approved</span>
+        <span class="ts-value ts-approved">{{ formatDate(plan.approved_at) }}</span>
+      </div>
+      <div class="timestamp">
+        <span class="ts-label">Created</span>
+        <span class="ts-value">{{ formatDate(plan.created_at) }}</span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── WORKFLOW BANNER ────────────────────────────────────── -->
+  <div class="workflow-banner ai-proposed" *ngIf="plan.status === 'ai_proposed' && !isEditMode()">
+    <div class="banner-content">
+      <span class="banner-icon">✦</span>
+      <div>
+        <strong>AI Draft Ready — Awaiting QA Validation</strong>
+        <p>Review the generated test plan below. You can edit any section before approving.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="workflow-banner approved" *ngIf="isApproved()">
+    <span class="banner-icon">✓</span>
+    <strong>Approved</strong> — This test plan has been validated by the QA team.
+    <span *ngIf="plan.approved_at"> Approved on {{ formatDate(plan.approved_at) }}.</span>
+  </div>
+
+<!-- ══════════════════════════════════════════════════════════
+       RISK ANALYSIS SECTION
+  ══════════════════════════════════════════════════════════ -->
+  <div class="risk-analysis-section" *ngIf="plan.risk_analysis && !isEditMode()">
+    
+    <div class="section-card">
+      <div class="section-header">
+        <h3>📊 Risk Analysis</h3>
+        <span class="section-badge">Based on {{ plan.risk_analysis.distribution.total }} stories analyzed</span>
+      </div>
+
+      <div class="section-body">
+        
+        <div class="risk-top-row">
+          
+          <!-- Distribution -->
+          <div class="risk-distribution-card">
+            <h4>Risk Distribution</h4>
+            <div class="risk-bars">
+              <div class="risk-bar-row" *ngIf="plan.risk_analysis.distribution.critical > 0">
+                <span class="risk-label critical">🔴 Critical</span>
+                <div class="risk-bar-track">
+                  <div class="risk-bar-fill critical" 
+                       [style.width.%]="(plan.risk_analysis.distribution.critical / plan.risk_analysis.distribution.total) * 100">
+                  </div>
+                </div>
+                <span class="risk-count">{{ plan.risk_analysis.distribution.critical }}</span>
+              </div>
+              <div class="risk-bar-row" *ngIf="plan.risk_analysis.distribution.high > 0">
+                <span class="risk-label high">🟠 High</span>
+                <div class="risk-bar-track">
+                  <div class="risk-bar-fill high"
+                       [style.width.%]="(plan.risk_analysis.distribution.high / plan.risk_analysis.distribution.total) * 100">
+                  </div>
+                </div>
+                <span class="risk-count">{{ plan.risk_analysis.distribution.high }}</span>
+              </div>
+              <div class="risk-bar-row" *ngIf="plan.risk_analysis.distribution.medium > 0">
+                <span class="risk-label medium">🟡 Medium</span>
+                <div class="risk-bar-track">
+                  <div class="risk-bar-fill medium"
+                       [style.width.%]="(plan.risk_analysis.distribution.medium / plan.risk_analysis.distribution.total) * 100">
+                  </div>
+                </div>
+                <span class="risk-count">{{ plan.risk_analysis.distribution.medium }}</span>
+              </div>
+              <div class="risk-bar-row" *ngIf="plan.risk_analysis.distribution.low > 0">
+                <span class="risk-label low">🟢 Low</span>
+                <div class="risk-bar-track">
+                  <div class="risk-bar-fill low"
+                       [style.width.%]="(plan.risk_analysis.distribution.low / plan.risk_analysis.distribution.total) * 100">
+                  </div>
+                </div>
+                <span class="risk-count">{{ plan.risk_analysis.distribution.low }}</span>
+              </div>
+            </div>
+            <div class="risk-ratio" *ngIf="plan.risk_analysis.distribution.high_risk_ratio > 0">
+              <strong>High Risk Ratio</strong> = (Critical + High) ÷ Total = 
+              ({{ plan.risk_analysis.distribution.critical }} + {{ plan.risk_analysis.distribution.high }}) 
+              ÷ {{ plan.risk_analysis.distribution.total }} = 
+              <strong>{{ (plan.risk_analysis.distribution.high_risk_ratio * 100).toFixed(0) }}%</strong>
+            </div>
+          </div>
+
+          <!-- Formula -->
+          <div class="risk-formula-card">
+            <h4>📐 Risk Calculation</h4>
+            <div class="formula-box">
+              <code>{{ plan.risk_analysis.formulas.risk_score }}</code>
+            </div>
+            <div class="formula-detail">
+              <p><strong>P</strong> (Probability): {{ plan.risk_analysis.formulas.probability_scale }}</p>
+              <p><strong>I</strong> (Impact): {{ plan.risk_analysis.formulas.impact_scale }}</p>
+            </div>
+            <div class="thresholds">
+              <p><strong>Risk Level = P × I</strong></p>
+              <span class="threshold critical">🔴 Critical: {{ plan.risk_analysis.formulas.thresholds.critical }}</span>
+              <span class="threshold high">🟠 High: {{ plan.risk_analysis.formulas.thresholds.high }}</span>
+              <span class="threshold medium">🟡 Medium: {{ plan.risk_analysis.formulas.thresholds.medium }}</span>
+              <span class="threshold low">🟢 Low: {{ plan.risk_analysis.formulas.thresholds.low }}</span>
+            </div>
+          </div>
+
+        </div>
+
+<!-- Row 2: Mapping Table -->
+<div class="risk-mapping-card" *ngIf="plan.risk_analysis.mapping_table.length > 0">
+  <h4>🔗 User Story → Risk Mapping (Traceability Matrix)</h4>
+  <p class="mapping-subtitle">
+    Each User Story is linked to its risk level and mitigation strategy.
+  </p>
+  
+  <div class="table-responsive">
+    <table class="risk-table">
+      <thead>
+        <tr>
+          <th>Issue</th>
+          <th>User Story</th>
+          <th>Level</th>
+          <th>Score</th>
+          <th>P×I</th>
+          <th>Mitigation</th>
+          <th>Depth</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let entry of paginatedRiskMappings()">
+          <td>
+            <span class="issue-key">{{ entry.issue_key }}</span>
+          </td>
+          <td class="story-title">{{ entry.title }}</td>
+          <td>
+            <span class="risk-badge" [class]="entry.risk_level">
+              {{ entry.risk_level | uppercase }}
+            </span>
+          </td>
+          <td class="score">{{ entry.risk_score.toFixed(1) }}</td>
+          <td class="formula-cell">
+            <code *ngIf="entry.probability && entry.impact">
+              {{ entry.probability }} × {{ entry.impact }}
+            </code>
+            <span *ngIf="!entry.probability || !entry.impact">—</span>
+          </td>
+          <td class="mitigation-cell">
+            {{ entry.mitigation || '—' }}
+          </td>
+          <td>
+            <span class="depth-badge" [class]="entry.test_depth">
+              {{ entry.test_depth }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination (inchangée) -->
+  <div class="table-pagination" *ngIf="plan.risk_analysis.mapping_table.length > riskMappingPageSize">
+        <button 
+      class="page-btn" 
+      [disabled]="riskMappingPage === 1"
+      (click)="riskMappingPage = 1">
+      ⏮ First
+    </button>
+    <button 
+      class="page-btn" 
+      [disabled]="riskMappingPage === 1"
+      (click)="riskMappingPage = riskMappingPage - 1">
+      ◀ Prev
+    </button>
+    <span class="page-info">Page {{ riskMappingPage }} of {{ totalRiskMappingPages() }}</span>
+    <button 
+      class="page-btn" 
+      [disabled]="riskMappingPage === totalRiskMappingPages()"
+      (click)="riskMappingPage = riskMappingPage + 1">
+      Next ▶
+    </button>
+    <button 
+      class="page-btn" 
+      [disabled]="riskMappingPage === totalRiskMappingPages()"
+      (click)="riskMappingPage = totalRiskMappingPages()">
+      Last ⏭
+    </button>
+  </div>
+</div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TWO-COLUMN LAYOUT ──────────────────────────────────── -->
+  <div class="columns">
+
+    <!-- LEFT COLUMN: main content sections -->
+    <div class="col-main">
+
+      <ng-container *ngFor="let section of sections">
+        <div
+          class="section-card"
+          *ngIf="isEditMode() || getPlanValue(section.key)">
+
+          <div class="section-header">
+            <h3>{{ section.label }}</h3>
+          </div>
+
+          <!-- View mode -->
+          <div class="section-body" *ngIf="!isEditMode()">
+            <p class="section-text" *ngIf="getPlanValue(section.key); else empty">
+              {{ getPlanValue(section.key) }}
+            </p>
+            <ng-template #empty>
+              <span class="empty-val">Not specified</span>
+            </ng-template>
+          </div>
+
+          <!-- Edit mode -->
+          <div class="section-body edit" *ngIf="isEditMode()">
+            <textarea
+              class="form-control textarea"
+              rows="4"
+              [value]="getEditValue(section.key)"
+              (input)="updateField($any(section.key), $any($event.target).value)"
+              [placeholder]="'Enter ' + section.label.toLowerCase()">
+            </textarea>
+          </div>
+        </div>
+      </ng-container>
+
+    </div>
+
+    <!-- RIGHT COLUMN: metadata + quick actions -->
+    <div class="col-side">
+
+      <!-- Quick actions -->
+      <div class="side-card actions-card" *ngIf="canApprove() && !isEditMode()">
+        <h4 class="side-title">Actions</h4>
+        <div class="side-actions">
+          <button class="btn-success full" (click)="approve()" [disabled]="isApproving()">
+            <span *ngIf="!isApproving()">✓ Approve Plan</span>
+            <span *ngIf="isApproving()">Approving...</span>
+          </button>
+          <button class="btn-warning full" (click)="regenerate()" [disabled]="isRegenerating()">
+            <span *ngIf="!isRegenerating()">↺ Regenerate AI Draft</span>
+            <span *ngIf="isRegenerating()">Regenerating...</span>
+          </button>
+          <button class="btn-danger-outline full" (click)="reject()" [disabled]="isRejecting()">
+            <span *ngIf="!isRejecting()">✕ Reject Draft</span>
+            <span *ngIf="isRejecting()">Rejecting...</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Test scope metadata -->
+      <div class="side-card">
+        <h4 class="side-title">Scope & Coverage</h4>
+        <div class="meta-list">
+          <div class="meta-row" *ngIf="plan.scope_type">
+            <span class="ml">Scope Type</span>
+            <span class="mv">{{ plan.scope_type }}</span>
+          </div>
+          <div class="meta-row" *ngIf="plan.scope_refs.length">
+            <span class="ml">Scope Refs</span>
+            <span class="mv">{{ plan.scope_refs.join(', ') }}</span>
+          </div>
+          <div class="meta-row" *ngIf="plan.start_date">
+            <span class="ml">Start Date</span>
+            <span class="mv">{{ formatDate(plan.start_date) }}</span>
+          </div>
+          <div class="meta-row" *ngIf="plan.end_date">
+            <span class="ml">End Date</span>
+            <span class="mv">{{ formatDate(plan.end_date) }}</span>
+          </div>
+          <div class="meta-row" *ngIf="plan.environment">
+            <span class="ml">Environment</span>
+            <span class="mv env-val">{{ plan.environment | uppercase }}</span>
+          </div>
+        </div>
+
+        <!-- Edit scope fields -->
+        <div class="edit-meta" *ngIf="isEditMode()">
+          <div class="form-group">
+            <label>Environment</label>
+            <select
+              class="form-control"
+              [value]="getEditValue('environment')"
+              (change)="updateField('environment', $any($event.target).value)">
+              <option value="">—</option>
+              <option value="dev">DEV</option>
+              <option value="staging">STAGING</option>
+              <option value="prod">PROD</option>
+              <option value="uat">UAT</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Start Date</label>
+            <input type="date" class="form-control"
+              [value]="getEditValue('start_date')"
+              (change)="updateField('start_date', $any($event.target).value)">
+          </div>
+          <div class="form-group">
+            <label>End Date</label>
+            <input type="date" class="form-control"
+              [value]="getEditValue('end_date')"
+              (change)="updateField('end_date', $any($event.target).value)">
+          </div>
+        </div>
+      </div>
+
+      <!-- Export + Share shortcuts -->
+      <div class="side-card">
+        <h4 class="side-title">Share & Export</h4>
+        <div class="side-actions">
+          <button class="btn-outline full" (click)="exportPdf()">↓ Export PDF</button>
+          <button class="btn-outline full" (click)="exportDocx()">↓ Export DOCX</button>
+          <button class="btn-outline full" (click)="openEmailModal()">✉ Send by Email</button>
+          <button class="btn-outline full" (click)="openJiraModal()">🔗 Send to Jira</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     EMAIL MODAL
+════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="activeModal() === 'share-email'" (click)="closeModal()">
+  <div class="modal-panel large" (click)="$event.stopPropagation()">
+
+    <div class="modal-header">
+      <div>
+        <h2>Send Test Plan by Email</h2>
+        <p class="modal-subtitle">Add recipients with their roles and let AI write a professional email.</p>
+      </div>
+      <button class="close-btn" (click)="closeModal()">✕</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Recipients -->
+      <div class="recipients-section">
+        <div class="section-label">
+          Recipients
+          <button class="add-btn" (click)="addRecipient()">+ Add</button>
+        </div>
+           <div
+            class="recipient-row"
+            *ngFor="let r of emailRecipients; let i = index; trackBy: trackByFn">
+            <input
+              class="form-control"
+              placeholder="Email address"
+              [(ngModel)]="r.email"
+              type="email">
+            <input
+              class="form-control"
+              placeholder="Role (e.g. Product Owner)"
+              [(ngModel)]="r.role">
+            <input
+              class="form-control"
+              placeholder="Name (optional)"
+              [(ngModel)]="r.name">
+            <button
+              class="remove-btn"
+              (click)="removeRecipient(i)"
+              *ngIf="emailRecipients.length > 1">
+              ✕
+            </button>
+           </div>
+      </div>
+
+            <div class="form-group">
+        <label>Attachments <span class="optional">(optional — PDF, DOCX, images)</span></label>
+        
+        <!-- Zone d'upload -->
+        <div class="upload-zone" 
+          (dragover)="onDragOver($event)" 
+          (dragleave)="onDragLeave($event)" 
+          (drop)="onDrop($event)"
+          [class.drag-over]="isDragging()">
+          
+          <input
+            type="file"
+            #fileInput
+            (change)="onFileSelected($event)"
+            multiple
+            accept=".pdf,.docx,.doc,.xlsx,.csv,.png,.jpg,.jpeg"
+            style="display:none;">
+          
+          <div class="upload-content" (click)="fileInput.click()">
+            <span class="upload-icon">📎</span>
+            <span class="upload-text">
+              Drag & drop files here or <strong>click to browse</strong>
+            </span>
+            <span class="upload-hint">PDF, DOCX, XLSX, CSV, PNG, JPG (max 10MB each)</span>
+          </div>
+        </div>
+
+        <!-- Liste des fichiers sélectionnés -->
+        <div class="file-list" *ngIf="attachedFiles().length > 0">
+          <div class="file-item" *ngFor="let file of attachedFiles(); let i = index">
+            <span class="file-icon">{{ getFileIcon(file.name) }}</span>
+            <span class="file-name">{{ file.name }}</span>
+            <span class="file-size">{{ formatFileSize(file.size) }}</span>
+            <button class="remove-file-btn" (click)="removeFile(i)">✕</button>
+          </div>
+        </div>
+
+        <!-- Option : Joindre automatiquement le PDF du Test Plan -->
+        <div class="auto-attach-option">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="attachTestPlanPdf">
+            <span>Also attach Test Plan as PDF</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Context for AI -->
+      <div class="form-group">
+        <label>Additional Context <span class="optional">(optional — helps AI personalize the email)</span></label>
+        <input
+          class="form-control"
+          type="text"
+          [(ngModel)]="additionalContext"
+          placeholder="e.g. Sprint review on Friday, PO needs to sign off by Thursday">
+      </div>
+
+      <!-- AI generate button -->
+      <div class="generate-row">
+        <button
+          class="btn-ai"
+          (click)="generateEmailBody()"
+          [disabled]="isGeneratingBody()">
+          <span *ngIf="!isGeneratingBody()">✦ Generate Subject & Body with AI</span>
+          <span *ngIf="isGeneratingBody()"><span class="spinner-sm"></span> Generating...</span>
+        </button>
+      </div>
+
+      <!-- Subject -->
+      <div class="form-group">
+        <label>Subject</label>
+        <input
+          class="form-control"
+          type="text"
+          [(ngModel)]="emailSubject"
+          placeholder="Leave blank to auto-generate">
+      </div>
+
+      <!-- Body -->
+      <div class="form-group">
+        <label>Email Body</label>
+        <textarea
+          class="form-control textarea tall"
+          [(ngModel)]="emailBody"
+          placeholder="Leave blank to auto-generate, or paste / edit here...">
+        </textarea>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="closeModal()" [disabled]="isSendingEmail()">Cancel</button>
+      <button class="btn-primary" (click)="sendEmail()" [disabled]="isSendingEmail()">
+        <span *ngIf="!isSendingEmail()">✉ Send Email</span>
+        <span *ngIf="isSendingEmail()"><span class="spinner-sm"></span> Sending...</span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     JIRA MODAL
+════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="activeModal() === 'share-jira'" (click)="closeModal()">
+  <div class="modal-panel" (click)="$event.stopPropagation()">
+
+    <div class="modal-header">
+      <div>
+        <h2>Create Jira Ticket</h2>
+        <p class="modal-subtitle">Notify the team by creating a Jira issue for this test plan.</p>
+      </div>
+      <button class="close-btn" (click)="closeModal()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Jira Project Key <span class="required">*</span></label>
+        <input
+          class="form-control"
+          type="text"
+          [(ngModel)]="jiraProjectKey"
+          placeholder="e.g. SCRUM, PROJ">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Issue Type</label>
+          <select class="form-control" [(ngModel)]="jiraIssueType">
+            <option *ngFor="let t of jiraIssueTypes" [value]="t">{{ t }}</option>
+          </select>
+        </div>
+        <div class="form-group half">
+          <label>Priority</label>
+          <select class="form-control" [(ngModel)]="jiraPriority">
+            <option *ngFor="let p of jiraPriorities" [value]="p">{{ p }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Summary <span class="optional">(optional — auto-derived from plan title)</span></label>
+        <input
+          class="form-control"
+          type="text"
+          [(ngModel)]="jiraSummary"
+          placeholder="[Test Plan] {{ plan()?.title }}">
+      </div>
+
+      <div class="form-group">
+        <label>Description <span class="optional">(optional — auto-generated from plan content)</span></label>
+        <textarea
+          class="form-control textarea"
+          rows="4"
+          [(ngModel)]="jiraDescription"
+          placeholder="Leave blank to auto-generate from test plan content...">
+        </textarea>
+      </div>
+
+      <div class="jira-note">
+        <strong>Note:</strong> This will create a ticket in your connected Jira workspace.
+        Make sure your Jira integration is set up in Settings.
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="closeModal()" [disabled]="isSendingJira()">Cancel</button>
+      <button class="btn-primary" (click)="sendJiraNotification()" [disabled]="isSendingJira()">
+        <span *ngIf="!isSendingJira()">🔗 Create Ticket</span>
+        <span *ngIf="isSendingJira()"><span class="spinner-sm"></span> Creating...</span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<app-confirm-dialog
+  [visible]="showConfirmDialog()"
+  [title]="confirmDialogData().title"
+  [message]="confirmDialogData().message"
+  [icon]="confirmDialogData().icon"
+  [confirmText]="confirmDialogData().confirmText"
+  [cancelText]="confirmDialogData().cancelText"
+  [variant]="confirmDialogData().variant"
+  (confirmed)="confirmDialogData().onConfirm(); showConfirmDialog.set(false)"
+  (cancelled)="showConfirmDialog.set(false)"
+>
+</app-confirm-dialog>

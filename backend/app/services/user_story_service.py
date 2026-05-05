@@ -31,6 +31,7 @@ def _story_to_dict(story):
         "assignee": story.assignee,
         "reporter": story.reporter,
         "epic_key": story.epic_key,
+        "epic_name": story.epic_name,
         "sprint": story.sprint,
         "labels": story.labels or [],
         "components": story.components or [],
@@ -154,19 +155,59 @@ async def import_project_stories(
     )
     existing_keys = {row[0] for row in result.all()}
 
+    # Load existing stories for update
+    existing_map: dict[str, UserStory] = {}
+    if existing_keys:
+        rows = await db.execute(
+            select(UserStory).where(UserStory.issue_key.in_(existing_keys))
+        )
+        for row in rows.scalars().all():
+            existing_map[row.issue_key] = row
+
+    updated = 0
+
     for issue in jira_issues:
         try:
             mapped = map_jira_issue(issue)
             key = mapped.get("issue_key")
-
-            if not key or key in existing_keys:
+            if not key:
                 skipped += 1
                 continue
 
+            if key in existing_keys:
+                # ✅ METTRE À JOUR TOUS LES CHAMPS !
+                story = existing_map.get(key)
+                if story:
+                    # ⚠️ AJOUTE CES LIGNES MANQUANTES :
+                    story.title = mapped.get("title") or story.title
+                    story.description = mapped.get("description") or story.description
+                    story.acceptance_criteria = mapped.get("acceptance_criteria") or []
+                    
+                    # Métadonnées
+                    story.epic_key = mapped.get("epic_key")
+                    story.epic_name = mapped.get("epic_name")
+                    story.sprint = mapped.get("sprint")
+                    story.priority = mapped.get("priority")
+                    story.jira_status = mapped.get("status")
+                    story.story_points = mapped.get("story_points")
+                    story.assignee = mapped.get("assignee")
+                    story.reporter = mapped.get("reporter")
+                    story.labels = mapped.get("labels") or []
+                    story.components = mapped.get("components") or []
+                    story.fix_version = mapped.get("fix_version")
+                    
+                    print(f"[IMPORT] ✅ Mise à jour de {key}")
+                    print(f"   Description: {story.description[:50] if story.description else 'None'}...")
+                    
+                    updated += 1
+                else:
+                    skipped += 1
+                continue
+
+            # Nouvelle story
             mapped["project_id"] = project.id
-
             await create_user_story(db, **mapped)
-
+            print(f"[IMPORT] ✨ Nouvelle story créée: {key}")
             count += 1
 
         except Exception as e:
@@ -175,12 +216,14 @@ async def import_project_stories(
 
     await db.commit()
 
+    print(f"[IMPORT] 📊 Résumé: {count} nouvelles, {updated} mises à jour, {skipped} ignorées")
+    
     return {
         "imported": count,
+        "updated": updated,
         "skipped": skipped,
         "total": len(jira_issues)
     }
-
 
 # =========================
 # GET BY ISSUE KEY

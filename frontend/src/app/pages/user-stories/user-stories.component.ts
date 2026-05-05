@@ -13,6 +13,7 @@ import { FilterBarComponent, FilterGroup, ActiveFilters } from '../../components
 import { PaginationComponent } from '../../components/pagination/pagination.component';
 import { ImportModalComponent } from '../../components/import-modal/import-modal.component';
 import { NavigationService } from '../../services/navigation.service';
+import { InAppNotificationService } from '../../services/in-app-notification.service';
 
 @Component({
   selector: 'app-user-stories',
@@ -40,6 +41,7 @@ export class UserStoriesComponent implements OnInit, OnDestroy {
   private toastService = inject(ToastService);
   private navigationService = inject(NavigationService);
   private projectsService = inject(ProjectsService);
+  readonly notifService = inject(InAppNotificationService);
   
   @ViewChild('importModal') importModal!: ImportModalComponent;
 
@@ -108,6 +110,10 @@ filterGroups: FilterGroup[] = [
   },
 ];
 
+  // Rebuilt after stories load
+  epicFilterGroup = signal<FilterGroup | null>(null);
+  sprintFilterGroup = signal<FilterGroup | null>(null);
+
   // ─── Computed ───────────────────────────────────────────────────
 
   filteredStories = computed(() => {
@@ -150,7 +156,15 @@ filterGroups: FilterGroup[] = [
   if (selectedProjectId) {
     result = result.filter(s => s.project_id === selectedProjectId);
   }
-  
+
+  if (filters['epic']?.length) {
+    result = result.filter(s => filters['epic'].includes(s.epic_name ?? ''));
+  }
+
+  if (filters['sprint']?.length) {
+    result = result.filter(s => filters['sprint'].includes(s.sprint ?? ''));
+  }
+
     return result;
   });
 
@@ -161,6 +175,32 @@ filterGroups: FilterGroup[] = [
   });
 
   selectedCount = computed(() => this.selectedKeys().size);
+
+  /**
+   * Set of issue_keys that need a visual indicator.
+   * - ambiguous_story / quality_issue: always show (action required from PO, not just reading)
+   * - other types: only when unread
+   */
+  storiesWithUnread = computed(() =>
+    new Set(
+      this.notifService.notifications()
+        .filter(n =>
+          n.issue_key && (
+            n.type === 'ambiguous_story' ||
+            n.type === 'quality_issue' ||
+            !n.is_read
+          )
+        )
+        .map(n => n.issue_key!)
+    )
+  );
+
+  markStoryNotifsRead(issueKey: string, event: Event): void {
+    event.stopPropagation();
+    this.notifService.notifications()
+      .filter(n => n.issue_key === issueKey && !n.is_read)
+      .forEach(n => this.notifService.markRead(n.id));
+  }
 
   allSelected = computed(() => {
     const stories = this.filteredStories();
@@ -181,13 +221,19 @@ ngOnInit(): void {
         this.projectId.set(params['projectId'] || null);
         this.projectName.set(params['projectName'] || null);
         const highlightKey = params['highlight'];
-        const page = params['page'];  
-        
+        const page = params['page'];
+
         if (page) {
-            this.page.set(parseInt(page, 10));  
+            this.page.set(parseInt(page, 10));
         }
 
-        this.loadProjects();        
+        // Ensure notification service is connected even after a page refresh
+        const projectKey = params['projectKey'];
+        if (projectKey && this.notifService.projectKey() !== projectKey) {
+          this.notifService.connect(projectKey);
+        }
+
+        this.loadProjects();
         this.loadStories();
         
         if (highlightKey) {
@@ -206,6 +252,42 @@ ngOnInit(): void {
     this.sseSubscriptions.clear();
     this.versionsService.disconnectAllStreams();
   }
+private rebuildDynamicFilters(stories: StoryWithVersion[]): void {
+  // Epics
+  const epicKeys = [...new Set(stories.map(s => s.epic_name).filter(Boolean) as string[])].sort();
+  if (epicKeys.length > 0) {
+    const epicGroup: FilterGroup = {
+      key: 'epic',
+      label: 'Epic',
+      multiple: true,
+      options: epicKeys.map(k => ({ value: k, label: k })),
+    };
+    const idx = this.filterGroups.findIndex(g => g.key === 'epic');
+    if (idx !== -1) this.filterGroups[idx] = epicGroup;
+    else this.filterGroups.push(epicGroup);
+  } else {
+    this.filterGroups = this.filterGroups.filter(g => g.key !== 'epic');
+  }
+
+  // Sprints
+  const sprintNames = [...new Set(stories.map(s => s.sprint).filter(Boolean) as string[])].sort();
+  if (sprintNames.length > 0) {
+    const sprintGroup: FilterGroup = {
+      key: 'sprint',
+      label: 'Sprint',
+      multiple: true,
+      options: sprintNames.map(n => ({ value: n, label: n })),
+    };
+    const idx = this.filterGroups.findIndex(g => g.key === 'sprint');
+    if (idx !== -1) this.filterGroups[idx] = sprintGroup;
+    else this.filterGroups.push(sprintGroup);
+  } else {
+    this.filterGroups = this.filterGroups.filter(g => g.key !== 'sprint');
+  }
+
+  this.filterGroups = [...this.filterGroups];
+}
+
 loadProjects(): void {
   this.projectsService.getProjects().subscribe({
     next: (projects: Project[]) => {
@@ -299,6 +381,7 @@ private scrollToStory(issueKey: string): void {
         
         this.stories.set(storiesWithVersion);
         this.loading.set(false);
+        this.rebuildDynamicFilters(storiesWithVersion);
         this.recoverVersionStates();
       },
       error: (err) => {
@@ -655,7 +738,16 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
           this.toastService.success(`Pipeline started for ${count} ${label}`);
 
         } else {
-          this.toastService.warning('No stories to process');
+          if (response.skipped?.length > 0) {
+            const count = response.skipped.length;
+            const label = count === 1 ? 'story' : 'stories';
+            this.toastService.warning(
+              `${count} ${label} skipped`,
+              'No description found — product owner notified on Jira'
+            );
+          } else {
+            this.toastService.warning('No stories to process');
+          }
         }
       },
       error: (err) => {
@@ -767,6 +859,15 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
           )
         );
         break;
+
+      case 'defect_created': {
+        const jiraKey = data.jira_issue_key;
+        const msg = jiraKey
+          ? `Defect reported automatically → Jira ${jiraKey}`
+          : 'Defect saved locally (Jira not connected)';
+        this.toastService.warning('⚠ Tech Lead: Defect Detected', msg);
+        break;
+      }
     }
   }
 

@@ -48,3 +48,10 @@ class JiraProject(Base):
         back_populates="jira_project",
         cascade="all, delete-orphan"
     )
+
+    test_plans: Mapped[list["TestPlan"]] = relationship(
+        "TestPlan",
+        back_populates="jira_project",
+        cascade="all, delete-orphan"
+    )
+
