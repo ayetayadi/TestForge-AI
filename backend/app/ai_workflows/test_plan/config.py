@@ -14,8 +14,6 @@ LLM_TIMEOUT_SECONDS = 90
 # ============================================================
 # VALEURS ACCEPTÉES (validation stricte des sorties LLM)
 # ============================================================
-VALID_TEST_TYPES = {"functional", "regression", "smoke", "security", "performance", "e2e", "api"}
-VALID_TEST_LEVELS = {"component", "integration", "system", "acceptance", "e2e"}
 VALID_ENVIRONMENTS = {"dev", "staging", "prod", "uat"}
 VALID_SCOPE_TYPES = {"epic", "sprint", "release", "manual", "spec_document"}
 

@@ -2,10 +2,7 @@
 Pure functions for test suite organization.
 
 No LLM, no I/O:
-  - group_by_risk_level  → one suite per risk level (critical, high, medium, low)
   - group_by_test_type   → one suite per test type (positive, negative, edge_case)
-  - group_by_feature     → one suite per epic/component
-  - group_mixed          → risk level first, then test type within each level
   - assign_suite_order   → set execution_order on suites
   - build_suite_record   → assemble a TestSuite-compatible dict
 """
@@ -26,20 +23,6 @@ logger = logging.getLogger(__name__)
 # GROUPING STRATEGIES
 # ============================================================
 
-def group_by_risk_level(test_cases: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Group test cases by the risk level of their parent user story.
-    Each test case must have a '_risk_level' key (injected by the pipeline).
-    """
-    groups: Dict[str, List] = {"critical": [], "high": [], "medium": [], "low": []}
-    for tc in test_cases:
-        level = (tc.get("_risk_level") or "medium").lower()
-        if level not in groups:
-            level = "medium"
-        groups[level].append(tc)
-    return {k: v for k, v in groups.items() if len(v) >= MIN_TC_PER_SUITE}
-
-
 def group_by_test_type(test_cases: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     """Group test cases by test_type: positive, negative, edge_case."""
     groups: Dict[str, List] = {}
@@ -48,59 +31,11 @@ def group_by_test_type(test_cases: List[Dict[str, Any]]) -> Dict[str, List[Dict[
         groups.setdefault(t, []).append(tc)
     return {k: v for k, v in groups.items() if len(v) >= MIN_TC_PER_SUITE}
 
-
-def group_by_feature(test_cases: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Group test cases by epic name or component.
-    Falls back to 'general' for test cases without an epic.
-    Each test case must have '_epic' or '_component' key.
-    """
-    groups: Dict[str, List] = {}
-    for tc in test_cases:
-        feature = tc.get("_epic") or tc.get("_component") or "General"
-        feature = feature.strip()[:50]
-        groups.setdefault(feature, []).append(tc)
-    return {k: v for k, v in groups.items() if len(v) >= MIN_TC_PER_SUITE}
-
-
-def group_mixed(test_cases: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Two-level grouping: risk level → test type.
-    Key format: "critical_negative", "high_positive", etc.
-    """
-    groups: Dict[str, List] = {}
-    for tc in test_cases:
-        level = (tc.get("_risk_level") or "medium").lower()
-        ttype = (tc.get("test_type") or "positive").lower()
-        key = f"{level}_{ttype}"
-        groups.setdefault(key, []).append(tc)
-    return {k: v for k, v in groups.items() if len(v) >= MIN_TC_PER_SUITE}
-
-
-def pick_suite_type(group_key: str, test_cases: List[Dict[str, Any]]) -> str:
-    """Infer the best suite_type from the group key and its test cases."""
-    key = group_key.lower()
-
-    # Explicit type keywords
-    if "smoke" in key:
-        return "smoke"
-    if "security" in key or any("security" in tc.get("tags", []) for tc in test_cases):
-        return "security"
-    if "performance" in key or any("performance" in tc.get("tags", []) for tc in test_cases):
-        return "performance"
-    if "regression" in key:
-        return "regression"
-    if "negative" in key:
-        return "negative"
-    if "e2e" in key:
-        return "e2e"
-
-    # Risk level → feature suite
-    if any(l in key for l in ("critical", "high", "medium", "low")):
-        return "feature"
-
+def pick_suite_type(group_key: str) -> str:
+    """Retourne le type de scénario comme suite_type."""
+    if group_key in ("positive", "negative", "boundary"):
+        return group_key
     return "feature"
-
 
 def pick_priority(group_key: str, test_cases: List[Dict[str, Any]]) -> str:
     """Derive suite priority from its group key or test case priorities."""
@@ -114,21 +49,44 @@ def pick_priority(group_key: str, test_cases: List[Dict[str, Any]]) -> str:
     return "low"
 
 
+# Test type → execution rank (positive first, then negative, then boundary)
+_TEST_TYPE_ORDER: dict[str, int] = {
+    "positive": 10,
+    "negative": 20,
+    "boundary": 30,
+    "edge_case": 30,
+    "edge": 30,
+}
+
+
 def assign_suite_order(suites: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Sort suites by execution_order:
-      smoke=0, critical/security=1, high=2, medium=3, low=4, regression=5
+    Sort suites by execution_order.
+    - By suite_type: smoke=0, critical/security=1, high=2, medium=3, low=4, regression=5
+    - By test_type grouping: positive=10, negative=20, boundary=30
     """
     def _order_key(suite: Dict[str, Any]) -> int:
         st = (suite.get("suite_type") or "").lower()
         gk = (suite.get("_group_key") or "").lower()
-        # Check suite type first
+
+        # Smoke always first
+        if st == "smoke":
+            return SUITE_EXECUTION_ORDER.get("smoke", 0)
+
+        # Test_type grouping (group_key is the test_type value)
+        for ttype, rank in _TEST_TYPE_ORDER.items():
+            if gk == ttype or gk.startswith(ttype):
+                return rank
+
+        # Suite type order
         if st in SUITE_EXECUTION_ORDER:
             return SUITE_EXECUTION_ORDER[st]
-        # Then check group key for risk level
+
+        # Group key contains risk level
         for level, order in SUITE_EXECUTION_ORDER.items():
             if level in gk:
                 return order
+
         return 99
 
     ordered = sorted(suites, key=_order_key)

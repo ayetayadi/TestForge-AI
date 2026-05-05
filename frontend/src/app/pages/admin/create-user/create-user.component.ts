@@ -4,6 +4,8 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MaterialModule } from 'src/app/material.module';
 import { AdminService, UserRead } from '../../../services/admin.service';
+import { signal } from '@angular/core';
+
 
 @Component({
   selector: 'app-create-user',
@@ -11,6 +13,8 @@ import { AdminService, UserRead } from '../../../services/admin.service';
   imports: [CommonModule, ReactiveFormsModule, FormsModule, MaterialModule, RouterModule],
   templateUrl: './create-user.component.html',
 })
+
+
 export class CreateUserComponent implements OnInit {
   users: UserRead[] = [];
   loading = false;
@@ -25,6 +29,25 @@ export class CreateUserComponent implements OnInit {
     is_admin: new FormControl(false),
     is_active: new FormControl(false),
   });
+
+  showConfirmDialog = signal(false);
+confirmDialogData = signal<{
+  title: string;
+  message: string;
+  icon: string;
+  confirmText: string;
+  cancelText: string;
+  variant: 'primary' | 'danger' | 'warning' | 'success';
+  onConfirm: () => void;
+}>({
+  title: '',
+  message: '',
+  icon: '⚠️',
+  confirmText: 'Confirm',
+  cancelText: 'Cancel',
+  variant: 'primary',
+  onConfirm: () => {},
+});
 
   constructor(private adminService: AdminService) {}
 
@@ -96,12 +119,25 @@ export class CreateUserComponent implements OnInit {
     }
   }
 
-  deleteUser(id: string) {
-    if (!confirm('Delete this user?')) return;
-    this.adminService.deleteUser(id).subscribe({
-      next: () => this.loadUsers()
-    });
-  }
+deleteUser(id: string): void {
+  this.confirmDialogData.set({
+    title: 'Delete User',
+    message: 'Delete this user?\n\nThis action cannot be undone.',
+    icon: '🗑️',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {
+      this.adminService.deleteUser(id).subscribe({
+        next: () => this.loadUsers(),
+        error: (err) => {
+          this.errorMessage = err?.error?.detail || 'Failed to delete user';
+        }
+      });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
 
   editUser(user: UserRead): void {
     this.isEditMode = true;

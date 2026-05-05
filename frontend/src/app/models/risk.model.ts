@@ -67,8 +67,6 @@ export interface Risk {
   
   // ── Test Recommendations ──
   test_depth: TestDepth;                 // comprehensive | thorough | standard | smoke
-  test_techniques?: string[] | null;     // ["unit", "integration", "e2e", ...]
-  effort_allocation: EffortAllocation;   // 60% | 25% | 10% | 5%
   
   // ── Human Correction Trackinag ──
   is_ai_generated: boolean;              // true = LLM, false = manual
@@ -103,33 +101,6 @@ export interface RiskSummary {
   rejected_count: number;
   pending_count: number;
   effort_distribution: Record<RiskLevel, string>;
-}
-
-// ============================================================
-// TEST RECOMMENDATIONS (from get_test_recommendations())
-// ============================================================
-
-export interface TestTypeRecommendations {
-  unit?: string;
-  integration?: string;
-  e2e?: string;
-  performance?: string;
-  security?: string;
-  smoke?: string;
-  exploratory?: string;
-  accessibility?: string;
-}
-
-export interface RiskTestRecommendations {
-  level: string;
-  icon: string;
-  message: string;
-  test_types: TestTypeRecommendations;
-  effort: string;
-  effort_percentage: number;
-  regression: string;
-  automation_priority: string;
-  approval_required: string;
 }
 
 // ============================================================
@@ -225,33 +196,18 @@ export const IMPACT_LEVELS = [
 
 export const TEST_DEPTH_CONFIG: Record<TestDepth, {
   label: string;
-  techniques: string[];
-  effort: EffortAllocation;
-  description: string;
 }> = {
   comprehensive: {
-    label: 'Comprehensive',
-    techniques: ['unit', 'integration', 'e2e', 'performance', 'security'],
-    effort: '60%',
-    description: 'All test types',
+    label: 'Comprehensive'
   },
   thorough: {
-    label: 'Thorough',
-    techniques: ['unit', 'integration', 'e2e'],
-    effort: '25%',
-    description: 'Core test types',
+    label: 'Thorough'
   },
   standard: {
-    label: 'Standard',
-    techniques: ['unit', 'integration'],
-    effort: '10%',
-    description: 'Basic test types',
+    label: 'Standard'
   },
   smoke: {
-    label: 'Smoke',
-    techniques: ['smoke'],
-    effort: '5%',
-    description: 'Smoke tests only',
+    label: 'Smoke'
   },
 };
 
@@ -306,31 +262,6 @@ export function getTestDepth(level: RiskLevel): TestDepth {
   return depthMap[level];
 }
 
-/**
- * Get default test techniques based on risk level
- */
-export function getDefaultTechniques(level: RiskLevel): string[] {
-  const techniquesMap: Record<RiskLevel, string[]> = {
-    critical: ['unit', 'integration', 'e2e', 'performance', 'security'],
-    high: ['unit', 'integration', 'e2e'],
-    medium: ['unit', 'integration'],
-    low: ['smoke'],
-  };
-  return techniquesMap[level];
-}
-
-/**
- * Get effort allocation based on risk level
- */
-export function getEffortAllocation(level: RiskLevel): EffortAllocation {
-  const allocationMap: Record<RiskLevel, EffortAllocation> = {
-    critical: '60%',
-    high: '25%',
-    medium: '10%',
-    low: '5%',
-  };
-  return allocationMap[level];
-}
 
 /**
  * Get color config for a risk level

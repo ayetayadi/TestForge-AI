@@ -16,10 +16,7 @@ from langsmith import traceable
 from pydantic import BaseModel, Field
 
 from app.ai_workflows.test_suite.suite_organizer import (
-    group_by_risk_level,
     group_by_test_type,
-    group_by_feature,
-    group_mixed,
     assign_suite_order,
     build_suite_record,
 )
@@ -30,7 +27,6 @@ from app.ai_workflows.test_suite.prompts import BUSINESS_FLOW_ORDERING_PROMPT, T
 from app.llm.llm_control import create_llm
 from .config import (
     LLM_TEMPERATURE, LLM_MODEL, LLM_MAX_TOKENS, LLM_TIMEOUT_SECONDS,
-    GROUPING_STRATEGY,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,7 +41,7 @@ class SuiteNameOutput(BaseModel):
     group_key: str = Field(description="The group key this name applies to")
     title: str = Field(description="Professional suite title, max 80 chars")
     description: str = Field(description="1-2 sentences describing the suite purpose")
-    suite_type: str = Field(description="feature | epic | sprint | smoke | regression | negative | security | performance | e2e")
+    suite_type: str = Field(description="postive | negative | boundary | feature")
     priority: str = Field(description="critical | high | medium | low")
 
 
@@ -102,10 +98,7 @@ class BusinessFlowOrderingOutput(BaseModel):
 # ============================================================
 
 _STRATEGY_MAP = {
-    "risk_level": group_by_risk_level,
-    "test_type":  group_by_test_type,
-    "feature":    group_by_feature,
-    "mixed":      group_mixed,
+    "test_type": group_by_test_type,
 }
 
 # ── Mots-clés pour la détection des flux ──
@@ -152,8 +145,7 @@ class TestSuitePipeline:
     def _detect_flow_from_tc(self, tc: Dict) -> str:
         """Détecte le flux métier d'un TC dict basé sur les mots-clés."""
         text = " ".join([
-            (tc.get("title", "") or "").lower(),
-            " ".join(tc.get("tags", []) or []).lower(),
+            (tc.get("title", "") or "").lower()
         ])
         for flow, keywords in _FLOW_KEYWORDS.items():
             if any(kw in text for kw in keywords):
@@ -328,13 +320,14 @@ class TestSuitePipeline:
         test_cases: List[Dict[str, Any]],
         test_plan_id: str,
         project_name: str = "",
-        strategy: str = GROUPING_STRATEGY,
+        strategy: str = "test_type",
         accepted_risk_ids: List[str] = None,
         progress_callback: Optional[Callable] = None,
     ) -> Dict[str, Any]:
         """
-        Organise les TCs en suites.
+        Organise les TCs en suites par type de scénario: positive → negative → boundary.
         """
+        strategy = "test_type"
         accepted_risk_ids = accepted_risk_ids or []
         
         logger.info(
@@ -357,7 +350,7 @@ class TestSuitePipeline:
                 "message": f"Grouping {len(test_cases)} test cases by '{strategy}'...",
             })
 
-            group_fn = _STRATEGY_MAP.get(strategy, group_by_risk_level)
+            group_fn = _STRATEGY_MAP.get(strategy, group_by_test_type)
             groups = group_fn(test_cases)
 
             logger.info(f"[TEST SUITE] Groups: {[(k, len(v)) for k, v in groups.items()]}")

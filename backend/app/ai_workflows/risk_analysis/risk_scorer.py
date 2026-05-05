@@ -52,55 +52,18 @@ def get_test_depth(level: str) -> Dict[str, Any]:
     depth_map = {
         "critical": {
             "depth": "comprehensive",
-            "techniques": ["unit", "integration", "e2e", "performance", "security"],
-            "effort": "60%"
         },
         "high": {
             "depth": "thorough",
-            "techniques": ["unit", "integration", "e2e"],
-            "effort": "25%"
         },
         "medium": {
             "depth": "standard",
-            "techniques": ["unit", "integration"],
-            "effort": "10%"
         },
         "low": {
             "depth": "smoke",
-            "techniques": ["smoke-tests"],
-            "effort": "5%"
         }
     }
     return depth_map.get(level, depth_map["low"])
-
-
-# ✅ AJOUTE CES 2 FONCTIONS MANQUANTES
-def get_default_techniques(level: str) -> List[str]:
-    """
-    Get default test techniques based on risk level.
-    Fallback si le LLM ne fournit pas les techniques.
-    """
-    techniques_map = {
-        "critical": ["unit", "integration", "e2e", "performance", "security"],
-        "high":     ["unit", "integration", "e2e"],
-        "medium":   ["unit", "integration"],
-        "low":      ["smoke"],
-    }
-    return techniques_map.get(level, ["unit"])
-
-
-def get_effort_allocation(level: str) -> str:
-    """
-    Get effort allocation based on risk level.
-    Fallback si le LLM ne fournit pas l'effort.
-    """
-    allocation_map = {
-        "critical": "60%",
-        "high":     "25%",
-        "medium":   "10%",
-        "low":      "5%",
-    }
-    return allocation_map.get(level, "10%")
 
 
 def build_risk_record(
@@ -113,9 +76,7 @@ def build_risk_record(
     impact_factors: Optional[dict] = None,
     probability_reasoning: Optional[str] = None,
     impact_reasoning: Optional[str] = None,
-    test_depth: Optional[str] = None,        # Du LLM (prioritaire)
-    test_techniques: Optional[list] = None,  # Du LLM (prioritaire)
-    effort_allocation: Optional[str] = None, # Du LLM (prioritaire)
+    test_depth: Optional[str] = None,
     user_story_id: Optional[str] = None,
     test_plan_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -128,10 +89,7 @@ def build_risk_record(
     score = compute_risk_score(p, i)
     level = classify_level(score)
     
-    # ✅ Priorité LLM, fallback code statique
     final_test_depth = test_depth or get_test_depth(level)["depth"]
-    final_techniques = test_techniques or get_default_techniques(level)
-    final_effort = effort_allocation or get_effort_allocation(level)
     
     return {
         "user_story_id": user_story_id,
@@ -147,8 +105,6 @@ def build_risk_record(
         "probability_reasoning": probability_reasoning,
         "impact_reasoning": impact_reasoning,
         "test_depth": final_test_depth,          # String, pas dict
-        "test_techniques": final_techniques,     # List
-        "effort_allocation": final_effort,       # String
         "is_ai_generated": True,
         "is_accepted": None,
         "reasoning": reasoning,

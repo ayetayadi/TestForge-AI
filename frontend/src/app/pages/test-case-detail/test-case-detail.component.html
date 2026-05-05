@@ -165,9 +165,9 @@
                   </div>
                 }
                 <div class="risk-meta">
-                  <span>Score: {{ risk.risk_score }}</span>
-                  <span>Impact: {{ risk.impact }}/5</span>
-                  <span>Probability: {{ (risk.probability * 100).toFixed(0) }}%</span>
+                  <span>Score = I * P  = {{ risk.risk_score }}</span>
+                  <span>Impact: {{ risk.impact }}</span>
+                  <span>Probability: {{ risk.probability }}</span>
                 </div>
               </div>
             }

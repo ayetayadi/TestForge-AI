@@ -6,7 +6,7 @@ import { FilterBarComponent, FilterGroup, ActiveFilters } from '../../components
 import { PaginationComponent } from '../../components/pagination/pagination.component';
 import { SearchBarComponent } from '../../components/search-bar/search-bar.component';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
-import { AsyncJobResponse, TestCaseService } from '../../services/test-case.service';
+import { AsyncJobResponse, TcCoverageRow, TestCaseService } from '../../services/test-case.service';
 import { TestPlanService } from '../../services/test-plan.service';
 import { StoriesService } from '../../services/stories.service';
 import { SseService } from '../../services/sse.service';
@@ -15,6 +15,7 @@ import { PlaywrightE2EService } from '../../services/playwright-e2e.service';
 import { UserStory } from '../../models/user_story.model';
 import { TestCaseStatus, Priority } from '../../models/test-case.model';
 import { TestPlan } from '../../models/test-plan.model';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 
 // ── Display model avec toutes les correspondances ─────────────
 interface TestCaseDisplay {
@@ -52,7 +53,7 @@ export interface GenJob {
 @Component({
   selector: 'app-test-cases',
   standalone: true,
-  imports: [CommonModule, FilterBarComponent, PaginationComponent, SearchBarComponent, SpinnerComponent],
+  imports: [CommonModule, FilterBarComponent, PaginationComponent, SearchBarComponent, SpinnerComponent, ConfirmDialogComponent],
   templateUrl: './test-cases.component.html',
   styleUrl: './test-cases.component.scss',
 })
@@ -77,6 +78,26 @@ export class TestCasesComponent implements OnInit, OnDestroy {
   page = signal(1);
   pageSize = signal(6);
 
+
+  // ── Confirm Dialog ──────────────────────────────────────────
+showConfirmDialog = signal(false);
+confirmDialogData = signal<{
+  title: string;
+  message: string;
+  icon: string;
+  confirmText: string;
+  cancelText: string;
+  variant: 'primary' | 'danger' | 'warning' | 'success';
+  onConfirm: () => void;
+}>({
+  title: '',
+  message: '',
+  icon: '⚠️',
+  confirmText: 'Confirm',
+  cancelText: 'Cancel',
+  variant: 'primary',
+  onConfirm: () => {},
+});
   // =====================================================================
   // FILTERS (simplifié : test_plan_id uniquement)
   // =====================================================================
@@ -94,6 +115,36 @@ export class TestCasesComponent implements OnInit, OnDestroy {
   // =====================================================================
   selectedTestCases = signal<Set<string>>(new Set());
   generatingIds = signal<Set<string>>(new Set());
+
+  // =====================================================================
+  // COVERAGE TABLE
+  // =====================================================================
+  coverageRows = signal<TcCoverageRow[]>([]);
+  coveragePlanId = signal('');
+  showCoverageTable = signal(false);
+  coverageTableVisible = signal(true);
+  coveragePage = signal(1);
+  coveragePageSize = signal(5);
+
+  paginatedCoverageRows = computed(() =>
+    this.coverageRows().slice((this.coveragePage() - 1) * this.coveragePageSize(), this.coveragePage() * this.coveragePageSize())
+  );
+  totalCoveragePages = computed(() => Math.ceil(this.coverageRows().length / this.coveragePageSize()));
+  totalCoverageItems = computed(() => this.coverageRows().length);
+
+  toggleCoverageTable(): void { this.coverageTableVisible.update(v => !v); }
+
+  loadCoverage(testPlanId: string): void {
+    if (!testPlanId) { this.coverageRows.set([]); this.showCoverageTable.set(false); return; }
+    this.coveragePlanId.set(testPlanId);
+    this.testCaseService.getCoverageForPlan(testPlanId).subscribe({
+      next: rows => { this.coverageRows.set(rows); this.showCoverageTable.set(true); this.coveragePage.set(1); },
+      error: err => this.toastService.error('Failed to load coverage', err.message),
+    });
+  }
+
+  onCoveragePageChange(p: number): void { this.coveragePage.set(p); }
+  onCoveragePageSizeChange(s: number): void { this.coveragePageSize.set(s); this.coveragePage.set(1); }
 
   // =====================================================================
   // GENERATE PANEL (TestPlan uniquement)
@@ -178,7 +229,7 @@ export class TestCasesComponent implements OnInit, OnDestroy {
   // =====================================================================
   // LOADERS
   // =====================================================================
-  loadTestPlans(): void { this.testPlanService.getAll({ pageSize: 100 }).subscribe({ next: res => this.testPlans.set(res.items) }); }
+  loadTestPlans(): void { this.testPlanService.getAll({ pageSize: 100, status: 'approved' }).subscribe({ next: res => this.testPlans.set(res.items) }); }
 
   loadTestCases(): void {
     this.loading.set(true);
@@ -212,7 +263,7 @@ export class TestCasesComponent implements OnInit, OnDestroy {
   // =====================================================================
   // FILTER HANDLERS (simplifié)
   // =====================================================================
-  onTestPlanChange(event: Event): void { this.selectedTestPlanId.set((event.target as HTMLSelectElement).value); this.page.set(1); this.loadTestCases(); }
+  onTestPlanChange(event: Event): void { const id = (event.target as HTMLSelectElement).value; this.selectedTestPlanId.set(id); this.page.set(1); this.loadTestCases(); this.loadCoverage(id); }
   onStatusChange(event: Event): void { this.selectedStatus.set((event.target as HTMLSelectElement).value); this.page.set(1); }
   onSearchChange(query: string): void { this.searchQuery.set(query); this.page.set(1); }
   onFiltersChange(filters: ActiveFilters): void { this.activeFilters.set(filters); this.selectedStatus.set(filters['status']?.length ? filters['status'][0] : 'all'); this.selectedPriorities.set(filters['priority'] ?? []); this.selectedTestTypes.set(filters['test_type'] ?? []); this.selectedTags.set(filters['tags'] ?? []); this.page.set(1); }
@@ -226,24 +277,17 @@ export class TestCasesComponent implements OnInit, OnDestroy {
   closeGenPanel(): void { if (this.isGenerating() && !this.genAllDone()) return; this.showGenPanel.set(false); this.genTestPlanId.set(''); this.genJobs.set([]); this.isGenerating.set(false); this.genProgressTotal.set(0); this.genProgressCurrent.set(0); this.genCurrentUsKey.set(''); }
   onGenTestPlanChange(event: Event): void { this.genTestPlanId.set((event.target as HTMLSelectElement).value); }
 
-  genScenarioTypes = signal<string[]>(['positive', 'negative', 'boundary']);
+  genScenarioType = signal<'positive' | 'negative' | 'boundary'>('positive');
 
-readonly scenarioTypeOptions = [
-  { value: 'positive', label: '✅ Positive (happy path)' },
-  { value: 'negative', label: '❌ Negative (error path)' },
-  { value: 'boundary', label: '🔲 Boundary (limits)' },
-];
+  readonly scenarioTypeOptions: { value: 'positive' | 'negative' | 'boundary'; label: string }[] = [
+    { value: 'positive', label: '✅ Positive (happy path)' },
+    { value: 'negative', label: '❌ Negative (error path)' },
+    { value: 'boundary', label: '🔲 Boundary (limits)' },
+  ];
 
-toggleScenarioType(type: string): void {
-  const current = this.genScenarioTypes();
-  if (current.includes(type)) {
-    if (current.length > 1) {  // Au moins 1 type sélectionné
-      this.genScenarioTypes.set(current.filter(t => t !== type));
-    }
-  } else {
-    this.genScenarioTypes.set([...current, type]);
+  selectScenarioType(type: 'positive' | 'negative' | 'boundary'): void {
+    this.genScenarioType.set(type);
   }
-}
 
   startGeneration(): void {
     const testPlanId = this.genTestPlanId();
@@ -254,7 +298,7 @@ toggleScenarioType(type: string): void {
     const jobs: GenJob[] = [{ us_id: testPlanId, issue_key: plan?.title ?? testPlanId, status: 'queued' }];
     this.genJobs.set(jobs);
 
-    this.testCaseService.generateAsync(testPlanId, { test_suite_id: undefined, scenario_types: this.genScenarioTypes() }).subscribe({
+    this.testCaseService.generateAsync(testPlanId, { test_suite_id: undefined, scenario_type: this.genScenarioType() }).subscribe({
       next: (r: AsyncJobResponse) => {
         this._updateJob(testPlanId, { status: 'processing' });
         this._subscribeToJobStream(testPlanId, r.job_id);
@@ -292,16 +336,65 @@ toggleScenarioType(type: string): void {
     this.sseSubscriptions.set(jobId, sub);
   }
   private _updateJob(planId: string, patch: Partial<GenJob>): void { this.genJobs.update(j => j.map(j => j.us_id === planId ? { ...j, ...patch } : j)); }
-  private _checkGenerationDone(): void { if (this.genAllDone()) { this.toastService.success('Generation complete'); this.loadTestCases(); this.isGenerating.set(false); } }
+  private _checkGenerationDone(): void { if (this.genAllDone()) { this.toastService.success('Generation complete'); this.loadTestCases(); if (this.genTestPlanId()) this.loadCoverage(this.genTestPlanId()); this.isGenerating.set(false); } }
 
   // =====================================================================
   // SELECTION / NAV
   // =====================================================================
   toggleSelect(tc: TestCaseDisplay): void { const s = new Set(this.selectedTestCases()); s.has(tc.id) ? s.delete(tc.id) : s.add(tc.id); this.selectedTestCases.set(s); }
   toggleSelectAll(): void { this.allSelected() ? this.selectedTestCases.set(new Set()) : this.selectedTestCases.set(new Set(this.paginatedTestCases().map(tc => tc.id))); }
-  bulkDelete(): void { const ids = Array.from(this.selectedTestCases()); if (!ids.length) return; if (confirm(`Delete ${ids.length} test case(s)?`)) { this.loading.set(true); Promise.all(ids.map(id => firstValueFrom(this.testCaseService.deleteTestCase(id)))).then(() => { this.toastService.success('Deleted'); this.selectedTestCases.set(new Set()); this.loadTestCases(); }).catch(e => { this.toastService.error('Delete failed', e.message); this.loading.set(false); }); } }
+bulkDelete(): void {
+  const ids = Array.from(this.selectedTestCases());
+  if (!ids.length) return;
+  
+  this.confirmDialogData.set({
+    title: 'Delete Test Cases',
+    message: `Delete ${ids.length} test case(s)?\n\nThis action cannot be undone.`,
+    icon: '🗑️',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {
+      this.loading.set(true);
+      Promise.all(ids.map(id => firstValueFrom(this.testCaseService.deleteTestCase(id))))
+        .then(() => {
+          this.toastService.success('Deleted');
+          this.selectedTestCases.set(new Set());
+          this.loadTestCases();
+        })
+        .catch(e => {
+          this.toastService.error('Delete failed', e.message);
+          this.loading.set(false);
+        });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
   viewTestCase(id: string, e?: Event): void { e?.stopPropagation(); this.router.navigate(['/test-cases', id]); }
-  deleteTestCase(id: string, e: Event): void { e.stopPropagation(); if (confirm('Delete?')) { this.testCaseService.deleteTestCase(id).subscribe({ next: () => { this.toastService.success('Deleted'); this.loadTestCases(); }, error: err => this.toastService.error('Delete failed', err.message) }); } }
+
+deleteTestCase(id: string, e: Event): void {
+  e.stopPropagation();
+  
+  this.confirmDialogData.set({
+    title: 'Delete Test Case',
+    message: 'Delete this test case?\n\nThis action cannot be undone.',
+    icon: '🗑️',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {
+      this.testCaseService.deleteTestCase(id).subscribe({
+        next: () => {
+          this.toastService.success('Deleted');
+          this.loadTestCases();
+        },
+        error: err => this.toastService.error('Delete failed', err.message)
+      });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
+
   generateScript(id: string, e: Event): void { e.stopPropagation(); const s = new Set(this.generatingIds()); s.add(id); this.generatingIds.set(s); this.playwrightService.generateScript({ test_case_id: id }).subscribe({ next: res => { const u = new Set(this.generatingIds()); u.delete(id); this.generatingIds.set(u); if (res.status === 'generated') { this.toastService.success('Script generated'); this.router.navigate(['/playwright-scripts']); } }, error: err => { const u = new Set(this.generatingIds()); u.delete(id); this.generatingIds.set(u); this.toastService.error('Generation failed', err.message); } }); }
   onPageChange(p: number): void { this.page.set(p); }
   onPageSizeChange(s: number): void { this.pageSize.set(s); this.page.set(1); }

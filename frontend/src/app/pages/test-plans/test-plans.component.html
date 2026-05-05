@@ -8,15 +8,11 @@
         <p class="subtitle">AI-powered test plan generation & management</p>
       </div>
       <div class="header-actions">
-        <button
-  class="btn-primary"
-  (click)="openGenerateModal()"
-  *ngIf="selectedProjectId() && testPlans().length > 0"
-  [disabled]="!selectedProjectId()">
+        <button class="btn-primary" (click)="openGenerateModal()">
           <span class="icon">✦</span>
           Generate with AI
         </button>
-         <button
+        <button
           class="btn-danger"
           *ngIf="selectedProjectId() && testPlans().length > 0"
           (click)="deleteAllProjectPlans()"
@@ -27,14 +23,14 @@
       </div>
     </div>
 
-    <!-- Project selector -->
+    <!-- Project filter -->
     <div class="project-bar">
-      <label class="project-label">Project</label>
+      <label class="project-label">Filter by project</label>
       <select
         class="project-select"
         [value]="selectedProjectId()"
         (change)="onProjectChange($any($event.target).value)">
-        <option value="">— Select a project —</option>
+        <option value="">— All projects —</option>
         <option *ngFor="let p of projects()" [value]="p.id">{{ p.project_name }}</option>
       </select>
     </div>
@@ -102,12 +98,6 @@
       <p class="plan-desc" *ngIf="plan.description">{{ plan.description }}</p>
 
       <div class="plan-meta">
-        <div class="meta-chips" *ngIf="plan.test_types.length">
-          <span class="chip" *ngFor="let t of plan.test_types.slice(0, 3)">{{ t }}</span>
-          <span class="chip more" *ngIf="plan.test_types.length > 3">
-            +{{ plan.test_types.length - 3 }}
-          </span>
-        </div>
         <div class="meta-row" *ngIf="plan.environment">
           <span class="meta-label">Env:</span>
           <span class="meta-value">{{ plan.environment }}</span>
@@ -170,6 +160,19 @@
     </div>
 
     <div class="modal-body">
+
+      <!-- 0. PROJECT SELECTION -->
+      <div class="form-group">
+        <label>Project <span class="required-star">*</span></label>
+        <select
+          class="form-control"
+          [value]="modalProjectId"
+          (change)="onModalProjectChange($any($event.target).value)">
+          <option value="">— Select a project —</option>
+          <option *ngFor="let p of projects()" [value]="p.id">{{ p.project_name }}</option>
+        </select>
+        <small *ngIf="!modalProjectId" class="field-hint">Choose a project to generate a test plan for.</small>
+      </div>
 
       <!-- 1. SCOPE TYPE SELECTION -->
       <div class="form-group">
@@ -276,3 +279,17 @@
 
   </div>
 </div>
+
+<!-- Confirm Dialog -->
+<app-confirm-dialog
+  [visible]="showConfirmDialog()"
+  [title]="confirmDialogData().title"
+  [message]="confirmDialogData().message"
+  [icon]="confirmDialogData().icon"
+  [confirmText]="confirmDialogData().confirmText"
+  [cancelText]="confirmDialogData().cancelText"
+  [variant]="confirmDialogData().variant"
+  (confirmed)="confirmDialogData().onConfirm(); showConfirmDialog.set(false)"
+  (cancelled)="showConfirmDialog.set(false)"
+>
+</app-confirm-dialog>

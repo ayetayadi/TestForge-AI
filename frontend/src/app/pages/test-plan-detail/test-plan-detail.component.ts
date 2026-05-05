@@ -18,13 +18,14 @@ import {
   TEST_PLAN_STATUS_CONFIG,
   RiskMappingEntry,
 } from '../../models/test-plan.model';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 
 type ActiveModal = null | 'share-email' | 'share-jira';
 
 @Component({
   selector: 'app-test-plan-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ConfirmDialogComponent],
   templateUrl: './test-plan-detail.component.html',
   styleUrl: './test-plan-detail.component.scss',
 })
@@ -66,6 +67,24 @@ export class TestPlanDetailComponent implements OnInit {
   jiraDescription = '';
   isSendingJira  = signal(false);
 
+showConfirmDialog = signal(false);
+confirmDialogData = signal<{
+  title: string;
+  message: string;
+  icon: string;
+  confirmText: string;
+  cancelText: string;
+  variant: 'primary' | 'danger' | 'warning' | 'success';
+  onConfirm: () => void;
+}>({
+  title: '',
+  message: '',
+  icon: '⚠️',
+  confirmText: 'Confirm',
+  cancelText: 'Cancel',
+  variant: 'primary',
+  onConfirm: () => {},
+});
 
   isDragging = signal(false);
   attachedFiles = signal<File[]>([]);
@@ -118,14 +137,6 @@ export class TestPlanDetailComponent implements OnInit {
     this.loadPlan(id);
   }
 
-  // Getter pour les techniques triées par fréquence
-get sortedTechniques(): { key: string; value: number }[] {
-  const dist = this.plan()?.risk_analysis?.aggregated_recommendations?.technique_distribution;
-  if (!dist) return [];
-  return Object.entries(dist)
-    .map(([key, value]) => ({ key, value: value as number }))
-    .sort((a, b) => b.value - a.value);
-}
 
 // Getter pour scope_refs sécurisé
 get scopeRefsDisplay(): string {
@@ -248,8 +259,6 @@ min(a: number, b: number): number {
       scope_refs:     plan.scope_refs,
       in_scope:       plan.in_scope,
       out_of_scope:   plan.out_of_scope,
-      test_types:     [...plan.test_types],
-      test_levels:    [...plan.test_levels],
       environment:    plan.environment,
       start_date:     plan.start_date,
       end_date:       plan.end_date,
@@ -294,54 +303,83 @@ min(a: number, b: number): number {
 
   // ── Approval workflow ─────────────────────────────────────────
 
-  approve(): void {
-    if (!confirm('Approve this test plan? This will mark it as officially approved.')) return;
-    this.isApproving.set(true);
-    this.service.approve(this.planId()).subscribe({
-      next: updated => {
-        this.plan.set(updated);
-        this.isApproving.set(false);
-        this.toast.success('Test plan approved!');
-      },
-      error: err => {
-        this.isApproving.set(false);
-        this.toast.error(err?.error?.detail || 'Approval failed');
-      },
-    });
-  }
+approve(): void {
+  this.confirmDialogData.set({
+    title: 'Approve Test Plan',
+    message: 'Approve this test plan?\n\nThis will mark it as officially approved.',
+    icon: '✅',
+    confirmText: 'Approve',
+    cancelText: 'Cancel',
+    variant: 'success',
+    onConfirm: () => {
+      this.isApproving.set(true);
+      this.service.approve(this.planId()).subscribe({
+        next: updated => {
+          this.plan.set(updated);
+          this.isApproving.set(false);
+          this.toast.success('Test plan approved!');
+        },
+        error: err => {
+          this.isApproving.set(false);
+          this.toast.error(err?.error?.detail || 'Approval failed');
+        },
+      });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
 
-  reject(): void {
-    if (!confirm('Reject the AI draft? The plan will return to draft status.')) return;
-    this.isRejecting.set(true);
-    this.service.reject(this.planId()).subscribe({
-      next: updated => {
-        this.plan.set(updated);
-        this.isRejecting.set(false);
-        this.toast.success('Plan reset to draft');
-      },
-      error: err => {
-        this.isRejecting.set(false);
-        this.toast.error(err?.error?.detail || 'Rejection failed');
-      },
-    });
-  }
+reject(): void {
+  this.confirmDialogData.set({
+    title: 'Reject Test Plan',
+    message: 'Reject the AI draft?\n\nThe plan will return to draft status.',
+    icon: '↩️',
+    confirmText: 'Reject',
+    cancelText: 'Cancel',
+    variant: 'warning',
+    onConfirm: () => {
+      this.isRejecting.set(true);
+      this.service.reject(this.planId()).subscribe({
+        next: updated => {
+          this.plan.set(updated);
+          this.isRejecting.set(false);
+          this.toast.success('Plan reset to draft');
+        },
+        error: err => {
+          this.isRejecting.set(false);
+          this.toast.error(err?.error?.detail || 'Rejection failed');
+        },
+      });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
 
-  regenerate(): void {
-    if (!confirm('Regenerate this test plan? The current AI draft will be replaced.')) return;
-    this.isRegenerating.set(true);
-    this.service.regenerate(this.planId()).subscribe({
-      next: res => {
-        this.isRegenerating.set(false);
-        this.toast.success('New draft generated!');
-        // navigate to new plan
-        this.router.navigate(['/test-plans', res.test_plan.id]);
-      },
-      error: err => {
-        this.isRegenerating.set(false);
-        this.toast.error(err?.error?.detail || 'Regeneration failed');
-      },
-    });
-  }
+regenerate(): void {
+  this.confirmDialogData.set({
+    title: 'Regenerate Test Plan',
+    message: 'Regenerate this test plan?\n\nThe current AI draft will be replaced.',
+    icon: '🔄',
+    confirmText: 'Regenerate',
+    cancelText: 'Cancel',
+    variant: 'warning',
+    onConfirm: () => {
+      this.isRegenerating.set(true);
+      this.service.regenerate(this.planId()).subscribe({
+        next: res => {
+          this.isRegenerating.set(false);
+          this.toast.success('New draft generated!');
+          this.router.navigate(['/test-plans', res.test_plan.id]);
+        },
+        error: err => {
+          this.isRegenerating.set(false);
+          this.toast.error(err?.error?.detail || 'Regeneration failed');
+        },
+      });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
 
   // ── Export ────────────────────────────────────────────────────
 
@@ -538,15 +576,6 @@ get testDepthDistribution() {
     thorough: 0,
     standard: 0,
     smoke: 0
-  };
-}
-
-get effortBreakdown() {
-  return this.aggregatedRecommendations?.effort_breakdown ?? {
-    critical_effort: '0%',
-    high_effort: '0%',
-    medium_effort: '0%',
-    low_effort: '0%'
   };
 }
   

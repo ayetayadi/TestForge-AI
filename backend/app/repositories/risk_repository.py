@@ -51,8 +51,6 @@ class RiskRepository:
             risk_score=risk_score,
             level=level,
             test_depth=test_depth,
-            test_techniques=data.test_techniques or self._get_default_techniques(level),
-            effort_allocation=data.effort_allocation or self._get_effort_allocation(level),
             is_ai_generated=data.is_ai_generated,
             is_accepted=data.is_accepted,
             source=data.source,
@@ -302,8 +300,6 @@ class RiskRepository:
             
             # Update test depth accordingly
             risk.test_depth = self._get_test_depth(risk.level)
-            risk.test_techniques = self._get_default_techniques(risk.level)
-            risk.effort_allocation = self._get_effort_allocation(risk.level)
             
             logger.info(
                 f"[RISK REPO] Recomputed risk {risk_id}: "
@@ -431,12 +427,7 @@ class RiskRepository:
             "accepted_count": 0,
             "rejected_count": 0,
             "pending_count": 0,
-            "effort_distribution": {
-                "critical": "0%",
-                "high": "0%", 
-                "medium": "0%",
-                "low": "0%"
-            }
+
         }
         
         total_score = 0
@@ -458,20 +449,7 @@ class RiskRepository:
         
         if risks:
             summary["avg_score"] = round(total_score / len(risks), 0)  # Integer average
-        
-        # Calculate effort distribution (document original: 60/25/10/5)
-        critical_count = summary["by_level"]["critical"]
-        high_count = summary["by_level"]["high"]
-        medium_count = summary["by_level"]["medium"]
-        low_count = summary["by_level"]["low"]
-        
-        total_weight = (critical_count * 60 + high_count * 25 + medium_count * 10 + low_count * 5)
-        if total_weight > 0:
-            summary["effort_distribution"]["critical"] = f"{round(critical_count * 60 / total_weight * 100, 1)}%"
-            summary["effort_distribution"]["high"] = f"{round(high_count * 25 / total_weight * 100, 1)}%"
-            summary["effort_distribution"]["medium"] = f"{round(medium_count * 10 / total_weight * 100, 1)}%"
-            summary["effort_distribution"]["low"] = f"{round(low_count * 5 / total_weight * 100, 1)}%"
-        
+    
         return summary
     
     async def _validate_foreign_keys(self, user_story_id: Optional[str]) -> None:
@@ -529,25 +507,3 @@ class RiskRepository:
             "low": "smoke"
         }
         return depth_map.get(level, "standard")
-    
-    @staticmethod
-    def _get_default_techniques(level: str) -> list:
-        """Get default test techniques based on risk level (document original)."""
-        techniques_map = {
-            "critical": ["unit", "integration", "e2e", "performance", "security"],
-            "high": ["unit", "integration", "e2e"],
-            "medium": ["unit", "integration"],
-            "low": ["smoke"]
-        }
-        return techniques_map.get(level, ["unit"])
-    
-    @staticmethod
-    def _get_effort_allocation(level: str) -> str:
-        """Get effort allocation based on risk level (document original)."""
-        allocation_map = {
-            "critical": "60%",
-            "high": "25%",
-            "medium": "10%",
-            "low": "5%"
-        }
-        return allocation_map.get(level, "10%")

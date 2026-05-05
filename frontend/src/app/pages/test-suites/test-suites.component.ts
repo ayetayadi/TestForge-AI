@@ -17,7 +17,6 @@ import {
 } from '../../models/test-suite.model';
 import { Project } from '../../models/user_story.model';
 import { TestCaseService } from 'src/app/services/test-case.service';
-import { TestCase } from 'src/app/models/test-case.model';
 
 @Component({
   selector: 'app-test-suites',
@@ -49,9 +48,15 @@ export class TestSuitesComponent implements OnInit {
 
   // ── Generation ────────────────────────────────────────────────
   selectedPlanId = signal('');
-  selectedStrategy = signal('risk_level');
   isGenerating = signal(false);
+  generateAttempted = signal(false);
   availablePlans = signal<Array<{ id: string; title: string; test_case_count: number }>>([]);
+
+  // ── Delete ────────────────────────────────────────────────────
+  confirmDeleteId = signal<string | null>(null);
+  isDeletingId = signal<string | null>(null);
+  showDeleteAllConfirm = signal(false);
+  isDeletingAll = signal(false);
 
   // ── Constants for template ────────────────────────────────────
   readonly SUITE_TYPE_CONFIG = SUITE_TYPE_CONFIG;
@@ -72,12 +77,6 @@ export class TestSuitesComponent implements OnInit {
   ];
 
   readonly priorities = ['', 'critical', 'high', 'medium', 'low'];
-  readonly strategies = [
-    { value: 'risk_level', label: 'By Risk Level' },
-    { value: 'test_type', label: 'By Test Type' },
-    { value: 'feature', label: 'By Feature' },
-    { value: 'mixed', label: 'Mixed' },
-  ];
 
   // ── Computed ──────────────────────────────────────────────────
   filteredSuites = computed(() => {
@@ -182,18 +181,6 @@ async loadPlans() {
   }
 }
 
-private async fetchAllTestCases(): Promise<TestCase[]> {
-  try {
-    // Utiliser getTestCases avec un grand limit
-    const tcs = await lastValueFrom(
-      this.testCaseService.getTestCases({ limit: 5000 })
-    );
-    return tcs ?? [];
-  } catch {
-    console.warn('Could not fetch test cases');
-    return [];
-  }
-}
   // ── Navigation ────────────────────────────────────────────────
   openSuite(id: string) {
     this.router.navigate(['/test-suites', id]);
@@ -201,31 +188,67 @@ private async fetchAllTestCases(): Promise<TestCase[]> {
 
   // ── Generation ────────────────────────────────────────────────
   async generateSuites() {
-    if (!this.selectedPlanId()) {
-      this.toast.warning('Please select a Test Plan first');
-      return;
-    }
+    this.generateAttempted.set(true);
+    if (!this.selectedPlanId()) return;
 
     this.isGenerating.set(true);
     try {
       const res = await lastValueFrom(this.suiteService.generate({
         test_plan_id: this.selectedPlanId(),
-        strategy: this.selectedStrategy(),
+        strategy: 'test_type',
         project_name: '',
       }));
 
       this.toast.success(`${res.count} suite(s) created successfully!`);
-      
-      // Recharger les données
       await this.loadData();
-      
-      // Réinitialiser la sélection
       this.selectedPlanId.set('');
+      this.generateAttempted.set(false);
     } catch (err: any) {
       const detail = err?.error?.detail || err?.message || 'Generation failed';
       this.toast.error(detail);
     } finally {
       this.isGenerating.set(false);
+    }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────
+  requestDelete(id: string, event: Event) {
+    event.stopPropagation();
+    this.confirmDeleteId.set(id);
+  }
+
+  cancelDelete(event?: Event) {
+    event?.stopPropagation();
+    this.confirmDeleteId.set(null);
+  }
+
+  async executeDelete(id: string, event: Event) {
+    event.stopPropagation();
+    this.isDeletingId.set(id);
+    try {
+      await lastValueFrom(this.suiteService.delete(id));
+      this.toast.success('Suite deleted');
+      this.confirmDeleteId.set(null);
+      await this.loadData();
+    } catch {
+      this.toast.error('Failed to delete suite');
+    } finally {
+      this.isDeletingId.set(null);
+    }
+  }
+
+  async executeDeleteAll() {
+    const ids = this.filteredSuites().map(s => s.id);
+    this.isDeletingAll.set(true);
+    try {
+      await Promise.all(ids.map(id => lastValueFrom(this.suiteService.delete(id))));
+      this.toast.success(`${ids.length} suite(s) deleted`);
+      this.showDeleteAllConfirm.set(false);
+      await this.loadData();
+    } catch {
+      this.toast.error('Some suites could not be deleted');
+    } finally {
+      this.isDeletingAll.set(false);
     }
   }
 

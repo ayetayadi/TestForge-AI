@@ -175,18 +175,7 @@ async def get_dashboard_stats(
     gherkin_coverage = round(tc_with_gherkin / tc_total * 100, 1) if tc_total else 0.0
 
     # ── 4. Test type coverage ──────────────────────────────────────────────────
-    tags_r = await db.execute(
-        select(TestCase.tags)
-        .join(TestSuite, TestCase.test_suite_id == TestSuite.id)      
-        .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)        
-        .where(TestPlan.project_id.in_(project_ids), TestCase.is_active == True)
-    )
     type_counts: dict[str, int] = {k: 0 for k in _TYPE_LABELS}
-    for (tags,) in tags_r.fetchall():
-        for tag in (tags or []):
-            t = tag.lower().replace(" ", "-")
-            if t in type_counts:
-                type_counts[t] += 1
 
     test_type_coverage = [
         CoverageItem(

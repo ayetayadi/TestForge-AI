@@ -12,8 +12,13 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Semaphore: max 5 appels LLM simultanés (1 par clé)
-llm_semaphore = asyncio.Semaphore(5)
+# One semaphore per API key — independent concurrency control, no cross-key contention.
+_key_semaphores: dict[str, asyncio.Semaphore] = {}
+
+def _get_key_semaphore(key_id: str) -> asyncio.Semaphore:
+    if key_id not in _key_semaphores:
+        _key_semaphores[key_id] = asyncio.Semaphore(1)
+    return _key_semaphores[key_id]
 
 _MIN_CALL_INTERVAL = 10.0  # seconds between calls on the SAME key
 _last_call_times: dict[str, float] = {}  # per-key throttle — keys run independently
@@ -89,16 +94,25 @@ def get_worker_api_key() -> str | None:
 
 class ControlledChatGroq(ChatGroq):
     """
-    ChatGroq avec sémaphore global, pacing inter-appels et retry rate-limit.
-    Chaque instance utilise la clé fixée à sa création (issue du ContextVar du worker).
-    Pas de rotation globale : chaque worker garde sa clé dédiée.
+    ChatGroq avec sémaphore par clé, pacing inter-appels et retry rate-limit.
+    Pacing et retry attendent HORS du sémaphore pour ne pas bloquer les autres workers.
     """
 
     async def _agenerate(self, *args, **kwargs) -> Any:
         key_id = str(self.groq_api_key) if self.groq_api_key else "NO_KEY"
         key_preview = key_id[:12] + "..."
+        sem = _get_key_semaphore(key_id)
 
-        async with llm_semaphore:
+        retry_wait = 0.0
+
+        for attempt in range(len(_RETRY_DELAYS) + 1):
+            # Sleep de retry HORS sémaphore (ne bloque pas les autres workers pendant l'attente)
+            if retry_wait > 0:
+                logger.warning(f"[LLM KEY] ⏳ Rate limit: waiting {retry_wait:.0f}s before retry {attempt}/{len(_RETRY_DELAYS)} (key {key_preview})")
+                await asyncio.sleep(retry_wait)
+                retry_wait = 0.0
+
+            # Pacing HORS sémaphore : seule la clé concernée est ralentie
             last_call = _last_call_times.get(key_id, 0.0)
             elapsed = time.monotonic() - last_call
             if elapsed < _MIN_CALL_INTERVAL:
@@ -106,7 +120,7 @@ class ControlledChatGroq(ChatGroq):
                 logger.debug(f"[LLM KEY] ⏳ Pacing key {key_preview}: waiting {wait_time:.1f}s...")
                 await asyncio.sleep(wait_time)
 
-            for attempt in range(len(_RETRY_DELAYS) + 1):
+            async with sem:
                 try:
                     logger.info(f"[LLM KEY] 🚀 Calling Groq with key: {key_preview} (attempt {attempt + 1})")
                     _last_call_times[key_id] = time.monotonic()
@@ -121,15 +135,14 @@ class ControlledChatGroq(ChatGroq):
                         logger.error(f"[LLM KEY] ❌ Rate limit exhausted for key: {key_preview}")
                         raise
 
-                    logger.warning(
-                        f"[LLM KEY] ⏳ Rate limited on key: {key_preview} — retrying in {wait}s "
-                        f"(attempt {attempt + 1}/{len(_RETRY_DELAYS)})"
-                    )
-                    await asyncio.sleep(wait)
+                    # Store wait time; semaphore is released as soon as we exit the `async with` block
+                    retry_wait = wait
 
                 except Exception as exc:
                     logger.error(f"[LLM ERROR] Groq call failed with key {key_preview}: {exc}")
                     raise
+
+        raise RuntimeError(f"[LLM KEY] All {len(_RETRY_DELAYS) + 1} attempts failed for key {key_preview}")
 
 
 def _parse_rate_limit(exc: RateLimitError, attempt: int) -> tuple[bool, float]:

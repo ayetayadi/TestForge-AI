@@ -41,13 +41,6 @@ class TestPlan(Base):
     scope_refs: Mapped[List[str]] = mapped_column(JSONB, default=lambda: [], server_default="[]")
     in_scope: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     out_of_scope: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
-    test_types: Mapped[List[str]] = mapped_column(
-        JSONB, default=lambda: [], server_default="[]", nullable=False
-    )
-    test_levels: Mapped[List[str]] = mapped_column(
-        JSONB, default=lambda: [], server_default="[]", nullable=False
-    )
     environment: Mapped[Optional[str]] = mapped_column(String(100))
     start_date: Mapped[Optional[date]] = mapped_column(Date)
     end_date: Mapped[Optional[date]] = mapped_column(Date)
@@ -64,11 +57,9 @@ class TestPlan(Base):
     stakeholders: Mapped[Optional[str]] = mapped_column(Text)
     communication: Mapped[Optional[str]] = mapped_column(Text)
     risk_analysis: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    estimation: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    recommendations_detail: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # ==============================
-    # 🔥 NOUVEAU : Business Flow Order (LLM-determined)
+    # Business Flow Order (LLM-determined)
     # ==============================
     
     business_flow_order: Mapped[Optional[dict]] = mapped_column(

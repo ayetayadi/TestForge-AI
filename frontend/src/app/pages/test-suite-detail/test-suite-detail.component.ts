@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -81,6 +81,46 @@ export class TestSuiteDetailComponent implements OnInit {
   activeTab = signal<DetailTab>('overview');
   expandedCase = signal<string | null>(null);
 
+  // ── Status / Delete actions ───────────────────────────────────
+  isActivating = signal(false);
+  isArchiving = signal(false);
+  isDeletingSuite = signal(false);
+  showDeleteConfirm = signal(false);
+
+  // ── Test Cases — Filters & Pagination ────────────────────────
+  tcSearch = signal('');
+  tcPriorityFilter = signal<string>('all');
+  tcTypeFilter = signal<string>('all');
+  tcShowInactive = signal(false);
+  tcPage = signal(0);
+  readonly TC_PAGE_SIZE = 8;
+
+  // ── Overview — Section toggles ────────────────────────────────
+  lifecycleOpen = signal(true);
+  execStrategyOpen = signal(false);
+  execOrderOpen = signal(true);
+
+  // ── Coverage — Card body toggles ─────────────────────────────
+  riskCoverageOpen = signal(true);
+  acCoverageOpen = signal(true);
+
+  // ── Traceability — Filter ─────────────────────────────────────
+  tmCoverageFilter = signal<'all' | 'covered' | 'partial' | 'none'>('all');
+
+  // ── Graph zoom / pan ──────────────────────────────────────────
+  @ViewChild('graphCanvas') private _graphCanvas!: ElementRef<HTMLDivElement>;
+  @ViewChild('graphSvg')    private _graphSvg!: ElementRef<SVGElement>;
+
+  graphScale     = signal(1);
+  graphTranslateX = signal(0);
+  graphTranslateY = signal(0);
+  isDragging     = signal(false);
+
+  private _dragStartX  = 0;
+  private _dragStartY  = 0;
+  private _dragStartTX = 0;
+  private _dragStartTY = 0;
+
   // ── Constants ─────────────────────────────────────────────────
   readonly SUITE_TYPE_CONFIG = SUITE_TYPE_CONFIG;
   readonly SUITE_STATUS_CONFIG = SUITE_STATUS_CONFIG;
@@ -123,6 +163,51 @@ export class TestSuiteDetailComponent implements OnInit {
     }
   }
 
+  // ── Status / Delete actions ───────────────────────────────────
+  async activateSuite() {
+    const id = this.suite()?.id;
+    if (!id) return;
+    this.isActivating.set(true);
+    try {
+      const updated = await firstValueFrom(this.service.update(id, { status: 'active' }));
+      this.suite.set(updated);
+      this.toast.success('Suite activated');
+    } catch {
+      this.toast.error('Failed to activate suite');
+    } finally {
+      this.isActivating.set(false);
+    }
+  }
+
+  async archiveSuite() {
+    const id = this.suite()?.id;
+    if (!id) return;
+    this.isArchiving.set(true);
+    try {
+      const updated = await firstValueFrom(this.service.update(id, { status: 'archived' }));
+      this.suite.set(updated);
+      this.toast.success('Suite archived');
+    } catch {
+      this.toast.error('Failed to archive suite');
+    } finally {
+      this.isArchiving.set(false);
+    }
+  }
+
+  async deleteSuite() {
+    const id = this.suite()?.id;
+    if (!id) return;
+    this.isDeletingSuite.set(true);
+    try {
+      await firstValueFrom(this.service.delete(id));
+      this.toast.success('Suite deleted');
+      this.router.navigate(['/test-suites']);
+    } catch {
+      this.toast.error('Failed to delete suite');
+      this.isDeletingSuite.set(false);
+    }
+  }
+
   // ── Navigation ────────────────────────────────────────────────
   goBack() {
     this.router.navigate(['/test-suites']);
@@ -141,6 +226,85 @@ export class TestSuiteDetailComponent implements OnInit {
 
   goToUserStory(usId: string) {
     this.router.navigate(['/user-stories', usId]);  // 🆕
+  }
+
+  // ── Section toggle helpers ────────────────────────────────────
+  toggleLifecycle()       { this.lifecycleOpen.update(v => !v); }
+  toggleExecStrategy()    { this.execStrategyOpen.update(v => !v); }
+  toggleExecOrder()       { this.execOrderOpen.update(v => !v); }
+  toggleRiskCoverage()    { this.riskCoverageOpen.update(v => !v); }
+  toggleAcCoverage()      { this.acCoverageOpen.update(v => !v); }
+  setTmFilter(f: 'all' | 'covered' | 'partial' | 'none') { this.tmCoverageFilter.set(f); }
+
+  // ── TC Filter / Pagination helpers ───────────────────────────
+  setTcSearch(v: string) { this.tcSearch.set(v); this.tcPage.set(0); }
+  setTcPriority(v: string) { this.tcPriorityFilter.set(v); this.tcPage.set(0); }
+  setTcType(v: string) { this.tcTypeFilter.set(v); this.tcPage.set(0); }
+  toggleShowInactive() { this.tcShowInactive.update(v => !v); this.tcPage.set(0); }
+
+  getFilteredTestCases(): EmbeddedTestCase[] {
+    let cases = this.getTestCases();
+    if (!this.tcShowInactive()) cases = cases.filter(tc => tc.is_active);
+    const q = this.tcSearch().toLowerCase().trim();
+    if (q) cases = cases.filter(tc =>
+      (tc.title ?? '').toLowerCase().includes(q) ||
+      (tc.tc_code ?? '').toLowerCase().includes(q)
+    );
+    const prio = this.tcPriorityFilter();
+    if (prio !== 'all') cases = cases.filter(tc => tc.priority === prio);
+    const type = this.tcTypeFilter();
+    if (type !== 'all') cases = cases.filter(tc => tc.test_type === type);
+    return cases;
+  }
+
+  getPaginatedTestCases(): EmbeddedTestCase[] {
+    const filtered = this.getFilteredTestCases();
+    const start = this.tcPage() * this.TC_PAGE_SIZE;
+    return filtered.slice(start, start + this.TC_PAGE_SIZE);
+  }
+
+  getTcTotalPages(): number {
+    return Math.max(1, Math.ceil(this.getFilteredTestCases().length / this.TC_PAGE_SIZE));
+  }
+
+  tcPrevPage() { if (this.tcPage() > 0) this.tcPage.update(p => p - 1); }
+  tcNextPage() { if (this.tcPage() < this.getTcTotalPages() - 1) this.tcPage.update(p => p + 1); }
+  tcGoToPage(p: number) { this.tcPage.set(p); }
+
+  getPaginationPages(): number[] {
+    const total = this.getTcTotalPages();
+    const current = this.tcPage();
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+    const pages = new Set<number>();
+    pages.add(0);
+    pages.add(total - 1);
+    for (let i = Math.max(0, current - 2); i <= Math.min(total - 1, current + 2); i++) pages.add(i);
+    return Array.from(pages).sort((a, b) => a - b);
+  }
+
+  getAvailableTcTypes(): string[] {
+    return [...new Set(this.getTestCases().map(tc => tc.test_type).filter((t): t is string => !!t))];
+  }
+
+  isEllipsisBefore(idx: number): boolean {
+    const pages = this.getPaginationPages();
+    return idx > 0 && pages[idx] - pages[idx - 1] > 1;
+  }
+
+  getTcStartIndex(): number { return this.tcPage() * this.TC_PAGE_SIZE + 1; }
+  getTcEndIndex(): number {
+    return Math.min((this.tcPage() + 1) * this.TC_PAGE_SIZE, this.getFilteredTestCases().length);
+  }
+
+  // ── Traceability filter ───────────────────────────────────────
+  getFilteredMatrixRows() {
+    const matrix = this.getMatrix();
+    if (!matrix) return [];
+    const f = this.tmCoverageFilter();
+    if (f === 'all') return matrix.rows;
+    if (f === 'covered') return matrix.rows.filter(r => r.coverage_pct >= 100);
+    if (f === 'partial') return matrix.rows.filter(r => r.coverage_pct > 0 && r.coverage_pct < 100);
+    return matrix.rows.filter(r => r.coverage_pct === 0);
   }
 
   // ── UI helpers ────────────────────────────────────────────────
@@ -391,6 +555,114 @@ export class TestSuiteDetailComponent implements OnInit {
         bg_color: this._FLOW_BG[f] ?? '#f9fafb',
         text_color: this._FLOW_TEXT[f] ?? '#6b7280',
       }));
+  }
+
+  // ── Tab change (reset graph zoom) ────────────────────────────
+  onTabChange(id: DetailTab) {
+    if (id === 'graph') { this.resetZoom(); }
+    this.activeTab.set(id);
+  }
+
+  // ── Graph zoom / pan / export ─────────────────────────────────
+
+  getZoomPercent(): number {
+    return Math.round(this.graphScale() * 100);
+  }
+
+  getZoomFillPct(): number {
+    // slider range 0.2 → 4, map to 0 → 100%
+    return ((this.graphScale() - 0.2) / (4 - 0.2)) * 100;
+  }
+
+  getGraphTransform(): string {
+    return `translate(${this.graphTranslateX()}px, ${this.graphTranslateY()}px) scale(${this.graphScale()})`;
+  }
+
+  zoomIn()  { this.graphScale.set(Math.min(4,   this.graphScale() * 1.25)); }
+  zoomOut() { this.graphScale.set(Math.max(0.2, this.graphScale() / 1.25)); }
+
+  resetZoom() {
+    this.graphScale.set(1);
+    this.graphTranslateX.set(0);
+    this.graphTranslateY.set(0);
+  }
+
+  onGraphWheel(event: WheelEvent) {
+    event.preventDefault();
+    const canvas = this._graphCanvas?.nativeElement;
+    if (!canvas) return;
+
+    const rect    = canvas.getBoundingClientRect();
+    const mx      = event.clientX - rect.left;
+    const my      = event.clientY - rect.top;
+    const factor  = event.deltaY > 0 ? 0.9 : 1.1;
+    const oldS    = this.graphScale();
+    const newS    = Math.min(4, Math.max(0.2, oldS * factor));
+    const ratio   = newS / oldS;
+
+    this.graphScale.set(newS);
+    this.graphTranslateX.set(mx - ratio * (mx - this.graphTranslateX()));
+    this.graphTranslateY.set(my - ratio * (my - this.graphTranslateY()));
+  }
+
+  onGraphMouseDown(event: MouseEvent) {
+    if (event.button !== 0) return;
+    this.isDragging.set(true);
+    this._dragStartX  = event.clientX;
+    this._dragStartY  = event.clientY;
+    this._dragStartTX = this.graphTranslateX();
+    this._dragStartTY = this.graphTranslateY();
+    event.preventDefault();
+  }
+
+  onGraphMouseMove(event: MouseEvent) {
+    if (!this.isDragging()) return;
+    this.graphTranslateX.set(this._dragStartTX + (event.clientX - this._dragStartX));
+    this.graphTranslateY.set(this._dragStartTY + (event.clientY - this._dragStartY));
+  }
+
+  onGraphMouseUp() { this.isDragging.set(false); }
+
+  exportGraphSvg() {
+    const svgEl = this._graphSvg?.nativeElement;
+    if (!svgEl) return;
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml;charset=utf-8' });
+    this._triggerDownload(URL.createObjectURL(blob), `dep-graph-${this.suite()?.title ?? 'suite'}.svg`);
+  }
+
+  exportGraphPng() {
+    const svgEl = this._graphSvg?.nativeElement;
+    if (!svgEl) return;
+    const layout = this.buildGraphLayout();
+    const w = (layout?.svg_width  ?? 800) * 2;
+    const h = (layout?.svg_height ?? 600) * 2;
+
+    const svgUrl = URL.createObjectURL(
+      new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml;charset=utf-8' })
+    );
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(svgUrl);
+      this._triggerDownload(canvas.toDataURL('image/png'), `dep-graph-${this.suite()?.title ?? 'suite'}.png`);
+    };
+    img.src = svgUrl;
+  }
+
+  private _triggerDownload(url: string, filename: string) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    if (url.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // ── Graph helpers ─────────────────────────────────────────────
@@ -648,10 +920,12 @@ buildGraphLayout(): GraphLayoutData | null {
       ly = y1 - 10;
     } else {
       // Cross-lane → courbe de Bézier
+      // Déterminer la direction : cible en dessous ou au-dessus de la source
+      const goingDown = tgt.y >= src.y;
       const x1 = src.x + NODE_W / 2;
-      const y1 = src.y + NODE_H;
+      const y1 = goingDown ? src.y + NODE_H : src.y;          // bas si descend, haut si monte
       const x2 = tgt.x + NODE_W / 2;
-      const y2 = tgt.y - ARROW;
+      const y2 = goingDown ? tgt.y - ARROW : tgt.y + NODE_H + ARROW; // haut si descend, bas si monte
       const cp1y = y1 + (y2 - y1) * 0.4;
       const cp2y = y1 + (y2 - y1) * 0.6;
       path = `M ${x1} ${y1} C ${x1} ${cp1y}, ${x2} ${cp2y}, ${x2} ${y2}`;

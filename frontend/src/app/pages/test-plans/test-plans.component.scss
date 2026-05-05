@@ -877,16 +877,17 @@ $border: 1px solid #e5e7eb;
 }
 
 // ─── Modal ──────────────────────────────────────────────────────
-
 .modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);                    
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 24px;
+  animation: fadeIn 0.2s ease;                   
 }
 
 .modal-panel {
@@ -895,8 +896,12 @@ $border: 1px solid #e5e7eb;
   border-radius: 12px;
   width: 100%;
   max-width: 560px;
+  max-height: 85vh;                              // ✅ Hauteur max = 85% de l'écran
+  display: flex;                                  // ✅ Flexbox
+  flex-direction: column;                         // ✅ Layout vertical
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
+  overflow: hidden;                               // ✅ Cache le débordement
+  animation: slideUp 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);  // ✅ Animation
 }
 
 .modal-header {
@@ -905,6 +910,7 @@ $border: 1px solid #e5e7eb;
   justify-content: space-between;
   padding: 20px 24px 16px;
   border-bottom: $border;
+  flex-shrink: 0;                                // ✅ Ne rétrécit pas
 
   h2 {
     font-size: 1rem;
@@ -941,8 +947,28 @@ $border: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
+  overflow-y: auto;                              // ✅ Scroll vertical
+  flex: 1;                                       // ✅ Prend l'espace restant
+  min-height: 0;                                 // ✅ Permet le scroll
 
+  // Scroll personnalisé
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+
+    &:hover {
+      background: #9ca3af;
+    }
+  }
+}
 .form-group {
   display: flex;
   flex-direction: column;
@@ -1074,6 +1100,17 @@ $border: 1px solid #e5e7eb;
   font-style: italic;
 }
 
+.required-star {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.field-hint {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  font-style: italic;
+}
+
 // AI Note
 .ai-note {
   display: flex;
@@ -1099,6 +1136,7 @@ $border: 1px solid #e5e7eb;
   gap: 12px;
   padding: 16px 24px 20px;
   border-top: $border;
+  flex-shrink: 0;                                // ✅ Ne rétrécit pas
 }
 
 .generating-text {
@@ -1112,6 +1150,17 @@ $border: 1px solid #e5e7eb;
   to {
     transform: rotate(360deg);
   }
+}
+
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
 // Responsive

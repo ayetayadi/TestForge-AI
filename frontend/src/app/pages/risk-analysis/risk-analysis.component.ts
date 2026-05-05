@@ -11,6 +11,7 @@ import {
 import { ProjectsService } from '../../services/projects.service';
 import { StoriesService } from '../../services/stories.service';
 import { ToastService } from '../../services/toast.service';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 import {
   Risk,
   RiskLevel,
@@ -31,7 +32,7 @@ type FilterTab = 'all' | RiskLevel;
 @Component({
   selector: 'app-risk-analysis',
   standalone: true,
-  imports: [CommonModule, FormsModule, SearchBarComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, SearchBarComponent, PaginationComponent, ConfirmDialogComponent],
   templateUrl: './risk-analysis.component.html',
   styleUrl: './risk-analysis.component.scss',
 })
@@ -85,6 +86,25 @@ export class RiskAnalysisComponent implements OnInit, OnDestroy {
   pendingBreakdown  = signal<Record<string, number>>({});
   showRemainingBanner = signal<boolean>(false);
 
+// ── Confirm Dialog ──────────────────────────────────────────
+showConfirmDialog = signal(false);
+confirmDialogData = signal<{
+  title: string;
+  message: string;
+  icon: string;
+  confirmText: string;
+  cancelText: string;
+  variant: 'primary' | 'danger' | 'warning' | 'success';
+  onConfirm: () => void;
+}>({
+  title: '',
+  message: '',
+  icon: '📊',
+  confirmText: 'Continue',
+  cancelText: 'Cancel',
+  variant: 'primary',
+  onConfirm: () => {},
+});
   // ── Polling ───────────────────────────────────────────────
   private pollingInterval: any = null;
   private currentJobIds: string[] = [];
@@ -470,22 +490,34 @@ humanCorrectRisk(risk: Risk, newProbability: number, newImpact: number): void {
     });
   }
 
+
   analyzeRemainingStories(): void {
-    if (this.pendingStories() === 0) {
-      this.toast.info('Nothing to analyze', 'All stories are already analyzed.');
-      return;
-    }
-    const priorityText = Object.entries(this.pendingBreakdown())
-      .map(([prio, count]) => `${prio}: ${count}`)
-      .join(', ');
-    const confirmed = confirm(
-      `📊 ${this.pendingStories()} stories remaining to analyze:\n${priorityText}\n\nContinue with analysis?`
-    );
-    if (!confirmed) return;
-    const limit = Math.min(this.pendingStories(), 100);
-    this.updateFilter('limit', limit);
-    this.analyzeProject();
+  if (this.pendingStories() === 0) {
+    this.toast.info('Nothing to analyze', 'All stories are already analyzed.');
+    return;
   }
+  
+  const priorityText = Object.entries(this.pendingBreakdown())
+    .map(([prio, count]) => `${prio}: ${count}`)
+    .join('\n');
+  
+  const message = `${this.pendingStories()} stories remaining to analyze:\n\n${priorityText}\n\nContinue with analysis?`;
+  
+  this.confirmDialogData.set({
+    title: 'Start Analysis',
+    message: message,
+    icon: '📊',
+    confirmText: 'Start Analysis',
+    cancelText: 'Cancel',
+    variant: 'primary',
+    onConfirm: () => {
+      const limit = Math.min(this.pendingStories(), 100);
+      this.updateFilter('limit', limit);
+      this.analyzeProject();
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
 
   async analyzeProject(): Promise<void> {
     const projectId = this.selectedProjectId();
@@ -767,7 +799,6 @@ probPercent(p: number): number { return Math.round(p / 5 * 100); } // 4 → 80%
  * Accepter tous les risques visibles (respecte les filtres projet/epic/sprint)
  */
 acceptAllVisibleRisks(): void {
-  // Récupère les risques filtrés par la vue actuelle
   const risks = this.sprintEpicFilteredRisks();
   const pendingRisks = risks.filter(r => r.is_accepted === null);
   
@@ -776,7 +807,6 @@ acceptAllVisibleRisks(): void {
     return;
   }
   
-  // Construit un message qui indique le scope
   let scope = 'this project';
   if (this.selectedEpicFilter()) {
     scope = `epic "${this.selectedEpicFilter()}"`;
@@ -784,28 +814,45 @@ acceptAllVisibleRisks(): void {
     scope = `sprint "${this.selectedSprintFilter()}"`;
   }
   
-  const confirmed = confirm(
-    `✅ Accept ALL ${pendingRisks.length} pending risks for ${scope}?\n\nThis action cannot be undone.`
-  );
-  
-  if (!confirmed) return;
-  
-  let completed = 0;
-  let failed = 0;
-  const total = pendingRisks.length;
-  
-  pendingRisks.forEach(risk => {
-    this.riskService.acceptRisk(risk.id, true).subscribe({
-      next: () => {
-        completed++;
-        this.checkBulkComplete(completed, failed, total);
-      },
-      error: () => {
-        failed++;
-        this.checkBulkComplete(completed, failed, total);
-      }
-    });
+  this.confirmDialogData.set({
+    title: 'Accept All Risks',
+    message: `Accept ALL ${pendingRisks.length} pending risks for ${scope}?\n\nThis action cannot be undone.`,
+    icon: '✅',
+    confirmText: 'Accept All',
+    cancelText: 'Cancel',
+    variant: 'success',
+    onConfirm: () => {
+      let completed = 0;
+      let failed = 0;
+      const total = pendingRisks.length;
+      
+      pendingRisks.forEach(risk => {
+        this.riskService.acceptRisk(risk.id, true).subscribe({
+          next: () => {
+            completed++;
+            if (completed + failed >= total) {
+              this.loadRisksByProject(this.selectedProjectId());
+              this.checkPendingStories();
+              if (failed === 0) {
+                this.toast.success(`All ${completed} risks accepted`);
+              } else {
+                this.toast.warning(`${completed} accepted, ${failed} failed`);
+              }
+            }
+          },
+          error: () => {
+            failed++;
+            if (completed + failed >= total) {
+              this.loadRisksByProject(this.selectedProjectId());
+              this.checkPendingStories();
+              this.toast.warning(`${completed} accepted, ${failed} failed`);
+            }
+          }
+        });
+      });
+    }
   });
+  this.showConfirmDialog.set(true);
 }
 
 private checkBulkComplete(completed: number, failed: number, total: number): void {
@@ -821,26 +868,32 @@ private checkBulkComplete(completed: number, failed: number, total: number): voi
   }
 }
 
-/** Supprimer un risque individuel */
 deleteRisk(riskId: string, event: Event): void {
-  event.stopPropagation(); // Empêche la navigation vers le détail
+  event.stopPropagation();
   
-  const confirmed = confirm('🗑️ Delete this risk? This action cannot be undone.');
-  if (!confirmed) return;
-  
-  this.riskService.deleteRisk(riskId).subscribe({
-    next: () => {
-      this.allRisks.update(risks => risks.filter(r => r.id !== riskId));
-      this.toast.success('Risk deleted');
-      this.checkPendingStories();
-    },
-    error: () => {
-      this.toast.error('Failed to delete risk');
+  this.confirmDialogData.set({
+    title: 'Delete Risk',
+    message: '🗑️ Delete this risk?\n\nThis action cannot be undone.',
+    icon: '🗑️',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {
+      this.riskService.deleteRisk(riskId).subscribe({
+        next: () => {
+          this.allRisks.update(risks => risks.filter(r => r.id !== riskId));
+          this.toast.success('Risk deleted');
+          this.checkPendingStories();
+        },
+        error: () => {
+          this.toast.error('Failed to delete risk');
+        }
+      });
     }
   });
+  this.showConfirmDialog.set(true);
 }
 
-/** Supprimer TOUS les risques du projet sélectionné */
 deleteAllProjectRisks(): void {
   const projectId = this.selectedProjectId();
   if (!projectId) return;
@@ -852,23 +905,29 @@ deleteAllProjectRisks(): void {
     return;
   }
   
-  const confirmed = confirm(
-    `🗑️ Delete ALL ${risks.length} risks for this project?\n\nThis action cannot be undone!`
-  );
-  
-  if (!confirmed) return;
-  
-  this.riskService.deleteProjectRisks(projectId).subscribe({
-    next: () => {
-      this.allRisks.set([]);
-      this.toast.success('All risks deleted');
-      this.checkPendingStories();
-    },
-    error: () => {
-      this.toast.error('Failed to delete risks');
+  this.confirmDialogData.set({
+    title: 'Delete All Risks',
+    message: `🗑️ Delete ALL ${risks.length} risks for this project?\n\nThis action cannot be undone!`,
+    icon: '⚠️',
+    confirmText: 'Delete All',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {
+      this.riskService.deleteProjectRisks(projectId).subscribe({
+        next: () => {
+          this.allRisks.set([]);
+          this.toast.success('All risks deleted');
+          this.checkPendingStories();
+        },
+        error: () => {
+          this.toast.error('Failed to delete risks');
+        }
+      });
     }
   });
+  this.showConfirmDialog.set(true);
 }
+
 
 private finishBulkAction(success: number, failed: number, action: string): void {
   this.loadRisksByProject(this.selectedProjectId());

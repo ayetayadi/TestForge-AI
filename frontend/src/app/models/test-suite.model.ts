@@ -67,8 +67,6 @@ export interface EmbeddedTestPlan {
   objective?: string | null;
   in_scope?: string | null;
   out_of_scope?: string | null;
-  test_types: string[];
-  test_levels: string[];
   environment?: string | null;
   entry_criteria?: string | null;
   exit_criteria?: string | null;
@@ -170,7 +168,6 @@ export interface SuiteLifecycle {
     status: string | null;
     approved_at?: string | null;
     environment?: string | null;
-    test_types: string[];
     entry_criteria?: string | null;
     exit_criteria?: string | null;
   };
@@ -332,16 +329,10 @@ export interface UnassignTestCaseRequest {
 // UI CONFIGS
 // ============================================================
 
-export const SUITE_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
-  feature:     { label: 'Feature',     icon: 'solar:star-line-duotone',           color: '#6366f1' },
-  epic:        { label: 'Epic',        icon: 'solar:layers-line-duotone',          color: '#8b5cf6' },
-  sprint:      { label: 'Sprint',      icon: 'solar:running-round-line-duotone',   color: '#3b82f6' },
-  smoke:       { label: 'Smoke',       icon: 'solar:fire-line-duotone',            color: '#f59e0b' },
-  regression:  { label: 'Regression',  icon: 'solar:restart-line-duotone',         color: '#10b981' },
-  negative:    { label: 'Negative',    icon: 'solar:close-circle-line-duotone',    color: '#ef4444' },
-  security:    { label: 'Security',    icon: 'solar:shield-check-line-duotone',    color: '#dc2626' },
-  performance: { label: 'Performance', icon: 'solar:chart-line-duotone',           color: '#f97316' },
-  e2e:         { label: 'E2E',         icon: 'solar:route-line-duotone',           color: '#0ea5e9' },
+export const SUITE_TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  negative:    { label: 'Negative', color: '#ef4444', bg: '#fee2e2' },
+  positive:    { label: 'Positive', color: '#16a34a', bg: '#dcfce7' },
+  boundary:    { label: 'Boundary', color: '#8b8b8b', bg: '#f3f4f6' },
 };
 
 export const SUITE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {

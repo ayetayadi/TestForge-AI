@@ -16,8 +16,6 @@ export interface TestPlan {
   scope_refs: string[];
   in_scope?: string;
   out_of_scope?: string;
-  test_types: string[];
-  test_levels: string[];
   environment?: string;
   start_date?: string;
   end_date?: string;
@@ -33,11 +31,8 @@ export interface TestPlan {
   approved_at?: string;
   generation_completed_at?: string;
   created_at: string;
-  updated_at: string;
-  
-  // ✅ Sections enrichies
+  updated_at: string;  
   risk_analysis?: RiskAnalysisDisplay;
-  estimation?: PertEstimationDisplay;
   recommendations_detail?: RecommendationsDetail;
   ai_reasoning?: string;  // ← AJOUTÉ
 }
@@ -123,8 +118,6 @@ export interface TestPlanUpdate {
   scope_refs?: string[];
   in_scope?: string;
   out_of_scope?: string;
-  test_types?: string[];
-  test_levels?: string[];
   environment?: string;
   start_date?: string;
   end_date?: string;
@@ -201,7 +194,7 @@ export interface JiraNotificationResponse {
 // RISK ANALYSIS DISPLAY (visible dans le Test Plan)
 // ============================================================
 
-// ✅ ENRICHIE : Ajout de mitigation, test_techniques, test_depth, effort_allocation
+// ENRICHIE : Ajout de mitigation, test_depth
 export interface RiskMappingEntry {
   issue_key: string;
   title: string;
@@ -211,9 +204,7 @@ export interface RiskMappingEntry {
   probability?: number;
   impact?: number;
   mitigation?: string;           // ← Plan d'atténuation du risque
-  test_techniques?: string[];    // ← Techniques de test recommandées
   test_depth?: string;           // ← comprehensive | thorough | standard | smoke
-  effort_allocation?: string;    // ← "60%" | "25%" | "10%" | "5%"
 }
 
 export interface RiskDistribution {
@@ -237,21 +228,12 @@ export interface RiskFormulas {
   };
 }
 
-// ✅ ENRICHIE : Ajout de aggregated_recommendations
 export interface AggregatedRecommendations {
-  most_recommended_techniques: string[];
-  technique_distribution: Record<string, number>;  // { "e2e": 8, "integration": 6 }
   test_depth_distribution: {
     comprehensive: number;
     thorough: number;
     standard: number;
     smoke: number;
-  };
-  effort_breakdown: {
-    critical_effort: string;   // "180%"
-    high_effort: string;       // "125%"
-    medium_effort: string;     // "20%"
-    low_effort: string;        // "5%"
   };
 }
 
@@ -264,39 +246,9 @@ export interface RiskAnalysisDisplay {
 }
 
 // ============================================================
-// PERT ESTIMATION DISPLAY
-// ============================================================
-
-export interface PertBreakdownEntry {
-  level: string;
-  story_count: number;
-  days_per_story_optimistic: number;
-  days_per_story_realistic: number;
-  days_per_story_pessimistic: number;
-  subtotal_optimistic: number;
-  subtotal_realistic: number;
-  subtotal_pessimistic: number;
-}
-
-export interface PertEstimationDisplay {
-  formula: string;
-  inputs: {
-    optimistic: number;
-    most_likely: number;
-    pessimistic: number;
-  };
-  calculation: string;
-  standard_deviation: string;
-  confidence_interval: string;
-  breakdown_by_risk: PertBreakdownEntry[];
-}
-
-// ============================================================
 // RECOMMENDATIONS DISPLAY
 // ============================================================
 
 export interface RecommendationsDetail {
-  test_types: string[];
-  test_levels: string[];
   reasoning: string[];
 }

@@ -62,11 +62,6 @@ class TestCase(Base):
     # Priorité explicite : critical | high | medium | low
     priority: Mapped[Optional[str]] = mapped_column(String(20))
 
-    # ["smoke", "regression", "authentication"]
-    tags: Mapped[List[str]] = mapped_column(
-        JSONB, default=lambda: [], server_default="[]"
-    )
-
     # Conditions requises avant l'exécution
     preconditions: Mapped[List[str]] = mapped_column(
         JSONB, default=lambda: [], server_default="[]"
@@ -100,6 +95,12 @@ class TestCase(Base):
     # Ordre d'exécution dans le plan priorisé (calculé par l'algorithme §p.245)
     execution_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    _covered_ac_indices: Mapped[Optional[List[int]]] = mapped_column(
+        JSONB, nullable=True, default=lambda: []
+    )
+    
+    _reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
     # ==============================
     # META
     # ==============================

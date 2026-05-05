@@ -17,16 +17,16 @@ LLM_TIMEOUT_SECONDS = 240      # Gherkin + steps + test_data = verbose
 MIN_AC_COVERAGE = 0.80         # 80% of ACs must be covered
 
 # ============================================================
-# TEST CASE COUNTS BY RISK LEVEL
-# Critical ≥4.0 | High 2.5–3.9 | Medium 1.0–2.4 | Low <1.0
+# COUNT ESTIMATION
+# count = ceil(total_ACs / AC_TO_TC_RATIO), minimum 1
 # ============================================================
-RISK_LEVEL_TEST_COUNTS: dict[str, dict[str, int]] = {
-    "critical": {"positive": 1, "negative": 1, "boundary": 1},
-    "high":     {"positive": 1, "negative": 1, "boundary": 1},
-    "medium":   {"positive": 1, "negative": 1, "boundary": 0},
-    "low":      {"positive": 1, "negative": 0, "boundary": 0},
-    "default":  {"positive": 1, "negative": 1, "boundary": 0},
-}
+AC_TO_TC_RATIO = 2.5
+
+# ============================================================
+# CORRECTION LOOP
+# Max iterations when coverage < 80%
+# ============================================================
+MAX_CORRECTION_ITERATIONS = 2
 
 # ============================================================
 # GHERKIN VALIDATION

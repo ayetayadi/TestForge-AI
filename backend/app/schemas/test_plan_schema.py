@@ -17,8 +17,6 @@ class TestPlanBase(BaseModel):
     scope_refs: List[str] = Field(default_factory=list)
     in_scope: Optional[str] = None
     out_of_scope: Optional[str] = None
-    test_types: List[str] = Field(default_factory=list)
-    test_levels: List[str] = Field(default_factory=list)
     environment: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -39,15 +37,12 @@ class TestPlanBase(BaseModel):
 class TestPlanCreate(TestPlanBase):
     project_id: str = Field(..., min_length=36, max_length=36)
     
-    # ✅ Nouveaux champs pour filtrage sprint/epic
     sprint_ids: Optional[List[str]] = Field(None, description="Filter by sprint IDs")
     epic_keys: Optional[List[str]] = Field(None, description="Filter by epic keys")
     require_accepted_risks: bool = Field(True, description="Require accepted risks before creation")
     
     # AI-generated fields
     risk_analysis: Optional[dict] = None      
-    estimation: Optional[dict] = None         
-    recommendations_detail: Optional[dict] = None 
 
 
 class TestPlanUpdate(BaseModel):
@@ -58,8 +53,6 @@ class TestPlanUpdate(BaseModel):
     scope_refs: Optional[List[str]] = None
     in_scope: Optional[str] = None
     out_of_scope: Optional[str] = None
-    test_types: Optional[List[str]] = None
-    test_levels: Optional[List[str]] = None
     environment: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -87,14 +80,7 @@ class TestPlanResponse(TestPlanBase):
         None,
         description="Analyse des risques : distribution, formules, mapping US→Risque"
     )
-    estimation: Optional[dict] = Field(
-        None,
-        description="Estimation PERT : formule, calcul détaillé, breakdown par risque"
-    )
-    recommendations_detail: Optional[dict] = Field(
-        None,
-        description="Recommandations : types de test, niveaux, justifications"
-    )
+
 
     class Config:
         from_attributes = True

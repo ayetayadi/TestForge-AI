@@ -13,16 +13,20 @@ ACCEPTANCE CRITERIA:
 
 RISK LEVEL: {risk_level} (risk score: {risk_score})
 RISK DESCRIPTION: {risk_description}
+MITIGATION: {risk_mitigation}
 
 ACCEPTED RISK IDs LINKED TO THIS USER STORY:
 {risk_ids_list}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-REQUIRED TEST CASES:
-  • Positive        (happy path / valid input)   : {count_positive}
-  • Negative        (invalid input / error path) : {count_negative}
-  • Boundary Value  (limits / extremes)          : {count_boundary}
-  Total: {total_count}
+TEST TYPE REQUESTED: {scenario_type}
+  • positive   → happy path, valid input, expected successful outcome
+  • negative   → invalid input, error path, rejected operations
+  • boundary   → limit values (max/min length, 0, -1, empty, null, special chars)
+
+Generate exactly {count} test case(s) of type "{scenario_type}".
+Deduce concrete scenarios from the acceptance criteria above — even for negative and
+boundary types, derive them from what the positive ACs imply (invalid/limit counterparts).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FIELD DEFINITIONS — fill EVERY field for EVERY test case:
@@ -32,7 +36,7 @@ title
   Examples: "Login with valid credentials", "Reject blank password field"
 
 test_type
-  One of: positive | negative | boundary_value
+  Must be exactly: {scenario_type}
 
 priority
   One of: critical | high | medium | low
@@ -81,7 +85,7 @@ gherkin_scenario
       Then an error message 'Email is required' is displayed
       And no session token is created
 
-  Example (boundary_value):
+  Example (boundary):
     Scenario: Login with email at maximum length
       Given the user is on the login page
       And a user account exists with email 'this.is.a.very.long.email.address.with.many.characters@example.com'
@@ -109,7 +113,7 @@ test_data
   Examples:
     Positive: {{"email": "test.user@example.com", "password": "SecurePass123!"}}
     Negative: {{"email": "", "password": "abc"}}
-    Boundary Value: {{"email": "this.is.a.very.long.email.address.with.many.characters@example.com", "password": "ThisIsAVeryLongPasswordWithMixedChars123!"}}
+    Boundary: {{"email": "this.is.a.very.long.email.address.with.many.characters@example.com", "password": "ThisIsAVeryLongPasswordWithMixedChars123!"}}
 
 expected_results
   List of final assertions that must ALL be TRUE when the test PASSES.
@@ -119,12 +123,6 @@ expected_results
     - "User record created in the database with correct email and hashed password"
     - "Error message 'Invalid email' displayed below the email field"
     - "No session cookie set in the browser"
-
-tags
-  2-4 classification tags for filtering/grouping.
-  Choose from: smoke, regression, authentication, authorization, validation, boundary,
-               error-handling, security, performance, api, ui, database, email,
-               file-upload, permissions, integration
 
 covered_ac_indices
   0-based indices of acceptance criteria that this test case verifies.
@@ -150,16 +148,15 @@ CRITICAL JSON FORMATTING RULES:
   • NEVER use double quotes " inside string values (this breaks JSON parsing)
   • The only double quotes should be the JSON field delimiters
 - The test_data field is standard JSON: use double quotes normally
-- Tags, covered_ac_indices, and covered_risk_ids are arrays: use standard JSON format
+- covered_ac_indices, and covered_risk_ids are arrays: use standard JSON format
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULES:
-- Generate ONLY the types of test cases specified in REQUIRED TEST CASES above
-- If a count is 0, do NOT generate any test cases of that type
+- Generate ONLY {scenario_type} test cases
 - Each test case must be fully independent (no shared state between tests)
 - Every acceptance criterion must appear in at least one covered_ac_indices list
 - Negative tests MUST use INVALID data (empty, wrong format, too long, SQL injection, etc.)
 - Boundary value tests MUST test LIMIT values (max_length, min_length, 0, -1, empty, null, special chars, Unicode)
-- For boundary value test_data: NEVER use repetitive characters like "aaaa...". 
+- For boundary value test_data: NEVER use repetitive characters like "aaaa...".
   Instead use realistic examples:
     • Long email: "this.is.a.very.long.email.address.with.many.characters@example.com"
     • Long password: "ThisIsAVeryLongPasswordWithMixedChars123!"
@@ -170,6 +167,41 @@ RULES:
 - Steps must be atomic (one user action per step)
 - All field values must be in English
 - All test_data values must be LITERAL strings, not code expressions
-- Generate exactly {total_count} test cases
+- Generate exactly {count} test case(s)
 - Output ONLY the JSON object — no markdown code blocks, no extra text before or after
+"""
+
+
+CORRECTION_PROMPT = """You are an ISTQB-certified test analyst.
+
+Some acceptance criteria are NOT yet covered by the existing test cases.
+Generate ADDITIONAL {count} {scenario_type} test case(s) that cover the uncovered ACs below.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USER STORY:
+{story}
+
+ALL ACCEPTANCE CRITERIA:
+{acceptance_criteria}
+
+UNCOVERED ACs — you MUST cover ALL of these:
+{uncovered_acs}
+
+RISK LEVEL: {risk_level}
+ACCEPTED RISK IDs LINKED TO THIS USER STORY:
+{risk_ids_list}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TEST TYPE: {scenario_type}
+Generate exactly {count} additional test case(s) of type "{scenario_type}".
+Each test case MUST cover at least one of the UNCOVERED ACs listed above.
+
+Use the same field definitions and JSON formatting rules as before:
+- title, test_type, priority, preconditions, postconditions, gherkin_scenario,
+  steps, test_data, expected_results, covered_ac_indices, reasoning, covered_risk_ids
+- test_type must be exactly: {scenario_type}
+- covered_ac_indices must reference the indices of the UNCOVERED ACs above
+  (use the same 0-based indexing as the full AC list)
+- CRITICAL JSON FORMATTING: single quotes inside strings, double quotes only as JSON delimiters
+- Output ONLY the JSON object — no markdown, no extra text
 """
