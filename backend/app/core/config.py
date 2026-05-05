@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "smart"
     GEMINI_API_KEY: str | None = None
     
+    OPENROUTER_API_KEY: str | None = None
     OPENROUTER_API_KEY_1: str | None = None
     OPENROUTER_API_KEY_2: str | None = None
     OPENROUTER_API_KEY_3: str | None = None
@@ -123,6 +124,18 @@ class Settings(BaseSettings):
     # MCP / PLAYWRIGHT CONFIG
     # =========================
     TEST_APPLICATION_URL: str = "http://localhost:3000"
+
+    # =========================
+    # TESTOMAT.IO CONFIG
+    # =========================
+    TESTOMATIO_API_KEY: str | None = None
+
+    # =========================
+    # LANGFUSE CONFIG
+    # =========================
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_SECRET_KEY: str | None = None
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
 
 
 settings = Settings()

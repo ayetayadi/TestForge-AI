@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+import sys
 import time
 from typing import List
 
@@ -194,11 +195,12 @@ class PlaywrightMCPClient:
 
         logger.info("🔍 DEBUG: Starting stdio connection...")
 
+        npx_cmd = "npx.cmd" if sys.platform == "win32" else "npx"
         client = MultiServerMCPClient(
             {
                 "playwright": {
-                    "command": "npx",
-                    "args": ["--yes", "@playwright/mcp"],  # sans @latest = utilise la version en cache npm
+                    "command": npx_cmd,
+                    "args": ["--yes", "@playwright/mcp"],
                     "transport": "stdio",
                 }
             }

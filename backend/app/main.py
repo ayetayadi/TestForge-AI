@@ -1,14 +1,10 @@
 # app/main.py
 # =========================
-# ENV LOADING
+# ENV LOADING — must run before ANY app import so that langfuse
+# auto-initialises with real credentials (not a disabled no-op client).
 # =========================
-# from dotenv import load_dotenv
-# load_dotenv()
-
-# import os
-# print("[LANGSMITH] TRACING:", os.getenv("LANGSMITH_TRACING"))
-# print("[LANGSMITH] PROJECT:", os.getenv("LANGSMITH_PROJECT"))
-# print("[LANGSMITH] API_KEY:", os.getenv("LANGSMITH_API_KEY", "")[:20] + "..." if os.getenv("LANGSMITH_API_KEY") else "NOT SET")
+from dotenv import load_dotenv
+load_dotenv()
 
 # =========================
 # LOGGING CONFIGURATION
@@ -50,6 +46,7 @@ from app.api.sync_jira import router as sync_jira_router
 from app.api.risks import router as risk_router
 from app.api.test_plans import router as test_plans_router
 from app.api.test_suites import router as test_suites_router
+from app.api.chatbot import router as chatbot_router
 from app.core.database import Base, engine
 from app.streaming.sse_manager import set_main_loop
 from app.core.model_manager import preload_embedding_model
@@ -77,7 +74,19 @@ def preload_models():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[STARTUP] Initializing application...")
-    
+
+    # LANGFUSE
+    if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
+        from app.core.observability import init_langfuse
+        init_langfuse(
+            public_key=settings.LANGFUSE_PUBLIC_KEY,
+            secret_key=settings.LANGFUSE_SECRET_KEY,
+            host=settings.LANGFUSE_HOST,
+        )
+        print("[LANGFUSE] Tracing enabled")
+    else:
+        print("[LANGFUSE] Keys not set — tracing disabled")
+
     # HF TOKEN
     if settings.HF_TOKEN:
         os.environ["HF_TOKEN"] = settings.HF_TOKEN
@@ -106,6 +115,12 @@ async def lifespan(app: FastAPI):
     await stop_risk_workers()
     await stop_tc_workers()
     print("[SHUTDOWN] Workers stopped")
+
+    from app.core.observability import is_langfuse_enabled
+    if is_langfuse_enabled():
+        from langfuse import get_client
+        get_client().flush()
+        print("[LANGFUSE] Flushed pending spans")
 # =========================
 # APP
 # =========================
@@ -144,14 +159,11 @@ app.include_router(ai_generate_router)
 app.include_router(dashboard_router)
 app.include_router(defects_router)
 app.include_router(notifications_router)
-app.include_router(sync_jira_router)
 app.include_router(risk_router)
 app.include_router(test_plans_router)
 app.include_router(test_suites_router)
+app.include_router(chatbot_router)
 
-# =========================
-# HEALTH
-# =========================
 @app.get("/health")
 async def health():
     return {"status": "ok"}

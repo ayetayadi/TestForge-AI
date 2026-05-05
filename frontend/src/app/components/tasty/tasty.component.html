@@ -1,0 +1,126 @@
+<!-- Floating toggle button -->
+<button
+  class="tasty-fab"
+  [class.tasty-fab--open]="isOpen"
+  mat-fab
+  (click)="togglePanel()"
+  matTooltip="{{ isOpen ? 'Close Tasty' : 'Open Tasty Assistant' }}"
+  matTooltipPosition="left"
+  aria-label="Toggle Tasty AI Assistant">
+  <mat-icon>{{ isOpen ? 'close' : 'smart_toy' }}</mat-icon>
+</button>
+
+<!-- Chat panel -->
+<div class="tasty-panel" [class.tasty-panel--open]="isOpen" role="dialog" aria-label="Tasty AI Testing Assistant">
+
+  <!-- Header -->
+  <div class="tasty-header">
+    <div class="tasty-header__identity">
+      <div class="tasty-header__avatar">
+        <mat-icon>smart_toy</mat-icon>
+      </div>
+      <div>
+        <div class="tasty-header__name">Tasty</div>
+        <div class="tasty-header__subtitle">AI Testing Assistant</div>
+      </div>
+    </div>
+    <div class="tasty-header__actions">
+      <button mat-icon-button (click)="clearChat()" matTooltip="Clear chat" [disabled]="isLoading">
+        <mat-icon>restart_alt</mat-icon>
+      </button>
+      <button mat-icon-button (click)="togglePanel()" matTooltip="Close">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="tasty-messages">
+    @for (msg of messages; track msg.id) {
+      <div class="tasty-message" [class.tasty-message--user]="msg.role === 'user'" [class.tasty-message--assistant]="msg.role === 'assistant'">
+
+        @if (msg.role === 'assistant') {
+          <div class="tasty-message__avatar">
+            <mat-icon>smart_toy</mat-icon>
+          </div>
+        }
+
+        <div class="tasty-message__body">
+
+          <!-- Tool calls -->
+          @if (msg.toolCalls.length > 0) {
+            <div class="tasty-tools">
+              @for (call of msg.toolCalls; track call.tool) {
+                <div class="tasty-tool-chip" [class.tasty-tool-chip--done]="call.status === 'done'">
+                  <mat-icon class="tasty-tool-chip__icon">{{ call.status === 'running' ? 'sync' : 'check_circle' }}</mat-icon>
+                  <span>{{ toolLabel(call.tool) }}</span>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Content -->
+          @if (msg.content) {
+            <div
+              class="tasty-message__content"
+              [class.tasty-message__content--error]="msg.error"
+              [innerHTML]="renderMarkdown(msg.content)">
+            </div>
+          }
+
+          <!-- Streaming cursor -->
+          @if (msg.isStreaming && !msg.content) {
+            <div class="tasty-typing">
+              <span></span><span></span><span></span>
+            </div>
+          }
+
+          @if (msg.isStreaming && msg.content) {
+            <span class="tasty-cursor">|</span>
+          }
+
+        </div>
+      </div>
+    }
+
+    <div #messagesEnd></div>
+  </div>
+
+  <!-- Suggestions (only when empty after welcome) -->
+  @if (messages.length <= 1 && !isLoading) {
+    <div class="tasty-suggestions">
+      @for (s of suggestions; track s) {
+        <button class="tasty-suggestion-chip" (click)="send(s)">
+          {{ s }}
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Input area -->
+  <div class="tasty-input-area">
+    <textarea
+      #inputRef
+      class="tasty-input"
+      [(ngModel)]="inputText"
+      (keydown)="onKeyDown($event)"
+      placeholder="Ask Tasty anything…"
+      rows="1"
+      [disabled]="isLoading"
+      aria-label="Message input">
+    </textarea>
+    <button
+      class="tasty-send-btn"
+      mat-icon-button
+      (click)="send()"
+      [disabled]="!inputText.trim() || isLoading"
+      aria-label="Send message">
+      <mat-icon>{{ isLoading ? 'hourglass_empty' : 'send' }}</mat-icon>
+    </button>
+  </div>
+
+  <div class="tasty-footer">
+    Powered by <strong>TestForge AI</strong> · Press <kbd>Enter</kbd> to send
+  </div>
+
+</div>
