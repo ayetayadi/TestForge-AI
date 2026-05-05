@@ -20,7 +20,6 @@ from .config import LLM_TEMPERATURE, LLM_MODEL, LLM_MAX_TOKENS, LLM_TIMEOUT_SECO
 logger = logging.getLogger(__name__)
 
 
-# ✅ Corrigé - Tous les champs que le LLM doit retourner
 class RiskAnalysisOutput(BaseModel):
     """LLM output schema - All fields requested in the prompt."""
     
@@ -64,14 +63,6 @@ class RiskAnalysisOutput(BaseModel):
         default=None,
         description="comprehensive, thorough, standard, or smoke"
     )
-    test_techniques: Optional[List[str]] = Field(
-        default=None,
-        description="List of test techniques to apply"
-    )
-    effort_allocation: Optional[str] = Field(
-        default=None,
-        description="60%, 25%, 10%, or 5%"
-    )
 
 class RiskAnalysisPipeline:
     """Pipeline conforme au document Risk Based Testing original."""
@@ -79,7 +70,7 @@ class RiskAnalysisPipeline:
     def __init__(self, temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL):
         logger.info("[RISK ANALYSIS] Initializing pipeline (document-aligned)...")
         llm = create_llm(temperature=temperature, model=model, max_tokens=LLM_MAX_TOKENS)
-        self._llm = llm.with_structured_output(RiskAnalysisOutput)
+        self._llm = llm
         logger.info("[RISK ANALYSIS] Ready (P:1-5, I:1-5, Score:1-25)")
 
     async def _emit(self, callback: Optional[Callable], event_type: str, data: dict) -> None:
@@ -137,8 +128,6 @@ class RiskAnalysisPipeline:
                 probability_reasoning=result.probability_reasoning,
                 impact_reasoning=result.impact_reasoning,
                 test_depth=result.test_depth,       
-                test_techniques=result.test_techniques, # Du LLM (prioritaire)
-                effort_allocation=result.effort_allocation, # Du LLM (prioritaire)
                 user_story_id=user_story_id,
                 test_plan_id=test_plan_id,
             )
@@ -148,7 +137,7 @@ class RiskAnalysisPipeline:
                 "message": (
                     f"Risk: P={risk_record['probability']} × I={risk_record['impact']} "
                     f"= {risk_record['risk_score']} ({risk_record['level'].upper()}) - "
-                    f"Test depth: {risk_record['test_depth']['depth']}"
+                    f"Test depth: {risk_record['test_depth']}"
                 ),
                 "level": risk_record["level"],
                 "risk_score": risk_record["risk_score"],
@@ -187,20 +176,40 @@ class RiskAnalysisPipeline:
                 "error": str(exc),
             }
 
+    
     async def _call_llm(
         self,
         story: str,
         acceptance_criteria: List[str],
         issue_key: str,
     ) -> RiskAnalysisOutput:
+        import json
+        import re
+        
         ac_text = "\n".join(f"- {ac}" for ac in acceptance_criteria) if acceptance_criteria else "(none)"
         prompt = RISK_ANALYSIS_PROMPT.format(
             story=story,
             acceptance_criteria=ac_text,
             issue_key=issue_key,
         )
-        return await self._llm.ainvoke(prompt)
-
+        
+        prompt += "\n\nIMPORTANT: Respond with ONLY a valid JSON object. No other text before or after."
+        
+        try:
+            response = await self._llm.ainvoke(prompt)
+            content = response.content if hasattr(response, 'content') else str(response)
+            content = content.strip()
+            content = re.sub(r'^```(?:json)?\s*', '', content)
+            content = re.sub(r'\s*```$', '', content)
+            
+            data = json.loads(content)
+            return RiskAnalysisOutput(**data)
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.error(f"[RISK ANALYSIS] JSON parse failed for {issue_key}: {content[:300]}")
+            raise RuntimeError(f"Failed to parse LLM response: {str(e)}")
+        except Exception as e:
+            logger.error(f"[RISK ANALYSIS] LLM call failed for {issue_key}: {str(e)}")
+            raise
 
 # ============================================================
 # BATCH HELPER

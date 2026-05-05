@@ -58,10 +58,9 @@ async def get_all_test_cases(
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
     priority: Optional[List[str]] = None,
-    tags: Optional[List[str]] = None,
     has_script: Optional[bool] = None,
-    order_by: str = "created_at",
-    order_direction: str = "desc",
+    order_by: str = "tc_code",
+    order_direction: str = "asc",
     limit: int = 100,
     offset: int = 0
 ) -> List[TestCase]:
@@ -105,10 +104,7 @@ async def get_all_test_cases(
     
     if priority:
         query = query.where(TestCase.priority.in_([p.lower() for p in priority]))
-    
-    if tags:
-        for tag in tags:
-            query = query.where(TestCase.tags.contains([tag]))
+
     
     # Ordering
     order_mapping = {
@@ -138,7 +134,6 @@ async def count_all_test_cases(
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
     priority: Optional[List[str]] = None,
-    tags: Optional[List[str]] = None,
 ) -> int:
     """Compte le nombre total de test cases avec filtres."""
     
@@ -170,10 +165,7 @@ async def count_all_test_cases(
     
     if priority:
         query = query.where(TestCase.priority.in_([p.lower() for p in priority]))
-    
-    if tags:
-        for tag in tags:
-            query = query.where(TestCase.tags.contains([tag]))
+
     
     result = await db.execute(query)
     return result.scalar()
@@ -216,7 +208,7 @@ async def get_test_cases_by_test_suite_id(db: AsyncSession, test_suite_id: str) 
             joinedload(TestCase.test_plan).joinedload(TestPlan.jira_project),
             joinedload(TestCase.test_suite),
         )
-        .order_by(TestCase.execution_order.asc().nulls_last())
+        .order_by(TestCase.tc_code.asc().nulls_last())
     )
     return result.unique().scalars().all()
 
@@ -236,7 +228,7 @@ async def get_test_cases_by_test_plan_id(
             joinedload(TestCase.test_plan).joinedload(TestPlan.jira_project),
             joinedload(TestCase.test_suite),
         )
-        .order_by(TestCase.execution_order.asc().nulls_last())
+        .order_by(TestCase.tc_code.asc().nulls_last())
     )
     return result.unique().scalars().all()
 

@@ -30,16 +30,6 @@ LEVEL_MEDIUM_MIN = 6
 # Low : risk_score 1-5
 
 # ============================================================
-# ALLOCATION EFFORT (Document original)
-# ============================================================
-EFFORT_ALLOCATION = {
-    "critical": 0.60,  # 60%
-    "high": 0.25,      # 25%
-    "medium": 0.10,    # 10%
-    "low": 0.05        # 5%
-}
-
-# ============================================================
 # FACTEURS DE PROBABILITÉ (Document original)
 # ============================================================
 PROBABILITY_FACTORS = {

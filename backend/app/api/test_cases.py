@@ -56,7 +56,6 @@ async def get_all_test_cases(
     search: Optional[str] = Query(None, description="Search in title or code"),
     status: Optional[List[str]] = Query(None, description="Filter by status (active/archived)"),
     priority: Optional[List[str]] = Query(None, description="Filter by priority"),
-    tags: Optional[List[str]] = Query(None, description="Filter by tags"),
     order_by: str = Query("created_at", description="Sort field"),
     order_direction: str = Query("desc", description="Sort direction"),
     limit: int = Query(100, le=1000),
@@ -72,7 +71,6 @@ async def get_all_test_cases(
             search=search,
             status=status,
             priority=priority,
-            tags=tags,
             order_by=order_by,
             order_direction=order_direction,
             limit=limit,
@@ -114,6 +112,18 @@ async def get_test_case_by_code(
         return await service.format_for_frontend(test_case, db)
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/coverage/{test_plan_id}", summary="AC coverage table for a test plan")
+async def get_tc_coverage(
+    test_plan_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns coverage rows per (user_story, scenario_type) for a test plan."""
+    try:
+        return await service.get_tc_coverage_for_plan(db, test_plan_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -227,7 +237,7 @@ async def generate_test_cases_sync(
     risk_level: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
     risk_score: Optional[float] = Query(None, ge=0.0, le=5.0),
     risk_description: Optional[str] = Query(None),
-    scenario_types: Optional[str] = Query(None, description="Comma-separated: positive,negative,boundary"),
+    scenario_type: Optional[str] = Query(None, pattern="^(positive|negative|boundary)$", description="positive | negative | boundary"),
 ) -> GenerateTestCasesResponse:
     """Génération synchrone pour un plan de test. Suite optionnelle."""
     try:
@@ -238,7 +248,7 @@ async def generate_test_cases_sync(
             risk_level=risk_level,
             risk_score=risk_score,
             risk_description=risk_description,
-            scenario_types=scenario_types,
+            scenario_type=scenario_type,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
@@ -282,20 +292,19 @@ async def generate_test_cases_async(
     test_plan_id: str,
     db: AsyncSession = Depends(get_db),
     test_suite_id: Optional[str] = Query(None, description="Optional suite to assign TCs to"),
-    scenario_types: Optional[str] = Query(None, description="Comma-separated: positive,negative,boundary"),
+    scenario_type: Optional[str] = Query(None, pattern="^(positive|negative|boundary)$", description="positive | negative | boundary"),
     risk_level: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
     risk_score: Optional[float] = Query(None, ge=0.0, le=5.0),
     risk_description: Optional[str] = Query(None),
 ) -> AsyncTcJobResponse:
     """Génération asynchrone pour un plan de test. Suite optionnelle."""
-    
-    # Vérifier que le plan existe
+
     plan = await db.get(TestPlan, test_plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail=f"Test plan '{test_plan_id}' not found")
 
     job_id = f"{test_plan_id}-{test_suite_id or 'nosuite'}-{uuid4().hex}"
-    
+
     job = {
         "job_id": job_id,
         "test_plan_id": test_plan_id,
@@ -303,7 +312,7 @@ async def generate_test_cases_async(
         "risk_level": risk_level,
         "risk_score": risk_score,
         "risk_description": risk_description,
-        "scenario_types": scenario_types,
+        "scenario_type": scenario_type,
     }
 
     try:

@@ -83,7 +83,6 @@ class TestCaseResponse(BaseModel):
     risks_count: int = 0
     
     # Contenu structuré
-    tags: List[str] = Field(default_factory=list)
     preconditions: List[str] = Field(default_factory=list)
     postconditions: List[str] = Field(default_factory=list)
     steps: List[Dict[str, Any]] = Field(default_factory=list)
@@ -114,7 +113,6 @@ class TestCaseCreate(BaseModel):
     user_story_id: Optional[str] = None
     test_plan_id: Optional[str] = None
     test_suite_id: Optional[str] = None 
-    tags: List[str] = Field(default_factory=list)
     preconditions: List[str] = Field(default_factory=list)
     postconditions: List[str] = Field(default_factory=list)
     steps: List[Dict[str, Any]] = Field(default_factory=list)
@@ -134,7 +132,6 @@ class TestCaseUpdate(BaseModel):
     user_story_id: Optional[str] = None 
     test_plan_id: Optional[str] = None
     test_suite_id: Optional[str] = None 
-    tags: Optional[List[str]] = None
     preconditions: Optional[List[str]] = None
     postconditions: Optional[List[str]] = None
     steps: Optional[List[Dict[str, Any]]] = None
@@ -160,7 +157,6 @@ class CreateTestCaseRequest(BaseModel):
     user_story_id: Optional[str] = None
     test_plan_id: Optional[str] = None
     test_suite_id: Optional[str] = None
-    tags: Optional[List[str]] = Field(default_factory=list)
     preconditions: Optional[List[str]] = Field(default_factory=list)
     postconditions: Optional[List[str]] = Field(default_factory=list)
     steps: Optional[List[Dict]] = Field(default_factory=list)
@@ -178,7 +174,6 @@ class UpdateTestCaseRequest(BaseModel):
     user_story_id: Optional[str] = None
     test_plan_id: Optional[str] = None
     test_suite_id: Optional[str] = None
-    tags: Optional[List[str]] = None
     preconditions: Optional[List[str]] = None
     postconditions: Optional[List[str]] = None
     steps: Optional[List[Dict]] = None
@@ -227,7 +222,6 @@ class GeneratedTestCaseResponse(BaseModel):
     steps: List[Dict[str, Any]] = Field(default_factory=list)
     test_data: Dict[str, Any] = Field(default_factory=dict)
     expected_results: List[str] = Field(default_factory=list)
-    tags: List[str] = Field(default_factory=list)
     test_plan_id: Optional[str] = None        
     test_suite_id: Optional[str] = None     
     execution_order: Optional[int] = None

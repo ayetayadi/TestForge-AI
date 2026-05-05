@@ -70,16 +70,6 @@ class RiskBase(BaseModel):
         description="Recommended test depth based on risk level"
     )
     
-    test_techniques: Optional[List[str]] = Field(
-        None,
-        description="Recommended test techniques: [unit, integration, e2e, performance, security]"
-    )
-    effort_allocation: Optional[str] = Field(
-        "10%",
-        pattern="^(60%|25%|10%|5%)$",
-        description="Recommended effort allocation: 60%, 25%, 10%, or 5%"
-    )
-    
     # ── METADATA ──
     is_ai_generated: bool = Field(
         True,
@@ -149,26 +139,6 @@ class RiskBase(BaseModel):
             "low": "smoke"
         }
         return depth_map.get(self.compute_level(), "standard")
-    
-    def compute_default_techniques(self) -> List[str]:
-        """Get default test techniques based on computed level."""
-        techniques_map = {
-            "critical": ["unit", "integration", "e2e", "performance", "security"],
-            "high": ["unit", "integration", "e2e"],
-            "medium": ["unit", "integration"],
-            "low": ["smoke"]
-        }
-        return techniques_map.get(self.compute_level(), ["unit"])
-    
-    def compute_effort_allocation(self) -> str:
-        """Get effort allocation based on computed level."""
-        allocation_map = {
-            "critical": "60%",
-            "high": "25%",
-            "medium": "10%",
-            "low": "5%"
-        }
-        return allocation_map.get(self.compute_level(), "10%")
 
 
 # ============================================================
@@ -230,11 +200,6 @@ class RiskUpdate(BaseModel):
     test_depth: Optional[str] = Field(
         None,
         pattern="^(comprehensive|thorough|standard|smoke)$"
-    )
-    test_techniques: Optional[List[str]] = None
-    effort_allocation: Optional[str] = Field(
-        None,
-        pattern="^(60%|25%|10%|5%)$"
     )
     
     is_ai_generated: Optional[bool] = None
@@ -369,58 +334,17 @@ class RiskLevelCount(BaseModel):
     low: int = 0
 
 
-class EffortDistribution(BaseModel):
-    """Effort distribution based on risk levels."""
-    critical: str = "0%"
-    high: str = "0%"
-    medium: str = "0%"
-    low: str = "0%"
-
-
 class RiskSummary(BaseModel):
     """Summary of risk analysis for a project/sprint/epic."""
     
     total: int = Field(..., description="Total number of risks")
-    by_level: RiskLevelCount = Field(..., description="Risks grouped by level")
     avg_score: int = Field(..., description="Average risk score")
     max_score: int = Field(..., description="Highest risk score")
     min_score: int = Field(..., description="Lowest risk score")
     accepted_count: int = Field(0, description="Number of accepted risks")
     rejected_count: int = Field(0, description="Number of rejected risks")
     pending_count: int = Field(0, description="Number of pending risks")
-    effort_distribution: EffortDistribution = Field(
-        ..., 
-        description="Recommended effort allocation"
-    )
 
-
-# ============================================================
-# TEST RECOMMENDATIONS SCHEMA
-# ============================================================
-
-class TestTypeRecommendation(BaseModel):
-    """Recommended test types with descriptions."""
-    unit: Optional[str] = None
-    integration: Optional[str] = None
-    e2e: Optional[str] = None
-    performance: Optional[str] = None
-    security: Optional[str] = None
-    smoke: Optional[str] = None
-    exploratory: Optional[str] = None
-
-
-class RiskTestRecommendations(BaseModel):
-    """Test recommendations for a specific risk level."""
-    
-    level: str = Field(..., description="Risk level")
-    icon: str = Field(..., description="Visual indicator emoji")
-    message: str = Field(..., description="Main recommendation message")
-    test_types: TestTypeRecommendation = Field(..., description="Recommended test types")
-    effort: str = Field(..., description="Recommended effort allocation")
-    effort_percentage: int = Field(..., description="Effort as integer percentage")
-    regression: str = Field(..., description="Regression testing recommendation")
-    automation_priority: str = Field(..., description="Automation priority level")
-    approval_required: str = Field(..., description="Required approval level")
 
 
 # ============================================================

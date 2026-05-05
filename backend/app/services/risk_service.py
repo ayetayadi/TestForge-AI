@@ -50,7 +50,7 @@ class RiskService:
           2. Returns P (1-5), I (1-5), description, mitigation, reasoning
           3. Calculates Score = P × I
           4. Classifies level: Critical (20+) / High (12-19) / Medium (6-11) / Low (1-5)
-          5. Recommends test depth and techniques
+          5. Recommends test depth
         """
         pipeline = get_pipeline()
         
@@ -79,8 +79,6 @@ class RiskService:
             probability_reasoning=result.get("probability_reasoning"),
             impact_reasoning=result.get("impact_reasoning"),
             test_depth=result.get("test_depth", "standard"),
-            test_techniques=result.get("test_techniques", ["unit", "integration"]),
-            effort_allocation=result.get("effort_allocation", "10%"),
             is_ai_generated=True,
             is_accepted=None,
             source="llm",
@@ -154,8 +152,6 @@ class RiskService:
                     probability_reasoning=result.get("probability_reasoning"),
                     impact_reasoning=result.get("impact_reasoning"),
                     test_depth=result.get("test_depth", "standard"),
-                    test_techniques=result.get("test_techniques", ["unit"]),
-                    effort_allocation=result.get("effort_allocation", "10%"),
                     is_ai_generated=True,
                     is_accepted=None,
                     source="llm",
@@ -401,8 +397,6 @@ class RiskService:
         
         # Update test recommendations
         risk.test_depth = self._get_test_depth(risk.level)
-        risk.test_techniques = self._get_default_techniques(risk.level)
-        risk.effort_allocation = self._get_effort_allocation(risk.level)
         
         risk.is_accepted = True
         risk.source = "human_modified"
@@ -482,8 +476,6 @@ class RiskService:
         risk.probability_reasoning = result.get("probability_reasoning")
         risk.impact_reasoning = result.get("impact_reasoning")
         risk.test_depth = result.get("test_depth", risk.test_depth)
-        risk.test_techniques = result.get("test_techniques", risk.test_techniques)
-        risk.effort_allocation = result.get("effort_allocation", risk.effort_allocation)
         risk.is_ai_generated = True
         risk.is_accepted = None
         
@@ -526,24 +518,3 @@ class RiskService:
         }
         return depth_map.get(level, "standard")
     
-    @staticmethod
-    def _get_default_techniques(level: str) -> list:
-        """Get default test techniques based on risk level."""
-        techniques_map = {
-            "critical": ["unit", "integration", "e2e", "performance", "security"],
-            "high": ["unit", "integration", "e2e"],
-            "medium": ["unit", "integration"],
-            "low": ["smoke"]
-        }
-        return techniques_map.get(level, ["unit"])
-    
-    @staticmethod
-    def _get_effort_allocation(level: str) -> str:
-        """Get effort allocation based on risk level."""
-        allocation_map = {
-            "critical": "60%",
-            "high": "25%",
-            "medium": "10%",
-            "low": "5%"
-        }
-        return allocation_map.get(level, "10%")

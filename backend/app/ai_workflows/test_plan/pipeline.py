@@ -2,7 +2,7 @@
 ISTQB §5.1.1 Test Plan Generation Pipeline.
 
 3 steps — no agent loop, one LLM call:
-  1. summarize_risks(risks)       → aggregate risk distribution, recommend test types
+  1. summarize_risks(risks)       → aggregate risk distribution
   2. LLM call                     → generate complete test plan draft
   3. build_plan_record(...)       → sanitize, compute PERT, assemble final dict
 """
@@ -16,8 +16,6 @@ from pydantic import BaseModel, Field
 
 from app.ai_workflows.test_plan.plan_builder import (
     summarize_risks,
-    recommend_test_types,
-    estimate_duration,
     build_plan_record,
 )
 from app.ai_workflows.test_plan.prompts import TEST_PLAN_PROMPT
@@ -37,8 +35,6 @@ class TestPlanDraft(BaseModel):
     objective: str = Field(description="2-4 measurable testing objectives")
     in_scope: str = Field(description="Bullet list of what IS covered")
     out_of_scope: str = Field(description="Bullet list of what is NOT covered")
-    test_types: List[str] = Field(description="Selected from: functional, regression, smoke, security, performance, e2e, api")
-    test_levels: List[str] = Field(description="Selected from: component, integration, system, acceptance, e2e")
     environment: str = Field(description="One of: dev, staging, prod, uat")
     entry_criteria: str = Field(description="3-4 conditions required before testing starts")
     exit_criteria: str = Field(description="3-4 measurable conditions that mark testing as done")
@@ -121,8 +117,6 @@ class TestPlanPipeline:
                 + " ".join(s.get('acceptance_criteria', []))
                 for s in user_stories
             )
-            recommendations = recommend_test_types(risk_summary, stories_text)
-            duration = estimate_duration(risk_summary, len(user_stories) or len(risks))
 
             # ── STEP 2: LLM GENERATES DRAFT ────────────────────
             await self._emit(progress_callback, "phase", {
@@ -139,8 +133,6 @@ class TestPlanPipeline:
                         scope_refs=scope_refs,
                         environment_hint=environment or "staging",
                         risk_summary=risk_summary,
-                        duration=duration,
-                        recommendations=recommendations,
                         user_stories=user_stories,
                     ),
                     timeout=LLM_TIMEOUT_SECONDS,
@@ -158,33 +150,26 @@ class TestPlanPipeline:
             plan_record = build_plan_record(
                 llm_output=result.model_dump(),
                 risk_summary=risk_summary,
-                duration=duration,
                 project_id=project_id,
                 scope_type=scope_type,
                 scope_refs=scope_refs,
                 environment_override=environment,
                 user_stories=user_stories,
-                recommendations=recommendations,
             )
 
             await self._emit(progress_callback, "phase", {
                 "phase": "done",
                 "message": (
                     f"Test plan draft generated. "
-                    f"PERT estimate: {duration['realistic']} working days. "
                     f"Status: AI_PROPOSED (awaiting tester validation)"
                 ),
-                "test_types": plan_record["test_types"],
-                "test_levels": plan_record["test_levels"],
-                "duration": duration,
             })
 
-            self._log_summary(project_key, plan_record, risk_summary, duration)
+            self._log_summary(project_key, plan_record, risk_summary)
 
             return {
                 **plan_record,
                 "workflow_status": "success",
-                "recommendations": recommendations,
             }
 
         except Exception as exc:
@@ -198,8 +183,6 @@ class TestPlanPipeline:
                 "scope_refs": scope_refs or [],
                 "in_scope": "",
                 "out_of_scope": "",
-                "test_types": ["functional"],
-                "test_levels": ["system"],
                 "environment": environment or "staging",
                 "entry_criteria": "",
                 "exit_criteria": "",
@@ -219,8 +202,6 @@ class TestPlanPipeline:
         scope_refs: List[str],
         environment_hint: str,
         risk_summary: Dict[str, Any],
-        duration: Dict[str, Any],
-        recommendations: Dict[str, Any],
         user_stories: List[Dict[str, Any]],
     ) -> TestPlanDraft:
         counts = risk_summary["counts"]
@@ -249,11 +230,6 @@ class TestPlanPipeline:
             count_medium=counts.get("medium", 0),
             count_low=counts.get("low", 0),
             top_risks=risk_summary["risk_text"],
-            duration_optimistic=duration["optimistic"],
-            duration_realistic=duration["realistic"],
-            duration_pessimistic=duration["pessimistic"],
-            recommended_types=", ".join(recommendations["test_types"]),
-            recommended_levels=", ".join(recommendations["test_levels"]),
         )
         return await self._llm.ainvoke(prompt)
 
@@ -262,13 +238,10 @@ class TestPlanPipeline:
         project_key: str,
         plan: Dict[str, Any],
         risk_summary: Dict[str, Any],
-        duration: Dict[str, Any],
     ) -> None:
         logger.info(
             f"[RESULT] project={project_key} "
-            f"types={plan['test_types']} levels={plan['test_levels']} "
             f"env={plan['environment']} "
-            f"PERT={duration['realistic']}d "
             f"risks={risk_summary['counts']}"
         )
 

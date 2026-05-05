@@ -67,23 +67,6 @@ class UserStory(Base):
     jira_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     jira_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
-
-    # =========================
-    # MÉTRIQUES DE COUVERTURE DES ACs
-    # =========================
-    ac_coverage_pct: Mapped[Optional[float]] = mapped_column(
-        Float, 
-        nullable=True,
-        comment="Pourcentage de couverture des ACs (0.0 à 1.0)"
-    )
-    
-    ac_coverage_uncovered: Mapped[Optional[List[str]]] = mapped_column(
-        JSONB, 
-        nullable=True,
-        default=lambda: [],
-        comment="Liste des ACs non couverts (indices ou descriptions)"
-    )
-
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -135,24 +118,4 @@ class UserStory(Base):
         Index("idx_user_story_issue_key", "issue_key"),
         Index("idx_user_story_jira_status", "jira_status"),
         Index("idx_user_story_current_score", "current_score"),
-        Index("idx_user_story_ac_coverage_pct", "ac_coverage_pct"),
     )
-
-    @property
-    def ac_coverage_covered(self) -> int:
-        """Nombre d'ACs couverts (calculé)."""
-        if self.ac_coverage_uncovered is None:
-            return 0
-        return len(self.acceptance_criteria) - len(self.ac_coverage_uncovered)
-
-    @property
-    def ac_coverage_total(self) -> int:
-        """Nombre total d'ACs (calculé)."""
-        return len(self.acceptance_criteria)
-
-    @property
-    def ac_coverage_sufficient(self) -> bool:
-        """True si la couverture atteint le seuil minimum (calculé)."""
-        if self.ac_coverage_pct is None:
-            return False
-        return self.ac_coverage_pct >= MIN_AC_COVERAGE

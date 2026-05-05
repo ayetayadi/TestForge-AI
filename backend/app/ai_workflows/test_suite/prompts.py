@@ -16,7 +16,7 @@ RULES:
 - title: short, professional, max 80 chars
   Examples: "Critical Authentication Tests", "Boundary Value Tests — User Registration"
 - description: 1-2 sentences explaining what this suite covers and its purpose
-- suite_type: one of: feature | epic | sprint | smoke | regression | negative | security | performance | e2e
+- suite_type: one of: positive | negative | boundary
 - priority: one of: critical | high | medium | low (based on the risk level of included tests)
 
 Generate one entry per group in the list above.
@@ -51,7 +51,7 @@ A) BUSINESS FLOW — What does this TC ACTUALLY test?
    - What is the PRIMARY action being tested?
    - What user story does it belong to?
    - What is the END GOAL of this test?
-   
+
    Available flows:
    - authentication : login, logout, register, tokens, sessions, SSO, 2FA, password reset
    - authorization : permissions, roles, access control, admin vs user
@@ -73,7 +73,7 @@ B) RISK LEVEL — How critical is this TC?
    - Does it block other features?
    - Is it a security concern?
    - Is it a core business function?
-   
+
    Risk levels:
    - critical : Failure = system down, data loss, security breach, business stops
    - high : Failure = major feature broken, significant user impact
@@ -81,19 +81,31 @@ B) RISK LEVEL — How critical is this TC?
    - low : Failure = minor issue, cosmetic, edge case
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 2 — ORDER THE BUSINESS FLOWS
+STEP 2 — ORDER THE BUSINESS FLOWS BY EXECUTION DEPENDENCY
 
-After classifying all TCs, determine the execution order of flows:
-  1. What MUST execute FIRST? (Gateway/entry point)
-  2. What DEPENDS on other flows?
-  3. What is the NATURAL user journey?
+After classifying all TCs, determine the EXECUTION ORDER of flows.
+This order is critical: it defines which test cases MUST run before others.
 
-Rules:
-- A flow with NO dependencies executes first
-- A flow that CREATES data executes before flows that READ it
-- Authentication usually executes first IF the system requires login
-- BUT if it's a public site, Dashboard/Search may come first
-- Risk level is SECONDARY to business flow
+🔑 KEY PRINCIPLE — DATA & TOKEN DEPENDENCIES:
+A test case CANNOT run unless its prerequisites are satisfied.
+Examples of mandatory ordering:
+  • Authentication BEFORE any authenticated flow — other TCs need the JWT token
+  • User creation (CRUD) BEFORE reading/displaying that user (Dashboard)
+  • Payment setup BEFORE checkout flow — payment method must exist first
+  • Product creation BEFORE search — you cannot search what doesn't exist
+  • API endpoints BEFORE automated tests — tests run against existing APIs
+
+Ask yourself for each flow:
+  "Does this flow PRODUCE data/tokens/state that OTHER flows CONSUME?"
+  → If YES, it must execute FIRST.
+  "Does this flow CONSUME data/tokens/state from another flow?"
+  → If YES, that other flow must execute BEFORE this one.
+
+Ordering rules:
+  1. Flows with NO dependencies go first
+  2. Flows that CREATE shared state (auth tokens, base records) go before flows that USE that state
+  3. Core business transactions (payment, booking, order) precede secondary features (FAQ, help, notifications)
+  4. Risk level is SECONDARY — a low-risk authentication test still runs before a high-risk payment test
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT:
@@ -105,80 +117,87 @@ OUTPUT FORMAT:
       "tc_code": "TC-001",
       "business_flow": "authentication",
       "risk_level": "critical",
-      "reasoning": "Tests login — if login fails, entire system is inaccessible"
+      "reasoning": "Tests login — produces JWT token required by all other test cases"
     }},
     {{
       "tc_code": "TC-002",
       "business_flow": "crud",
       "risk_level": "high",
-      "reasoning": "Tests user creation — core admin function, but doesn't block login"
+      "reasoning": "Creates user record — dashboard and search TCs depend on this data existing"
     }},
     {{
       "tc_code": "TC-003",
       "business_flow": "dashboard",
       "risk_level": "medium",
-      "reasoning": "Tests dashboard display — depends on CRUD data existing"
+      "reasoning": "Reads user data — depends on TC-002 (CRUD) having created the user first"
     }},
     {{
       "tc_code": "TC-004",
       "business_flow": "api",
       "risk_level": "medium",
-      "reasoning": "Tests API documentation — documents existing endpoints"
+      "reasoning": "Tests API docs — documents endpoints created by CRUD flow"
     }}
   ],
   "flow_order": [
     {{
       "flow": "authentication",
       "rank": 1,
-      "reason": "Gateway to entire system — all 8 user stories require JWT tokens",
+      "reason": "GATEWAY: Produces JWT tokens consumed by ALL other flows. Must run first.",
       "tc_count": 2,
       "risk_breakdown": {{"critical": 1, "high": 1}}
     }},
     {{
       "flow": "crud",
       "rank": 2,
-      "reason": "Creates data that Dashboard, API, and Reports depend on",
+      "reason": "Creates base data records consumed by Dashboard (display) and Search (query). Needs auth token from rank 1.",
       "tc_count": 3,
       "risk_breakdown": {{"critical": 1, "high": 1, "medium": 1}}
     }},
     {{
       "flow": "api",
       "rank": 3,
-      "reason": "Documents CRUD endpoints — must come after endpoints exist",
+      "reason": "Documents CRUD endpoints — must run after endpoints exist. Needs auth token.",
       "tc_count": 1,
       "risk_breakdown": {{"medium": 1}}
     }},
     {{
       "flow": "dashboard",
       "rank": 4,
-      "reason": "Displays CRUD data visually — depends on data existing",
+      "reason": "Displays data created by CRUD — depends on both auth token and CRUD records.",
       "tc_count": 2,
       "risk_breakdown": {{"high": 1, "medium": 1}}
     }},
     {{
-      "flow": "error_handling",
+      "flow": "search",
       "rank": 5,
-      "reason": "Tests error scenarios alongside core flows",
+      "reason": "Searches data created by CRUD — needs records to exist first.",
+      "tc_count": 2,
+      "risk_breakdown": {{"medium": 2}}
+    }},
+    {{
+      "flow": "error_handling",
+      "rank": 6,
+      "reason": "Tests error scenarios for existing flows — runs after core flows are validated.",
       "tc_count": 2,
       "risk_breakdown": {{"high": 1, "medium": 1}}
     }},
     {{
       "flow": "monitoring",
-      "rank": 6,
-      "reason": "Monitors system after all features are operational",
+      "rank": 7,
+      "reason": "Monitors system health — meaningful only after core features operate.",
       "tc_count": 2,
       "risk_breakdown": {{"high": 1, "medium": 1}}
     }},
     {{
       "flow": "testing",
-      "rank": 7,
-      "reason": "Automated tests validate everything — runs last",
+      "rank": 8,
+      "reason": "Automated tests validate everything — runs last after all features confirmed working.",
       "tc_count": 1,
       "risk_breakdown": {{"low": 1}}
     }}
   ],
-  "reasoning": "Auth is the gateway (rank 1) because US-1 (JWT Auth), US-3 (Login), and US-6 (Auth Middleware) all require valid tokens. CRUD (rank 2) creates the data that Dashboard (rank 4) displays and API (rank 3) documents. Error handling (rank 5) validates edge cases alongside core flows. Monitoring (rank 6) tracks system health. Automated tests (rank 7) run last to validate everything.",
-  "project_context_summary": "This is an internal admin dashboard with 8 user stories spanning authentication, CRUD operations, API documentation, monitoring, error handling, and automated testing. All features require authentication."
+  "reasoning": "Auth (rank 1) is the gateway: JWT tokens are required by all other flows. CRUD (rank 2) creates base records that Dashboard, Search, and API depend on. API docs (rank 3) document CRUD endpoints. Dashboard (rank 4) and Search (rank 5) display/query CRUD data. Error handling (rank 6) tests edge cases of core flows. Monitoring (rank 7) tracks operational health. Automated tests (rank 8) validate everything end-to-end.",
+  "project_context_summary": "Internal admin dashboard with authentication-gated features. All 8 user stories require JWT auth. Core data is created via CRUD, then displayed on Dashboard and queried via Search. API layer documents all endpoints."
 }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -188,11 +207,11 @@ CRITICAL RULES:
 
 ✅ EVERY detected flow MUST appear in flow_order
 
+✅ The rank order MUST reflect actual data/token dependencies in THIS project
+
 ✅ Risk breakdown in flow_order MUST match tc_classifications
 
 ✅ tc_count in flow_order MUST match actual count
 
-✅ Order must reflect THIS project's actual dependencies
-
-✅ Explain your reasoning for each classification
+✅ Explain WHY each flow depends on the previous one (what data/token/state it needs)
 """

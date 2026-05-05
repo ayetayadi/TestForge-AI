@@ -6,6 +6,7 @@ import { TestPlanService } from '../../services/test-plan.service';
 import { ProjectsService } from '../../services/projects.service';
 import { StoriesService } from '../../services/stories.service';
 import { ToastService } from '../../services/toast.service';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 import {
   TestPlan,
   TestPlanStatus,
@@ -19,7 +20,7 @@ import { SpinnerComponent } from 'src/app/shared/spinner/spinner.component';
 @Component({
   selector: 'app-test-plans',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ConfirmDialogComponent],
   templateUrl: './test-plans.component.html',
   styleUrl: './test-plans.component.scss',
 })
@@ -48,6 +49,7 @@ export class TestPlansComponent implements OnInit {
 
   // ── Generation modal ──────────────────────────────────────────
   showGenerateModal = signal(false);
+  modalProjectId = '';
   scopeType = 'manual';
   scopeRefs = '';
   environment = 'staging';
@@ -55,7 +57,26 @@ export class TestPlansComponent implements OnInit {
   limitStories = 30;
   selectedScopeItems = signal<string[]>([]);
 
-  // ✅ Nouveaux filtres sprint/epic
+// ── Confirm Dialog ──────────────────────────────────────────
+showConfirmDialog = signal(false);
+confirmDialogData = signal<{
+  title: string;
+  message: string;
+  icon: string;
+  confirmText: string;
+  cancelText: string;
+  variant: 'primary' | 'danger' | 'warning' | 'success';
+  onConfirm: () => void;
+}>({
+  title: '',
+  message: '',
+  icon: '🗑️',
+  confirmText: 'Delete',
+  cancelText: 'Cancel',
+  variant: 'danger',
+  onConfirm: () => {},
+});
+
   selectedSprintIds = signal<string[]>([]);
   selectedEpicKeys = signal<string[]>([]);
 
@@ -211,14 +232,14 @@ export class TestPlansComponent implements OnInit {
       return;
     }
 
-    const projectId = this.selectedProjectId();
+    const projectId = this.modalProjectId;
     if (!projectId) {
       this.toast.error('Please select a project first');
       return;
     }
 
-    const hasData = type === 'sprint' 
-      ? this.sprints().length > 0 
+    const hasData = type === 'sprint'
+      ? this.sprints().length > 0
       : this.epics().length > 0;
 
     if (!hasData) {
@@ -252,31 +273,38 @@ export class TestPlansComponent implements OnInit {
   // ── AI Generation ─────────────────────────────────────────────
 
   openGenerateModal(): void {
-    if (!this.selectedProjectId()) {
-      this.toast.error('Please select a project first');
-      return;
+    this.modalProjectId = this.selectedProjectId();
+    if (this.modalProjectId && this.sprints().length === 0 && this.epics().length === 0) {
+      this.loadProjectMetadata(this.modalProjectId);
     }
-    
-    const projectId = this.selectedProjectId();
-    
-    if (this.sprints().length === 0 && this.epics().length === 0) {
-      this.isLoadingScopeRefs.set(true);
+    this.showGenerateModal.set(true);
+  }
+
+  onModalProjectChange(projectId: string): void {
+    this.modalProjectId = projectId;
+    this.selectedScopeItems.set([]);
+    this.scopeRefs = '';
+    this.sprints.set([]);
+    this.epics.set([]);
+    if (projectId && this.scopeType !== 'manual') {
       this.loadProjectMetadata(projectId);
     }
-    
-    this.showGenerateModal.set(true);
   }
 
   closeGenerateModal(): void {
     this.showGenerateModal.set(false);
+    this.modalProjectId = '';
     this.scopeType = 'manual';
     this.scopeRefs = '';
     this.selectedScopeItems.set([]);
   }
 
   generatePlan(): void {
-    const projectId = this.selectedProjectId();
-    if (!projectId) return;
+    const projectId = this.modalProjectId;
+    if (!projectId) {
+      this.toast.error('Please select a project first');
+      return;
+    }
 
     let scopeRefsArray: string[];
     if (this.scopeType === 'manual') {
@@ -324,33 +352,38 @@ export class TestPlansComponent implements OnInit {
     });
   }
 
-  // ── Bulk actions ───────────────────────────────────────────────
 
-  /** Supprimer tous les Test Plans du projet */
+
   deleteAllProjectPlans(): void {
-    const projectId = this.selectedProjectId();
-    if (!projectId) return;
+  const projectId = this.selectedProjectId();
+  if (!projectId) return;
 
-    const count = this.testPlans().length;
-    if (count === 0) {
-      this.toast.info('Nothing to delete', 'No test plans found for this project.');
-      return;
-    }
-
-    const confirmed = confirm(
-      `🗑️ Delete ALL ${count} test plans for this project?\n\nThis action cannot be undone!`
-    );
-    if (!confirmed) return;
-
-    this.testPlanService.deleteByProject(projectId).subscribe({
-      next: () => {
-        this.testPlans.set([]);
-        this.summary.set(null);
-        this.toast.success('All test plans deleted');
-      },
-      error: () => this.toast.error('Failed to delete test plans'),
-    });
+  const count = this.testPlans().length;
+  if (count === 0) {
+    this.toast.info('Nothing to delete', 'No test plans found for this project.');
+    return;
   }
+
+  this.confirmDialogData.set({
+    title: 'Delete All Test Plans',
+    message: `🗑️ Delete ALL ${count} test plans for this project?\n\nThis action cannot be undone!`,
+    icon: '⚠️',
+    confirmText: 'Delete All',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {
+      this.testPlanService.deleteByProject(projectId).subscribe({
+        next: () => {
+          this.testPlans.set([]);
+          this.summary.set(null);
+          this.toast.success('All test plans deleted');
+        },
+        error: () => this.toast.error('Failed to delete test plans'),
+      });
+    }
+  });
+  this.showConfirmDialog.set(true);
+}
 
   // ── Navigation ────────────────────────────────────────────────
 
@@ -390,26 +423,35 @@ export class TestPlansComponent implements OnInit {
     });
   }
 
-  /** Supprimer un Test Plan individuel */
-deletePlan(planId: string, event: Event): void {
-  event.stopPropagation(); // Empêche la navigation vers le détail
+
+
+  deletePlan(planId: string, event: Event): void {
+  event.stopPropagation();
   
-  const confirmed = confirm('🗑️ Delete this test plan? This action cannot be undone.');
-  if (!confirmed) return;
-  
-  this.testPlanService.delete(planId).subscribe({
-    next: () => {
-      this.testPlans.update(plans => plans.filter(p => p.id !== planId));
-      this.toast.success('Test plan deleted');
-      // Recharger le summary
-      const projectId = this.selectedProjectId();
-      if (projectId) {
-        this.testPlanService.getSummaryByProject(projectId).subscribe({
-          next: s => this.summary.set(s),
-        });
-      }
-    },
-    error: () => this.toast.error('Failed to delete test plan'),
+  this.confirmDialogData.set({
+    title: 'Delete Test Plan',
+    message: '🗑️ Delete this test plan?\n\nThis action cannot be undone.',
+    icon: '🗑️',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {
+      this.testPlanService.delete(planId).subscribe({
+        next: () => {
+          this.testPlans.update(plans => plans.filter(p => p.id !== planId));
+          this.toast.success('Test plan deleted');
+          const projectId = this.selectedProjectId();
+          if (projectId) {
+            this.testPlanService.getSummaryByProject(projectId).subscribe({
+              next: s => this.summary.set(s),
+            });
+          }
+        },
+        error: () => this.toast.error('Failed to delete test plan'),
+      });
+    }
   });
+  this.showConfirmDialog.set(true);
 }
+
 }

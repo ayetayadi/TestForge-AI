@@ -274,18 +274,6 @@
             <span class="rec-label">Test Depth</span>
             <span class="rec-value rec-depth--{{ risk.test_depth }}">{{ risk.test_depth | titlecase }}</span>
           </div>
-          <div class="rec-item">
-            <span class="rec-label">Effort Allocation</span>
-            <span class="rec-value">{{ risk.effort_allocation || testRecommendations().effort }}</span>
-          </div>
-          <div class="rec-item">
-            <span class="rec-label">Techniques</span>
-            <div class="rec-tags">
-              <span class="rec-tag" *ngFor="let tech of risk.test_techniques || testRecommendations().techniques">
-                {{ tech }}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 

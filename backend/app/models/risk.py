@@ -125,14 +125,6 @@ class Risk(Base):
     test_depth: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # comprehensive | thorough | standard | smoke
-    
-    test_techniques: Mapped[Optional[list]] = mapped_column(
-        JSON, nullable=True
-    )  # ["unit", "integration", "e2e", "performance", "security"]
-    
-    effort_allocation: Mapped[str] = mapped_column(
-        String(10), nullable=False
-    )  # "60%" | "25%" | "10%" | "5%"
 
     # ==============================
     # METADATA
@@ -223,77 +215,6 @@ class Risk(Base):
         """QA lead rejects this risk analysis."""
         self.is_accepted = False
         self.accepted_at = datetime.utcnow()
-
-    def get_test_recommendations(self) -> dict:
-        """
-        Return actionable test recommendations based on risk level.
-        """
-        recommendations = {
-            "critical": {
-                "level": "CRITICAL",
-                "icon": "🔴",
-                "message": "Comprehensive testing required before release",
-                "test_types": {
-                    "unit": "Test every business rule in isolation",
-                    "integration": "Test with real services (payment, database, APIs)",
-                    "e2e": "Test the complete user journey",
-                    "performance": "Load test with 2x expected peak traffic",
-                    "security": "Run OWASP Top 10 security checks",
-                    "accessibility": "Verify basic accessibility compliance"
-                },
-                "effort": "60% of sprint testing time",
-                "effort_percentage": 60,
-                "regression": "Add to mandatory regression suite",
-                "automation_priority": "Maximum - Automate first",
-                "approval_required": "Lead QA + Product Owner sign-off required"
-            },
-            "high": {
-                "level": "HIGH",
-                "icon": "🟠",
-                "message": "Thorough testing strongly recommended",
-                "test_types": {
-                    "unit": "Test core business logic",
-                    "integration": "Test critical integrations",
-                    "e2e": "Test main user scenarios",
-                    "performance": "Optional - depends on context"
-                },
-                "effort": "25% of sprint testing time",
-                "effort_percentage": 25,
-                "regression": "Add to regression if capacity allows",
-                "automation_priority": "High",
-                "approval_required": "Lead QA sign-off recommended"
-            },
-            "medium": {
-                "level": "MEDIUM",
-                "icon": "🟡",
-                "message": "Standard testing is sufficient",
-                "test_types": {
-                    "unit": "Test main functions",
-                    "integration": "Test basic integrations",
-                    "e2e": "Optional - happy path only"
-                },
-                "effort": "10% of sprint testing time",
-                "effort_percentage": 10,
-                "regression": "Not a priority",
-                "automation_priority": "Medium",
-                "approval_required": "No special approval needed"
-            },
-            "low": {
-                "level": "LOW",
-                "icon": "🟢",
-                "message": "Minimal testing - Smoke tests only",
-                "test_types": {
-                    "smoke": "Verify the feature loads without errors",
-                    "exploratory": "5 minutes of exploratory testing"
-                },
-                "effort": "5% of sprint testing time",
-                "effort_percentage": 5,
-                "regression": "Skip regression",
-                "automation_priority": "Low - Only if time permits",
-                "approval_required": "No approval needed"
-            }
-        }
-        return recommendations.get(self.level, recommendations["low"])
 
     def get_summary(self) -> str:
         """

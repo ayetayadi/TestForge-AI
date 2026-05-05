@@ -49,8 +49,6 @@ class TestPlanRepository:
             scope_refs=data.scope_refs or [],
             in_scope=data.in_scope,
             out_of_scope=data.out_of_scope,
-            test_types=data.test_types or [],
-            test_levels=data.test_levels or [],
             environment=data.environment,
             start_date=data.start_date,
             end_date=data.end_date,
@@ -62,8 +60,7 @@ class TestPlanRepository:
             stakeholders=data.stakeholders,
             communication=data.communication,
             risk_analysis=data.risk_analysis,
-            estimation=data.estimation,
-            recommendations_detail=data.recommendations_detail,
+            
         )
 
         self.db.add(plan)

@@ -90,13 +90,6 @@ export class RiskDetailComponent implements OnInit {
   computedLevelDraft = computed((): RiskLevel => {
     return classifyLevel(this.computedScoreDraft());
   });
-
-  // ✅ Test recommendations
-  testRecommendations = computed(() => {
-    const level = this.risk()?.level || 'medium';
-    return this.getTestRecommendations(level);
-  });
-
   // ── Lifecycle ────────────────────────────────────────────
   ngOnInit(): void {
     this.loadRisk();
@@ -330,14 +323,4 @@ export class RiskDetailComponent implements OnInit {
     return (score / 25) * 100;
   }
 
-  // ✅ Test recommendations (document original)
-  getTestRecommendations(level: string): { techniques: string[]; effort: string } {
-    const config: Record<string, { techniques: string[]; effort: string }> = {
-      critical: { techniques: ['unit', 'integration', 'e2e', 'performance', 'security'], effort: '60%'},
-      high:     { techniques: ['unit', 'integration', 'e2e'], effort: '25%' },
-      medium:   { techniques: ['unit', 'integration'], effort: '10%' },
-      low:      { techniques: ['smoke'], effort: '5%' },
-    };
-    return config[level] || config['medium'];
-  }
 }

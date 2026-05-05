@@ -42,14 +42,20 @@
        GENERATE PANEL (TestPlan uniquement)
   ════════════════════════════════════════════════════════ -->
   @if (showGenPanel()) {
-    <div class="gen-panel">
+    <div class="gen-panel" [class.gen-panel--ready]="!!genTestPlanId()">
+
+      <!-- Header -->
       <div class="gen-panel__header">
-        <div class="gen-panel__title">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
-          </svg>
-          <span>AI Test Case Generation</span>
-          <span class="gen-panel__subtitle">Select a Test Plan to generate test cases</span>
+        <div class="gen-panel__header-left">
+          <div class="gen-panel__icon-wrap">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2L4.09 12.26 11 11l-1 9 9.91-10.26L13 11l1-9z"/>
+            </svg>
+          </div>
+          <div class="gen-panel__heading">
+            <span class="gen-panel__title">AI Test Case Generator</span>
+            <span class="gen-panel__desc">Select an approved test plan and scenario type to generate test cases</span>
+          </div>
         </div>
         <button class="gen-panel__close" (click)="closeGenPanel()" [disabled]="isGenerating() && !genAllDone()" title="Close">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -58,40 +64,59 @@
         </button>
       </div>
 
+      <!-- Fields -->
       <div class="gen-panel__filters">
-        <div class="gen-filter">
-          <label>Test Plan</label>
-          <select [value]="genTestPlanId()" (change)="onGenTestPlanChange($event)" [disabled]="isGenerating()">
-            <option value="">— Select test plan —</option>
-            @for (plan of allTestPlans(); track plan.id) {
-              <option [value]="plan.id">{{ plan.title }}</option>
+        <div class="gen-field">
+          <label class="gen-label">
+            Test Plan
+            <span class="req-star">*</span>
+            <span class="filter-badge approved">Approved</span>
+          </label>
+          <div class="gen-select-wrap">
+            <svg class="gen-select-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <select class="gen-select" [value]="genTestPlanId()" (change)="onGenTestPlanChange($event)" [disabled]="isGenerating()" [class.placeholder-active]="!genTestPlanId()">
+              <option value="">— Select approved test plan —</option>
+              @for (plan of allTestPlans(); track plan.id) {
+                <option [value]="plan.id">{{ plan.title }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="gen-field">
+          <label class="gen-label">Scenario Type</label>
+          <div class="scenario-types">
+            @for (type of scenarioTypeOptions; track type.value) {
+              <label class="scenario-checkbox" [class.selected]="genScenarioType() === type.value">
+                <input
+                  type="radio"
+                  name="scenarioType"
+                  [value]="type.value"
+                  [checked]="genScenarioType() === type.value"
+                  (change)="selectScenarioType(type.value)"
+                  [disabled]="isGenerating()"
+                />
+                <span>{{ type.label }}</span>
+              </label>
             }
-          </select>
+          </div>
         </div>
       </div>
-<!-- Dans le panneau de génération, après le sélecteur de TestPlan -->
-<div class="gen-filter">
-  <label>Scenario Types</label>
-  <div class="scenario-types">
-    @for (type of scenarioTypeOptions; track type.value) {
-      <label class="scenario-checkbox" [class.selected]="genScenarioTypes().includes(type.value)">
-        <input 
-          type="checkbox" 
-          [checked]="genScenarioTypes().includes(type.value)" 
-          (change)="toggleScenarioType(type.value)" 
-          [disabled]="isGenerating()"
-        />
-        <span>{{ type.label }}</span>
-      </label>
-    }
-  </div>
-</div>
+
+      <!-- Action -->
       <div class="gen-panel__action">
-        <button class="btn-start-gen" (click)="startGeneration()" [disabled]="!genTestPlanId() || isGenerating()">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
-          </svg>
-          Generate Test Cases for this Plan
+        <button class="btn-gen" (click)="startGeneration()" [disabled]="!genTestPlanId() || isGenerating()">
+          @if (isGenerating()) {
+            <span class="spinner-inline"></span>
+            Generating...
+          } @else {
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2L4.09 12.26 11 11l-1 9 9.91-10.26L13 11l1-9z"/>
+            </svg>
+            Generate Test Cases for this Plan
+          }
         </button>
       </div>
 
@@ -140,14 +165,20 @@
        DISPLAY FILTERS BAR (TestPlan uniquement)
   ════════════════════════════════════════════════════════ -->
   <div class="filters-bar">
+    <div class="filters-bar__left">
+      <svg class="filters-bar__icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+      </svg>
+      <span class="filters-bar__label">Filters</span>
+    </div>
+
     <div class="filter-item search-item">
       <app-search-bar placeholder="Search by code or title..." [debounce]="300" (searchChange)="onSearchChange($event)" />
     </div>
 
-    <!-- ✅ Filtre TestPlan uniquement -->
     <div class="filter-item">
       <select class="filter-select" [value]="selectedTestPlanId()" (change)="onTestPlanChange($event)">
-        <option value="">All Test Plans</option>
+        <option value="">All Approved Test Plans</option>
         @for (plan of allTestPlans(); track plan.id) {
           <option [value]="plan.id">{{ plan.title }}</option>
         }
@@ -157,6 +188,10 @@
     <div class="filter-item">
       <app-filter-bar [groups]="filterGroups()" [activeFilters]="activeFilters()" (filtersChange)="onFiltersChange($event)" />
     </div>
+
+    <span class="results-count">
+      <strong>{{ filteredTestCases().length }}</strong> test case{{ filteredTestCases().length !== 1 ? 's' : '' }}
+    </span>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════
@@ -195,6 +230,80 @@
   }
 
   <!-- ═══════════════════════════════════════════════════════
+       AC COVERAGE TABLE
+  ════════════════════════════════════════════════════════ -->
+  @if (showCoverageTable() && coverageRows().length > 0) {
+    <div class="coverage-section">
+      <div class="coverage-header" (click)="toggleCoverageTable()">
+        <div class="coverage-header__left">
+          <svg class="coverage-header__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h7a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+          </svg>
+          <span class="coverage-header__title">AC Coverage by User Story &amp; Type</span>
+          <span class="coverage-header__badge">{{ coverageRows().length }} rows</span>
+        </div>
+        <svg class="coverage-header__chevron" [class.rotated]="!coverageTableVisible()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+        </svg>
+      </div>
+
+      @if (coverageTableVisible()) {
+        <div class="coverage-table-wrap">
+          <table class="coverage-table">
+            <thead>
+              <tr>
+                <th class="col-cov-idx">#</th>
+                <th class="col-cov-us">User Story</th>
+                <th class="col-cov-type">Type</th>
+                <th class="col-cov-bar">Coverage</th>
+                <th class="col-cov-counts">Covered / Total ACs</th>
+                <th class="col-cov-tc">TCs</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of paginatedCoverageRows(); track row.id; let i = $index) {
+                <tr>
+                  <td class="cov-idx">{{ (coveragePage() - 1) * coveragePageSize() + i + 1 }}</td>
+                  <td class="cov-us-cell">
+                    <span class="cov-issue-key">{{ row.issue_key ?? '—' }}</span>
+                    @if (row.user_story_title) {
+                      <span class="cov-us-title">{{ row.user_story_title }}</span>
+                    }
+                  </td>
+                  <td class="cov-type-cell">
+                    <span class="type-badge type-badge--{{ row.scenario_type }}">{{ row.scenario_type }}</span>
+                  </td>
+                  <td class="cov-pct-cell">
+                    <div class="cov-bar-wrap">
+                      <div class="cov-bar" [style.width.%]="row.coverage_pct" [class.cov-bar--ok]="row.coverage_pct >= 80" [class.cov-bar--warn]="row.coverage_pct < 80"></div>
+                    </div>
+                    <span class="cov-pct-label" [class.cov-ok]="row.coverage_pct >= 80" [class.cov-warn]="row.coverage_pct < 80">{{ row.coverage_pct }}%</span>
+                  </td>
+                  <td class="cov-counts">{{ row.covered_count }} / {{ row.total_ac_count }}</td>
+                  <td class="cov-tc">{{ row.tc_count }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        @if (totalCoveragePages() > 1) {
+          <div class="coverage-pagination">
+            <app-pagination
+              [totalItems]="totalCoverageItems()"
+              [currentPage]="coveragePage()"
+              [pageSize]="coveragePageSize()"
+              [pageSizeOptions]="[5, 10, 20]"
+              (pageChange)="onCoveragePageChange($event)"
+              (pageSizeChange)="onCoveragePageSizeChange($event)"
+            />
+          </div>
+        }
+      }
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════
        CARD VIEW (affichage avec correspondances automatiques)
   ════════════════════════════════════════════════════════ -->
   @if (!loading() && filteredTestCases().length > 0 && viewMode() === 'cards') {
@@ -214,7 +323,6 @@
     {{ testCase.test_type }}
   </span> 
 }
-            <button class="tc-card__delete" (click)="deleteTestCase(testCase.id, $event)" title="Delete">🗑️</button>
           </div>
 
           <h3 class="tc-card__title">{{ testCase.title }}</h3>
@@ -236,9 +344,7 @@
 
           <div class="tc-card__actions">
             <button class="btn-view-details" (click)="viewTestCase(testCase.id, $event)">View Details</button>
-            <button class="btn-generate-script" (click)="generateScript(testCase.id, $event)" [disabled]="generatingIds().has(testCase.id)">
-              @if (generatingIds().has(testCase.id)) { Generating… } @else { Generate Script }
-            </button>
+            <button class="btn-delete-card" (click)="deleteTestCase(testCase.id, $event)">Delete</button>
           </div>
         </div>
       }
@@ -303,3 +409,17 @@
   }
 
 </div>
+
+<!-- Confirm Dialog -->
+<app-confirm-dialog
+  [visible]="showConfirmDialog()"
+  [title]="confirmDialogData().title"
+  [message]="confirmDialogData().message"
+  [icon]="confirmDialogData().icon"
+  [confirmText]="confirmDialogData().confirmText"
+  [cancelText]="confirmDialogData().cancelText"
+  [variant]="confirmDialogData().variant"
+  (confirmed)="confirmDialogData().onConfirm(); showConfirmDialog.set(false)"
+  (cancelled)="showConfirmDialog.set(false)"
+>
+</app-confirm-dialog>

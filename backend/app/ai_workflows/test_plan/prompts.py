@@ -22,19 +22,14 @@ RISK ANALYSIS RESULTS:
 - Medium  (1.0 – 2.4)  : {count_medium} stories
 - Low   (< 1.0)      : {count_low} stories
 
-TOP RISKS IDENTIFIED (with mitigation strategies and recommended test techniques):
+TOP RISKS IDENTIFIED (with mitigation strategies):
 {top_risks}
-# ↑ FORMAT: Each risk includes description, test_depth, mitigation, and recommended techniques
+# ↑ FORMAT: Each risk includes description, test_depth, mitigation
 # Example:
 #   • [20.0] Payment fails when applying promo code during peak hours
 #     Test depth: comprehensive
 #     Mitigation: Test checkout with 10 promo codes + load test 1000 concurrent users
-#     Recommended techniques: unit, integration, e2e, performance
 
-ESTIMATED DURATION: {duration_optimistic}–{duration_pessimistic} working days (PERT realistic: {duration_realistic} days)
-
-RECOMMENDED TEST TYPES (derived from risk analysis): {recommended_types}
-RECOMMENDED TEST LEVELS (derived from risk analysis): {recommended_levels}
 
 ═══════════════════════════════════════
 INSTRUCTIONS FOR RISK-BASED TEST PLAN:
@@ -51,7 +46,6 @@ INSTRUCTIONS FOR RISK-BASED TEST PLAN:
 
 2. **DESCRIPTION** — 2-3 sentences summarizing:
    - What this test plan covers (scope, features, risk areas)
-   - Why testing is needed (based on risk levels identified)
 
 3. **OBJECTIVE** — 2-4 measurable testing objectives. Prioritize based on risk:
    - Verify behavior of critical/high-risk user stories
@@ -62,23 +56,12 @@ INSTRUCTIONS FOR RISK-BASED TEST PLAN:
 4. **IN SCOPE** — Bullet list of what IS covered:
    - List specific features, modules, or user stories
    - Mention high-risk areas explicitly
-   - Include the test techniques that will be applied (from recommendations)
 
 5. **OUT OF SCOPE** — Bullet list of what is NOT covered:
    - Be explicit about exclusions (performance testing, third-party APIs, security scans, etc.)
    - Justify why certain areas are excluded (timeline, environment, risk level)
 
-6. **TEST TYPES** — MUST be a JSON array. Use the RECOMMENDED TEST TYPES above as PRIMARY source:
-   Choose from: ["functional", "regression", "smoke", "security", "performance", "e2e", "api"]
-   Example: ["functional", "security", "performance"]
-   ⚠️ CRITICAL: If recommended_types are provided, use them. Do NOT invent new types.
-
-7. **TEST LEVELS** — MUST be a JSON array. Use the RECOMMENDED TEST LEVELS above as PRIMARY source:
-   Choose from: ["component", "integration", "system", "acceptance", "e2e"]
-   Example: ["system", "integration", "acceptance", "e2e"]
-   ⚠️ CRITICAL: If recommended_levels are provided, use them. Do NOT invent new levels.
-
-8. **ENVIRONMENT** — Choose from: dev, staging, prod, uat
+6. **ENVIRONMENT** — Choose from: dev, staging, prod, uat
    Pick the MOST APPROPRIATE for this scope:
    - "dev" : early development, not for formal testing
    - "staging" : pre-production, ideal for most test plans
@@ -101,7 +84,6 @@ INSTRUCTIONS FOR RISK-BASED TEST PLAN:
 11. **APPROACH** — Describe the testing strategy (3-5 sentences):
     - Risk-based prioritization: test critical/high risks FIRST
     - For EACH top risk, incorporate its MITIGATION strategy into the test approach
-    - Explain how recommended test techniques will be applied
     - Mention automation intent (which tests to automate first)
     - Describe the test execution order based on risk score and test depth
 
@@ -111,13 +93,10 @@ INSTRUCTIONS FOR RISK-BASED TEST PLAN:
     - Developers available for critical defect fixes during test execution
 
 13. **CONSTRAINTS** — 2-3 real constraints:
-    - Timeline: {duration_realistic} working days estimated (PERT)
     - Resource availability (QA engineers, devices, licenses)
     - Tool access limitations (test management, automation frameworks)
 
 14. **REASONING** — Brief explanation of your main choices (2-3 sentences):
-    - Why these specific test types were selected (link to risk analysis)
-    - Why certain test levels are included
     - How the approach addresses the identified risks and mitigations
 
 15. **STAKEHOLDERS** — Roles and responsibilities:

@@ -11,6 +11,22 @@ import {
   TestCaseStatus
 } from '../models/test-case.model';
 
+// ─── Coverage table row ───────────────────────────────────────────────────────
+
+export interface TcCoverageRow {
+  id: string;
+  test_plan_id: string;
+  user_story_id: string | null;
+  issue_key: string | null;
+  user_story_title: string | null;
+  scenario_type: 'positive' | 'negative' | 'boundary';
+  coverage_pct: number;
+  covered_count: number;
+  total_ac_count: number;
+  tc_count: number;
+  generated_at: string | null;
+}
+
 // ─── Generation response shapes ──────────────────────────────────────────────
 
 // 🆕 SIMPLIFIÉ : Pas de coverage dans TestCase
@@ -33,7 +49,7 @@ export interface AsyncJobResponse {
 
 export interface WorkflowGenerationOptions {
   test_suite_id?: string;
-  scenario_types?: string[];
+  scenario_type?: 'positive' | 'negative' | 'boundary';
   risk_level?: 'critical' | 'high' | 'medium' | 'low';
   risk_score?: number;
   risk_description?: string;
@@ -109,6 +125,10 @@ export class TestCaseService {
     return this.http.get<TestCase>(`${this.apiUrl}/by-code/${tcCode}`);
   }
 
+  getCoverageForPlan(testPlanId: string): Observable<TcCoverageRow[]> {
+    return this.http.get<TcCoverageRow[]>(`${this.apiUrl}/coverage/${testPlanId}`);
+  }
+
   getTestCasesBySuite(testSuiteId: string): Observable<TestCase[]> {
     return this.http.get<TestCase[]>(`${this.apiUrl}/suite/${testSuiteId}`);
   }
@@ -170,7 +190,7 @@ export class TestCaseService {
   ): Observable<AsyncJobResponse> {
     let params = new HttpParams();
     if (opts.test_suite_id) params = params.set('test_suite_id', opts.test_suite_id);
-    if (opts.scenario_types?.length) params = params.set('scenario_types', opts.scenario_types.join(','));
+    if (opts.scenario_type) params = params.set('scenario_type', opts.scenario_type);
     if (opts.risk_level) params = params.set('risk_level', opts.risk_level);
     if (opts.risk_score != null) params = params.set('risk_score', String(opts.risk_score));
     if (opts.risk_description) params = params.set('risk_description', opts.risk_description);

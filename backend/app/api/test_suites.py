@@ -102,7 +102,6 @@ async def generate_test_suites(
     try:
         result = await service.generate_suites(
             test_plan_id=request.test_plan_id,
-            strategy=request.strategy,
             project_name=request.project_name,
         )
         return GenerateTestSuitesResponse(**result)

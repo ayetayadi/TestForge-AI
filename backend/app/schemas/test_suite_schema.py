@@ -16,7 +16,6 @@ class EmbeddedTestCaseSchema(BaseModel):
     description: Optional[str] = None
     test_type: Optional[str] = None
     priority: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
     preconditions: List[str] = Field(default_factory=list)
     postconditions: List[str] = Field(default_factory=list)
     steps: List[Dict[str, Any]] = Field(default_factory=list)
@@ -62,12 +61,10 @@ class EmbeddedRiskSchema(BaseModel):
 class EmbeddedTestPlanSchema(BaseModel):
     id: str
     title: str
-    status: Optional[str] = None  # ✅ Changé en Optional
+    status: Optional[str] = None
     objective: Optional[str] = None
     in_scope: Optional[str] = None
     out_of_scope: Optional[str] = None
-    test_types: List[str] = Field(default_factory=list)
-    test_levels: List[str] = Field(default_factory=list)
     environment: Optional[str] = None
     entry_criteria: Optional[str] = None
     exit_criteria: Optional[str] = None
@@ -75,8 +72,6 @@ class EmbeddedTestPlanSchema(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     approved_at: Optional[datetime] = None
-    coverage_snapshot: Optional[Dict[str, Any]] = None
-    matrix_snapshot: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -271,7 +266,6 @@ class TestSuiteDetailSchema(BaseModel):
 
 class GenerateTestSuitesRequest(BaseModel):
     test_plan_id: str = Field(..., description="Parent Test Plan ID")
-    strategy: str = Field("risk_level", description="risk_level | test_type | feature | mixed")
     project_name: str = Field("", description="Project name for suite titles")
 
 

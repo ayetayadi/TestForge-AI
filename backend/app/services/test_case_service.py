@@ -16,9 +16,9 @@ from app.models.jira_project import JiraProject
 from app.models.user_story import UserStory
 from app.models.user_story_version import UserStoryVersion
 from app.models.risk import Risk
+from app.models.tc_coverage import TcCoverage
 from app.models.enums import StoryDecision
 from app.ai_workflows.test_case import get_pipeline
-from app.ai_workflows.test_case.config import RISK_LEVEL_TEST_COUNTS
 from app.ai_workflows.test_case.test_case_builder import build_tc_code
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,6 @@ async def get_all_test_cases(
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
     priority: Optional[List[str]] = None,
-    tags: Optional[List[str]] = None,
     order_by: str = "created_at",
     order_direction: str = "desc",
     limit: int = 100,
@@ -52,7 +51,6 @@ async def get_all_test_cases(
         search=search,
         status=status,
         priority=priority,
-        tags=tags,
         order_by=order_by,
         order_direction=order_direction,
         limit=limit,
@@ -75,7 +73,6 @@ async def count_all_test_cases(
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
     priority: Optional[List[str]] = None,
-    tags: Optional[List[str]] = None,
 ) -> int:
     """Compte le nombre total de test cases avec filtres."""
     return await repo.count_all_test_cases(
@@ -86,7 +83,6 @@ async def count_all_test_cases(
         search=search,
         status=status,
         priority=priority,
-        tags=tags,
     )
 
 
@@ -144,7 +140,7 @@ async def generate_test_cases_for_plan(
     risk_score: Optional[float] = None,
     risk_description: Optional[str] = None,
     progress_callback: Optional[Callable] = None,
-    scenario_types: Optional[List[str]] = None
+    scenario_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate TCs for a TestPlan - PARALLEL per US."""
     
@@ -198,62 +194,81 @@ async def generate_test_cases_for_plan(
             )
         us_list = us_result.scalars().all()
     
+    # Si scope_refs est vide, prendre TOUTES les US du projet
+    else:
+        us_result = await db.execute(
+            select(UserStory).where(UserStory.project_id == project_id)
+        )
+        us_list = us_result.scalars().all()
+
     logger.info(f"[TC_GEN] us_list count: {len(us_list)}")
-    
+
     if not us_list:
         raise ValueError("No user stories found in the test plan scope.")
 
-    if not scenario_types:
-        scenario_types = ["positive", "negative", "boundary"]
-    
-    base_counts = RISK_LEVEL_TEST_COUNTS.get(effective_risk_level, RISK_LEVEL_TEST_COUNTS.get("default", {"positive": 1, "negative": 1, "boundary": 0}))
-    
+    # Default to positive if no type provided
+    effective_scenario_type = scenario_type or "positive"
+
     # ============================================================
-    # NOUVEAU : Fonction helper pour générer les TCs d'une US
+    # Helper: generate TCs for a single US
     # ============================================================
     async def _generate_for_single_us(us: UserStory) -> Dict[str, Any]:
         """Generate TCs for a single user story (used in parallel)."""
-        # Version approuvée ?
         approved_result = await db.execute(
             select(UserStoryVersion)
             .where(UserStoryVersion.user_story_id == us.id, UserStoryVersion.decision_status == StoryDecision.APPROVED)
             .order_by(UserStoryVersion.version_number.desc()).limit(1)
         )
         approved = approved_result.scalar_one_or_none()
-        
+
         if approved and approved.improved_story:
             story_text = approved.improved_story
             ac_list = approved.generated_acceptance_criteria or []
         else:
             story_text = us.description or us.title or ""
             ac_list = us.acceptance_criteria or []
-        
-        total_count = sum(
-            base_counts.get(st, 0) for st in scenario_types
-        )
-        
-        logger.info(f"[TC_GEN] Generating {total_count} TCs for {us.issue_key} (types: {scenario_types})...")
-        
+
+        logger.info(f"[TC_GEN] Generating '{effective_scenario_type}' TCs for {us.issue_key} ({len(ac_list)} ACs)...")
+
         pipeline = get_pipeline()
         
-        # Appel LLM pour UNE SEULE US
+        risks_result = await db.execute(
+        select(Risk).where(
+                Risk.user_story_id == us.id,
+                Risk.is_accepted == True
+            )
+        )
+        us_risks = risks_result.scalars().all()
+        
+        risk_mitigation = " | ".join([r.mitigation for r in us_risks if r.mitigation]) or "N/A"
         result = await pipeline.run(
             story=story_text,
             acceptance_criteria=[str(ac).strip() for ac in ac_list if ac and str(ac).strip()],
             risk_level=effective_risk_level,
             risk_score=effective_risk_score,
             risk_description=risk_description or _build_risk_description(risk_ids),
+            risk_mitigation=risk_mitigation,
             risk_ids=risk_ids,
             user_story_id=us.id,
             issue_key=us.issue_key,
-            tc_start_index=1,  # Sera réassigné plus tard
+            tc_start_index=1,
             progress_callback=progress_callback,
-            scenario_types=scenario_types,
+            scenario_type=effective_scenario_type,
         )
-        if result.get("ac_coverage"):
-           ac_cov = result["ac_coverage"]
-           us.ac_coverage_pct = ac_cov["coverage_pct"]
-           us.ac_coverage_uncovered = ac_cov["uncovered"]
+        ac_cov = result.get("ac_coverage", {})
+
+        # Upsert coverage record for this (plan, us, type)
+        await _upsert_tc_coverage(
+            db=db,
+            test_plan_id=test_plan_id,
+            user_story_id=us.id,
+            issue_key=us.issue_key,
+            user_story_title=us.title,
+            scenario_type=effective_scenario_type,
+            ac_coverage=ac_cov,
+            tc_count=len(result.get("test_cases", [])),
+        )
+
         return result
     
     # ============================================================
@@ -278,8 +293,11 @@ async def generate_test_cases_for_plan(
             })
         return result
 
-    tasks = [_generate_with_progress(us) for us in us_list]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    # Séquentiel
+    results = []
+    for us in us_list:
+        result = await _generate_with_progress(us)
+        results.append(result)
     
     # ============================================================
     # ASSEMBLER LES RÉSULTATS
@@ -386,7 +404,7 @@ async def format_for_frontend(test_case: TestCase, db: AsyncSession) -> Dict[str
         }
         
         # ============================================
-        # ✅ RÉCUPÉRER LES RISQUES LIÉS À CETTE US
+        # RÉCUPÉRER LES RISQUES LIÉS À CETTE US
         # ============================================
         risks_result = await db.execute(
             select(Risk).where(
@@ -482,12 +500,10 @@ async def format_for_frontend(test_case: TestCase, db: AsyncSession) -> Dict[str
         "epic_key": us_info.get("epic_key"),
         "epic_name": us_info.get("epic_name"),
         
-        # ✅ NOUVEAUX CHAMPS
         "story_details": story_details,
         "risks": risks_info,
         "risks_count": len(risks_info),
         
-        "tags": test_case.tags,
         "preconditions": test_case.preconditions,
         "postconditions": test_case.postconditions,
         "steps": test_case.steps,
@@ -495,11 +511,80 @@ async def format_for_frontend(test_case: TestCase, db: AsyncSession) -> Dict[str
         "test_data": test_case.test_data,
         "expected_results": test_case.expected_results,
         "locators": test_case.locators,
-        "execution_order": test_case.execution_order,
         "is_active": test_case.is_active,
         "created_at": test_case.created_at.isoformat() if test_case.created_at else None,
         "updated_at": test_case.updated_at.isoformat() if test_case.updated_at else None,
     }
+
+# ============================================================
+# COVERAGE HELPERS
+# ============================================================
+
+async def _upsert_tc_coverage(
+    db: AsyncSession,
+    test_plan_id: str,
+    user_story_id: str,
+    issue_key: Optional[str],
+    user_story_title: Optional[str],
+    scenario_type: str,
+    ac_coverage: Dict[str, Any],
+    tc_count: int,
+) -> None:
+    """Insert or update the coverage row for (test_plan, user_story, scenario_type)."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    values = {
+        "id": str(__import__("uuid").uuid4()),
+        "test_plan_id": test_plan_id,
+        "user_story_id": user_story_id,
+        "issue_key": issue_key,
+        "user_story_title": user_story_title,
+        "scenario_type": scenario_type,
+        "coverage_pct": ac_coverage.get("coverage_pct", 0.0),
+        "covered_count": ac_coverage.get("covered_count", 0),
+        "total_ac_count": ac_coverage.get("total_count", 0),
+        "tc_count": tc_count,
+    }
+
+    stmt = pg_insert(TcCoverage).values(**values).on_conflict_do_update(
+        constraint="uq_tc_coverage",
+        set_={
+            "coverage_pct": values["coverage_pct"],
+            "covered_count": values["covered_count"],
+            "total_ac_count": values["total_ac_count"],
+            "tc_count": values["tc_count"],
+            "issue_key": values["issue_key"],
+            "user_story_title": values["user_story_title"],
+        },
+    )
+    await db.execute(stmt)
+
+
+async def get_tc_coverage_for_plan(db: AsyncSession, test_plan_id: str) -> List[Dict[str, Any]]:
+    """Return all coverage rows for a given test plan, ordered by issue_key + scenario_type."""
+    result = await db.execute(
+        select(TcCoverage)
+        .where(TcCoverage.test_plan_id == test_plan_id)
+        .order_by(TcCoverage.issue_key, TcCoverage.scenario_type)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "test_plan_id": r.test_plan_id,
+            "user_story_id": r.user_story_id,
+            "issue_key": r.issue_key,
+            "user_story_title": r.user_story_title,
+            "scenario_type": r.scenario_type,
+            "coverage_pct": round(r.coverage_pct * 100, 1),
+            "covered_count": r.covered_count,
+            "total_ac_count": r.total_ac_count,
+            "tc_count": r.tc_count,
+            "generated_at": r.generated_at.isoformat() if r.generated_at else None,
+        }
+        for r in rows
+    ]
+
 
 def _score_from_level(level: str) -> float:
     return {"critical": 4.0, "high": 3.0, "medium": 1.5, "low": 0.5}.get(level, 1.5)
@@ -525,12 +610,13 @@ def _pipeline_tc_to_db(tc: Dict[str, Any], test_plan_id: str, test_suite_id: Opt
         "steps":           tc.get("steps", []),
         "test_data":       tc.get("test_data") or {},
         "expected_results": tc.get("expected_results", []),
-        "tags":            tc.get("tags", []),
         "user_story_id":   tc.get("user_story_id"), 
         "test_plan_id":    test_plan_id,
         "test_suite_id":   test_suite_id,
         "execution_order": tc.get("execution_order"),
         "is_active":       True,
+        "_covered_ac_indices": tc.get("_covered_ac_indices", []),
+        "_reasoning": tc.get("_reasoning", ""),
     }
 
 
@@ -548,7 +634,6 @@ def _db_tc_to_response(tc) -> Dict[str, Any]:
         "steps":           tc.steps or [],
         "test_data":       tc.test_data or {},
         "expected_results": tc.expected_results or [],
-        "tags":            tc.tags or [],
         "test_plan_id":    tc.test_plan_id,
         "test_suite_id":   tc.test_suite_id,
         "execution_order": tc.execution_order,

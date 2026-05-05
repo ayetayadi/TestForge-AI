@@ -579,3 +579,17 @@
   </div>
 
 </div>
+
+
+<app-confirm-dialog
+  [visible]="showConfirmDialog()"
+  [title]="confirmDialogData().title"
+  [message]="confirmDialogData().message"
+  [icon]="confirmDialogData().icon"
+  [confirmText]="confirmDialogData().confirmText"
+  [cancelText]="confirmDialogData().cancelText"
+  [variant]="confirmDialogData().variant"
+  (confirmed)="confirmDialogData().onConfirm(); showConfirmDialog.set(false)"
+  (cancelled)="showConfirmDialog.set(false)"
+>
+</app-confirm-dialog>

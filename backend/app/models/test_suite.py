@@ -31,7 +31,6 @@ class TestSuite(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
 
-    ## feature | epic | sprint | smoke | regression | negative | security | performance | e2e
     suite_type: Mapped[Optional[str]] = mapped_column(String(50))
     priority: Mapped[Optional[str]] = mapped_column(String(20))  # critical | high | medium | low
     is_ai_generated: Mapped[bool] = mapped_column(
@@ -39,11 +38,6 @@ class TestSuite(Base):
     )
 
     execution_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-
-    # Matrice de traçabilité : {us_id → [tc_id, ...]}
-    matrix_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
-    # Couverture : {total_us, covered_us, total_ac, covered_ac, coverage_pct}
-    coverage_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
 
     risk_coverage_pct: Mapped[Optional[float]] = mapped_column(
         Float, nullable=True,

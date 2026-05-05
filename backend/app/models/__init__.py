@@ -23,6 +23,7 @@ from .test_plan import TestPlan
 from .risk import Risk
 from .test_suite import TestSuite
 from .test_case_dependency import TestCaseDependency
+from .tc_coverage import TcCoverage
 
 __all__ = [
     "User",
@@ -59,4 +60,5 @@ __all__ = [
     "Risk",
     "TestSuite",
     "TestCaseDependency",
+    "TcCoverage",
 ]

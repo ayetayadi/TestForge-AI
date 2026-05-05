@@ -28,8 +28,6 @@ _SECTIONS = [
 ]
 
 _META_ROWS = [
-    ("Test Types", "test_types"),
-    ("Test Levels", "test_levels"),
     ("Environment", "environment"),
     ("Scope Type", "scope_type"),
 ]
@@ -206,41 +204,6 @@ class TestPlanExportService:
                     ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#dddddd")),
                 ]))
                 story.append(mapping_table)
-        
-        # ── PERT Estimation Section ────────────────────────────────
-        if plan.estimation:
-            story.append(Paragraph("PERT Estimation", h2))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#6366f1"), spaceAfter=4))
-            
-            est = plan.estimation
-            story.append(Paragraph(
-                f"<b>Formula:</b> {est.get('formula', 'E = (O + 4×M + P) / 6')}<br/>"
-                f"<b>Calculation:</b> {est.get('calculation', '')}<br/>"
-                f"<b>Confidence Interval:</b> {est.get('confidence_interval', '')}<br/>"
-                f"<b>Standard Deviation:</b> {est.get('standard_deviation', '')}",
-                body
-            ))
-            
-            # Breakdown table
-            breakdown = est.get('breakdown_by_risk', [])
-            if breakdown:
-                bd_data = [["Level", "Stories", "Opt.", "Real.", "Pess."]]
-                for item in breakdown:
-                    bd_data.append([
-                        item.get('level', ''),
-                        str(item.get('story_count', 0)),
-                        str(item.get('subtotal_optimistic', 0)),
-                        str(item.get('subtotal_realistic', 0)),
-                        str(item.get('subtotal_pessimistic', 0)),
-                    ])
-                bd_table = Table(bd_data, colWidths=[35*mm, 25*mm, 25*mm, 25*mm, 25*mm])
-                bd_table.setStyle(TableStyle([
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eef2ff")),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#dddddd")),
-                ]))
-                story.append(bd_table)
-
         # ── Sections ─────────────────────────────────────────────
         for attr, label in _SECTIONS:
             value = getattr(plan, attr, None)

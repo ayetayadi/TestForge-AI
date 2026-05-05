@@ -29,7 +29,7 @@ from app.llm.llm_control import set_worker_api_key
 logger = logging.getLogger(__name__)
 
 MAX_TC_WORKERS = settings.MAX_WORKERS
-TC_WORKER_TIMEOUT = 120
+TC_WORKER_TIMEOUT = 600  # 10 min — 6 US × ~30-40s each + possible rate-limit retries
 MAX_RETRIES = 3
 
 _tc_workers: List[asyncio.Task] = []
@@ -106,7 +106,7 @@ async def tc_worker(worker_id: int) -> None:
                             risk_score=job.get("risk_score"),
                             risk_description=job.get("risk_description"),
                             progress_callback=_make_progress_callback(job_id),
-                            scenario_types=job.get("scenario_types"),
+                            scenario_type=job.get("scenario_type"),
                         ),
                         timeout=TC_WORKER_TIMEOUT,
                     )
@@ -171,11 +171,12 @@ async def submit_tc_job(job: Dict[str, Any]) -> None:
         test_plan_id  : str   — TestPlan to generate TCs for
 
     Optional fields:
-        test_suite_id : str   — TestSuite to assign TCs to (can be None)
-        job_id        : str   — SSE channel ID
-        risk_level    : str
-        risk_score    : float
+        test_suite_id  : str   — TestSuite to assign TCs to (can be None)
+        job_id         : str   — SSE channel ID
+        risk_level     : str
+        risk_score     : float
         risk_description : str
+        scenario_type  : str   — positive | negative | boundary (default: positive)
     """
     if not job.get("test_plan_id"):
         raise ValueError("test_plan_id is required")

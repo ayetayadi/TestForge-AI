@@ -78,11 +78,6 @@
         (input)="updateField('title', $any($event.target).value)"
         placeholder="Test plan title">
 
-      <div class="hero-meta">
-        <span *ngIf="plan.environment" class="meta-chip env">{{ plan.environment | uppercase }}</span>
-        <span *ngFor="let t of plan.test_types" class="meta-chip type">{{ t }}</span>
-        <span *ngFor="let l of plan.test_levels" class="meta-chip level">{{ l }}</span>
-      </div>
     </div>
 
     <div class="hero-right">
@@ -208,7 +203,7 @@
 <div class="risk-mapping-card" *ngIf="plan.risk_analysis.mapping_table.length > 0">
   <h4>🔗 User Story → Risk Mapping (Traceability Matrix)</h4>
   <p class="mapping-subtitle">
-    Each User Story is linked to its risk level, mitigation strategy, and recommended test techniques.
+    Each User Story is linked to its risk level and mitigation strategy.
   </p>
   
   <div class="table-responsive">
@@ -221,9 +216,7 @@
           <th>Score</th>
           <th>P×I</th>
           <th>Mitigation</th>
-          <th>Techniques</th>
           <th>Depth</th>
-          <th>Effort</th>
         </tr>
       </thead>
       <tbody>
@@ -248,21 +241,9 @@
             {{ entry.mitigation || '—' }}
           </td>
           <td>
-            <span class="technique-chip" *ngFor="let tech of entry.test_techniques">
-              {{ tech }}
-            </span>
-            <span *ngIf="!entry.test_techniques?.length">—</span>
-          </td>
-          <td>
             <span class="depth-badge" [class]="entry.test_depth">
               {{ entry.test_depth }}
             </span>
-          </td>
-          <td>
-            <span class="effort-badge" *ngIf="entry.effort_allocation !== 'N/A'">
-              {{ entry.effort_allocation }}
-            </span>
-            <span *ngIf="entry.effort_allocation === 'N/A'">—</span>
           </td>
         </tr>
       </tbody>
@@ -298,208 +279,6 @@
     </button>
   </div>
 </div>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- Aggregated Recommendations -->
-<div class="aggregated-recommendations" 
-     *ngIf="plan.risk_analysis?.aggregated_recommendations as aggr">
-  
-  <div class="agg-grid">
-    
-    <!-- Most Recommended Techniques -->
-    <div class="agg-card">
-      <h4>🧪 Most Recommended Techniques</h4>
-      <div class="technique-list">
-        <div 
-          class="technique-item" 
-          *ngFor="let item of sortedTechniques">
-          <span class="tech-name">{{ item.key }}</span>
-          <span class="tech-count">{{ item.value }} risks</span>
-        </div>
-        <div class="technique-item" *ngIf="sortedTechniques.length === 0">
-          <span class="tech-name">No techniques defined</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Test Depth Distribution -->
-    <div class="agg-card">
-      <h4>📏 Test Depth Distribution</h4>
-      <div class="depth-list">
-        <div class="depth-item">
-          <span>Comprehensive</span>
-          <span class="depth-val critical">{{ aggr.test_depth_distribution.comprehensive }}</span>
-        </div>
-        <div class="depth-item">
-          <span>Thorough</span>
-          <span class="depth-val high">{{ aggr.test_depth_distribution.thorough }}</span>
-        </div>
-        <div class="depth-item">
-          <span>Standard</span>
-          <span class="depth-val medium">{{ aggr.test_depth_distribution.standard }}</span>
-        </div>
-        <div class="depth-item">
-          <span>Smoke</span>
-          <span class="depth-val low">{{ aggr.test_depth_distribution.smoke }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Effort Breakdown -->
-    <div class="agg-card">
-      <h4>⚡ Effort Allocation</h4>
-      <div class="effort-list">
-        <div class="effort-item">
-          <span>Critical</span>
-          <span class="effort-val critical">{{ aggr.effort_breakdown.critical_effort }}</span>
-        </div>
-        <div class="effort-item">
-          <span>High</span>
-          <span class="effort-val high">{{ aggr.effort_breakdown.high_effort }}</span>
-        </div>
-        <div class="effort-item">
-          <span>Medium</span>
-          <span class="effort-val medium">{{ aggr.effort_breakdown.medium_effort }}</span>
-        </div>
-        <div class="effort-item">
-          <span>Low</span>
-          <span class="effort-val low">{{ aggr.effort_breakdown.low_effort }}</span>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!--
-  <div class="pert-section" *ngIf="plan.estimation && !isEditMode()">
-    <div class="section-card">
-      <div class="section-header">
-        <h3>⏱️ PERT Duration Estimation (ISTQB §5.1.4)</h3>
-      </div>
-
-      <div class="section-body">
-        
-        <div class="pert-big-number">
-          <div class="pert-value">{{ plan.estimation.inputs.most_likely }} days</div>
-          <div class="pert-interval">{{ plan.estimation.confidence_interval }}</div>
-        </div>
-
-        <div class="pert-bar-container">
-          <div class="pert-bar">
-            <div class="pert-segment optimistic" [style.flex]="plan.estimation.inputs.optimistic">
-              <span class="pert-label">O</span>
-              <span class="pert-num">{{ plan.estimation.inputs.optimistic }}d</span>
-            </div>
-            <div class="pert-segment realistic" [style.flex]="plan.estimation.inputs.most_likely">
-              <span class="pert-label">PERT</span>
-              <span class="pert-num">{{ plan.estimation.inputs.most_likely }}d</span>
-            </div>
-            <div class="pert-segment pessimistic" [style.flex]="plan.estimation.inputs.pessimistic">
-              <span class="pert-label">P</span>
-              <span class="pert-num">{{ plan.estimation.inputs.pessimistic }}d</span>
-            </div>
-          </div>
-          <div class="pert-labels">
-            <span>Optimistic</span>
-            <span>Most Likely</span>
-            <span>Pessimistic</span>
-          </div>
-        </div>
-
-        <details class="pert-detail" open>
-          <summary>📐 Detailed Calculation</summary>
-          <div class="pert-calculation">
-            <p><strong>PERT Formula:</strong> <code>{{ plan.estimation.formula }}</code></p>
-            <p><strong>Calculation:</strong> <code>{{ plan.estimation.calculation }}</code></p>
-            <p><strong>Standard Deviation:</strong> <code>{{ plan.estimation.standard_deviation }}</code></p>
-            <div class="pert-info">
-              <p>📏 <strong>Standard Deviation</strong> measures uncertainty. Lower = more precise estimate.</p>
-              <p>🎯 <strong>Confidence Interval</strong> = PERT ± 1 SD covers ~68% of scenarios.</p>
-            </div>
-          </div>
-        </details>
-
-        <div class="pert-breakdown" *ngIf="plan.estimation.breakdown_by_risk.length > 0">
-          <h4>⏱️ Breakdown by Risk Level</h4>
-          <p class="breakdown-subtitle">
-            Days per story × Number of stories = Subtotal. Overhead (+3 days) added for environment setup, reporting, and contingencies.
-          </p>
-          <div class="table-responsive">
-            <table class="pert-table">
-              <thead>
-                <tr>
-                  <th>Risk Level</th>
-                  <th># Stories</th>
-                  <th>Days/Story (O)</th>
-                  <th>Days/Story (M)</th>
-                  <th>Days/Story (P)</th>
-                  <th>Subtotal (M)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let row of plan.estimation.breakdown_by_risk">
-                  <td>
-                    <span class="risk-badge" [class]="row.level">{{ row.level | uppercase }}</span>
-                  </td>
-                  <td>{{ row.story_count }}</td>
-                  <td>{{ row.days_per_story_optimistic }}</td>
-                  <td>{{ row.days_per_story_realistic }}</td>
-                  <td>{{ row.days_per_story_pessimistic }}</td>
-                  <td class="subtotal">{{ row.subtotal_realistic }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </div>
--->
-
-  <!-- ══════════════════════════════════════════════════════════
-       RECOMMENDATIONS SECTION
-  ══════════════════════════════════════════════════════════ -->
-  <div class="recommendations-section" *ngIf="plan.recommendations_detail && !isEditMode()">
-    <div class="section-card">
-      <div class="section-header">
-        <h3>🎯 Test Recommendations</h3>
-      </div>
-
-      <div class="section-body">
-        
-        <div class="rec-columns">
-          
-          <!-- Test Types -->
-          <div class="rec-col">
-            <h4>✅ Recommended Test Types</h4>
-            <ul class="rec-list">
-              <li *ngFor="let type of plan.recommendations_detail.test_types; let i = index">
-                <span class="rec-check">✅</span>
-                <span class="rec-name">{{ type | titlecase }}</span>
-                <span class="rec-reason" *ngIf="plan.recommendations_detail.reasoning[i]">
-                  → {{ plan.recommendations_detail.reasoning[i] }}
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          <!-- Test Levels -->
-          <div class="rec-col">
-            <h4>✅ Recommended Test Levels</h4>
-            <ul class="rec-list">
-              <li *ngFor="let level of plan.recommendations_detail.test_levels">
-                <span class="rec-check">✅</span>
-                <span class="rec-name">{{ level | titlecase }}</span>
-              </li>
-            </ul>
-          </div>
-
-        </div>
 
       </div>
     </div>
@@ -621,22 +400,6 @@
               (change)="updateField('end_date', $any($event.target).value)">
           </div>
         </div>
-      </div>
-
-      <!-- Test types / levels -->
-      <div class="side-card">
-        <h4 class="side-title">Test Strategy</h4>
-        <div class="chip-group" *ngIf="plan.test_types.length">
-          <span class="chip-label">Types:</span>
-          <span class="chip type" *ngFor="let t of plan.test_types">{{ t }}</span>
-        </div>
-        <div class="chip-group" *ngIf="plan.test_levels.length">
-          <span class="chip-label">Levels:</span>
-          <span class="chip level" *ngFor="let l of plan.test_levels">{{ l }}</span>
-        </div>
-        <p class="empty-val" *ngIf="!plan.test_types.length && !plan.test_levels.length">
-          Not defined yet
-        </p>
       </div>
 
       <!-- Export + Share shortcuts -->
@@ -878,3 +641,17 @@
 
   </div>
 </div>
+
+<!-- Confirm Dialog -->
+<app-confirm-dialog
+  [visible]="showConfirmDialog()"
+  [title]="confirmDialogData().title"
+  [message]="confirmDialogData().message"
+  [icon]="confirmDialogData().icon"
+  [confirmText]="confirmDialogData().confirmText"
+  [cancelText]="confirmDialogData().cancelText"
+  [variant]="confirmDialogData().variant"
+  (confirmed)="confirmDialogData().onConfirm(); showConfirmDialog.set(false)"
+  (cancelled)="showConfirmDialog.set(false)"
+>
+</app-confirm-dialog>
