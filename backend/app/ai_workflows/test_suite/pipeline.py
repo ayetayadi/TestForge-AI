@@ -103,7 +103,8 @@ _STRATEGY_MAP = {
 
 # ── Mots-clés pour la détection des flux ──
 _FLOW_KEYWORDS: Dict[str, List[str]] = {
-    "authentication": ["auth", "login", "logout", "token", "session", "password", "credential", "jwt", "oauth", "sso", "2fa"],
+    "authentication": ["auth", "login", "token", "session", "password", "credential", "jwt", "oauth", "sso", "2fa"],
+    "session_cleanup": ["logout", "logoff", "signout", "sign-out"],
     "dashboard": ["dashboard", "home", "overview", "landing", "display", "view", "welcome", "portal"],
     "crud": ["create", "update", "delete", "edit", "add", "remove", "save", "crud", "form", "submit"],
     "search": ["search", "filter", "sort", "query", "find", "browse", "lookup"],
