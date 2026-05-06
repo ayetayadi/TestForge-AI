@@ -44,6 +44,141 @@ export interface ExecutionReport {
   recommendations: string[];
 }
 
+export interface FullExecutionReport {
+  test_run: {
+    id: string;
+    status: string;
+    browser: string;
+    base_url: string;
+    headless: boolean;
+    duration: number | null;
+    started_at: string | null;
+    completed_at: string | null;
+  };
+  result: {
+    status: string;
+    justification: string | null;
+    error_message: string | null;
+    screenshot_b64: string | null;
+    duration: number | null;
+    step_count: number;
+    completed_at: string | null;
+  } | null;
+  test_case: {
+    id: string;
+    tc_code: string;
+    title: string;
+    description: string | null;
+    priority: string | null;
+    test_type: string | null;
+    steps: any[];
+    expected_results: string[];
+    user_story_id: string | null;
+  } | null;
+  script_version: {
+    id: string;
+    version_number: number;
+    source: string;
+    placeholder_count: number;
+  } | null;
+  steps: {
+    order: number;
+    type: string;
+    tool_name: string | null;
+    content: string;
+    status: string;
+    duration: number | null;
+    screenshot_b64: string | null;
+  }[];
+  llm_reasoning: string;
+  error_summary: string | null;
+  defect: {
+    id: string;
+    title: string;
+    description: string | null;
+    severity: string;
+    status: string;
+    reproduction_steps: string[];
+    jira_issue_key: string | null;
+    jira_project_key: string | null;
+    created_at: string | null;
+  } | null;
+  stats: {
+    total_steps: number;
+    think_steps: number;
+    act_steps: number;
+    failed_steps: number;
+    success_rate: number;
+  };
+  generated_at: string;
+}
+
+export interface RunHistoryItem {
+  id: string;
+  status: string;
+  browser: string;
+  duration: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  result_status: string | null;
+  result_step_count: number;
+  script_version_number: number | null;
+}
+
+export interface SuiteRunRequest {
+  test_case_ids: string[];
+  app_url?: string;
+  browser?: string;
+  headless?: boolean;
+  stop_on_failure?: boolean;
+}
+
+export interface TestRunListItem {
+  id: string;
+  status: string;
+  browser: string;
+  base_url: string;
+  headless: boolean;
+  duration: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  result_status: string | null;
+  result_step_count: number;
+  test_case: {
+    id: string;
+    tc_code: string;
+    title: string;
+    priority: string | null;
+    test_type: string | null;
+    user_story_id: string | null;
+    script_version_id: string;
+    script_version_number: number;
+    script_source: string;
+  } | null;
+  defect: {
+    id: string;
+    title: string;
+    severity: string;
+    status: string;
+    jira_issue_key: string | null;
+    created_at: string | null;
+  } | null;
+}
+
+export interface TestRunsListResponse {
+  runs: TestRunListItem[];
+  total: number;
+  stats: {
+    total: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+    running: number;
+    pass_rate: number;
+    avg_duration: number;
+  };
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -338,6 +473,89 @@ export class PlaywrightE2EService {
       `${this.apiUrl}/health`
     ).pipe(
       catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Récupère le rapport complet d'un test run
+   * GET /playwright/test-run/{id}/report
+   */
+  getFullReport(testRunId: string): Observable<FullExecutionReport> {
+    return this.http.get<FullExecutionReport>(
+      `${this.apiUrl}/test-run/${testRunId}/report`
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Envoie le rapport par email
+   * POST /playwright/test-run/{id}/send-email
+   */
+  sendReportEmail(testRunId: string, recipients: string[]): Observable<{ status: string; recipients: string[] }> {
+    return this.http.post<{ status: string; recipients: string[] }>(
+      `${this.apiUrl}/test-run/${testRunId}/send-email`,
+      { recipients }
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Crée un ticket Jira à partir d'un defect
+   * POST /playwright/defect/{defect_id}/create-jira
+   */
+  createJiraIssue(defectId: string, projectKey: string, priority: string = 'High'): Observable<{ key: string; id: string }> {
+    return this.http.post<{ key: string; id: string }>(
+      `${this.apiUrl}/defect/${defectId}/create-jira`,
+      { defect_id: defectId, project_key: projectKey, priority }
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Crée un defect manuellement depuis un test run
+   * POST /playwright/test-run/{id}/create-defect
+   */
+  createDefectFromRun(testRunId: string, testCaseId: string): Observable<any> {
+    return this.http.post<any>(
+      `${this.apiUrl}/test-run/${testRunId}/create-defect`,
+      { test_case_id: testCaseId }
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Récupère la liste de tous les test runs avec contexte + stats
+   * GET /playwright/test-runs
+   */
+  getTestRunsList(options: { limit?: number; offset?: number; resultFilter?: string } = {}): Observable<TestRunsListResponse> {
+    const { limit = 50, offset = 0, resultFilter } = options;
+    let url = `${this.apiUrl}/test-runs?limit=${limit}&offset=${offset}`;
+    if (resultFilter && resultFilter !== 'all') {
+      url += `&result_filter=${resultFilter}`;
+    }
+    return this.http.get<TestRunsListResponse>(url).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Récupère l'historique de tous les runs d'un test case (toutes versions)
+   * GET /playwright/test-case/{test_case_id}/runs
+   */
+  getRunsForTestCase(testCaseId: string, limit = 20): Observable<{ runs: RunHistoryItem[]; total: number }> {
+    return this.http.get<{ runs: RunHistoryItem[]; total: number }>(
+      `${this.apiUrl}/test-case/${testCaseId}/runs?limit=${limit}`
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Lance l'exécution en suite (plusieurs TCs en ordre)
+   * POST /playwright/run-suite
+   */
+  runSuite(request: SuiteRunRequest): Observable<AsyncStartResponse> {
+    this.isExecutingSubject.next(true);
+    return this.http.post<AsyncStartResponse>(
+      `${this.apiUrl}/run-suite`,
+      request
+    ).pipe(
+      catchError((err) => {
+        this.isExecutingSubject.next(false);
+        return this.handleError(err);
+      })
     );
   }
   

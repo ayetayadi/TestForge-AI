@@ -396,6 +396,38 @@ deleteTestCase(id: string, e: Event): void {
 }
 
   generateScript(id: string, e: Event): void { e.stopPropagation(); const s = new Set(this.generatingIds()); s.add(id); this.generatingIds.set(s); this.playwrightService.generateScript({ test_case_id: id }).subscribe({ next: res => { const u = new Set(this.generatingIds()); u.delete(id); this.generatingIds.set(u); if (res.status === 'generated') { this.toastService.success('Script generated'); this.router.navigate(['/playwright-scripts']); } }, error: err => { const u = new Set(this.generatingIds()); u.delete(id); this.generatingIds.set(u); this.toastService.error('Generation failed', err.message); } }); }
+  exportCsv(): void {
+    const items = this.filteredTestCases();
+    if (!items.length) { this.toastService.error('No test cases to export'); return; }
+    const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
+    const headers = ['TC Code', 'Title', 'Priority', 'Type', 'Status', 'Tags', 'Test Plan', 'Test Suite', 'User Story', 'Issue Key', 'Sprint', 'Epic', 'Execution Order'];
+    const rows = items.map(tc => [
+      esc(tc.tc_code),
+      esc(tc.title),
+      esc(tc.priority ?? ''),
+      esc(tc.test_type ?? ''),
+      esc(tc.is_active ? 'active' : 'archived'),
+      esc((tc.tags ?? []).join('; ')),
+      esc(tc.test_plan_title ?? ''),
+      esc(tc.test_suite_title ?? ''),
+      esc(tc.user_story_title ?? ''),
+      esc(tc.issue_key ?? ''),
+      esc(tc.sprint ?? ''),
+      esc(tc.epic_name ?? ''),
+      esc(String(tc.execution_order ?? '')),
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const planTitle = this.testPlans().find(p => p.id === this.selectedTestPlanId())?.title;
+    a.download = planTitle ? `test_cases_${planTitle.replace(/\s+/g, '_')}.csv` : 'test_cases.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    this.toastService.success(`${items.length} test case(s) exported`);
+  }
+
   onPageChange(p: number): void { this.page.set(p); }
   onPageSizeChange(s: number): void { this.pageSize.set(s); this.page.set(1); }
   getPriorityClass(p: string | null): string { return { critical: 'priority-critical', high: 'priority-high', medium: 'priority-medium', low: 'priority-low' }[p || 'medium'] ?? 'priority-medium'; }
