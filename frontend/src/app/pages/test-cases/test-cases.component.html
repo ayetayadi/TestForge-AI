@@ -29,6 +29,14 @@
         Refresh
       </button>
 
+      <button class="btn-secondary" (click)="exportCsv()" [disabled]="!filteredTestCases().length" title="Export filtered test cases to CSV">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v7.69l2.72-2.72a.75.75 0 111.06 1.06l-4 4a.75.75 0 01-1.06 0l-4-4a.75.75 0 111.06-1.06l2.72 2.72V3.75A.75.75 0 0110 3zM3.75 15a.75.75 0 000 1.5h12.5a.75.75 0 000-1.5H3.75z" clip-rule="evenodd"/>
+        </svg>
+        Export CSV
+        <span *ngIf="filteredTestCases().length" class="csv-count">({{ filteredTestCases().length }})</span>
+      </button>
+
       <button class="btn-generate" (click)="openGenPanel()" [class.active]="showGenPanel()" *ngIf="allTestCases().length > 0">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
           <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/>

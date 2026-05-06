@@ -1,6 +1,6 @@
 <div class="detail-page">
 
-  <!-- Header -->
+  <!-- ─── Header ─────────────────────────────────────────────────────────── -->
   <div class="page-header">
     <button class="btn-back" (click)="goBack()">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -8,24 +8,15 @@
       </svg>
       Back
     </button>
-  
     <div class="tcd-breadcrumb">
-      @if (projectName()) {
-        <span class="bc-item">{{ projectName() }}</span>
-        <span class="bc-sep">/</span>
-      }
-      @if (issueKey()) {
-        <span class="bc-item bc-item--key">{{ issueKey() }}</span>
-        <span class="bc-sep">/</span>
-      }
+      @if (projectName()) { <span class="bc-item">{{ projectName() }}</span><span class="bc-sep">/</span> }
+      @if (issueKey()) { <span class="bc-item bc-item--key">{{ issueKey() }}</span><span class="bc-sep">/</span> }
       <span class="bc-item bc-item--code">{{ testCaseCode() }}</span>
     </div>
-  
     <div class="header-actions">
       <button class="btn-run" (click)="runScript()" [disabled]="isRunning() || !selectedVersionId()">
         @if (isRunning()) {
-          <div class="spinner-small"></div>
-          Running...
+          <div class="spinner-small"></div> Running...
         } @else {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
@@ -36,16 +27,12 @@
     </div>
   </div>
 
-  <!-- Loading -->
   @if (loading()) {
-    <div class="loading-center">
-      <app-spinner text="Loading scripts..." />
-    </div>
+    <div class="loading-center"><app-spinner text="Loading scripts..." /></div>
   }
 
   @if (!loading()) {
 
-    <!-- No scripts -->
     @if (scripts().length === 0) {
       <div class="empty-state">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -60,11 +47,9 @@
     @if (scripts().length > 0) {
       <div class="main-layout">
 
-        <!-- LEFT: version list + config -->
+        <!-- ─── Sidebar ──────────────────────────────────────────────────── -->
         <aside class="sidebar">
-
-          <!-- Config -->
-          <div class="config-card">
+                    <div class="config-card">
             <h3>Execution Config</h3>
             <div class="field">
               <label>App URL</label>
@@ -73,9 +58,7 @@
             <div class="field">
               <label>Browser</label>
               <select class="form-select" [value]="browser()" (change)="browser.set($any($event.target).value)">
-                @for (b of browsers; track b) {
-                  <option [value]="b">{{ b }}</option>
-                }
+                @for (b of browsers; track b) { <option [value]="b">{{ b }}</option> }
               </select>
             </div>
             <div class="field field--row">
@@ -83,8 +66,6 @@
               <label for="headless">Headless</label>
             </div>
           </div>
-
-          <!-- Version list -->
           <div class="versions-card">
             <h3>Versions ({{ scripts().length }})</h3>
             <ul class="version-list">
@@ -104,42 +85,69 @@
             </ul>
           </div>
 
-          <!-- Nouvelle version alerte (simplifiée) -->
+          <!-- Run history mini-list -->
+          <div class="versions-card">
+            <div class="history-header" (click)="showHistorySection.set(!showHistorySection())">
+              <h3>Run History ({{ runHistory().length }})</h3>
+              <svg class="chevron" [class.chevron--open]="showHistorySection()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+              </svg>
+            </div>
+            @if (showHistorySection()) {
+              @if (isLoadingHistory()) {
+                <div class="history-loading"><app-spinner /></div>
+              } @else if (runHistory().length === 0) {
+                <p class="history-empty">No runs yet</p>
+              } @else {
+                <ul class="history-list">
+                  @for (run of runHistory(); track run.id) {
+                    <li class="history-item" (click)="loadHistoricRun(run.id)"
+                        [class.history-item--active]="run.id === currentTestRunId()">
+                      <span class="hist-dot" [class]="getHistoryResultClass(run.result_status)"></span>
+                      <div class="hist-info">
+                        <span class="hist-date">{{ run.started_at | date:'dd/MM HH:mm' }}</span>
+                        <span class="hist-meta">v{{ run.script_version_number }} · {{ run.browser }} · {{ formatDuration(run.duration) }}</span>
+                      </div>
+                      <span class="hist-badge" [class]="getHistoryResultClass(run.result_status)">
+                        {{ (run.result_status || 'running') | uppercase }}
+                      </span>
+                    </li>
+                  }
+                </ul>
+              }
+            }
+          </div>
+
           @if (newScriptGenerated()) {
             <div class="new-version-alert">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span>New version v{{ newScriptVersionNumber() }} generated!</span>
+              <span>New v{{ newScriptVersionNumber() }} generated!</span>
               <button class="alert-btn" (click)="applyNewScript()">View →</button>
             </div>
           }
-
         </aside>
 
-        <!-- RIGHT: tabs -->
+        <!-- ─── Content area ─────────────────────────────────────────────── -->
         <div class="content-area">
 
-          <!-- Tabs -->
           <div class="tabs">
             <button class="tab" [class.tab--active]="activeTab() === 'script'" (click)="activeTab.set('script')">
               Script
-              @if (newScriptGenerated() && activeTab() !== 'script') {
-                <span class="tab-badge">NEW</span>
-              }
+              @if (newScriptGenerated() && activeTab() !== 'script') { <span class="tab-badge">NEW</span> }
             </button>
             <button class="tab" [class.tab--active]="activeTab() === 'run'" (click)="activeTab.set('run')">
-              Last Run
-              @if (executionReport() && !showReport()) {
-                <span class="tab-badge" [class]="'tab-badge--' + executionReport()?.status">●</span>
+              Execution Report
+              @if (fullReport()) {
+                <span class="tab-badge" [class]="'tab-badge--' + reportStatus()">{{ getStatusIcon() }}</span>
               }
             </button>
           </div>
 
-          <!-- SCRIPT TAB -->
+          <!-- ─── SCRIPT TAB ──────────────────────────────────────────────── -->
           @if (activeTab() === 'script') {
             <div class="tab-content">
-
               @if (selectedVersion()) {
                 <div class="script-meta-bar">
                   <span>v{{ selectedVersion()!.versionNumber }} — {{ getSourceLabel(selectedVersion()!.source) }}</span>
@@ -148,32 +156,28 @@
                   }
                 </div>
               }
-
               @if (placeholders().length > 0) {
                 <div class="placeholder-list">
                   <strong>Placeholders to resolve:</strong>
                   <div class="placeholder-chips">
-                    @for (p of placeholders(); track p) {
-                      <span class="placeholder-chip">{{ p }}</span>
-                    }
+                    @for (p of placeholders(); track p) { <span class="placeholder-chip">{{ p }}</span> }
                   </div>
                 </div>
               }
-
               @if (loadingContent()) {
                 <div class="loading-center"><app-spinner /></div>
               } @else if (selectedContent()) {
                 <pre class="code-block"><code>{{ selectedContent() }}</code></pre>
               }
-
             </div>
           }
 
-          <!-- RUN TAB -->
+          <!-- ─── RUN / REPORT TAB ────────────────────────────────────────── -->
           @if (activeTab() === 'run') {
             <div class="tab-content tab-content--run">
 
-              <!-- Terminal -->
+
+              <!-- Live terminal (only when running) -->
               @if (isRunning() || executionSteps().length > 0) {
                 <div class="terminal-wrap">
                   <div class="terminal-titlebar">
@@ -181,23 +185,16 @@
                     <span class="tb-dot tb-dot--yellow"></span>
                     <span class="tb-dot tb-dot--green"></span>
                     <span class="tb-title">playwright-runner</span>
-                    @if (isRunning()) {
-                      <span class="tb-badge tb-badge--running">● RUNNING</span>
-                    } @else if (lastRunResult()?.status === 'passed') {
-                      <span class="tb-badge tb-badge--passed">✓ PASSED</span>
-                    } @else if (lastRunResult()?.status) {
-                      <span class="tb-badge tb-badge--failed">✗ FAILED</span>
-                    }
+                    @if (isRunning()) { <span class="tb-badge tb-badge--running">● RUNNING</span> }
+                    @else if (reportStatus() === 'passed') { <span class="tb-badge tb-badge--passed">✓ PASSED</span> }
+                    @else if (reportStatus() === 'failed' || reportStatus() === 'error') { <span class="tb-badge tb-badge--failed">✗ FAILED</span> }
                   </div>
-
                   <div class="terminal-body" #terminalEl>
                     @for (step of executionSteps(); track $index) {
                       <div class="tl" [class]="'tl--' + step.status">
                         <span class="tl-ts">[{{ step.timestamp | date:'HH:mm:ss' }}]</span>
                         <span class="tl-msg">{{ step.content }}</span>
-                        @if (step.duration) {
-                          <span class="tl-dur">+{{ step.duration }}ms</span>
-                        }
+                        @if (step.duration) { <span class="tl-dur">+{{ step.duration }}ms</span> }
                       </div>
                     }
                     @if (isRunning()) {
@@ -210,177 +207,356 @@
                 </div>
               }
 
-              <!-- EXECUTION REPORT (NOUVEAU) -->
-              @if (showReport() && executionReport()) {
-                <div class="execution-report" #reportEl>
-                  <div class="report-header" [class]="'report-header--' + executionReport()!.status">
-                    <div class="report-title">
-                      <span class="report-icon">{{ getStatusIcon() }}</span>
-                      Execution Report
-                    </div>
-                    <button class="report-close" (click)="closeReport()">×</button>
-                  </div>
-                  
-                  <div class="report-summary">
-                    <div class="summary-status">
-                      <span class="status-badge" [class]="'status-' + executionReport()!.status">
-                        {{ executionReport()!.status | uppercase }}
-                      </span>
-                      <span class="summary-date">{{ currentTime() | date:'HH:mm:ss' }}</span>
-                    </div>
-                    <div class="summary-stats">
-                      <div class="stat">
-                        <span class="stat-value">{{ executionReport()!.successRate | number:'1.0-0' }}%</span>
-                        <span class="stat-label">Success Rate</span>
-                      </div>
-                      <div class="stat">
-                        <span class="stat-value">{{ executionReport()!.passedSteps }}/{{ executionReport()!.totalSteps }}</span>
-                        <span class="stat-label">Steps Passed</span>
-                      </div>
-                      <div class="stat">
-                        <span class="stat-value">{{ executionReport()!.duration }}ms</span>
-                        <span class="stat-label">Duration</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- Détail des steps -->
-                  @if (executionReport()!.steps.length > 0) {
-                    <div class="report-steps">
-                      <h4>Execution Steps</h4>
-                      <div class="steps-timeline">
-                        @for (step of executionReport()!.steps; track step.order) {
-                          <div class="step-item" [class.step-failed]="step.status === 'failed'">
-                            <div class="step-marker">
-                              <span class="step-icon">{{ step.status === 'success' ? '✓' : '✗' }}</span>
-                            </div>
-                            <div class="step-content">
-                              <div class="step-header">
-                                <span class="step-order">Step {{ step.order }}</span>
-                                <span class="step-type">{{ step.type }}</span>
-                                <span class="step-duration">{{ step.duration }}ms</span>
-                              </div>
-                              <div class="step-description">{{ step.description }}</div>
-                              @if (step.error) {
-                                <div class="step-error">{{ step.error }}</div>
-                              }
-                            </div>
-                          </div>
-                        }
-                      </div>
-                    </div>
-                  }
-                  
-                  <!-- Recommandations -->
-                  @if (executionReport()!.recommendations.length > 0) {
-                    <div class="report-recommendations">
-                      <h4>💡 Recommendations</h4>
-                      <ul>
-                        @for (rec of executionReport()!.recommendations; track $index) {
-                          <li>{{ rec }}</li>
-                        }
-                      </ul>
-                    </div>
-                  }
-                  
-                  <!-- Boutons d'action -->
-                  <div class="report-actions">
-                    @if (newScriptGenerated()) {
-                      <button class="btn-new-script" (click)="viewNewScript()">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v5.5h5.5a.75.75 0 010 1.5h-5.5v5.5a.75.75 0 01-1.5 0v-5.5h-5.5a.75.75 0 010-1.5h5.5v-5.5A.75.75 0 0110 3z" clip-rule="evenodd"/>
-                        </svg>
-                        View Corrected Script v{{ newScriptVersionNumber() }}
-                      </button>
-                    }
-                    <button class="btn-rerun" (click)="rerunScript()">Rerun</button>
-                    <button class="btn-close" (click)="closeReport()">Close</button>
-                  </div>
-                </div>}
-
-              <!-- Last run summary (shown after completion) -->
-              @if (lastRun() && !executionReport()) {
-                <div class="run-summary-card">
-                  <div class="rsc-header">
-                    <span class="badge" [class]="getRunStatusClass(lastRunResult()?.status)">
-                      {{ lastRunResult()?.status ?? 'unknown' }}
-                    </span>
-                    <span class="rsc-meta">
-                      {{ lastRun()!.browser }}
-                      @if (lastRun()!.duration) { · {{ lastRun()!.duration }}ms }
-                      · {{ lastRun()!.started_at | date:'dd/MM/yyyy HH:mm:ss' }}
-                    </span>
-                  </div>
-                  @if (lastRunResult()?.error_message) {
-                    <div class="rsc-error">{{ lastRunResult()!.error_message }}</div>
-                  }
-                  @if (lastRunResult()?.justification) {
-                    <div class="rsc-justification">{{ lastRunResult()!.justification }}</div>
-                  }
-                </div>
+              <!-- Loading report spinner -->
+              @if (isLoadingReport() && !isRunning()) {
+                <div class="report-loading"><app-spinner text="Loading full report..." /></div>
               }
 
-              <!-- Execution Steps Report (from DB) -->
-              @if (lastRunSteps().length > 0 && !executionReport()) {
-                <div class="steps-report-card">
-                  <div class="src-header">
-                    <span class="src-title">Execution Details</span>
-                    <div class="src-counters">
-                      <span class="src-counter src-counter--ok">✅ {{ successStepsCount() }} ok</span>
-                      <span class="src-counter src-counter--fail">❌ {{ failedStepsCount() }} errors</span>
-                      <span class="src-counter src-counter--total">{{ lastRunSteps().length }} messages</span>
+              <!-- ─── FULL EXECUTION REPORT ──────────────────────────────── -->
+              @if (fullReport() && !isLoadingReport()) {
+                <div class="full-report" #reportEl>
+
+                  <!-- Report header banner -->
+                  <div class="report-banner" [class]="'banner--' + reportStatus()">
+                    <div class="banner-left">
+                      <span class="banner-icon">{{ getStatusIcon() }}</span>
+                      <div>
+                        <div class="banner-title">Execution Report — {{ getReportStatusLabel() }}</div>
+                        <div class="banner-sub">
+                          {{ fullReport()!.test_case?.tc_code }} · {{ fullReport()!.test_run.browser }} ·
+                          {{ formatDuration(fullReport()!.test_run.duration) }} ·
+                          {{ fullReport()!.test_run.started_at | date:'dd/MM/yyyy HH:mm' }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="banner-actions">
+                      <!-- Email with notification status -->
+                      <button class="action-btn action-btn--email" (click)="openEmailDialog()" title="Send report by email">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
+                          <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
+                        </svg>
+                        @if (emailNotification()) { Resend Email } @else { Send Email }
+                      </button>
+                      @if (currentDefect()) {
+                        <button class="action-btn action-btn--jira" (click)="openJiraDialog()" title="Create Jira issue">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V8z" clip-rule="evenodd"/>
+                          </svg>
+                          {{ currentDefect()?.jira_issue_key ? currentDefect()!.jira_issue_key : 'Create Jira' }}
+                        </button>
+                      }
+                      @if (!currentDefect() && reportStatus() !== 'passed' && hasUserStory()) {
+                        <button class="action-btn action-btn--defect" (click)="createDefect()" [disabled]="isCreatingDefect()">
+                          @if (isCreatingDefect()) { <span class="spinner-tiny"></span> Creating... }
+                          @else { Create Defect }
+                        </button>
+                      }
+                      <button class="action-btn action-btn--rerun" (click)="rerunScript()" title="Re-run this test">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
+                        </svg>
+                        Re-run
+                      </button>
                     </div>
                   </div>
 
-                  <div class="src-timeline">
-                    @for (step of lastRunSteps(); track step.order) {
-                      <div class="srt-item" [class.srt-item--failed]="step.status === 'failed'" [class.srt-item--think]="step.type === 'think'">
-                        <div class="srt-marker">
-                          <span class="srt-icon">{{ getStepTypeIcon(step.type) }}</span>
+                  <!-- Email notification status -->
+                  @if (emailNotification()) {
+                    <div class="notification-banner notification-banner--sent">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>Report emailed to <strong>{{ emailNotification().recipients?.join(', ') }}</strong> on {{ emailNotification().sentAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                    </div>
+                  } @else if (reportStatus() !== 'passed') {
+                    <div class="notification-banner notification-banner--pending">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>Developer not yet notified — click <strong>Send Email</strong> to report this failure</span>
+                    </div>
+                  }
+
+                  <!-- Stats row -->
+                  <div class="stats-row">
+                    <div class="stat-card" [class.stat-card--success]="fullReport()!.stats.success_rate === 100">
+                      <div class="stat-value">{{ fullReport()!.stats.success_rate }}%</div>
+                      <div class="stat-label">Success Rate</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-value">{{ fullReport()!.stats.total_steps }}</div>
+                      <div class="stat-label">Total Steps</div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-value">{{ fullReport()!.stats.act_steps }}</div>
+                      <div class="stat-label">Actions</div>
+                    </div>
+                    <div class="stat-card" [class.stat-card--danger]="fullReport()!.stats.failed_steps > 0">
+                      <div class="stat-value">{{ fullReport()!.stats.failed_steps }}</div>
+                      <div class="stat-label">Errors</div>
+                    </div>
+                    <div class="stat-card stat-card--info">
+                      <div class="stat-value">{{ formatDuration(fullReport()!.test_run.duration) }}</div>
+                      <div class="stat-label">Duration</div>
+                    </div>
+                  </div>
+
+                  <!-- Test case info row -->
+                  @if (fullReport()!.test_case) {
+                    <div class="tc-info-row">
+                      <div class="tc-info-item">
+                        <span class="tc-info-label">Test Case</span>
+                        <span class="tc-info-value tc-code">{{ fullReport()!.test_case!.tc_code }}</span>
+                      </div>
+                      <div class="tc-info-item tc-info-item--wide">
+                        <span class="tc-info-label">Title</span>
+                        <span class="tc-info-value">{{ fullReport()!.test_case!.title }}</span>
+                      </div>
+                      <div class="tc-info-item">
+                        <span class="tc-info-label">Priority</span>
+                        <span class="tc-info-value tc-priority" [class]="'priority-' + (fullReport()!.test_case!.priority || 'medium')">
+                          {{ (fullReport()!.test_case!.priority || 'N/A') | uppercase }}
+                        </span>
+                      </div>
+                      <div class="tc-info-item">
+                        <span class="tc-info-label">URL</span>
+                        <span class="tc-info-value tc-url">{{ fullReport()!.test_run.base_url }}</span>
+                      </div>
+                    </div>
+                  }
+
+                  <!-- Error summary (if failed) -->
+                  @if (fullReport()!.error_summary && reportStatus() !== 'passed') {
+                    <div class="error-block">
+                      <div class="error-block__header">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                        </svg>
+                        Error Details
+                      </div>
+                      <pre class="error-pre">{{ fullReport()!.error_summary }}</pre>
+                    </div>
+                  }
+
+                  <!-- Screenshot (if available) -->
+                  @if (fullReport()!.result?.screenshot_b64) {
+                    <div class="screenshot-section">
+                      <div class="section-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M1 8a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 018.07 3h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0016.07 6H17a2 2 0 012 2v7a2 2 0 01-2 2H3a2 2 0 01-2-2V8zm13.5 3a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM10 14a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" clip-rule="evenodd"/>
+                        </svg>
+                        Screenshot at failure
+                      </div>
+                      <img [src]="'data:image/png;base64,' + fullReport()!.result!.screenshot_b64"
+                           alt="Screenshot at failure" class="failure-screenshot" />
+                    </div>
+                  }
+
+                  <!-- LLM Reasoning section -->
+                  @if (reasoningParagraphs().length > 0) {
+                    <div class="report-section">
+                      <div class="section-header" (click)="showReasoningSection.set(!showReasoningSection())">
+                        <span class="section-icon">🧠</span>
+                        AI Reasoning
+                        <span class="section-count">({{ thinkSteps().length }} think steps)</span>
+                        <svg class="chevron" [class.chevron--open]="showReasoningSection()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                        </svg>
+                      </div>
+                      @if (showReasoningSection()) {
+                        <div class="reasoning-body">
+                          @for (para of reasoningParagraphs(); track $index) {
+                            <div class="reasoning-para">
+                              <span class="reasoning-idx">{{ $index + 1 }}</span>
+                              <p>{{ para }}</p>
+                            </div>
+                          }
                         </div>
-                        <div class="srt-body">
-                          <div class="srt-head">
-                            @if (step.tool_name) {
-                              <code class="srt-tool">{{ step.tool_name }}</code>
-                            }
-                            <span class="srt-type-badge srt-type-badge--{{ step.type }}">{{ step.type }}</span>
-                            <span class="srt-status">{{ step.status === 'success' ? '✅' : '❌' }}</span>
+                      }
+                    </div>
+                  }
+
+                  <!-- Step timeline section -->
+                  <div class="report-section">
+                    <div class="section-header" (click)="showStepsSection.set(!showStepsSection())">
+                      <span class="section-icon">⚡</span>
+                      Execution Steps
+                      <span class="section-count">({{ fullReport()!.stats.act_steps }} actions · {{ fullReport()!.stats.failed_steps }} errors)</span>
+                      <svg class="chevron" [class.chevron--open]="showStepsSection()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                      </svg>
+                    </div>
+                    @if (showStepsSection()) {
+                      <div class="steps-timeline">
+                        @for (step of fullReport()!.steps; track step.order) {
+                          @if (step.type !== 'think') {
+                            <div class="step-row" [class.step-row--failed]="step.status === 'failed'">
+                              <div class="step-row__marker">
+                                <span class="step-row__icon">{{ step.status === 'failed' ? '✗' : '✓' }}</span>
+                              </div>
+                              <div class="step-row__body">
+                                <div class="step-row__head">
+                                  <span class="step-order">#{{ step.order }}</span>
+                                  @if (step.tool_name) { <code class="tool-badge">{{ step.tool_name }}</code> }
+                                  <span class="step-type-badge step-type-badge--{{ step.type }}">{{ step.type }}</span>
+                                  @if (step.duration) { <span class="step-dur">{{ step.duration.toFixed(2) }}s</span> }
+                                </div>
+                                <div class="step-content">{{ step.content | slice:0:300 }}</div>
+                                @if (step.status === 'failed' && step.content.length > 50) {
+                                  <div class="step-error-hint">Error at this step — see Error Details above</div>
+                                }
+                              </div>
+                            </div>
+                          }
+                        }
+                        @if (actSteps().length === 0) {
+                          <p class="steps-empty">No action steps recorded</p>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  <!-- ─── Defect section ──────────────────────────────────── -->
+                  @if (currentDefect()) {
+                    <div class="report-section defect-section">
+                      <div class="section-header">
+                        <span class="section-icon">🐛</span>
+                        Defect Detected
+                        <span class="defect-sev-badge" [class]="getSeverityClass(currentDefect()!.severity)">
+                          {{ currentDefect()!.severity | uppercase }}
+                        </span>
+                        @if (currentDefect()!.jira_issue_key) {
+                          <span class="jira-key-badge">{{ currentDefect()!.jira_issue_key }}</span>
+                        }
+                      </div>
+                      <div class="defect-body">
+                        <div class="defect-title">{{ currentDefect()!.title }}</div>
+
+                        <!-- Defect workflow status (prominent) -->
+                        <div class="defect-workflow">
+                          <div class="workflow-step" [class.workflow-step--active]="true">
+                            <span class="workflow-dot workflow-dot--done">✓</span>
+                            <span class="workflow-label">Defect created</span>
                           </div>
-                          <div class="srt-content">{{ getStepPreview(step) }}</div>
-                          @if (step.status === 'failed') {
-                            <div class="srt-error-detail">{{ extractError(step.content) }}</div>
+                          <div class="workflow-arrow">→</div>
+                          <div class="workflow-step" [class.workflow-step--active]="currentDefect()!.status !== 'open'">
+                            <span class="workflow-dot" [class.workflow-dot--done]="currentDefect()!.status !== 'open'"
+                                  [class.workflow-dot--pending]="currentDefect()!.status === 'open'">
+                              {{ currentDefect()!.status !== 'open' ? '✓' : '…' }}
+                            </span>
+                            <span class="workflow-label">Developer fixing</span>
+                          </div>
+                          <div class="workflow-arrow">→</div>
+                          <div class="workflow-step" [class.workflow-step--active]="currentDefect()!.status === 'closed'">
+                            <span class="workflow-dot" [class.workflow-dot--done]="currentDefect()!.status === 'closed'"
+                                  [class.workflow-dot--pending]="currentDefect()!.status !== 'closed'">
+                              {{ currentDefect()!.status === 'closed' ? '✓' : '…' }}
+                            </span>
+                            <span class="workflow-label">Ready for retest</span>
+                          </div>
+                        </div>
+
+                        <!-- Status message -->
+                        <div class="defect-status-message" [class]="getDefectStatusClass(currentDefect()!.status)">
+                          @if (currentDefect()!.status === 'open') {
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clip-rule="evenodd"/>
+                            </svg>
+                            <strong>Waiting for developer to correct the error — retest required after fix</strong>
+                          } @else if (currentDefect()!.status === 'in_progress') {
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm5-2.25A.75.75 0 017.75 7h4.5a.75.75 0 01.75.75v4.5a.75.75 0 01-.75.75h-4.5a.75.75 0 01-.75-.75v-4.5z" clip-rule="evenodd"/>
+                            </svg>
+                            <strong>Fix in progress — wait for developer confirmation before retesting</strong>
+                          } @else if (currentDefect()!.status === 'closed') {
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+                            </svg>
+                            <strong>Fix deployed — run the test again to confirm the defect is resolved</strong>
+                          }
+                        </div>
+
+                        @if (currentDefect()!.description) {
+                          <div class="defect-description">{{ currentDefect()!.description | slice:0:600 }}</div>
+                        }
+                        @if (currentDefect()!.reproduction_steps.length) {
+                          <div class="defect-repro">
+                            <strong>Reproduction Steps:</strong>
+                            <ol>
+                              @for (step of currentDefect()!.reproduction_steps; track $index) {
+                                <li>{{ step }}</li>
+                              }
+                            </ol>
+                          </div>
+                        }
+                        <div class="defect-footer">
+                          <span class="defect-status-badge" [class]="getDefectStatusClass(currentDefect()!.status)">
+                            {{ getDefectStatusLabel(currentDefect()!.status) }}
+                          </span>
+                          <span class="defect-date">Created {{ currentDefect()!.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                          @if (!currentDefect()!.jira_issue_key) {
+                            <button class="btn-jira-small" (click)="openJiraDialog()">
+                              Create Jira Issue →
+                            </button>
                           }
                         </div>
                       </div>
-                    }
-                  </div>
+                    </div>
+                  }
+
+                  <!-- Result justification -->
+                  @if (fullReport()!.result?.justification) {
+                    <div class="justification-box">
+                      <strong>AI Result Justification:</strong>
+                      <p>{{ fullReport()!.result!.justification }}</p>
+                    </div>
+                  }
+
+                  <!-- No defect but test failed + no user story warning -->
+                  @if (!currentDefect() && reportStatus() !== 'passed' && !hasUserStory()) {
+                    <div class="info-box info-box--warning">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                      </svg>
+                      <div>
+                        <strong>Defect tracking unavailable</strong>
+                        <p>This test case is not linked to a User Story. Link it to enable automatic defect creation and tracking.</p>
+                      </div>
+                    </div>
+                  }
+
                 </div>
               }
 
-              @if (!lastRun() && !isRunning() && executionSteps().length === 0 && !executionReport()) {
+              <!-- Empty run state -->
+              @if (!fullReport() && !isLoadingReport() && !isRunning() && executionSteps().length === 0) {
                 <div class="no-run">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653Z"/>
                   </svg>
                   <p>No runs yet. Click <strong>Run Script</strong> to execute.</p>
+                  @if (tcSteps().length > 0) {
+                    <p class="no-run-hint">The test plan above shows what will be executed.</p>
+                  }
                 </div>
               }
 
             </div>
           }
-
         </div>
       </div>
     }
   }
+
 </div>
 
-<!-- Toast notification flottante pour nouveau script -->
+<!-- ─── New script toast ─────────────────────────────────────────────────────
 @if (newScriptGenerated() && activeTab() !== 'script') {
   <div class="floating-toast">
     <div class="toast-content">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
       <div>
         <strong>New corrected script available!</strong>
@@ -388,5 +564,131 @@
       </div>
     </div>
     <button class="toast-action" (click)="applyNewScript()">View Script →</button>
+  </div>
+} -->
+
+<!-- ─── Email Dialog ──────────────────────────────────────────────────────── -->
+@if (showEmailDialog()) {
+  <div class="dialog-overlay" (click)="closeEmailDialog()">
+    <div class="dialog" (click)="$event.stopPropagation()">
+      <div class="dialog-header">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
+          <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
+        </svg>
+        Send Execution Report
+        <button class="dialog-close" (click)="closeEmailDialog()">×</button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="dialog-tc-summary">
+          <span class="tc-code-sm">{{ fullReport()?.test_case?.tc_code }}</span>
+          <span class="tc-status" [class]="'tc-status--' + reportStatus()">{{ getReportStatusLabel() }}</span>
+          <span class="tc-dur">{{ formatDuration(fullReport()?.test_run?.duration ?? null) }}</span>
+        </div>
+
+        <p class="dialog-hint">The email will include: test result, AI reasoning, step details, defect info, and recommendations.</p>
+
+        <div class="form-field">
+          <label>Recipients <span class="label-hint">(comma, semicolon or newline separated)</span></label>
+          <textarea
+            class="form-textarea"
+            rows="4"
+            placeholder="developer@company.com&#10;qa@company.com&#10;pm@company.com"
+            [value]="emailRecipients()"
+            (input)="emailRecipients.set($any($event.target).value)"
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="dialog-footer">
+        <button class="btn-cancel" (click)="closeEmailDialog()">Cancel</button>
+        <button class="btn-primary-action" (click)="sendEmail()" [disabled]="isSendingEmail() || !emailRecipients().trim()">
+          @if (isSendingEmail()) {
+            <div class="spinner-tiny"></div> Sending...
+          } @else {
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
+              <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
+            </svg>
+            Send Report
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Jira Dialog ───────────────────────────────────────────────────────── -->
+@if (showJiraDialog()) {
+  <div class="dialog-overlay" (click)="closeJiraDialog()">
+    <div class="dialog" (click)="$event.stopPropagation()">
+      <div class="dialog-header dialog-header--jira">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V8z" clip-rule="evenodd"/>
+        </svg>
+        Create Jira Bug Ticket
+        <button class="dialog-close" (click)="closeJiraDialog()">×</button>
+      </div>
+
+      @if (jiraCreated()) {
+        <div class="dialog-body">
+          <div class="jira-success">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+            </svg>
+            <div>
+              <strong>Jira issue created successfully!</strong>
+              <p class="jira-key">{{ jiraCreated()!.key }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-primary-action" (click)="closeJiraDialog()">Done</button>
+        </div>
+      } @else {
+        <div class="dialog-body">
+          @if (currentDefect()) {
+            <div class="defect-preview">
+              <div class="defect-preview__title">{{ currentDefect()!.title }}</div>
+              <div class="defect-preview__meta">
+                Severity: <span [class]="getSeverityClass(currentDefect()!.severity)">{{ currentDefect()!.severity | uppercase }}</span>
+              </div>
+            </div>
+          }
+
+          <div class="form-field">
+            <label>Jira Project Key <span class="required">*</span></label>
+            <input
+              class="form-input"
+              type="text"
+              placeholder="e.g. PROJ, DEV, QA"
+              [value]="jiraProjectKey()"
+              (input)="jiraProjectKey.set($any($event.target).value.toUpperCase())"
+              style="text-transform:uppercase"
+            />
+          </div>
+
+          <div class="form-field">
+            <label>Priority</label>
+            <select class="form-select" [value]="jiraPriority()" (change)="jiraPriority.set($any($event.target).value)">
+              @for (p of jiraPriorities; track p) { <option [value]="p">{{ p }}</option> }
+            </select>
+          </div>
+
+          <p class="dialog-hint">The ticket will include: defect title, description, reproduction steps, severity, and a link to TestForge AI.</p>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" (click)="closeJiraDialog()">Cancel</button>
+          <button class="btn-primary-action btn-primary-action--blue" (click)="createJiraIssue()" [disabled]="isCreatingJira() || !jiraProjectKey().trim()">
+            @if (isCreatingJira()) {
+              <div class="spinner-tiny"></div> Creating...
+            } @else {
+              Create Jira Bug
+            }
+          </button>
+        </div>
+      }
+    </div>
   </div>
 }

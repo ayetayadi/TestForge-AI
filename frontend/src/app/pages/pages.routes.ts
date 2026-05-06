@@ -94,6 +94,13 @@ export const PagesRoutes: Routes = [
     data: { title: 'Script Detail' },
   },
   {
+    path: 'execution-dashboard',
+    loadComponent: () =>
+      import('./execution-dashboard/execution-dashboard.component').then(m => m.ExecutionDashboardComponent),
+    canActivate: [authGuard],
+    data: { title: 'Execution Dashboard' },
+  },
+  {
     path: 'risk-analysis',
     loadComponent: () =>
       import('./risk-analysis/risk-analysis.component').then(m => m.RiskAnalysisComponent),

@@ -252,6 +252,32 @@ async def get_test_runs_by_script(
     return result.scalars().all()
 
 
+async def get_latest_run_for_test_case(db: AsyncSession, test_case_id: str) -> Optional[TestRun]:
+    """Get the most recent test run across ALL script versions of a test case."""
+    result = await db.execute(
+        select(TestRun)
+        .join(PlaywrightScriptVersion, TestRun.script_version_id == PlaywrightScriptVersion.id)
+        .where(PlaywrightScriptVersion.test_case_id == test_case_id)
+        .order_by(desc(TestRun.started_at))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_runs_for_test_case(
+    db: AsyncSession, test_case_id: str, limit: int = 20
+) -> List[TestRun]:
+    """Get all test runs across ALL script versions of a test case, newest first."""
+    result = await db.execute(
+        select(TestRun)
+        .join(PlaywrightScriptVersion, TestRun.script_version_id == PlaywrightScriptVersion.id)
+        .where(PlaywrightScriptVersion.test_case_id == test_case_id)
+        .order_by(desc(TestRun.started_at))
+        .limit(limit)
+    )
+    return result.scalars().all()
+
+
 # ============================================================
 # TEST STEPS
 # ============================================================
@@ -373,3 +399,137 @@ async def commit(db: AsyncSession) -> None:
 async def rollback(db: AsyncSession) -> None:
     """Rollback la transaction courante."""
     await db.rollback()
+
+
+async def get_all_test_runs_with_context(
+    db: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
+    status_filter: Optional[str] = None,
+    result_filter: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Récupère tous les test runs avec leur contexte complet :
+    test case, résultat, defect lié, et statistiques globales.
+    """
+    from app.models.defect import Defect
+    from sqlalchemy import func as sql_func, desc as sql_desc
+
+    base_query = select(TestRun).order_by(desc(TestRun.started_at))
+    count_query = select(sql_func.count(TestRun.id))
+
+    if status_filter and status_filter != "all":
+        base_query = base_query.where(TestRun.status == status_filter)
+        count_query = count_query.where(TestRun.status == status_filter)
+
+    if result_filter and result_filter != "all":
+        base_query = base_query.join(TestResult, TestResult.test_run_id == TestRun.id).where(
+            TestResult.status == result_filter
+        )
+        count_query = count_query.join(TestResult, TestResult.test_run_id == TestRun.id).where(
+            TestResult.status == result_filter
+        )
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar_one()
+
+    # Global stats (pas de filtre pour avoir le tableau complet)
+    stats_q = (
+        select(
+            TestResult.status,
+            sql_func.count(TestResult.id).label("cnt"),
+        )
+        .join(TestRun, TestResult.test_run_id == TestRun.id)
+        .group_by(TestResult.status)
+    )
+    stats_rows = (await db.execute(stats_q)).all()
+
+    passed_count = sum(r.cnt for r in stats_rows if r.status and r.status.value == "passed")
+    failed_count = sum(r.cnt for r in stats_rows if r.status and r.status.value in ("failed", "error"))
+    skipped_count = sum(r.cnt for r in stats_rows if r.status and r.status.value == "skipped")
+    all_with_result = sum(r.cnt for r in stats_rows)
+
+    running_res = await db.execute(
+        select(sql_func.count(TestRun.id)).where(TestRun.status == TestRunStatus.RUNNING)
+    )
+    running_count = running_res.scalar_one()
+
+    avg_dur_res = await db.execute(
+        select(sql_func.avg(TestRun.duration)).where(TestRun.duration.isnot(None))
+    )
+    avg_duration = avg_dur_res.scalar_one() or 0
+
+    # Pagination
+    paginated_query = base_query.limit(limit).offset(offset)
+    runs_result = await db.execute(paginated_query)
+    test_runs = runs_result.scalars().all()
+
+    runs_data = []
+    for run in test_runs:
+        result_obj = await get_test_result(db, run.id)
+
+        test_case_data = None
+        defect_data = None
+
+        if run.script_version_id:
+            script_version = await get_script_version(db, run.script_version_id)
+            if script_version:
+                test_case = await get_test_case(db, script_version.test_case_id)
+                if test_case:
+                    def_res = await db.execute(
+                        select(Defect)
+                        .where(Defect.test_case_id == test_case.id)
+                        .order_by(sql_desc(Defect.created_at))
+                        .limit(1)
+                    )
+                    defect = def_res.scalar_one_or_none()
+                    if defect:
+                        defect_data = {
+                            "id": defect.id,
+                            "title": defect.title,
+                            "severity": defect.severity.value,
+                            "status": defect.status.value,
+                            "jira_issue_key": defect.jira_issue_key,
+                            "created_at": defect.created_at.isoformat() if defect.created_at else None,
+                        }
+
+                    test_case_data = {
+                        "id": test_case.id,
+                        "tc_code": test_case.tc_code,
+                        "title": test_case.title,
+                        "priority": test_case.priority,
+                        "test_type": test_case.test_type,
+                        "user_story_id": test_case.user_story_id,
+                        "script_version_id": script_version.id,
+                        "script_version_number": script_version.version_number,
+                        "script_source": script_version.source.value,
+                    }
+
+        runs_data.append({
+            "id": run.id,
+            "status": run.status.value,
+            "browser": run.browser,
+            "base_url": run.base_url,
+            "headless": run.headless,
+            "duration": run.duration,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "result_status": result_obj.status.value if result_obj else None,
+            "result_step_count": result_obj.step_count if result_obj else 0,
+            "test_case": test_case_data,
+            "defect": defect_data,
+        })
+
+    return {
+        "runs": runs_data,
+        "total": total,
+        "stats": {
+            "total": all_with_result,
+            "passed": passed_count,
+            "failed": failed_count,
+            "skipped": skipped_count,
+            "running": running_count,
+            "pass_rate": round(passed_count / max(all_with_result, 1) * 100, 1),
+            "avg_duration": round(float(avg_duration), 1),
+        },
+    }

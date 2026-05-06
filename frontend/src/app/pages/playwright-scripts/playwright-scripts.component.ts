@@ -2,10 +2,12 @@ import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Subscription, forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { PlaywrightE2EService } from '../../services/playwright-e2e.service';
 import { TestCaseService } from '../../services/test-case.service';
+import { TestSuiteService } from '../../services/test-suite.service';
 import { ProjectsService } from '../../services/projects.service';
 import { ToastService } from '../../services/toast.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
@@ -50,6 +52,7 @@ interface TestCaseScriptRow {
 export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
   private playwrightService = inject(PlaywrightE2EService);
   private testCaseService = inject(TestCaseService);
+  private testSuiteService = inject(TestSuiteService);
   private projectsService = inject(ProjectsService);
   private toastService = inject(ToastService);
   private router = inject(Router);
@@ -57,6 +60,8 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
   rows = signal<TestCaseScriptRow[]>([]);
   projects = signal<Project[]>([]);
   isLoading = signal(false);
+  // tc_code → 1-based position from the dependency graph topological sort
+  tcOrderMap = signal<Map<string, number>>(new Map());
 
   // Execution config
   appUrl = signal('');
@@ -123,6 +128,14 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
         })
       );
     }
+
+    // Sort by dependency-graph topological order (nulls last)
+    const orderMap = this.tcOrderMap();
+    items = [...items].sort((a, b) => {
+      const oa = orderMap.get(a.testCase.tc_code) ?? Infinity;
+      const ob = orderMap.get(b.testCase.tc_code) ?? Infinity;
+      return oa - ob;
+    });
 
     return items;
   });
@@ -215,6 +228,8 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
     this.rows.set(rows);
     this.isLoading.set(false);
 
+    this.loadDependencyOrders(testCases);
+
     testCases.forEach((tc) => {
       this.playwrightService.getScriptInfo(tc.id).subscribe({
         next: (info) => {
@@ -232,6 +247,28 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
         },
         error: () => {},
       });
+    });
+  }
+
+  private loadDependencyOrders(testCases: TestCase[]): void {
+    const planIds = [...new Set(
+      testCases.map(tc => tc.test_plan_id).filter((id): id is string => !!id)
+    )];
+    if (planIds.length === 0) return;
+
+    forkJoin(
+      planIds.map(planId =>
+        this.testSuiteService.getDependencyGraph(planId).pipe(
+          catchError(() => of({ nodes: [], edges: [], execution_order: [] as string[] }))
+        )
+      )
+    ).subscribe(graphs => {
+      const orderMap = new Map<string, number>();
+      let pos = 1;
+      graphs.forEach(graph => {
+        (graph.execution_order as string[]).forEach(code => { orderMap.set(code, pos++); });
+      });
+      this.tcOrderMap.set(orderMap);
     });
   }
 
