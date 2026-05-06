@@ -58,6 +58,12 @@ export const navItems: NavItem[] = [
     route: '/playwright-scripts',
     userOnly: true,
   },
+  {
+    displayName: 'Execution Tests',
+    iconName: 'solar:chart-2-line-duotone',
+    route: '/execution-dashboard',
+    userOnly: true,
+  },
 
   {
     navCap: 'Admin',

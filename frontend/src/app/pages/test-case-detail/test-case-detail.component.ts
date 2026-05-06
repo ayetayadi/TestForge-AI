@@ -81,24 +81,38 @@ export class TestCaseDetailComponent implements OnInit {
     });
   }
 
-  initForm(): void {
-    if (this.testCase) {
-      this.editForm.patchValue({
-        title: this.testCase.title,
-        description: this.testCase.description || '',
-        priority: this.testCase.priority || 'medium',
-        preconditions: this.testCase.preconditions || [],
-        postconditions: this.testCase.postconditions || [],
-        steps: this.testCase.steps || [],
-        gherkin_source: this.testCase.gherkin_source || '',
-        test_data: this.testCase.test_data,
-        expected_results: this.testCase.expected_results || [],
-        tags: this.testCase.tags || [],
-        locators: this.testCase.locators || [],
-        is_active: this.testCase.is_active
-      });
+initForm(): void {
+  if (this.testCase) {
+    this.editForm.patchValue({
+      title: this.testCase.title,
+      description: this.testCase.description || '',
+      priority: this.testCase.priority || 'medium',
+      preconditions: this.toJsonString(this.testCase.preconditions),
+      postconditions: this.toJsonString(this.testCase.postconditions),
+      steps: this.toJsonString(this.testCase.steps),
+      gherkin_source: this.testCase.gherkin_source || '',
+      test_data: this.toJsonString(this.testCase.test_data),
+      expected_results: this.toJsonString(this.testCase.expected_results),
+      tags: this.testCase.tags || [],
+      locators: this.testCase.locators || [],
+      is_active: this.testCase.is_active
+    });
+  }
+}
+
+private toJsonString(value: any): string {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    // Vérifier si c'est déjà un JSON string valide
+    try {
+      JSON.parse(value);
+      return value; // C'est déjà du JSON
+    } catch {
+      return value; // C'est du texte simple (ex: gherkin)
     }
   }
+  return JSON.stringify(value, null, 2);
+}
 
   toggleEdit(): void {
     this.isEditing = !this.isEditing;
@@ -107,29 +121,65 @@ export class TestCaseDetailComponent implements OnInit {
     }
   }
 
-  saveChanges(): void {
-    if (this.editForm.invalid) {
-      this.toastService.warning('Warning', 'Please fill all required fields');
-      return;
-    }
-
-    this.isSaving = true;
-    const updatedData = this.editForm.value;
-    
-    this.testCaseService.updateTestCase(this.testCase!.id, updatedData).subscribe({
-      next: (updatedTestCase) => {
-        this.testCase = updatedTestCase;
-        this.isEditing = false;
-        this.isSaving = false;
-        this.toastService.success('Success', 'Test case updated successfully');
-      },
-      error: (error) => {
-        console.error('Error updating test case:', error);
-        this.toastService.error('Error', 'Failed to update test case');
-        this.isSaving = false;
-      }
-    });
+saveChanges(): void {
+  if (this.editForm.invalid) {
+    this.toastService.warning('Warning', 'Please fill all required fields');
+    return;
   }
+
+  this.isSaving = true;
+  const formValue = this.editForm.value;
+  
+  // S'assurer que les champs JSON sont bien des objets/tableaux
+  const updatedData = {
+    ...formValue,
+    preconditions: this.ensureArray(formValue.preconditions),
+    postconditions: this.ensureArray(formValue.postconditions),
+    steps: this.ensureArray(formValue.steps),
+    test_data: this.ensureObject(formValue.test_data),
+    expected_results: this.ensureArray(formValue.expected_results),
+  };
+  
+  this.testCaseService.updateTestCase(this.testCase!.id, updatedData).subscribe({
+    next: (updatedTestCase) => {
+      this.testCase = updatedTestCase;
+      this.isEditing = false;
+      this.isSaving = false;
+      this.toastService.success('Success', 'Test case updated successfully');
+    },
+    error: (error) => {
+      console.error('Error updating test case:', error);
+      this.toastService.error('Error', 'Failed to update test case');
+      this.isSaving = false;
+    }
+  });
+}
+
+private ensureArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+private ensureObject(value: any): any {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
   deleteTestCase(): void {
     if (confirm('Are you sure you want to delete this test case? This action cannot be undone.')) {
@@ -306,16 +356,28 @@ resetPostconditionsView() {
   this.visiblePostconditionsLimit = 3;
 }
 
-  parseJson(event: Event, field: string): void {
-    const textarea = event.target as HTMLTextAreaElement;
-    try {
-      const value = JSON.parse(textarea.value);
-      this.editForm.patchValue({ [field]: value });
-    } catch (e) {
-      // Invalid JSON, ignore
-    }
+parseJson(event: Event, field: string): void {
+  const textarea = event.target as HTMLTextAreaElement;
+  const value = textarea.value.trim();
+  
+  if (!value) {
+    this.editForm.patchValue({ [field]: value });
+    return;
   }
-
+  
+  try {
+    const parsed = JSON.parse(value);
+    // Si c'est un tableau ou objet valide, le stocker comme tel
+    if (typeof parsed === 'object') {
+      this.editForm.patchValue({ [field]: parsed }, { emitEvent: false });
+    } else {
+      this.editForm.patchValue({ [field]: value }, { emitEvent: false });
+    }
+  } catch (e) {
+    // Si ce n'est pas du JSON valide, garder la string telle quelle (ex: gherkin)
+    this.editForm.patchValue({ [field]: value }, { emitEvent: false });
+  }
+}
   getPriorityString(priority: string | null): string {
     return priority || 'medium';
   }
@@ -369,4 +431,58 @@ resetPostconditionsView() {
     if (['critical','high','medium','low'].includes(t)) return 'tag-priority';
     return 'tag-default';
   }
+
+
+
+  // Dans test-case-detail.component.ts
+
+// ── Copy to clipboard ─────────────────────────────────────────────────
+async copyToClipboard(content: string, label: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(
+      typeof content === 'string' ? content : JSON.stringify(content, null, 2)
+    );
+    this.toastService.success('Copied', `${label} copied to clipboard`);
+  } catch (err) {
+    // Fallback pour les navigateurs plus anciens
+    const textarea = document.createElement('textarea');
+    textarea.value = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    this.toastService.success('Copied', `${label} copied to clipboard`);
+  }
+}
+
+// Méthodes spécifiques pour chaque section
+copyPreconditions(): void {
+  const content = this.testCase?.preconditions || [];
+  this.copyToClipboard(JSON.stringify(content, null, 2), 'Preconditions');
+}
+
+copySteps(): void {
+  const content = this.testCase?.steps || [];
+  this.copyToClipboard(JSON.stringify(content, null, 2), 'Test Steps');
+}
+
+copyPostconditions(): void {
+  const content = this.testCase?.postconditions || [];
+  this.copyToClipboard(JSON.stringify(content, null, 2), 'Postconditions');
+}
+
+copyGherkin(): void {
+  const content = this.testCase?.gherkin_source || '';
+  this.copyToClipboard(content, 'Gherkin Scenario');
+}
+
+copyTestData(): void {
+  const content = this.testCase?.test_data || {};
+  this.copyToClipboard(JSON.stringify(content, null, 2), 'Test Data');
+}
+
+copyExpectedResults(): void {
+  const content = this.testCase?.expected_results || [];
+  this.copyToClipboard(JSON.stringify(content, null, 2), 'Expected Results');
+}
 }

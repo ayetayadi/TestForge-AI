@@ -23,44 +23,90 @@ Rules:
 - Use expect() for assertions
 - Replace EVERY locator with a placeholder
 
+⚠️ CRITICAL RULES:
+- NEVER click on URLs or page addresses (http://..., localhost, etc.)
+- NEVER use getByText() with a URL
+- The first action after goto() MUST be a form interaction, not another navigation
+- NEVER use waitForSelector, waitForResponse, waitForTimeout
+- NEVER use textContent(), toContain(), toBe()
+- NEVER use page.url() or page.evaluate()
+- The ONLY assertion allowed is: await expect(page.locator("[PLACEHOLDER: ...]")).toBeVisible();
+
+⚠️ ASSERTION RULES — MANDATORY:
+- Every Expected Result and Postcondition MUST produce an expect().toBeVisible() assertion
+- ALWAYS inline the locator directly inside expect() — NEVER use an intermediate variable:
+  ✅ await expect(page.locator("[{PLACEHOLDER_PREFIX}: success message]")).toBeVisible();
+  ❌ const msg = page.locator("[...]"); await expect(msg).toBeVisible();
+- Use ONLY .toBeVisible() — NOT .toBeTruthy(), .toBeTrue(), .toBeDefined()
+- One expect().toBeVisible() per Expected Result, no exceptions
+
 Forbidden:
 - Real selectors (CSS, XPath, id, class)
 - Skipping placeholders
+- Clicking on URLs as text
+- Variable assignments for locators used in assertions
 
 Example:
 await page.locator("[{PLACEHOLDER_PREFIX}: login button]").click();
+await expect(page.locator("[{PLACEHOLDER_PREFIX}: success message]")).toBeVisible();
 
 Output: TypeScript code only. No explanation.
 """
 
-
 SCRIPT_GENERATOR_USER = """
-Generate a TypeScript Playwright test:
+Generate a TypeScript Playwright test from the test case below.
 
+⚠️ IMPORTANT — Use ALL information provided in the test case:
+
+1. PRECONDITIONS → Add comments before the test (what must be true before running)
+2. TEST DATA → Use directly as fill() values
+3. STEPS (Gherkin: Given/When/Then) → The main test flow:
+   - Given → setup/navigation
+   - When → actions (click, fill, type)
+   - Then → assertions with expect()
+4. EXPECTED RESULTS → Create one expect() assertion per result
+5. POSTCONDITIONS → Verify final state (URL, visible elements, stored data)
+
+Every expected result and postcondition MUST appear as an inline expect().toBeVisible() in the script.
+Format: await expect(page.locator("[{placeholder_prefix}: element description]")).toBeVisible();
+
+Test case:
 {test_cases}
 
 Use [{placeholder_prefix}: ...] for ALL locators.
 Return code only.
 """
 
-
 # ============================================================
 # TWO-PHASE AGENT — Phase 1: Placeholder → Locator Mapping
 # ============================================================
-
 MAPPING_SYSTEM = f"""
 You are a Playwright locator resolver.
 
 You receive a compressed DOM accessibility snapshot and a list of placeholder descriptions.
 Map each placeholder to the best real Playwright locator visible in the DOM.
 
+⚠️ CRITICAL RULE FOR INPUT FIELDS:
+- If the DOM shows 'textbox "Label:"', ALWAYS use getByRole('textbox', {{ name: 'Label:' }})
+- NEVER use getByLabel() for textbox elements — it will resolve to the parent container
+
 Locator priority (use the first that applies):
-1. page.getByTestId("...")                   — element has data-testid
-2. page.getByRole("...", {{ name: "..." }})  — element has ARIA role
-3. page.getByLabel("...")                    — input with associated label
-4. page.getByText("...")                     — element with visible text
-5. page.locator("#id")                       — unique CSS id
-6. page.locator(".class")                    — CSS class (last resort)
+1. page.getByTestId("...")                    — element has data-testid
+2. page.getByRole("role", {{ name: "name" }}) — ALWAYS for textbox, button, heading, link
+3. page.getByText("...")                      — visible text that is NOT an input
+4. page.locator("#id")                        — unique CSS id
+5. page.locator(".class")                     — CSS class (last resort)
+
+⚠️ IMPORTANT — Post-action elements:
+Some elements (error messages, success banners, alerts) appear ONLY AFTER a user action
+and will NOT be in the current DOM snapshot. For these, generate a best-guess locator
+based on the description — do NOT skip them:
+- Error / validation message → page.getByRole('alert') or page.getByText('error', {{ exact: false }})
+- Success / confirmation → page.getByRole('status') or page.getByText('success', {{ exact: false }})
+- Page after login → page.getByRole('heading', {{ name: 'Dashboard' }})
+- Any "message" placeholder → page.getByRole('alert')
+
+Every placeholder in the input list MUST appear as a key in the output JSON.
 
 Output ONLY a valid JSON object. No markdown. No explanation.
 Keys = exact placeholder descriptions (as given).
@@ -68,9 +114,11 @@ Values = full Playwright locator expression.
 
 Example:
 {{
-  "login button": "page.getByRole('button', {{ name: 'Sign in' }})",
-  "email input": "page.getByLabel('Email')",
-  "error message": "page.getByText('Invalid credentials')"
+  "login button": "page.getByRole('button', {{ name: 'Login' }})",
+  "email input": "page.getByRole('textbox', {{ name: 'Email:' }})",
+  "password input": "page.getByRole('textbox', {{ name: 'Password:' }})",
+  "error message": "page.getByRole('alert')",
+  "dashboard title": "page.getByRole('heading', {{ name: 'Dashboard' }})"
 }}
 """
 

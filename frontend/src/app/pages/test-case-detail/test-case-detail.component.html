@@ -297,6 +297,15 @@
                   @if (preconditions.length) {
                     <span class="section-count">{{ preconditions.length }}</span>
                   }
+
+                    <div class="section-actions">
+    <button class="btn-icon-mini" (click)="copyPreconditions()" title="Copy preconditions">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z"/>
+        <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z"/>
+      </svg>
+    </button>
+  </div>
                 </div>
                 @if (!isEditing) {
                   <ul class="cond-list cond-list--pre">
@@ -339,6 +348,14 @@
                       {{ visibleSteps.length }} / {{ testCase.steps!.length }} steps
                     </span>
                   }
+                    <div class="section-actions">
+    <button class="btn-icon-mini" (click)="copyPreconditions()" title="Copy preconditions">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z"/>
+        <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z"/>
+      </svg>
+    </button>
+  </div>
                 </div>
                 @if (!isEditing) {
                   <div class="steps-list">
@@ -400,6 +417,14 @@
                   @if (testCase.postconditions?.length) {
                     <span class="section-count">{{ visiblePostconditions.length }} / {{ testCase.postconditions!.length }}</span>
                   }
+                    <div class="section-actions">
+    <button class="btn-icon-mini" (click)="copyPreconditions()" title="Copy preconditions">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z"/>
+        <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z"/>
+      </svg>
+    </button>
+  </div>
                 </div>
                 @if (!isEditing) {
                   <ul class="cond-list cond-list--post">
@@ -450,6 +475,14 @@
                   <path fill-rule="evenodd" d="M6.28 5.22a.75.75 0 010 1.06L2.56 10l3.72 3.72a.75.75 0 01-1.06 1.06L.97 10.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 0zm7.44 0a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L17.44 10l-3.72-3.72a.75.75 0 010-1.06z" clip-rule="evenodd"/>
                 </svg>
                 <span class="section-label">Gherkin Scenario</span>
+                  <div class="section-actions">
+    <button class="btn-icon-mini" (click)="copyPreconditions()" title="Copy preconditions">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z"/>
+        <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z"/>
+      </svg>
+    </button>
+  </div>
               </div>
               @if (!isEditing) {
                 @if (testCase.gherkin_source) {
@@ -486,6 +519,14 @@
                 @if (testDataEntries.length) {
                   <span class="section-count">{{ testDataEntries.length }} keys</span>
                 }
+                  <div class="section-actions">
+    <button class="btn-icon-mini" (click)="copyPreconditions()" title="Copy preconditions">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z"/>
+        <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z"/>
+      </svg>
+    </button>
+  </div>
               </div>
               @if (!isEditing) {
                 @if (testDataEntries.length > 0) {
@@ -519,6 +560,14 @@
                 @if (testCase.expected_results?.length) {
                   <span class="section-count">{{ testCase.expected_results!.length }}</span>
                 }
+                  <div class="section-actions">
+    <button class="btn-icon-mini" (click)="copyPreconditions()" title="Copy preconditions">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z"/>
+        <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z"/>
+      </svg>
+    </button>
+  </div>
               </div>
               @if (testCase.expected_results && testCase.expected_results.length > 0) {
                 <ul class="expected-list">

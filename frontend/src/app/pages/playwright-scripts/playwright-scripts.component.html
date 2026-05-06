@@ -26,41 +26,6 @@
       </button>
     </div>
   </div>
-
-  <!-- Execution Config Card -->
-  <div class="config-card">
-    <div class="config-card__label">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-        <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
-      </svg>
-      Execution Config
-    </div>
-    <div class="config-card__fields">
-      <div class="config-field">
-        <label>App URL</label>
-        <input
-          type="url"
-          class="form-input"
-          placeholder="http://..."
-          [ngModel]="appUrl()"
-          (ngModelChange)="appUrl.set($event)"
-        />
-      </div>
-      <div class="config-field">
-        <label>Browser</label>
-        <select class="form-select" [ngModel]="browser()" (ngModelChange)="browser.set($event)">
-          @for (b of browsers; track b) {
-            <option [value]="b">{{ b }}</option>
-          }
-        </select>
-      </div>
-      <div class="config-field config-field--checkbox">
-        <input type="checkbox" id="headless-cfg" [ngModel]="headless()" (ngModelChange)="headless.set($event)" />
-        <label for="headless-cfg">Headless</label>
-      </div>
-    </div>
-  </div>
-
   <!-- Filters Bar -->
   <div class="filters-bar">
     <div class="filter-item search-item">
@@ -123,7 +88,7 @@
   <!-- Scripts Grid -->
   @if (!isLoading() && paginatedRows().length > 0) {
     <div class="scripts-grid">
-      @for (row of paginatedRows(); track row.testCase.id) {
+      @for (row of paginatedRows(); track row.testCase.id; let i = $index) {
         <div class="script-card" [class.card--active]="isActiveTestCase(row.testCase.id)">
 
           <!-- Accent bar -->
@@ -132,6 +97,8 @@
           <!-- Top row -->
           <div class="script-card__top">
             <span class="tc-code" (click)="goToDetail(row.testCase.id)">{{ row.testCase.tc_code }}</span>
+
+            <span class="badge badge-exec-order" title="Execution order from dependency graph">#{{ (page() - 1) * pageSize() + i + 1 }}</span>
 
             @if (row.hasScript) {
               <span class="badge badge-script">
