@@ -7,6 +7,8 @@ from typing import List, Optional, Dict, Any
 from app.core.database import get_db, async_session_maker
 from app.services import playwright_service as service
 from app.streaming.sse_manager import event_generator, event_buffer
+from app.api.deps import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/playwright", tags=["Playwright E2E"])
 
@@ -44,6 +46,29 @@ class FullWorkflowRequest(BaseModel):
     app_url: Optional[str] = None
     browser: str = "chromium"
     headless: bool = True
+
+
+class SuiteRunRequest(BaseModel):
+    """Requête pour exécuter plusieurs test cases en ordre séquentiel."""
+    test_case_ids: List[str] = Field(..., description="IDs dans l'ordre d'exécution")
+    app_url: Optional[str] = None
+    browser: str = "chromium"
+    headless: bool = True
+    stop_on_failure: bool = Field(default=False, description="Stop suite if a TC fails")
+
+
+class SendReportEmailRequest(BaseModel):
+    recipients: List[str] = Field(..., description="List of email addresses")
+
+
+class CreateJiraIssueRequest(BaseModel):
+    defect_id: str
+    project_key: str
+    priority: str = "High"
+
+
+class CreateDefectRequest(BaseModel):
+    test_case_id: str
 
 
 class AsyncStartResponse(BaseModel):
@@ -100,6 +125,24 @@ async def _full_workflow_background(
             app_url=app_url,
             browser=browser,
             headless=headless,
+        )
+
+
+async def _suite_run_background(
+    test_case_ids: List[str],
+    app_url: Optional[str],
+    browser: str,
+    headless: bool,
+    stop_on_failure: bool,
+):
+    async with async_session_maker() as db:
+        await service.run_suite(
+            db,
+            test_case_ids=test_case_ids,
+            app_url=app_url,
+            browser=browser,
+            headless=headless,
+            stop_on_failure=stop_on_failure,
         )
 
 
@@ -167,6 +210,125 @@ async def full_workflow_endpoint(
     )
 
 
+@router.post("/run-suite", response_model=AsyncStartResponse)
+async def run_suite_endpoint(
+    request: SuiteRunRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Exécute plusieurs test cases séquentiellement dans l'ordre fourni."""
+    if not request.test_case_ids:
+        raise HTTPException(status_code=400, detail="test_case_ids list is empty")
+
+    background_tasks.add_task(
+        _suite_run_background,
+        request.test_case_ids,
+        request.app_url,
+        request.browser,
+        request.headless,
+        request.stop_on_failure,
+    )
+    return AsyncStartResponse(
+        status="started",
+        test_case_id=request.test_case_ids[0],
+        message=f"Suite run started: {len(request.test_case_ids)} test cases. Monitor each TC's SSE stream.",
+    )
+
+
+@router.get("/test-run/{test_run_id}/report")
+async def get_full_report_endpoint(
+    test_run_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retourne le rapport complet d'un test run (steps, résultat, defect, raisonnement LLM)."""
+    try:
+        from app.services.execution_report_service import build_full_report
+        report = await build_full_report(db, test_run_id)
+        if "error" in report:
+            raise HTTPException(status_code=404, detail=report["error"])
+        return report
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/test-run/{test_run_id}/send-email")
+async def send_report_email_endpoint(
+    test_run_id: str,
+    request: SendReportEmailRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Envoie le rapport d'exécution par email aux destinataires spécifiés."""
+    try:
+        from app.services.execution_report_service import build_full_report, send_execution_report_email
+        if not request.recipients:
+            raise HTTPException(status_code=400, detail="No recipients provided")
+
+        report = await build_full_report(db, test_run_id)
+        if "error" in report:
+            raise HTTPException(status_code=404, detail=report["error"])
+
+        await send_execution_report_email(report=report, recipients=request.recipients)
+        return {"status": "sent", "recipients": request.recipients, "test_run_id": test_run_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/test-run/{test_run_id}/create-defect")
+async def create_defect_endpoint(
+    test_run_id: str,
+    request: CreateDefectRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Crée manuellement un defect à partir d'un test run échoué."""
+    try:
+        from app.services.execution_report_service import create_defect_from_execution
+        defect = await create_defect_from_execution(
+            db,
+            test_run_id=test_run_id,
+            test_case_id=request.test_case_id,
+        )
+        if not defect:
+            raise HTTPException(
+                status_code=422,
+                detail="Cannot create defect: test case must be linked to a user story.",
+            )
+        await db.commit()
+        return defect
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/defect/{defect_id}/create-jira")
+async def create_jira_from_defect_endpoint(
+    defect_id: str,
+    request: CreateJiraIssueRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Crée un ticket Jira Bug à partir d'un defect TestForge."""
+    try:
+        from app.services.execution_report_service import create_jira_issue_from_defect
+        result = await create_jira_issue_from_defect(
+            db,
+            defect_id=defect_id,
+            user_id=current_user.id,
+            project_key=request.project_key,
+            priority=request.priority,
+        )
+        return result
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/test-case/{test_case_id}/scripts", response_model=ScriptListResponse)
 async def get_test_case_scripts_endpoint(
     test_case_id: str,
@@ -228,22 +390,54 @@ async def get_last_test_run_endpoint(
     test_case_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Récupère le dernier test run pour un test case."""
+    """Récupère le dernier test run pour un test case (toutes versions de script)."""
     try:
         from app.repositories import playwright_repository as repo
-        
-        active_script = await repo.get_active_script(db, test_case_id)
-        
-        if not active_script:
-            return {"error": f"No active script for test_case {test_case_id}"}
-        
-        runs = await repo.get_test_runs_by_script(db, active_script.id, limit=1)
-        
-        if not runs:
+
+        latest_run = await repo.get_latest_run_for_test_case(db, test_case_id)
+
+        if not latest_run:
             return {"message": f"No test runs found for test_case {test_case_id}"}
-        
-        return await service.get_test_run_details(db, runs[0].id)
-        
+
+        return await service.get_test_run_details(db, latest_run.id)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/test-case/{test_case_id}/runs")
+async def get_test_case_runs_endpoint(
+    test_case_id: str,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+):
+    """Liste tous les runs d'un test case (toutes versions de script), du plus récent au plus ancien."""
+    try:
+        from app.repositories import playwright_repository as repo
+
+        runs = await repo.get_runs_for_test_case(db, test_case_id, limit=limit)
+
+        result_list = []
+        for run in runs:
+            result_obj = await repo.get_test_result(db, run.id)
+            script_version = (
+                await repo.get_script_version(db, run.script_version_id)
+                if run.script_version_id else None
+            )
+            result_list.append({
+                "id": run.id,
+                "status": run.status.value,
+                "browser": run.browser,
+                "duration": run.duration,
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                "result_status": result_obj.status.value if result_obj else None,
+                "result_step_count": result_obj.step_count if result_obj else 0,
+                "script_version_number": script_version.version_number if script_version else None,
+            })
+
+        return {"runs": result_list, "total": len(result_list)}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -270,6 +464,35 @@ async def stream_test_execution(request: Request, test_case_id: str):
 async def stream_status_endpoint(test_case_id: str):
     """Retourne les événements bufferisés pour un test case."""
     return {"test_case_id": test_case_id, "buffered_events": event_buffer.get(test_case_id, [])}
+
+
+# ============================================================
+# TEST RUNS — LIST & STATS
+# ============================================================
+
+@router.get("/test-runs")
+async def list_test_runs_endpoint(
+    limit: int = 50,
+    offset: int = 0,
+    result_filter: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Liste tous les test runs avec leur contexte complet :
+    test case, résultat, defect, statistiques globales.
+    result_filter: passed | failed | error | skipped | all
+    """
+    try:
+        from app.repositories.playwright_repository import get_all_test_runs_with_context
+        data = await get_all_test_runs_with_context(
+            db,
+            limit=limit,
+            offset=offset,
+            result_filter=result_filter if result_filter and result_filter != "all" else None,
+        )
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================

@@ -1,0 +1,268 @@
+<div class="exec-dashboard">
+
+  <!-- ============================================================
+       HEADER
+  ============================================================ -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="header-title-row">
+        <span class="header-icon">🎭</span>
+        <div>
+          <h1 class="page-title">Execution Dashboard</h1>
+          <p class="page-subtitle">Monitor all Playwright E2E test executions</p>
+        </div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-refresh" (click)="loadRuns()" [disabled]="loading()">
+        <span [class.spinning]="loading()">↻</span>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       STATS CARDS
+  ============================================================ -->
+  <div class="stats-grid" *ngIf="!loading() || stats().total > 0">
+    <div class="stat-card stat-total">
+      <div class="stat-value">{{ stats().total }}</div>
+      <div class="stat-label">Total Runs</div>
+      <div class="stat-sub">{{ stats().running }} running</div>
+    </div>
+
+    <div class="stat-card stat-passed">
+      <div class="stat-value">{{ stats().passed }}</div>
+      <div class="stat-label">Passed</div>
+      <div class="stat-trend trend-up" *ngIf="stats().pass_rate >= 70">
+        ▲ {{ stats().pass_rate }}%
+      </div>
+    </div>
+
+    <div class="stat-card stat-failed">
+      <div class="stat-value">{{ stats().failed }}</div>
+      <div class="stat-label">Failed / Error</div>
+      <div class="stat-trend trend-down" *ngIf="stats().failed > 0">
+        ▼ {{ 100 - stats().pass_rate | number:'1.0-1' }}%
+      </div>
+    </div>
+
+    <div class="stat-card stat-rate">
+      <div class="stat-donut">
+        <svg viewBox="0 0 36 36" class="donut-chart">
+          <circle cx="18" cy="18" r="15.9"
+            fill="none" stroke="#e2e8f0" stroke-width="3.2"/>
+          <circle cx="18" cy="18" r="15.9"
+            fill="none" stroke="#10b981" stroke-width="3.2"
+            [attr.stroke-dasharray]="stats().pass_rate + ', 100'"
+            stroke-dashoffset="25"
+            stroke-linecap="round"/>
+        </svg>
+        <div class="donut-label">{{ stats().pass_rate | number:'1.0-1' }}%</div>
+      </div>
+      <div class="stat-label">Pass Rate</div>
+    </div>
+
+    <div class="stat-card stat-duration">
+      <div class="stat-value">{{ formatDuration(stats().avg_duration) }}</div>
+      <div class="stat-label">Avg Duration</div>
+      <div class="stat-sub">per test run</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       AWAITING FIX BANNER
+  ============================================================ -->
+  <div class="awaiting-banner" *ngIf="awaitingFixRuns().length > 0">
+    <div class="banner-icon">⏳</div>
+    <div class="banner-content">
+      <strong>{{ awaitingFixRuns().length }} test(s) awaiting developer fix</strong>
+      <p>Email notifications sent — no need to re-run until the fixes are deployed</p>
+    </div>
+    <div class="banner-tcs">
+      <span class="tc-chip" *ngFor="let r of awaitingFixRuns()">
+        {{ r.test_case?.tc_code }}
+      </span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       FILTERS
+  ============================================================ -->
+  <div class="filters-bar">
+    <div class="filter-tabs">
+      <button class="filter-tab" [class.active]="resultFilter() === 'all'" (click)="setFilter('all')">
+        All
+        <span class="tab-count">{{ stats().total }}</span>
+      </button>
+      <button class="filter-tab" [class.active]="resultFilter() === 'passed'" (click)="setFilter('passed')">
+        <span class="dot dot-passed"></span>Passed
+        <span class="tab-count">{{ stats().passed }}</span>
+      </button>
+      <button class="filter-tab" [class.active]="resultFilter() === 'failed'" (click)="setFilter('failed')">
+        <span class="dot dot-failed"></span>Failed
+        <span class="tab-count">{{ stats().failed }}</span>
+      </button>
+      <button class="filter-tab" [class.active]="resultFilter() === 'running'" (click)="setFilter('running')">
+        <span class="dot dot-running pulse"></span>Running
+        <span class="tab-count">{{ stats().running }}</span>
+      </button>
+    </div>
+
+    <div class="filter-info" *ngIf="!loading()">
+      Showing {{ runs().length }} of {{ total() }} runs
+    </div>
+  </div>
+
+  <!-- ============================================================
+       LOADING
+  ============================================================ -->
+  <div class="loading-container" *ngIf="loading()">
+    <app-spinner />
+    <p>Loading executions…</p>
+  </div>
+
+  <!-- ============================================================
+       EMPTY STATE
+  ============================================================ -->
+  <div class="empty-state" *ngIf="!loading() && runs().length === 0">
+    <div class="empty-icon">🎭</div>
+    <h3>No executions found</h3>
+    <p>Run a Playwright script from the <strong>Scripts</strong> page to see results here.</p>
+    <button class="btn-primary" routerLink="/playwright-scripts">Go to Scripts</button>
+  </div>
+
+  <!-- ============================================================
+       RUNS LIST
+  ============================================================ -->
+  <div class="runs-list" *ngIf="!loading() && runs().length > 0">
+
+    <div
+      class="run-card"
+      *ngFor="let run of filteredRuns(); trackBy: trackByRunId"
+      [class.run-passed]="run.result_status === 'passed'"
+      [class.run-failed]="run.result_status === 'failed' || run.result_status === 'error'"
+      [class.run-running]="run.status === 'running'"
+      [class.run-awaiting]="run.defect && run.defect.status === 'open' && isEmailSent(run.id)"
+    >
+
+      <!-- Status stripe -->
+      <div class="run-stripe" [class]="'stripe-' + (run.result_status ?? run.status)"></div>
+
+      <!-- Main content -->
+      <div class="run-body">
+
+        <!-- Row 1: TC info + status -->
+        <div class="run-header-row">
+          <div class="tc-info">
+            <span class="tc-code">{{ run.test_case?.tc_code ?? '—' }}</span>
+            <span class="tc-title">{{ run.test_case?.title ?? 'Unknown Test Case' }}</span>
+          </div>
+          <div class="run-badges">
+            <!-- Result status badge -->
+            <span class="badge result-badge"
+              [class.badge-passed]="run.result_status === 'passed'"
+              [class.badge-failed]="run.result_status === 'failed'"
+              [class.badge-error]="run.result_status === 'error'"
+              [class.badge-running]="run.status === 'running'"
+              [class.badge-pending]="!run.result_status && run.status !== 'running'">
+              {{ getResultIcon(run.result_status) }}
+              {{ run.result_status ? (run.result_status | uppercase) : (run.status | uppercase) }}
+            </span>
+
+            <!-- Priority -->
+            <span class="badge priority-badge" [class]="getPriorityClass(run.test_case?.priority ?? null)"
+              *ngIf="run.test_case?.priority">
+              {{ run.test_case!.priority | uppercase }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Row 2: Metadata -->
+        <div class="run-meta-row">
+          <span class="meta-item">
+            {{ getBrowserIcon(run.browser) }} {{ run.browser }}
+          </span>
+          <span class="meta-sep">·</span>
+          <span class="meta-item">⏱ {{ formatDuration(run.duration) }}</span>
+          <span class="meta-sep">·</span>
+          <span class="meta-item">{{ run.result_step_count }} steps</span>
+          <span class="meta-sep">·</span>
+          <span class="meta-item" *ngIf="run.test_case">
+            v{{ run.test_case.script_version_number }}
+            <span class="source-chip">{{ run.test_case.script_source }}</span>
+          </span>
+          <span class="meta-sep">·</span>
+          <span class="meta-item meta-date">{{ formatDate(run.started_at) }}</span>
+        </div>
+
+        <!-- Row 3: URL -->
+        <div class="run-url-row">
+          <span class="url-label">URL:</span>
+          <span class="url-value">{{ run.base_url }}</span>
+        </div>
+
+        <!-- Row 4: Defect + Email badges -->
+        <div class="run-alerts-row" *ngIf="run.defect || isEmailSent(run.id)">
+
+          <!-- Defect chip -->
+          <div class="defect-chip" [class]="getSeverityClass(run.defect.severity)" *ngIf="run.defect">
+            <span class="defect-chip-icon">🐛</span>
+            <div class="defect-chip-body">
+              <span class="defect-chip-severity">{{ run.defect.severity | uppercase }}</span>
+              <span class="defect-chip-title">{{ run.defect.title | slice:0:80 }}{{ run.defect.title.length > 80 ? '…' : '' }}</span>
+              <div class="defect-chip-meta">
+                <span class="defect-status-badge" [class]="getDefectStatusClass(run.defect.status)">
+                  {{ run.defect.status | uppercase }}
+                </span>
+                <span class="jira-badge" *ngIf="run.defect.jira_issue_key">
+                  🔗 {{ run.defect.jira_issue_key }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Email sent badge -->
+          <div class="email-sent-chip" *ngIf="isEmailSent(run.id)">
+            <span>✉️</span>
+            <div>
+              <span class="email-chip-label">Developer notified</span>
+              <span class="email-chip-date">{{ formatDate(getEmailInfo(run.id)?.sentAt ?? null) }}</span>
+            </div>
+          </div>
+
+          <!-- Awaiting fix chip -->
+          <div class="awaiting-chip"
+            *ngIf="run.defect && run.defect.status === 'open' && isEmailSent(run.id)">
+            ⏳ Awaiting developer fix
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right: Actions -->
+      <div class="run-actions">
+        <button class="btn-view" (click)="viewScriptDetail(run)" [disabled]="!run.test_case">
+          View Details
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PAGINATION
+  ============================================================ -->
+  <div class="pagination" *ngIf="totalPages() > 1 && !loading()">
+    <button class="page-btn" [disabled]="currentPage() === 0" (click)="prevPage()">
+      ← Previous
+    </button>
+    <span class="page-info">
+      Page {{ currentPage() + 1 }} / {{ totalPages() }}
+    </span>
+    <button class="page-btn" [disabled]="currentPage() >= totalPages() - 1" (click)="nextPage()">
+      Next →
+    </button>
+  </div>
+
+</div>

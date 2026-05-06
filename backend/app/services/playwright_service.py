@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 
@@ -138,13 +138,24 @@ async def execute_script(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
+    async def _on_step(label: str, status: str, error: str = None):
+        await _push_event(test_case_id, "agent_step", {
+            "step_type": "act",
+            "tool": "playwright",
+            "content": label,
+            "status": "success" if status == "passed" else "failed",
+            "error": error,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
     try:
         exec_result = await _react_agent.run(
             script_v1=script_version.script_content,
             **({"app_url": app_url} if app_url else {}),
             test_case_id=test_case_id,
             headless=headless,
-            browser=browser
+            browser=browser,
+            on_step=_on_step,
         )
 
         if save_to_db and test_run:
@@ -187,6 +198,7 @@ async def execute_script(
             "script_version_id": exec_result["script_version_id"],
             "script_v2": exec_result.get("script_v2"),
             "duration": exec_result.get("duration", 0),
+            "step_details": exec_result.get("step_details", []),
         })
 
         return exec_result
@@ -280,6 +292,23 @@ def _extract_steps(messages: list) -> list:
     return steps
 
 
+def _extract_steps_from_details(step_details: list) -> list:
+    """Convert Phase 4 step_details into DB-compatible step records."""
+    steps = []
+    for i, detail in enumerate(step_details):
+        is_failed = detail.get("status") == "failed"
+        content = detail.get("step", "")
+        if detail.get("error"):
+            content = f"{content}\nError: {detail['error']}"
+        steps.append({
+            "step_order": i,
+            "step_type": StepType.ACT,
+            "content": content[:2000],
+            "status": StepStatus.FAILED if is_failed else StepStatus.SUCCESS,
+        })
+    return steps
+
+
 async def _save_execution_results(
     db: AsyncSession,
     test_run_id: str,
@@ -322,31 +351,53 @@ async def _save_execution_results(
         steps = _extract_steps(raw_messages)
         if steps:
             await repo.add_steps_batch(db, test_run_id, steps)
-    
+    else:
+        step_details = exec_result.get("step_details", [])
+        if step_details:
+            steps = _extract_steps_from_details(step_details)
+            if steps:
+                await repo.add_steps_batch(db, test_run_id, steps)
+
     execution_status = exec_result.get("execution_status", "")
-    test_result_status = (
-        TestResultStatus.PASSED
-        if execution_status in ("passed", "completed")
-        else TestResultStatus.FAILED if execution_status == "failed"
-        else TestResultStatus.ERROR
-    )
-    
+    steps_failed = exec_result.get("steps_failed", 0)
+    steps_passed = exec_result.get("steps_passed", 0)
+    # "completed" with no failures → PASSED
+    # "partial" or any step failure → FAILED (assertions missing or failing)
+    # "error" (agent couldn't run at all) → ERROR
+    if execution_status in ("passed", "completed") and steps_failed == 0:
+        test_result_status = TestResultStatus.PASSED
+    elif execution_status == "error":
+        test_result_status = TestResultStatus.ERROR
+    else:
+        test_result_status = TestResultStatus.FAILED
+
     remaining = exec_result.get("remaining_placeholders", 0)
     total_ph = script_version.placeholder_count or 0
     resolved_ph = total_ph - remaining
     justification = (
         f"Placeholders: {resolved_ph}/{total_ph} resolved. "
-        f"Steps: {exec_result.get('steps_passed', 0)} passed, {exec_result.get('steps_failed', 0)} failed."
+        f"Steps: {steps_passed} passed, {steps_failed} failed."
     )
     await repo.save_test_result(
         db,
         test_run_id=test_run_id,
         status=test_result_status,
         justification=justification,
-        step_count=exec_result.get("steps_passed", 0) + exec_result.get("steps_failed", 0)
+        step_count=steps_passed + steps_failed,
+        screenshot_b64=exec_result.get("screenshot"),
     )
     
     await repo.commit(db)
+
+    # ── Auto-create defect if execution failed ────────────────────────────────
+    if final_status == TestRunStatus.FAILED:
+        try:
+            from app.services.execution_report_service import create_defect_from_execution
+            tc_id = script_version.test_case_id
+            await create_defect_from_execution(db, test_run_id=test_run_id, test_case_id=tc_id)
+            await repo.commit(db)
+        except Exception as e:
+            logger.warning(f"Auto-defect creation failed (non-blocking): {e}")
 
 
 async def run_full_workflow(
@@ -477,6 +528,113 @@ async def get_test_run_details(
             for s in steps
         ]
     }
+
+async def run_suite(
+    db: AsyncSession,
+    test_case_ids: List[str],
+    app_url: Optional[str] = None,
+    browser: str = "chromium",
+    headless: bool = True,
+    stop_on_failure: bool = False,
+) -> Dict[str, Any]:
+    """
+    Execute multiple test cases sequentially, respecting execution order.
+    Each TC pushes events to its own SSE channel.
+    Returns a summary of all runs.
+    """
+    logger.info(f"Starting suite run: {len(test_case_ids)} test cases, stop_on_failure={stop_on_failure}")
+
+    results = []
+    passed = 0
+    failed = 0
+    skipped = 0
+
+    for idx, tc_id in enumerate(test_case_ids):
+        logger.info(f"Suite run: executing TC {idx + 1}/{len(test_case_ids)} — {tc_id}")
+
+        await _push_event(tc_id, "suite_step", {
+            "index": idx + 1,
+            "total": len(test_case_ids),
+            "test_case_id": tc_id,
+            "message": f"Running test {idx + 1}/{len(test_case_ids)}",
+        })
+
+        try:
+            exec_result = await execute_script(
+                db,
+                test_case_id=tc_id,
+                app_url=app_url,
+                browser=browser,
+                headless=headless,
+                save_to_db=True,
+            )
+
+            status = exec_result.get("execution_status", "error")
+            results.append({
+                "test_case_id": tc_id,
+                "status": status,
+                "test_run_id": exec_result.get("test_run_id"),
+                "duration": exec_result.get("duration", 0),
+                "error": exec_result.get("error"),
+            })
+
+            if status in ("passed", "completed"):
+                passed += 1
+            else:
+                failed += 1
+                if stop_on_failure:
+                    logger.info(f"Suite run: stopping after failure on TC {tc_id}")
+                    # Mark remaining as skipped
+                    for remaining_id in test_case_ids[idx + 1:]:
+                        skipped += 1
+                        results.append({
+                            "test_case_id": remaining_id,
+                            "status": "skipped",
+                            "test_run_id": None,
+                            "duration": 0,
+                            "error": "Skipped due to previous failure",
+                        })
+                    break
+
+        except Exception as e:
+            logger.error(f"Suite run: TC {tc_id} failed with exception: {e}")
+            failed += 1
+            results.append({
+                "test_case_id": tc_id,
+                "status": "error",
+                "test_run_id": None,
+                "duration": 0,
+                "error": str(e),
+            })
+            if stop_on_failure:
+                for remaining_id in test_case_ids[idx + 1:]:
+                    skipped += 1
+                    results.append({
+                        "test_case_id": remaining_id,
+                        "status": "skipped",
+                        "test_run_id": None,
+                        "duration": 0,
+                        "error": "Skipped due to previous failure",
+                    })
+                break
+
+    total = len(test_case_ids)
+    suite_status = "passed" if failed == 0 and skipped == 0 else ("partial" if passed > 0 else "failed")
+
+    logger.info(
+        f"Suite run completed: {passed} passed, {failed} failed, {skipped} skipped / {total} total"
+    )
+
+    return {
+        "suite_status": suite_status,
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "success_rate": round((passed / total * 100) if total > 0 else 0, 1),
+        "results": results,
+    }
+
 
 async def _push_event(test_case_id: str, event_type: str, data: Dict[str, Any]) -> None:
     """Push event to SSE manager."""

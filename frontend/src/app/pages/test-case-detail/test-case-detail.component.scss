@@ -990,6 +990,49 @@ $transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+// Dans test-case-detail.component.scss
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  .section-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 0.25rem;
+  }
+}
+
+.btn-icon-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  background: var(--bg-secondary, #f9fafb);
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  &:hover {
+    background: var(--bg-hover, #f3f4f6);
+    color: var(--text-primary, #111827);
+    border-color: var(--border-hover, #d1d5db);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
 // ============================================
 // RESPONSIVE ADJUSTMENTS
 // ============================================

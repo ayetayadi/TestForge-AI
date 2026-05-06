@@ -36,7 +36,7 @@ ALLOWED_TOOLS = {
     "browser_select_option",
     "browser_tabs",
     "browser_close",
-    # browser_take_screenshot excluded: returns MCP image format incompatible with OpenRouter SDK
+    "browser_take_screenshot"
 }
 
 _MAX_SSE_RETRIES = 1          # 1 seule tentative SSE — inutile de retenter si le serveur est down

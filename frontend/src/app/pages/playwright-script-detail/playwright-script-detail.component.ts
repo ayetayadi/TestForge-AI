@@ -1,23 +1,22 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, ViewChild, ElementRef } from '@angular/core';
+import {
+  Component, OnInit, OnDestroy, inject, signal, computed, ViewChild, ElementRef
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
-import { PlaywrightE2EService, ExecutionReport } from '../../services/playwright-e2e.service';
+import {
+  PlaywrightE2EService, ExecutionReport, FullExecutionReport, RunHistoryItem
+} from '../../services/playwright-e2e.service';
 import { ToastService } from '../../services/toast.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
+import { TestCaseService } from 'src/app/services/test-case.service';
 
 import {
-  ScriptVersionUI,
-  TestRunDetails,
-  TestResultDetails,
-  TestStepResult,
-  TestResultStatus,
-  StepStatus,
-  ExecutionStep,
+  ScriptVersionUI, TestRunDetails, TestResultDetails,
+  TestStepResult, TestResultStatus, StepStatus, ExecutionStep,
 } from '../../models/playwright.models';
-import { TestCaseService } from 'src/app/services/test-case.service';
 
 @Component({
   selector: 'app-playwright-script-detail',
@@ -40,16 +39,31 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   selectedVersionId = signal<string | null>(null);
   selectedContent = signal<string | null>(null);
 
-  // Last run data
+  // Last run data (simple)
   lastRun = signal<TestRunDetails | null>(null);
   lastRunResult = signal<TestResultDetails | null>(null);
   lastRunSteps = signal<TestStepResult[]>([]);
+
+  // Full report from backend
+  fullReport = signal<FullExecutionReport | null>(null);
+  isLoadingReport = signal(false);
+
+  // Run history
+  runHistory = signal<RunHistoryItem[]>([]);
+  isLoadingHistory = signal(false);
+
+  // Test case info (loaded on init, available before run)
+  tcSteps = signal<any[]>([]);
+  tcExpectedResults = signal<string[]>([]);
+  tcTitle = signal<string>('');
+  tcPriorityRaw = signal<string>('');
 
   // UI state
   loading = signal(true);
   loadingContent = signal(false);
   isRunning = signal(false);
   activeTab = signal<'script' | 'run'>('script');
+  private reportAutoSwitched = false;
 
   // Execution config
   appUrl = signal('');
@@ -59,22 +73,41 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   // SSE steps
   executionSteps = signal<ExecutionStep[]>([]);
 
-  // For breadcrumb
+  // Breadcrumb
   projectName = signal<string>('');
   issueKey = signal<string>('');
   testCaseCode = signal<string>('');
 
-  // Nouveaux signals pour le rapport et le script v2
+  // Script v2
   executionReport = signal<ExecutionReport | null>(null);
   showReport = signal(false);
   newScriptGenerated = signal(false);
   newScriptContent = signal<string | null>(null);
   newScriptVersionNumber = signal<number | null>(null);
+  showNewScriptButton = signal(false);
+  newScriptVersionId = signal<string | null>(null);
 
-  private scriptV2Sub: Subscription | null = null;
-  private executionReportSub: Subscription | null = null;
-  private showSuccessToast = signal(false);
-  public newScriptVersionId = signal<string | null>(null);
+  // ── Email dialog ──────────────────────────────────────────────────────────
+  showEmailDialog = signal(false);
+  emailRecipients = signal<string>('');
+  isSendingEmail = signal(false);
+
+  // ── Jira dialog ───────────────────────────────────────────────────────────
+  showJiraDialog = signal(false);
+  jiraProjectKey = signal<string>('');
+  jiraPriority = signal<string>('High');
+  isCreatingJira = signal(false);
+  jiraCreated = signal<{ key: string } | null>(null);
+
+  // ── Defect creation ───────────────────────────────────────────────────────
+  isCreatingDefect = signal(false);
+
+  // ── Report tab sections ───────────────────────────────────────────────────
+  showReasoningSection = signal(true);
+  showStepsSection = signal(true);
+  showDefectSection = signal(true);
+  showTcPlanSection = signal(true);
+  showHistorySection = signal(false);
 
   currentTime = signal(new Date());
   private timeInterval: any;
@@ -84,8 +117,11 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
 
   private stepsSub: Subscription | null = null;
   private executingSub: Subscription | null = null;
+  private scriptV2Sub: Subscription | null = null;
+  private executionReportSub: Subscription | null = null;
 
   readonly browsers: ('chromium' | 'firefox' | 'webkit')[] = ['chromium', 'firefox', 'webkit'];
+  readonly jiraPriorities = ['Highest', 'High', 'Medium', 'Low', 'Lowest'];
 
   selectedVersion = computed(() =>
     this.scripts().find(s => s.id === this.selectedVersionId()) ?? null
@@ -97,100 +133,97 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
     return this.playwrightService.extractPlaceholders(content);
   });
 
-  loadTestCaseInfo(testCaseId: string): void {
-    this.testCaseService.getTestCaseById(testCaseId).subscribe({
-      next: (testCase) => {
-        this.projectName.set(testCase.project_name || '');
-        this.issueKey.set(testCase.issue_key || '');
-        this.testCaseCode.set(testCase.tc_code || '');
-      },
-      error: (err) => {
-        console.error('Failed to load test case info:', err);
-      }
-    });
-  }
+  currentTestRunId = computed(() =>
+    this.fullReport()?.test_run?.id ?? this.lastRun()?.id ?? null
+  );
+
+  currentDefect = computed(() => this.fullReport()?.defect ?? null);
+
+  hasUserStory = computed(() => !!this.fullReport()?.test_case?.user_story_id);
+
+  reportStatus = computed((): 'passed' | 'failed' | 'error' | 'unknown' => {
+    const r = this.fullReport()?.result;
+    if (!r) return 'unknown';
+    return r.status as any;
+  });
+
+  failedSteps = computed(() =>
+    (this.fullReport()?.steps ?? []).filter(s => s.status === 'failed')
+  );
+
+  thinkSteps = computed(() =>
+    (this.fullReport()?.steps ?? []).filter(s => s.type === 'think')
+  );
+
+  actSteps = computed(() =>
+    (this.fullReport()?.steps ?? []).filter(s => s.type !== 'think')
+  );
+
+  emailNotification = computed(() => {
+    const runId = this.currentTestRunId();
+    if (!runId) return null;
+    try {
+      const raw = localStorage.getItem('playwright_email_sent');
+      if (!raw) return null;
+      const map = JSON.parse(raw);
+      return map[runId] ?? null;
+    } catch {
+      return null;
+    }
+  });
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('testCaseId');
-    if (!id) { 
-      this.router.navigate(['/playwright-scripts']); 
-      return; 
-    }
+    if (!id) { this.router.navigate(['/playwright-scripts']); return; }
     this.testCaseId.set(id);
 
-    // Subscribe aux steps d'exécution
+    this.timeInterval = setInterval(() => this.currentTime.set(new Date()), 1000);
+
     this.stepsSub = this.playwrightService.executionSteps$.subscribe(steps => {
       this.executionSteps.set(steps);
       setTimeout(() => this.scrollToBottom(), 0);
     });
 
-    // Subscribe aux nouveaux scripts v2
-    this.setupScriptV2Listener();
+    this.scriptV2Sub = this.playwrightService.scriptV2$.subscribe(v2 => {
+      if (v2?.content) {
+        this.newScriptGenerated.set(true);
+        this.newScriptContent.set(v2.content);
+        this.newScriptVersionId.set(v2.versionId);
+        this.showNewScriptButton.set(true);
+        this.toastService.success('New corrected script (v2) generated!');
+        this.loadScripts();
+      }
+    });
 
-    // Subscribe aux rapports d'exécution
-    this.setupExecutionReportListener();
+    this.executionReportSub = this.playwrightService.executionReport$.subscribe(report => {
+      if (report) {
+        this.executionReport.set(report);
+        this.showReport.set(true);
+        setTimeout(() => this.scrollToReport(), 500);
+        if (report.status === 'passed') {
+          this.toastService.success(`Test passed! ${report.passedSteps}/${report.totalSteps} steps`);
+        } else {
+          this.toastService.error(`Test failed: ${report.failedSteps} error(s)`);
+        }
+      }
+    });
+
+    this.executingSub = this.playwrightService.isExecuting$.subscribe(running => {
+      if (!running && this.isRunning()) {
+        this.isRunning.set(false);
+        setTimeout(() => {
+          this.loadLastRunAndReport();
+          this.loadRunHistory();
+        }, 1500);
+      }
+    });
 
     this.loadTestCaseInfo(id);
     this.loadScripts();
-    this.loadLastRun();
+    this.loadRunHistory();
   }
-
-  // Modifier loadLastRun pour qu'elle charge toujours les données
-private loadLastRun(): void {
-  if (!this.testCaseId()) return;
-  
-  this.playwrightService.getLastRun(this.testCaseId()).subscribe({
-    next: (run) => {
-      if (run.test_run) {
-        this.lastRun.set(run.test_run);
-        this.lastRunResult.set(run.result ?? null);
-        this.lastRunSteps.set(run.steps ?? []);
-        
-        // ✅ Afficher le rapport si un run existe
-        if (run.result) {
-          this.showExecutionReport(run.result);
-        }
-      } else {
-        // Pas de run, afficher l'état vide
-        this.lastRun.set(null);
-        this.lastRunResult.set(null);
-        this.lastRunSteps.set([]);
-      }
-    },
-    error: (err) => {
-      console.error('Failed to load last run:', err);
-      // Ne pas afficher d'erreur à l'utilisateur, juste garder l'état vide
-    },
-  });
-}
-
-// Méthode pour afficher le rapport à partir d'un résultat existant
-private showExecutionReport(result: TestResultDetails): void {
-  // Construire un rapport à partir des données existantes
-  const report: ExecutionReport = {
-    status: result.status === 'passed' ? 'passed' : (result.status === 'failed' ? 'failed' : 'partial'),
-    totalSteps: (result.steps_passed || 0) + (result.steps_failed || 0),
-    passedSteps: result.steps_passed || 0,
-    failedSteps: result.steps_failed || 0,
-    successRate: ((result.steps_passed || 0) / ((result.steps_passed || 0) + (result.steps_failed || 0))) * 100,
-    duration: result.duration || 0,
-    steps: this.lastRunSteps().map((step, idx) => ({
-      order: idx + 1,
-      type: step.type,
-      description: step.content,
-      status: step.status === 'success' ? 'success' : 'failed',
-      error: step.error_message,
-      duration: step.duration || 0
-    })),
-    placeholdersResolved: [],
-    recommendations: result.status === 'passed' 
-      ? ['✅ Test passed successfully!']
-      : ['❌ Test failed. Check the error details above.']
-  };
-  
-  this.executionReport.set(report);
-  this.showReport.set(true);
-}
 
   ngOnDestroy(): void {
     this.stepsSub?.unsubscribe();
@@ -198,9 +231,23 @@ private showExecutionReport(result: TestResultDetails): void {
     this.scriptV2Sub?.unsubscribe();
     this.executionReportSub?.unsubscribe();
     this.playwrightService.stopStreaming();
-    if (this.timeInterval) {
-      clearInterval(this.timeInterval);
-    }
+    if (this.timeInterval) clearInterval(this.timeInterval);
+  }
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+
+  loadTestCaseInfo(id: string): void {
+    this.testCaseService.getTestCaseById(id).subscribe({
+      next: (tc) => {
+        this.projectName.set(tc.project_name || '');
+        this.issueKey.set(tc.issue_key || '');
+        this.testCaseCode.set(tc.tc_code || '');
+        this.tcTitle.set(tc.title || '');
+        this.tcPriorityRaw.set(tc.priority || '');
+        this.tcSteps.set(Array.isArray(tc.steps) ? tc.steps : []);
+        this.tcExpectedResults.set(Array.isArray(tc.expected_results) ? tc.expected_results : []);
+      },
+    });
   }
 
   private loadScripts(): void {
@@ -209,19 +256,62 @@ private showExecutionReport(result: TestResultDetails): void {
       next: (response) => {
         const versions = this.playwrightService.convertToScriptVersionUI(response);
         this.scripts.set(versions);
-
         const active = versions.find(s => s.isActive) ?? versions[0] ?? null;
         if (active) {
           this.selectVersion(active.id);
         } else {
           this.loading.set(false);
         }
-
-        this.loadLastRun();
+        this.loadLastRunAndReport(true);
       },
       error: () => {
         this.toastService.error('Failed to load scripts');
         this.loading.set(false);
+      },
+    });
+  }
+
+  private loadLastRunAndReport(switchTab = false): void {
+    this.playwrightService.getLastRun(this.testCaseId()).subscribe({
+      next: (run) => {
+        if (run.test_run) {
+          this.lastRun.set(run.test_run);
+          this.lastRunResult.set(run.result ?? null);
+          this.lastRunSteps.set(run.steps ?? []);
+          this.loadFullReport(run.test_run.id, switchTab);
+        }
+      },
+      error: () => {},
+    });
+  }
+
+  loadFullReport(testRunId: string, switchTab = false): void {
+    this.isLoadingReport.set(true);
+    this.playwrightService.getFullReport(testRunId).subscribe({
+      next: (report) => {
+        this.fullReport.set(report);
+        this.isLoadingReport.set(false);
+        // Auto-switch to run tab on page load if there's a previous run (once only)
+        if (switchTab && !this.reportAutoSwitched && report?.result) {
+          this.reportAutoSwitched = true;
+          this.activeTab.set('run');
+        }
+      },
+      error: () => {
+        this.isLoadingReport.set(false);
+      },
+    });
+  }
+
+  loadRunHistory(): void {
+    this.isLoadingHistory.set(true);
+    this.playwrightService.getRunsForTestCase(this.testCaseId()).subscribe({
+      next: (res) => {
+        this.runHistory.set(res.runs);
+        this.isLoadingHistory.set(false);
+      },
+      error: () => {
+        this.isLoadingHistory.set(false);
       },
     });
   }
@@ -234,11 +324,6 @@ private showExecutionReport(result: TestResultDetails): void {
         this.selectedContent.set(res.content);
         this.loadingContent.set(false);
         this.loading.set(false);
-        
-        // Réinitialiser l'indicateur de nouveau script si on sélectionne manuellement
-        if (this.newScriptGenerated()) {
-          this.newScriptGenerated.set(false);
-        }
       },
       error: () => {
         this.toastService.error('Failed to load script content');
@@ -248,121 +333,33 @@ private showExecutionReport(result: TestResultDetails): void {
     });
   }
 
-
-private setupScriptV2Listener(): void {
-  this.scriptV2Sub = this.playwrightService.scriptV2$.subscribe(scriptV2 => {
-    if (scriptV2 && scriptV2.content) {
-      // Trouver la nouvelle version dans la liste
-      const newVersion = this.scripts().find(s => s.source === 'v2_corrected');
-      
-      this.newScriptGenerated.set(true);
-      this.newScriptContent.set(scriptV2.content);
-      this.newScriptVersionNumber.set(newVersion?.versionNumber || null);
-      this.newScriptVersionId.set(scriptV2.versionId);
-      
-      // ✅ Afficher une notification
-      this.toastService.success('✨ New corrected script (v2) has been generated!');
-      
-      // ✅ NE PAS CHANGER D'ONGLET AUTOMATIQUEMENT
-      // L'utilisateur reste sur l'onglet "Run" pour voir les résultats
-      // Il pourra cliquer sur un bouton pour voir le nouveau script
-      
-      // Recharger les scripts en arrière-plan
-      this.loadScripts();
-      
-      // ✅ Ajouter un bouton flottant ou dans le rapport
-      this.showNewScriptButton.set(true);
-    }
-  });
-}
-
-// Ajouter ce signal
-showNewScriptButton = signal(false);
-
-// Méthode pour naviguer vers le nouveau script
-viewNewScript(): void {
-  if (this.newScriptVersionId()) {
-    this.selectVersion(this.newScriptVersionId()!);
-    this.activeTab.set('script');
-    this.newScriptGenerated.set(false);
-    this.showNewScriptButton.set(false);
-    this.toastService.success('Now viewing the corrected script v2');
-  }
-}
-
-  private setupExecutionReportListener(): void {
-    this.executionReportSub = this.playwrightService.executionReport$.subscribe(report => {
-      if (report) {
-        this.executionReport.set(report);
-        this.showReport.set(true);
-        
-        // Afficher un résumé dans la console
-        console.log(`📊 Execution Report: ${report.status} - ${report.passedSteps}/${report.totalSteps} steps passed (${report.successRate.toFixed(1)}%)`);
-        
-        // Faire défiler jusqu'au rapport
-        setTimeout(() => this.scrollToReport(), 500);
-        
-        // Afficher un toast avec le résumé
-        if (report.status === 'passed') {
-          this.toastService.success(`✅ Test passed! ${report.passedSteps}/${report.totalSteps} steps succeeded`);
-        } else if (report.status === 'partial') {
-          this.toastService.warning(`⚠️ Partial success: ${report.passedSteps}/${report.totalSteps} steps passed`);
-        } else {
-          this.toastService.error(`❌ Test failed: ${report.failedSteps} error(s) detected`);
-        }
-      }
-    });
-  }
-
-  private highlightNewScript(): void {
-    // Trouver le nouveau script dans la liste après reload
-    setTimeout(() => {
-      const newVersion = this.scripts().find(s => s.source === 'v2_corrected');
-      if (newVersion) {
-        // Sélectionner automatiquement le nouveau script
-        this.selectVersion(newVersion.id);
-        
-        // Ajouter une animation de highlight
-        const element = document.querySelector('.version-item.active');
-        element?.classList.add('flash-highlight');
-        setTimeout(() => element?.classList.remove('flash-highlight'), 2000);
-      }
-    }, 1000);
-  }
-
+  // ── Run actions ───────────────────────────────────────────────────────────
 
   runScript(): void {
     const versionId = this.selectedVersionId();
     if (!versionId) return;
 
-    // Réinitialiser les états
-    this.isRunning.set(true);
     this.showReport.set(false);
     this.executionReport.set(null);
+    this.fullReport.set(null);
     this.newScriptGenerated.set(false);
     this.playwrightService.reset();
+    this.isRunning.set(true);
     this.activeTab.set('run');
 
-    // Exécuter le script avec stream
     this.playwrightService.executeScriptWithStream({
       test_case_id: this.testCaseId(),
       script_version_id: versionId,
       app_url: this.appUrl() || undefined,
       browser: this.browser(),
-      headless: this.headless()
-    });
-
-    // Surveiller la fin de l'exécution
-    this.executingSub = this.playwrightService.isExecuting$.subscribe(executing => {
-      if (!executing) {
-        this.isRunning.set(false);
-        this.loadLastRun();
-        this.executingSub?.unsubscribe();
-      }
+      headless: this.headless(),
     });
   }
 
-  // Méthode pour appliquer/voir le nouveau script
+  rerunScript(): void {
+    this.runScript();
+  }
+
   applyNewScript(): void {
     if (this.newScriptVersionId()) {
       this.selectVersion(this.newScriptVersionId()!);
@@ -372,26 +369,138 @@ viewNewScript(): void {
     }
   }
 
-  // Méthode pour fermer le rapport
+  viewNewScript(): void {
+    this.applyNewScript();
+  }
+
+  loadHistoricRun(runId: string): void {
+    this.loadFullReport(runId);
+    this.activeTab.set('run');
+  }
+
+  // ── Email dialog ──────────────────────────────────────────────────────────
+
+  openEmailDialog(): void {
+    this.emailRecipients.set('');
+    this.showEmailDialog.set(true);
+  }
+
+  closeEmailDialog(): void {
+    this.showEmailDialog.set(false);
+  }
+
+  sendEmail(): void {
+    const runId = this.currentTestRunId();
+    if (!runId) {
+      this.toastService.error('No test run found');
+      return;
+    }
+
+    const raw = this.emailRecipients().trim();
+    if (!raw) {
+      this.toastService.error('Please enter at least one recipient');
+      return;
+    }
+
+    const recipients = raw.split(/[,;\n]+/).map(r => r.trim()).filter(r => r.includes('@'));
+    if (!recipients.length) {
+      this.toastService.error('No valid email addresses found');
+      return;
+    }
+
+    this.isSendingEmail.set(true);
+    this.playwrightService.sendReportEmail(runId, recipients).subscribe({
+      next: () => {
+        this.isSendingEmail.set(false);
+        this.showEmailDialog.set(false);
+        this.toastService.success(`Report sent to ${recipients.length} recipient(s)`);
+        try {
+          const key = 'playwright_email_sent';
+          const raw = localStorage.getItem(key);
+          const map = raw ? JSON.parse(raw) : {};
+          map[runId] = { sentAt: new Date().toISOString(), recipients };
+          localStorage.setItem(key, JSON.stringify(map));
+        } catch {}
+      },
+      error: (err) => {
+        this.isSendingEmail.set(false);
+        this.toastService.error('Failed to send email: ' + err.message);
+      },
+    });
+  }
+
+  // ── Jira dialog ───────────────────────────────────────────────────────────
+
+  openJiraDialog(): void {
+    this.jiraProjectKey.set('');
+    this.jiraPriority.set('High');
+    this.jiraCreated.set(null);
+    this.showJiraDialog.set(true);
+  }
+
+  closeJiraDialog(): void {
+    this.showJiraDialog.set(false);
+  }
+
+  createJiraIssue(): void {
+    const defect = this.currentDefect();
+    if (!defect) {
+      this.toastService.error('No defect found. Run the test first.');
+      return;
+    }
+
+    const projectKey = this.jiraProjectKey().trim().toUpperCase();
+    if (!projectKey) {
+      this.toastService.error('Please enter a Jira project key');
+      return;
+    }
+
+    this.isCreatingJira.set(true);
+    this.playwrightService.createJiraIssue(defect.id, projectKey, this.jiraPriority()).subscribe({
+      next: (result) => {
+        this.isCreatingJira.set(false);
+        this.jiraCreated.set(result);
+        const current = this.fullReport();
+        if (current?.defect) {
+          this.fullReport.set({
+            ...current,
+            defect: { ...current.defect, jira_issue_key: result.key },
+          });
+        }
+        this.toastService.success(`Jira issue created: ${result.key}`);
+      },
+      error: (err) => {
+        this.isCreatingJira.set(false);
+        this.toastService.error('Failed to create Jira issue: ' + err.message);
+      },
+    });
+  }
+
+  // ── Defect creation ───────────────────────────────────────────────────────
+
+  createDefect(): void {
+    const runId = this.currentTestRunId();
+    const tcId = this.testCaseId();
+    if (!runId || !tcId) return;
+
+    this.isCreatingDefect.set(true);
+    this.playwrightService.createDefectFromRun(runId, tcId).subscribe({
+      next: () => {
+        this.isCreatingDefect.set(false);
+        this.toastService.success('Defect created successfully');
+        this.loadFullReport(runId);
+      },
+      error: (err) => {
+        this.isCreatingDefect.set(false);
+        this.toastService.error('Failed to create defect: ' + err.message);
+      },
+    });
+  }
+
+  // ── UI helpers ────────────────────────────────────────────────────────────
+
   closeReport(): void {
     this.showReport.set(false);
-  }
-
-  // Méthode pour ré-exécuter avec les mêmes paramètres
-  rerunScript(): void {
-    this.runScript();
-  }
-
-  private scrollToBottom(): void {
-    const el = this.terminalEl?.nativeElement;
-    if (el) el.scrollTop = el.scrollHeight;
-  }
-
-  private scrollToReport(): void {
-    const el = this.reportEl?.nativeElement;
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
   }
 
   goBack(): void {
@@ -400,29 +509,86 @@ viewNewScript(): void {
 
   getSourceLabel(source: string): string {
     const map: Record<string, string> = {
-      v1_draft: 'v1 Draft',
-      v2_corrected: 'v2 Corrected',
-      manual_edit: 'Manual',
-      ai_fix: 'AI Fix',
+      v1_draft: 'v1 Draft', v2_corrected: 'v2 Corrected',
+      manual_edit: 'Manual', ai_fix: 'AI Fix',
     };
     return map[source] ?? source;
   }
 
   getRunStatusClass(status: string | null | undefined): string {
     switch (status) {
-      case TestResultStatus.PASSED: return 'badge-success';
-      case TestResultStatus.FAILED: return 'badge-danger';
-      case TestResultStatus.ERROR: return 'badge-warning';
+      case 'passed': return 'badge-success';
+      case 'failed': return 'badge-danger';
+      case 'error': return 'badge-warning';
       default: return 'badge-secondary';
     }
   }
 
   getStepTypeIcon(type: string): string {
-    switch (type) {
-      case 'think': return '🧠';
-      case 'act':   return '⚡';
-      default:      return '👁️';
+    return type === 'think' ? '🧠' : type === 'act' ? '⚡' : '👁️';
+  }
+
+  getStatusIcon(): string {
+    switch (this.reportStatus()) {
+      case 'passed': return '✓';
+      case 'failed': return '✗';
+      case 'error': return '⚠';
+      default: return '●';
     }
+  }
+
+  getReportStatusLabel(): string {
+    switch (this.reportStatus()) {
+      case 'passed': return 'PASSED';
+      case 'failed': return 'FAILED';
+      case 'error': return 'ERROR';
+      default: return 'UNKNOWN';
+    }
+  }
+
+  getSeverityClass(severity: string): string {
+    switch (severity) {
+      case 'critical': return 'sev-critical';
+      case 'high': return 'sev-high';
+      case 'medium': return 'sev-medium';
+      case 'low': return 'sev-low';
+      default: return 'sev-medium';
+    }
+  }
+
+  getDefectStatusLabel(status: string): string {
+    switch ((status || '').toLowerCase()) {
+      case 'open':        return 'Waiting for developer to fix';
+      case 'in_progress': return 'Fix in progress';
+      case 'closed':      return 'Fixed — ready for retest';
+      default:            return status;
+    }
+  }
+
+  getDefectStatusClass(status: string): string {
+    switch ((status || '').toLowerCase()) {
+      case 'open':        return 'defect-status--open';
+      case 'in_progress': return 'defect-status--inprogress';
+      case 'closed':      return 'defect-status--closed';
+      default:            return '';
+    }
+  }
+
+  getHistoryResultClass(status: string | null): string {
+    switch (status) {
+      case 'passed': return 'hist-passed';
+      case 'failed': return 'hist-failed';
+      case 'error':  return 'hist-error';
+      default:       return 'hist-unknown';
+    }
+  }
+
+  formatDuration(seconds: number | null): string {
+    if (!seconds) return '—';
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}m ${s}s`;
   }
 
   successStepsCount(): number {
@@ -435,7 +601,6 @@ viewNewScript(): void {
 
   getStepPreview(step: TestStepResult): string {
     const c = step.content || '';
-    if (step.type === 'act') return c.length > 200 ? c.slice(0, 200) + '…' : c;
     const lines = c.split('\n').filter(l => l.trim());
     const preview = lines.slice(0, 4).join(' | ');
     return preview.length > 250 ? preview.slice(0, 250) + '…' : preview;
@@ -443,9 +608,7 @@ viewNewScript(): void {
 
   extractError(content: string): string {
     const lines = content.split('\n');
-    const errLine = lines.find(l =>
-      /timeouterror|exception|error:/i.test(l) || l.startsWith('### Error')
-    );
+    const errLine = lines.find(l => /timeouterror|exception|error:/i.test(l));
     if (errLine) {
       const idx = lines.indexOf(errLine);
       return lines.slice(idx, idx + 3).join(' ').trim().slice(0, 300);
@@ -453,26 +616,18 @@ viewNewScript(): void {
     return content.slice(0, 200);
   }
 
-  // Méthodes pour le rapport
-  getReportStatusClass(): string {
-    const report = this.executionReport();
-    if (!report) return '';
-    switch (report.status) {
-      case 'passed': return 'report-passed';
-      case 'failed': return 'report-failed';
-      case 'partial': return 'report-partial';
-      default: return '';
-    }
+  reasoningParagraphs(): string[] {
+    const r = this.fullReport()?.llm_reasoning || '';
+    return r.split('\n---\n').map(p => p.trim()).filter(p => p.length > 10);
   }
 
-  getStatusIcon(): string {
-    const report = this.executionReport();
-    if (!report) return '';
-    switch (report.status) {
-      case 'passed': return '✓'; 
-      case 'failed': return '✗';
-      case 'partial': return '⚠';
-      default: return '';
-    }
+  private scrollToBottom(): void {
+    const el = this.terminalEl?.nativeElement;
+    if (el) el.scrollTop = el.scrollHeight;
+  }
+
+  private scrollToReport(): void {
+    const el = this.reportEl?.nativeElement;
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
