@@ -254,4 +254,122 @@ def make_action_tools(user_id: str) -> List:
             )
         )
 
-    return [refine_user_story, generate_test_cases, generate_playwright_script]
+    @tool("execute_playwright_script")
+    async def execute_playwright_script(
+        test_case_id: str,
+        app_url: str = "",
+    ) -> str:
+        """
+        Execute the active Playwright script for a test case against the target app.
+        Execution runs in the background and streams live progress to the app UI.
+        Returns immediately — the user can watch results live on the Playwright page.
+
+        Args:
+            test_case_id: The UUID of the test case to execute
+            app_url: The base URL of the application under test (e.g. "http://localhost:3000")
+        """
+        import asyncio
+        from app.services.playwright_service import execute_script
+        from app.repositories import playwright_repository as repo
+        from app.models.test_case import TestCase as TC
+
+        async with async_session_maker() as db:
+            tc: TC | None = await db.get(TC, test_case_id)
+            if not tc:
+                return f"Test case `{test_case_id}` not found."
+            tc_code = tc.tc_code
+            tc_title = tc.title
+
+            active_script = await repo.get_active_script(db, test_case_id)
+            if not active_script:
+                return (
+                    f"**{tc_code}** has no active Playwright script yet.\n"
+                    "Ask me to `generate_playwright_script` for it first."
+                )
+
+        async def _run_in_bg():
+            async with async_session_maker() as db:
+                await execute_script(
+                    db,
+                    test_case_id=test_case_id,
+                    app_url=app_url or None,
+                    browser="chromium",
+                    headless=True,
+                    save_to_db=True,
+                )
+
+        asyncio.create_task(_run_in_bg())
+
+        url_note = f" against **{app_url}**" if app_url else ""
+        return (
+            f"## Execution Started\n\n"
+            f"Running **{tc_code}: {tc_title[:60]}**{url_note}.\n\n"
+            f"- Execution is running in the background.\n"
+            f"- Live step-by-step output is visible on the **Playwright Scripts** page.\n"
+            f"- Results are saved automatically when it finishes.\n\n"
+            f"Use `get_suite_results` after completion to see the final outcome."
+        )
+
+    @tool("run_test_suite")
+    async def run_test_suite(
+        suite_id: str,
+        app_url: str = "",
+    ) -> str:
+        """
+        Execute all test cases in a test suite using a single optimised browser session.
+        Missing scripts are generated automatically before execution starts.
+        Execution runs in the background — the user can watch live progress on the
+        Test Suite detail page.
+
+        Args:
+            suite_id: The UUID of the test suite to run (from get_test_suites)
+            app_url: The base URL of the application under test (e.g. "http://localhost:3000")
+        """
+        import asyncio
+        from app.services.playwright_service import run_suite_smart
+        from app.models.test_suite import TestSuite as TS
+
+        async with async_session_maker() as db:
+            suite: TS | None = await db.get(TS, suite_id)
+            if not suite:
+                return f"Test suite `{suite_id}` not found."
+            suite_title = suite.title
+
+            # Quick TC count
+            from sqlalchemy import select, func
+            from app.models.test_case import TestCase
+            cnt_r = await db.execute(
+                select(func.count(TestCase.id))
+                .where(TestCase.test_suite_id == suite_id, TestCase.is_active == True)
+            )
+            tc_count = cnt_r.scalar() or 0
+
+        if tc_count == 0:
+            return f"Suite **{suite_title}** has no active test cases to run."
+
+        async def _run_in_bg():
+            async with async_session_maker() as db:
+                await run_suite_smart(
+                    db,
+                    suite_id=suite_id,
+                    app_url=app_url or None,
+                    browser="chromium",
+                    headless=True,
+                    stop_on_failure=False,
+                )
+
+        asyncio.create_task(_run_in_bg())
+
+        url_note = f" against **{app_url}**" if app_url else ""
+        return (
+            f"## Suite Execution Started\n\n"
+            f"Running **{suite_title}** ({tc_count} test cases){url_note}.\n\n"
+            f"- Missing scripts will be auto-generated before execution.\n"
+            f"- A single browser session is reused across all TCs for speed.\n"
+            f"- Live progress is visible on the **Test Suite** detail page.\n"
+            f"- Results are saved automatically when it finishes.\n\n"
+            f"Use `get_suite_results('{suite_id}')` after it completes to see the outcome."
+        )
+
+    return [refine_user_story, generate_test_cases, generate_playwright_script,
+            execute_playwright_script, run_test_suite]

@@ -151,8 +151,13 @@ export class TastyComponent implements OnDestroy, AfterViewChecked {
       get_test_cases: 'Fetching test cases',
       get_test_stats: 'Loading stats',
       search_test_cases: 'Searching test cases',
+      get_test_suites: 'Fetching test suites',
+      get_suite_results: 'Loading execution results',
       generate_test_cases: 'Generating test cases',
       refine_user_story: 'Refining user story',
+      generate_playwright_script: 'Generating Playwright script',
+      execute_playwright_script: 'Executing script',
+      run_test_suite: 'Running test suite',
     };
     return labels[tool] ?? tool.replace(/_/g, ' ');
   }
@@ -160,7 +165,12 @@ export class TastyComponent implements OnDestroy, AfterViewChecked {
   private addWelcome(): void {
     this.addMessage(
       'assistant',
-      "Hi! I'm **Tasty**, your AI Testing Assistant. I can help you query your projects, generate test cases, refine user stories, and much more.\n\nWhat would you like to do?"
+      "Hi! I'm **Tasty**, your AI Testing Assistant. Here's what I can do:\n\n" +
+      "**Query** — projects, user stories, test cases, test suites, execution results, stats\n" +
+      "**Generate** — test cases, Playwright scripts\n" +
+      "**Execute** — run a single script or an entire test suite against your app\n" +
+      "**Refine** — improve user stories with the AI pipeline\n\n" +
+      "What would you like to do?"
     );
   }
 

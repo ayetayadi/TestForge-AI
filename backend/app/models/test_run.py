@@ -29,7 +29,7 @@ class TestRun(Base):
     # TestCase est accessible via : run.script_version.test_case
     script_version_id: Mapped[Optional[str]] = mapped_column(
         String(36),
-        ForeignKey("playwright_script_versions.id", ondelete="SET NULL"),
+        ForeignKey("playwright_script_versions.id", ondelete="CASCADE"),
         nullable=True
     )
 

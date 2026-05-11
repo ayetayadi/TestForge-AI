@@ -1,9 +1,12 @@
 """
-Client Redis unifié pour toute l'application
-Utilisé par: embedding.py, cache.py, etc.
+Unified Redis client for the application.
+Falls back gracefully when Redis is unavailable.
 """
+import logging
 import redis.asyncio as redis
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 _redis_client = None
 _redis_available = None
@@ -35,9 +38,9 @@ async def get_redis() -> redis.Redis | None:
             )
             await _redis_client.ping()
             _redis_available = True
-            print(f"[REDIS] Connected to {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+            logger.info(f"[REDIS] Connected to {settings.REDIS_HOST}:{settings.REDIS_PORT}")
         except Exception as e:
-            print(f"[REDIS] Not available: {e}")
+            logger.warning(f"[REDIS] Not available — falling back to in-memory: {e}")
             _redis_available = False
             _redis_client = None
     
@@ -51,7 +54,7 @@ async def reset_redis_connection():
         await _redis_client.close()
     _redis_client = None
     _redis_available = None
-    print("[REDIS] Connection reset")
+    logger.info("[REDIS] Connection reset")
 
 async def get_redis_with_decode() -> redis.Redis | None:
     """Version avec decode_responses=True pour le texte."""

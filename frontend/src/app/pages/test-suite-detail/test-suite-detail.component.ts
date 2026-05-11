@@ -1,8 +1,10 @@
-import { Component, OnInit, inject, signal, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, forkJoin, Subscription } from 'rxjs';
+
+import { PlaywrightE2EService, SuiteSmartRunRequest, SuiteSSEEvent, SuiteScriptStatus } from '../../services/playwright-e2e.service';
 
 import { TestSuiteService } from '../../services/test-suite.service';
 import { ToastService } from '../../services/toast.service';
@@ -62,6 +64,14 @@ interface GraphLayoutData {
   bands: LayerBand[];
 }
 
+interface SuiteLogEntry {
+  tc_id: string;
+  tc_code: string;
+  title: string;
+  status: 'pending' | 'running' | 'passed' | 'failed' | 'skipped';
+  run_id?: string;
+}
+
 @Component({
   selector: 'app-test-suite-detail',
   standalone: true,
@@ -69,17 +79,36 @@ interface GraphLayoutData {
   templateUrl: './test-suite-detail.component.html',
   styleUrl: './test-suite-detail.component.scss',
 })
-export class TestSuiteDetailComponent implements OnInit {
+export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private service = inject(TestSuiteService);
   private toast = inject(ToastService);
+  private playwrightService = inject(PlaywrightE2EService);
 
   // ── State ─────────────────────────────────────────────────────
   suite = signal<TestSuiteDetail | null>(null);
   isLoading = signal(true);
   activeTab = signal<DetailTab>('overview');
   expandedCase = signal<string | null>(null);
+
+  // ── Suite Playwright Run ─────────────────────────────────────
+  showSuiteRunModal   = signal(false);
+  suiteModalStep      = signal<1 | 2>(1);
+  suiteRunAppUrl      = signal('');
+  suiteRunBrowser     = signal('chromium');
+  suiteRunHeadless    = signal(true);
+  suiteRunStopOnFail  = signal(false);
+  isSuiteRunning      = signal(false);
+  showSuitePanel      = signal(false);
+  suiteLogEntries     = signal<SuiteLogEntry[]>([]);
+  suiteRunSummary     = signal<{ total: number; passed: number; failed: number; skipped: number; duration: number } | null>(null);
+  suiteScriptStatuses = signal<SuiteScriptStatus[]>([]);
+  isLoadingStatuses   = signal(false);
+
+  isDownloadingReport = signal(false);
+
+  private _suiteSub: Subscription | null = null;
 
   // ── Status / Delete actions ───────────────────────────────────
   isActivating = signal(false);
@@ -155,12 +184,39 @@ export class TestSuiteDetailComponent implements OnInit {
     try {
       const detail = await firstValueFrom(this.service.getById(id));
       this.suite.set(detail ?? null);
+      if (detail) {
+        this._restoreLastRun(id);
+      }
     } catch (err) {
       console.error('Failed to load test suite:', err);
       this.toast.error('Failed to load test suite');
     } finally {
       this.isLoading.set(false);
     }
+  }
+
+  private _restoreLastRun(suiteId: string): void {
+    this.playwrightService.getLastSuiteRun(suiteId).subscribe({
+      next: (data) => {
+        if (!data.has_runs || !data.results.length) return;
+        // Don't overwrite a live/in-progress run
+        if (this.isSuiteRunning()) return;
+        this.suiteLogEntries.set(
+          data.results.map(r => ({
+            tc_id: r.tc_id,
+            tc_code: r.tc_code,
+            title: r.title,
+            status: r.status as SuiteLogEntry['status'],
+            run_id: r.run_id ?? undefined,
+          }))
+        );
+        if (data.summary) {
+          this.suiteRunSummary.set(data.summary);
+          this.showSuitePanel.set(true);
+        }
+      },
+      error: () => { /* silent — panel just stays empty */ },
+    });
   }
 
   // ── Status / Delete actions ───────────────────────────────────
@@ -206,6 +262,207 @@ export class TestSuiteDetailComponent implements OnInit {
       this.toast.error('Failed to delete suite');
       this.isDeletingSuite.set(false);
     }
+  }
+
+  ngOnDestroy(): void {
+    this._suiteSub?.unsubscribe();
+  }
+
+  // ── Suite Playwright Run ──────────────────────────────────────
+  openSuiteRunModal(): void {
+    this.suiteModalStep.set(1);
+    this.suiteScriptStatuses.set([]);
+    this.showSuiteRunModal.set(true);
+  }
+  closeSuiteRunModal(): void {
+    this.showSuiteRunModal.set(false);
+    this.suiteModalStep.set(1);
+  }
+  backToStep1(): void            { this.suiteModalStep.set(1); }
+  toggleSuiteHeadless(): void    { this.suiteRunHeadless.set(!this.suiteRunHeadless()); }
+  toggleSuiteStopOnFail(): void  { this.suiteRunStopOnFail.set(!this.suiteRunStopOnFail()); }
+
+  loadAndReview(): void {
+    const suiteId = this.suite()?.id;
+    if (!suiteId || !this.suiteRunAppUrl()) return;
+    this.isLoadingStatuses.set(true);
+    this.playwrightService.getSuiteScriptsStatus(suiteId).subscribe({
+      next: (res) => {
+        this.suiteScriptStatuses.set(res.test_cases);
+        this.suiteModalStep.set(2);
+        this.isLoadingStatuses.set(false);
+      },
+      error: () => {
+        this.toast.error('Failed to load script statuses');
+        this.isLoadingStatuses.set(false);
+      },
+    });
+  }
+
+  getScriptReadyCount(): number {
+    return this.suiteScriptStatuses().filter(s => s.has_script).length;
+  }
+
+  getScriptPendingCount(): number {
+    return this.suiteScriptStatuses().filter(s => !s.has_script).length;
+  }
+
+  startSuiteRun(): void {
+    const suiteId = this.suite()?.id;
+    if (!suiteId || !this.suiteRunAppUrl()) return;
+
+    this.showSuiteRunModal.set(false);
+    this.isSuiteRunning.set(true);
+    this.showSuitePanel.set(true);
+    this.suiteLogEntries.set([]);
+    this.suiteRunSummary.set(null);
+
+    this._suiteSub?.unsubscribe();
+    this._suiteSub = this.playwrightService.connectSuiteStream(suiteId).subscribe({
+      next: (event) => this._handleSuiteEvent(event),
+      error: (err) => {
+        console.error('[SUITE SSE] Error:', err);
+        this.isSuiteRunning.set(false);
+        this.toast.error('Execution stream disconnected');
+      },
+      complete: () => this.isSuiteRunning.set(false),
+    });
+
+    this.playwrightService.executeSuiteSmart(suiteId, {
+      app_url:          this.suiteRunAppUrl(),
+      browser:          this.suiteRunBrowser(),
+      headless:         this.suiteRunHeadless(),
+      stop_on_failure:  this.suiteRunStopOnFail(),
+    }).subscribe({
+      error: (err) => {
+        console.error('[SUITE RUN] Start error:', err);
+        this.isSuiteRunning.set(false);
+        this.toast.error('Failed to start suite execution');
+      },
+    });
+  }
+
+  downloadSuiteReport(): void {
+    const entries = this.suiteLogEntries();
+    const summary = this.suiteRunSummary();
+    const suiteName = this.suite()?.title ?? 'suite';
+
+    const runEntries = entries.filter(e => !!e.run_id);
+    if (!runEntries.length) {
+      this.toast.error('No run data available to export');
+      return;
+    }
+
+    this.isDownloadingReport.set(true);
+
+    forkJoin(runEntries.map(e => this.playwrightService.getTestRunDetails(e.run_id!))).subscribe({
+      next: (details) => {
+        const now = new Date();
+        const lines: string[] = [
+          '================================================================',
+          'SUITE EXECUTION REPORT',
+          '================================================================',
+          `Suite   : ${suiteName}`,
+          `Date    : ${now.toLocaleString()}`,
+          summary
+            ? `Results : ${summary.passed} passed | ${summary.failed} failed | ${summary.skipped} skipped | ${summary.duration.toFixed(1)}s total`
+            : '',
+          '',
+        ];
+
+        runEntries.forEach((entry, i) => {
+          const detail = details[i];
+          const statusIcon = entry.status === 'passed' ? '✓' : entry.status === 'failed' ? '✗' : '—';
+          lines.push(`────────────────────────────────────────────────────────────`);
+          lines.push(`[${statusIcon}] ${entry.tc_code} — ${entry.title}`);
+          lines.push(`    Status   : ${entry.status.toUpperCase()}`);
+          if (detail?.test_run) {
+            lines.push(`    Browser  : ${detail.test_run.browser}`);
+            lines.push(`    Duration : ${(detail.test_run.duration ?? 0).toFixed(1)}s`);
+            lines.push(`    Run ID   : ${detail.test_run.id}`);
+          }
+          if (detail?.result?.justification) {
+            lines.push(`    Result   : ${detail.result.justification}`);
+          }
+          if (detail?.steps?.length) {
+            lines.push('');
+            lines.push('    Steps:');
+            detail.steps.forEach(s => {
+              const icon = s.status === 'success' ? '  ✓' : '  ✗';
+              const type = s.type.toUpperCase().padEnd(7);
+              lines.push(`${icon} [${type}] ${s.content}`);
+            });
+          }
+          lines.push('');
+        });
+
+        // Entries with no run_id (skipped before execution)
+        entries.filter(e => !e.run_id).forEach(entry => {
+          lines.push(`────────────────────────────────────────────────────────────`);
+          lines.push(`[—] ${entry.tc_code} — ${entry.title}`);
+          lines.push(`    Status: ${entry.status.toUpperCase()}`);
+          lines.push('');
+        });
+
+        lines.push('================================================================');
+
+        const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const safeTitle = suiteName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+        const dateStr = now.toISOString().slice(0, 10);
+        this._triggerDownload(url, `report-${safeTitle}-${dateStr}.txt`);
+        this.isDownloadingReport.set(false);
+      },
+      error: () => {
+        this.toast.error('Failed to generate report');
+        this.isDownloadingReport.set(false);
+      },
+    });
+  }
+
+  private _handleSuiteEvent(event: SuiteSSEEvent): void {
+    switch (event.type) {
+      case 'suite_started': {
+        const tcIds: string[] = event.data['test_case_ids'] || [];
+        const tcs = this.getTestCases();
+        this.suiteLogEntries.set(tcIds.map(id => {
+          const tc = tcs.find(t => t.id === id);
+          return { tc_id: id, tc_code: tc?.tc_code || '?', title: tc?.title || id, status: 'pending' };
+        }));
+        break;
+      }
+      case 'tc_started': {
+        const id = event.data['tc_id'];
+        this.suiteLogEntries.update(entries =>
+          entries.map(e => e.tc_id === id ? { ...e, status: 'running' } : e)
+        );
+        break;
+      }
+      case 'tc_completed': {
+        const id     = event.data['tc_id'];
+        const status = (event.data['status'] ?? 'failed') as SuiteLogEntry['status'];
+        const runId  = event.data['run_id'];
+        this.suiteLogEntries.update(entries =>
+          entries.map(e => e.tc_id === id ? { ...e, status, run_id: runId } : e)
+        );
+        break;
+      }
+      case 'completed': {
+        this.isSuiteRunning.set(false);
+        this.suiteRunSummary.set({
+          total:    event.data['total']    ?? 0,
+          passed:   event.data['passed']   ?? 0,
+          failed:   event.data['failed']   ?? 0,
+          skipped:  event.data['skipped']  ?? 0,
+          duration: event.data['duration'] ?? 0,
+        });
+        break;
+      }
+    }
+  }
+
+  suiteStatusLabel(status: SuiteLogEntry['status']): string {
+    return status.charAt(0).toUpperCase() + status.slice(1);
   }
 
   // ── Navigation ────────────────────────────────────────────────

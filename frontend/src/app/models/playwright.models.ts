@@ -47,6 +47,21 @@ export type ExecutionStatus = 'passed' | 'failed' | 'completed' | 'error';
 
 export interface GenerateScriptRequest {
   test_case_id: string;
+  app_url?: string;
+}
+
+export interface UpdateScriptRequest {
+  script_content: string;
+}
+
+export interface UpdateScriptResponse {
+  id: string;
+  version_number: number;
+  source: string;
+  is_active: boolean;
+  placeholder_count: number;
+  validation_status: string;
+  created_at: string | null;
 }
 
 export interface ExecuteScriptRequest {

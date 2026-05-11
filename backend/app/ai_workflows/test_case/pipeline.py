@@ -182,6 +182,8 @@ class TestCasePipeline:
                 logger.error(f"[TEST CASE] LLM timed out after {LLM_TIMEOUT_SECONDS}s")
                 raise RuntimeError("LLM call timed out")
 
+            if batch is None:
+                raise RuntimeError("LLM returned None — structured output parsing failed (no tool call in response)")
             raw_tcs = [tc.model_dump() for tc in batch.test_cases]
             self._remap_risk_ids(raw_tcs, risk_label_map)
 

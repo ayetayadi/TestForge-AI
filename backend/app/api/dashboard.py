@@ -175,12 +175,40 @@ async def get_dashboard_stats(
     gherkin_coverage = round(tc_with_gherkin / tc_total * 100, 1) if tc_total else 0.0
 
     # ── 4. Test type coverage ──────────────────────────────────────────────────
+    # Query test cases via user_story path first (AI-generated TCs).
+    # Fall back to test_suite path if needed.
+    type_r = await db.execute(
+        select(TestCase.test_type, func.count(TestCase.id).label("cnt"))
+        .join(UserStory, TestCase.user_story_id == UserStory.id)
+        .where(UserStory.project_id.in_(project_ids), TestCase.is_active == True)
+        .group_by(TestCase.test_type)
+    )
+    type_rows = type_r.fetchall()
+
+    if not type_rows:
+        type_r2 = await db.execute(
+            select(TestCase.test_type, func.count(TestCase.id).label("cnt"))
+            .join(TestSuite, TestCase.test_suite_id == TestSuite.id)
+            .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)
+            .where(TestPlan.project_id.in_(project_ids), TestCase.is_active == True)
+            .group_by(TestCase.test_type)
+        )
+        type_rows = type_r2.fetchall()
+
     type_counts: dict[str, int] = {k: 0 for k in _TYPE_LABELS}
+    type_total = 0
+    for row in type_rows:
+        key = (row.test_type or "").lower().replace(" ", "-")
+        if key in type_counts:
+            type_counts[key] = row.cnt
+        type_total += row.cnt
+
+    denom = type_total or tc_total or 1
 
     test_type_coverage = [
         CoverageItem(
             label=_TYPE_LABELS[t],
-            value=round(cnt / tc_total * 100, 1) if tc_total else 0.0,
+            value=round(cnt / denom * 100, 1),
         )
         for t, cnt in type_counts.items()
         if cnt > 0

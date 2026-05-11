@@ -7,7 +7,7 @@ from uuid import uuid4
 from collections import deque
 import heapq
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from app.models.test_suite import TestSuite
 from app.models.test_case import TestCase
@@ -415,9 +415,20 @@ class TestSuiteService:
         """
         dep_count = 0
 
+        # Delete existing AI-generated dependencies for this plan to avoid duplicates on re-run
+        await self.db.execute(
+            delete(TestCaseDependency).where(
+                TestCaseDependency.test_plan_id == test_plan_id,
+                TestCaseDependency.is_ai_generated == True,
+                TestCaseDependency.is_manual_override == False,
+            )
+        )
+        await self.db.flush()
+
         # Charger le flow_order et les classifications LLM du plan
         flow_order = _BUSINESS_FLOW_RANK
         tc_classifications: Dict[str, Any] = {}
+        seen_pairs: set = set()  # deduplicate across suites
 
         try:
             plan_result = await self.db.execute(
@@ -474,6 +485,10 @@ class TestSuiteService:
 
             for i in range(1, len(sorted_suite_tcs)):
                 prev, curr = sorted_suite_tcs[i - 1], sorted_suite_tcs[i]
+                pair = (prev.id, curr.id)
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
                 self.db.add(TestCaseDependency(
                     id=str(uuid4()),
                     test_plan_id=test_plan_id,

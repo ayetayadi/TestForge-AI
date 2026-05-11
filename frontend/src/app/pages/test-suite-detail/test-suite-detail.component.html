@@ -44,6 +44,15 @@
 
       <!-- Actions -->
       <div class="tsd-header-actions">
+        <!-- Run on Playwright -->
+        <button class="btn-action btn-playwright" [disabled]="isSuiteRunning()" (click)="openSuiteRunModal()">
+          @if (isSuiteRunning()) {
+            <span class="spinner-xs"></span> Running…
+          } @else {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>
+            Run on Playwright
+          }
+        </button>
         @if (suite.status === 'draft' || suite.status === 'archived') {
           <button class="btn-action btn-confirm" [disabled]="isActivating()" (click)="activateSuite()">
             @if (isActivating()) { <span class="spinner-xs"></span> } @else {
@@ -914,5 +923,216 @@
       </div>
     }
 
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SUITE EXECUTION LIVE PANEL                                              -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    @if (showSuitePanel()) {
+      <div class="spr-panel">
+        <div class="spr-panel-header">
+          <div class="spr-panel-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>
+            Suite Execution
+            @if (isSuiteRunning()) {
+              <span class="spr-running-badge">Running</span>
+            }
+          </div>
+          @if (!isSuiteRunning()) {
+            <button class="spr-panel-close" (click)="showSuitePanel.set(false)">×</button>
+          }
+        </div>
+
+        <div class="spr-panel-body">
+          @for (entry of suiteLogEntries(); track entry.tc_id) {
+            <div class="spr-tc-row spr-tc-row--{{ entry.status }}">
+              <span class="spr-dot spr-dot--{{ entry.status }}"></span>
+              <span class="spr-tc-code">{{ entry.tc_code }}</span>
+              <span class="spr-tc-title">{{ entry.title }}</span>
+              <span class="spr-tc-status">{{ suiteStatusLabel(entry.status) }}</span>
+            </div>
+          }
+          @if (suiteLogEntries().length === 0 && isSuiteRunning()) {
+            <div class="spr-loading-row">
+              <span class="spinner-xs"></span> Initialising…
+            </div>
+          }
+        </div>
+
+        @if (suiteRunSummary()) {
+          <div class="spr-summary">
+            <div class="spr-summary-stat">
+              <span class="spr-summary-val passed">{{ suiteRunSummary()!.passed }}</span>
+              <span class="spr-summary-lbl">Passed</span>
+            </div>
+            <div class="spr-summary-stat">
+              <span class="spr-summary-val failed">{{ suiteRunSummary()!.failed }}</span>
+              <span class="spr-summary-lbl">Failed</span>
+            </div>
+            <div class="spr-summary-stat">
+              <span class="spr-summary-val skipped">{{ suiteRunSummary()!.skipped }}</span>
+              <span class="spr-summary-lbl">Skipped</span>
+            </div>
+            <div class="spr-summary-stat">
+              <span class="spr-summary-val">{{ suiteRunSummary()!.duration | number:'1.0-1' }}s</span>
+              <span class="spr-summary-lbl">Duration</span>
+            </div>
+          </div>
+          <div class="spr-report-row">
+            <button class="spr-btn-download" [disabled]="isDownloadingReport()" (click)="downloadSuiteReport()">
+              @if (isDownloadingReport()) {
+                <span class="spinner-xs"></span> Generating…
+              } @else {
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download Report
+              }
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+  }
+
+  <!-- ── Suite Run Modal ─────────────────────────────────────────────────── -->
+  @if (showSuiteRunModal()) {
+    <div class="spr-overlay" (click)="closeSuiteRunModal()">
+      <div class="spr-modal" (click)="$event.stopPropagation()">
+
+        <!-- Header -->
+        <div class="spr-modal-header">
+          <div class="spr-modal-header-left">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>
+              @if (suiteModalStep() === 1) { Run Suite on Playwright }
+              @else { Review Scripts }
+            </h3>
+            <div class="spr-step-pills">
+              <span class="spr-step-pill" [class.active]="suiteModalStep() === 1" [class.done]="suiteModalStep() === 2">1 Configure</span>
+              <span class="spr-step-sep">›</span>
+              <span class="spr-step-pill" [class.active]="suiteModalStep() === 2">2 Review</span>
+            </div>
+          </div>
+          <button class="spr-modal-close" (click)="closeSuiteRunModal()">×</button>
+        </div>
+
+        <!-- Step 1: Configuration -->
+        @if (suiteModalStep() === 1) {
+          <div class="spr-modal-body">
+            <div class="spr-field">
+              <label>App URL <span class="spr-required">*</span></label>
+              <input
+                type="url"
+                placeholder="http://localhost:3000"
+                [value]="suiteRunAppUrl()"
+                (input)="suiteRunAppUrl.set($any($event.target).value)"
+              />
+              <span class="spr-hint">The running instance of your application</span>
+            </div>
+
+            <div class="spr-field-row">
+              <div class="spr-field">
+                <label>Browser</label>
+                <select [value]="suiteRunBrowser()" (change)="suiteRunBrowser.set($any($event.target).value)">
+                  <option value="chromium">Chromium</option>
+                  <option value="firefox">Firefox</option>
+                  <option value="webkit">WebKit</option>
+                </select>
+              </div>
+              <div class="spr-field spr-field--toggle">
+                <label>Headless</label>
+                <button class="spr-toggle" [class.active]="suiteRunHeadless()" (click)="toggleSuiteHeadless()">
+                  {{ suiteRunHeadless() ? 'On' : 'Off' }}
+                </button>
+              </div>
+              <div class="spr-field spr-field--toggle">
+                <label>Stop on Failure</label>
+                <button class="spr-toggle" [class.active]="suiteRunStopOnFail()" (click)="toggleSuiteStopOnFail()">
+                  {{ suiteRunStopOnFail() ? 'On' : 'Off' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="spr-modal-footer">
+            <button class="spr-btn-cancel" (click)="closeSuiteRunModal()">Cancel</button>
+            <button class="spr-btn-review" [disabled]="!suiteRunAppUrl() || isLoadingStatuses()" (click)="loadAndReview()">
+              @if (isLoadingStatuses()) {
+                <span class="spinner-xs"></span> Loading…
+              } @else {
+                Review Scripts
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              }
+            </button>
+          </div>
+        }
+
+        <!-- Step 2: Review scripts -->
+        @if (suiteModalStep() === 2) {
+          <div class="spr-modal-body spr-modal-body--review">
+
+            <!-- Summary banner -->
+            <div class="spr-review-banner">
+              <span class="spr-review-total">{{ suiteScriptStatuses().length }} test cases</span>
+              @if (getScriptReadyCount() > 0) {
+                <span class="spr-review-badge spr-review-badge--ready">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                  {{ getScriptReadyCount() }} ready
+                </span>
+              }
+              @if (getScriptPendingCount() > 0) {
+                <span class="spr-review-badge spr-review-badge--warn">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  {{ getScriptPendingCount() }} will auto-generate
+                </span>
+              }
+            </div>
+
+            <!-- TC list -->
+            <div class="spr-review-list">
+              @for (tc of suiteScriptStatuses(); track tc.tc_id) {
+                <div class="spr-review-row">
+                  <div class="spr-review-icon" [class.ready]="tc.has_script" [class.warn]="!tc.has_script">
+                    @if (tc.has_script) {
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    } @else {
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    }
+                  </div>
+                  <div class="spr-review-info">
+                    <div class="spr-review-tc-header">
+                      <span class="spr-review-code">{{ tc.tc_code }}</span>
+                      <span class="spr-review-title">{{ tc.title }}</span>
+                    </div>
+                    @if (tc.has_script) {
+                      <span class="spr-review-meta">Script v{{ tc.version_number }} · {{ tc.placeholder_count }} placeholder(s)</span>
+                    } @else {
+                      <span class="spr-review-meta spr-review-meta--warn">No script — will be auto-generated at runtime</span>
+                    }
+                  </div>
+                  @if (tc.has_script) {
+                    <a class="spr-review-edit-link" [routerLink]="['/playwright-scripts', tc.tc_id]" target="_blank" (click)="$event.stopPropagation()">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      Edit
+                    </a>
+                  }
+                </div>
+              }
+            </div>
+
+          </div>
+
+          <div class="spr-modal-footer">
+            <button class="spr-btn-cancel" (click)="backToStep1()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              Back
+            </button>
+            <button class="spr-btn-run" (click)="startSuiteRun()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>
+              Start Execution
+            </button>
+          </div>
+        }
+
+      </div>
+    </div>
   }
 </div>

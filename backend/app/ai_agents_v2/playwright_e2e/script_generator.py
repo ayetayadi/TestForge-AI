@@ -1,10 +1,13 @@
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.llm.llm_control import create_llm
-from .prompts import SCRIPT_GENERATOR_SYSTEM, SCRIPT_GENERATOR_USER
+from .prompts import (
+    SCRIPT_GENERATOR_SYSTEM, SCRIPT_GENERATOR_USER,
+    SCRIPT_GENERATOR_SYSTEM_WITH_DOM, SCRIPT_GENERATOR_USER_WITH_DOM,
+)
 from .config import PLACEHOLDER_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -23,27 +26,46 @@ class ScriptGeneratorService:
         self.llm = create_llm(temperature=LLM_TEMPERATURE, model=LLM_MODEL, max_tokens=LLM_MAX_TOKENS)
         logger.info("ScriptGeneratorService initialized")
 
-    async def generate(self, test_cases: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def generate(
+        self,
+        test_cases: List[Dict[str, Any]],
+        dom_snapshot: Optional[str] = None,
+        app_url: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Génère un Script Playwright TypeScript v1 à partir des cas de test.
-
-        Args:
-            test_cases: liste de dicts avec 'title', 'steps', 'expected_result'
-
-        Returns:
-            dict avec 'script_v1' (str), 'placeholder_count' (int), 'model_used' (str)
+        Si dom_snapshot est fourni, utilise les locators réels visibles dans le DOM.
+        app_url est injecté dans le prompt pour éviter que le LLM invente des sous-chemins.
         """
-        logger.info(f"Generating TypeScript Playwright script for {len(test_cases)} test case(s)")
+        from .config import APP_BASE_URL
+        effective_url = app_url or APP_BASE_URL
+
+        logger.info(
+            f"Generating TypeScript Playwright script for {len(test_cases)} test case(s) "
+            f"({'with DOM snapshot' if dom_snapshot else 'blind — no DOM'}), url={effective_url}"
+        )
 
         formatted_cases = self._format_test_cases(test_cases)
 
-        messages = [
-            SystemMessage(content=SCRIPT_GENERATOR_SYSTEM),
-            HumanMessage(content=SCRIPT_GENERATOR_USER.format(
-                test_cases=formatted_cases,
-                placeholder_prefix=PLACEHOLDER_PREFIX,
-            )),
-        ]
+        if dom_snapshot:
+            messages = [
+                SystemMessage(content=SCRIPT_GENERATOR_SYSTEM_WITH_DOM),
+                HumanMessage(content=SCRIPT_GENERATOR_USER_WITH_DOM.format(
+                    dom_snapshot=dom_snapshot,
+                    test_cases=formatted_cases,
+                    placeholder_prefix=PLACEHOLDER_PREFIX,
+                    app_url=effective_url,
+                )),
+            ]
+        else:
+            messages = [
+                SystemMessage(content=SCRIPT_GENERATOR_SYSTEM),
+                HumanMessage(content=SCRIPT_GENERATOR_USER.format(
+                    test_cases=formatted_cases,
+                    placeholder_prefix=PLACEHOLDER_PREFIX,
+                    app_url=effective_url,
+                )),
+            ]
 
         try:
             response = await self.llm.ainvoke(messages)
