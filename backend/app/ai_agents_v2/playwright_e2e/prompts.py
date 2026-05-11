@@ -17,20 +17,27 @@ You do NOT know the DOM. Use placeholders for ALL locators:
 
 Rules:
 - Use test() from '@playwright/test'
-- ALWAYS start with: await page.goto('{APP_BASE_URL}')
+- FIRST LINE: await page.goto('<the exact app_url given in the user message>'); — ONE TIME ONLY
 - Use async/await
 - Add short comments per step
 - Use expect() for assertions
 - Replace EVERY locator with a placeholder
 
+⚠️ NAVIGATION RULES — ABSOLUTE:
+- ONLY ONE page.goto() is allowed — the very first line — using the EXACT URL from the user message
+- NEVER write a second page.goto() for sub-pages (/login, /dashboard, /users, /settings, etc.)
+- NEVER invent, guess, or assume URL paths — you have NO idea what routes the app uses
+- To reach another section of the app, CLICK a navigation placeholder:
+  ✅ await page.locator("[{PLACEHOLDER_PREFIX}: main menu link to Users section]").click();
+  ❌ await page.goto('/users');   // FORBIDDEN — path may not exist
+
 ⚠️ CRITICAL RULES:
 - NEVER click on URLs or page addresses (http://..., localhost, etc.)
 - NEVER use getByText() with a URL
-- The first action after goto() MUST be a form interaction, not another navigation
 - NEVER use waitForSelector, waitForResponse, waitForTimeout
 - NEVER use textContent(), toContain(), toBe()
 - NEVER use page.url() or page.evaluate()
-- The ONLY assertion allowed is: await expect(page.locator("[PLACEHOLDER: ...]")).toBeVisible();
+- The ONLY assertion allowed is: await expect(page.locator("[{PLACEHOLDER_PREFIX}: ...]")).toBeVisible();
 
 ⚠️ ASSERTION RULES — MANDATORY:
 - Every Expected Result and Postcondition MUST produce an expect().toBeVisible() assertion
@@ -43,8 +50,9 @@ Rules:
 Forbidden:
 - Real selectors (CSS, XPath, id, class)
 - Skipping placeholders
-- Clicking on URLs as text
-- Variable assignments for locators used in assertions
+- Multiple page.goto() calls
+- Invented URL paths
+- Clicking on URL strings as text
 
 Example:
 await page.locator("[{PLACEHOLDER_PREFIX}: login button]").click();
@@ -54,6 +62,11 @@ Output: TypeScript code only. No explanation.
 """
 
 SCRIPT_GENERATOR_USER = """
+Application URL: {app_url}
+
+⚠️ MANDATORY first line: await page.goto('{app_url}');
+⚠️ NO other page.goto() calls — use placeholder CLICK for all navigation to other pages.
+
 Generate a TypeScript Playwright test from the test case below.
 
 ⚠️ IMPORTANT — Use ALL information provided in the test case:
@@ -61,11 +74,11 @@ Generate a TypeScript Playwright test from the test case below.
 1. PRECONDITIONS → Add comments before the test (what must be true before running)
 2. TEST DATA → Use directly as fill() values
 3. STEPS (Gherkin: Given/When/Then) → The main test flow:
-   - Given → setup/navigation
+   - Given → setup/navigation (click nav elements, NOT goto sub-paths)
    - When → actions (click, fill, type)
    - Then → assertions with expect()
 4. EXPECTED RESULTS → Create one expect() assertion per result
-5. POSTCONDITIONS → Verify final state (URL, visible elements, stored data)
+5. POSTCONDITIONS → Verify final state (visible elements, not URL checks)
 
 Every expected result and postcondition MUST appear as an inline expect().toBeVisible() in the script.
 Format: await expect(page.locator("[{placeholder_prefix}: element description]")).toBeVisible();
@@ -94,8 +107,13 @@ Locator priority (use the first that applies):
 1. page.getByTestId("...")                    — element has data-testid
 2. page.getByRole("role", {{ name: "name" }}) — ALWAYS for textbox, button, heading, link
 3. page.getByText("...")                      — visible text that is NOT an input
-4. page.locator("#id")                        — unique CSS id
+4. page.locator("#id")                        — unique CSS id (ONLY if short and human-written, e.g. #email, #submit)
 5. page.locator(".class")                     — CSS class (last resort)
+
+⚠️ NEVER use page.locator("#id") if the id contains a UUID, hash, or auto-generated string
+   (e.g., #lc_a5785abd-9a5b-4bde-97f5-4f4c45b92637, #el-3f2a, #comp--abc123).
+   Auto-generated ids change on every page load and will always fail.
+   Use getByRole or getByText instead.
 
 ⚠️ IMPORTANT — Post-action elements:
 Some elements (error messages, success banners, alerts) appear ONLY AFTER a user action
@@ -129,6 +147,89 @@ Placeholders to resolve:
 {placeholders}
 
 Return JSON only."""
+
+
+# ============================================================
+# REF RESOLVER — LLM picks [ref=eXX] directly from the live DOM
+# Used as a universal fallback when rule-based ref lookup fails.
+# Works for any app, any framework, any element structure.
+# ============================================================
+
+REF_RESOLVER_SYSTEM = """
+You are an accessibility-tree ref resolver for Playwright browser automation.
+
+You receive a DOM snapshot where each element has a [ref=eXX] identifier,
+a human description of what to find, and the action type.
+
+Return ONLY the ref ID (e.g. e23). Nothing else. No explanation.
+If nothing matches, return: null
+
+Selection rules by action type:
+- fill / type       → prefer textbox, input, combobox with matching label or placeholder
+- click             → prefer button, link, menuitem, checkbox, radio with matching name
+- assert_visible    → any element in the snapshot — paragraph, alert, status, generic,
+                      text, heading — whose content matches the description.
+                      For "error message" or "invalid …": look for any element whose
+                      text contains the expected error words, regardless of ARIA role.
+"""
+
+REF_RESOLVER_USER = """DOM snapshot (ref lines only):
+{dom}
+
+Description: "{description}"
+Action type: {action_type}
+
+Ref ID:"""
+
+
+# ============================================================
+# RECOVERY AGENT — Tier 3 multi-step recovery for complex UIs
+# Handles: overlays, animations, custom components, dropdowns,
+# accordions, modals, date pickers, autocomplete, iframes, etc.
+# ============================================================
+
+RECOVERY_SYSTEM = """You are a Playwright test recovery agent for complex web UIs.
+
+A test step failed. You see the current accessibility-tree snapshot.
+Your job: propose the minimal sequence of browser actions to unblock and achieve the goal.
+
+You MUST only use ref IDs that appear in the provided DOM snapshot.
+
+Return a JSON array of steps. Each step is one of:
+
+{"action": "click",    "ref": "e12", "description": "what this element is"}
+{"action": "fill",     "ref": "e12", "description": "...", "value": "text to type"}
+{"action": "press",    "key": "Escape"}
+{"action": "wait",     "ms": 500}
+{"action": "scroll",   "ref": "e12", "description": "element to scroll into view"}
+
+Recovery strategies (apply whichever fits):
+- Modal / dialog blocking the target  → click its close/dismiss/OK button first
+- Cookie banner / consent overlay     → click Accept or close it
+- Dropdown / select is closed         → click the trigger to open it, then click the option
+- Accordion / tab / panel is collapsed → click the header/tab to expand it first
+- Animation still running             → add {"action": "wait", "ms": 600} then retry
+- Element off-screen                  → add {"action": "scroll", "ref": "eXX"} first
+- Autocomplete / combobox             → fill the search input, wait 400ms, click the suggestion
+- Date picker                         → click the calendar icon, navigate to correct month, click day
+- Custom component (no standard role) → interact with the visible child elements step by step
+
+Rules:
+- Max 6 steps
+- Only use refs visible in the provided snapshot — never invent refs
+- If the target element genuinely does not exist on this page, return: []
+- Return ONLY the JSON array — no explanation, no markdown
+"""
+
+RECOVERY_USER = """Failed step:
+- Action type : {action_type}
+- Description : "{description}"
+- Error       : {error}
+
+DOM snapshot (elements with [ref=eXX]):
+{dom_refs}
+
+Recovery steps (JSON array):"""
 
 
 # ============================================================
@@ -193,4 +294,85 @@ Steps:
 2. Resolve placeholders
 3. Execute actions
 4. Return final script (TypeScript only)
+"""
+
+
+# ============================================================
+# SCRIPT GENERATOR WITH DOM — LLM sees real page before writing
+# Used when app_url is provided at generation time.
+# ============================================================
+
+SCRIPT_GENERATOR_SYSTEM_WITH_DOM = f"""
+You generate TypeScript Playwright tests from test cases.
+You have the REAL accessibility-tree snapshot of the application's landing page.
+
+LOCATOR STRATEGY:
+1. For elements VISIBLE in the snapshot → use REAL Playwright locators:
+   - page.getByRole('textbox', {{ name: 'Email:' }})
+   - page.getByRole('button', {{ name: 'Login' }})
+   - page.getByLabel('Password')
+   - page.getByPlaceholder('Enter your email')
+   - page.getByText('Forgot password?')
+2. For elements NOT yet in the snapshot (appear after clicks/navigation) → use placeholders:
+   page.locator("[{PLACEHOLDER_PREFIX}: description]")
+
+Rules:
+- Use test() from '@playwright/test'
+- FIRST LINE: await page.goto('<the exact app_url given in the user message>'); — ONE TIME ONLY
+- Use async/await
+- Add short comments per step
+- Use expect() for assertions
+
+⚠️ NAVIGATION RULES — ABSOLUTE:
+- ONLY ONE page.goto() allowed — the very first line with the EXACT URL provided
+- NEVER add page.goto() for sub-pages — you don't know the real URL structure
+- To navigate to other sections, CLICK a real or placeholder nav element:
+  ✅ await page.getByRole('link', {{ name: 'Dashboard' }}).click();
+  ✅ await page.locator("[{PLACEHOLDER_PREFIX}: navigation link to Settings]").click();
+  ❌ await page.goto('/settings');  // FORBIDDEN
+
+⚠️ CRITICAL RULES:
+- NEVER click on URLs or page addresses (http://..., localhost, etc.)
+- NEVER use waitForSelector, waitForResponse, waitForTimeout
+- NEVER use textContent(), toContain(), toBe()
+- NEVER use page.url() or page.evaluate()
+- The ONLY assertion allowed is: await expect(...).toBeVisible()
+- ALWAYS inline the locator directly inside expect() — NEVER use an intermediate variable
+
+⚠️ ASSERTION RULES:
+- Every Expected Result and Postcondition MUST produce an expect().toBeVisible() assertion
+- For success/error messages that appear after actions — use a placeholder since they're not in the landing DOM
+- Use ONLY .toBeVisible()
+
+Output: TypeScript code only. No explanation.
+"""
+
+SCRIPT_GENERATOR_USER_WITH_DOM = """
+Application URL: {app_url}
+
+⚠️ MANDATORY first line: await page.goto('{app_url}');
+⚠️ NO other page.goto() calls — use real or placeholder nav CLICKS for all page changes.
+
+Generate a TypeScript Playwright test from the test case below.
+Use the DOM snapshot to write accurate locators for elements on the landing page.
+
+DOM SNAPSHOT (landing page of {app_url}):
+{dom_snapshot}
+
+⚠️ IMPORTANT — Use ALL information from the test case:
+1. PRECONDITIONS → Add comments before the test
+2. TEST DATA → Use directly as fill() values
+3. STEPS (Gherkin: Given/When/Then) → Main test flow:
+   - Given → setup/navigation (click nav elements visible in DOM, NOT goto sub-paths)
+   - When → actions (click, fill, type)
+   - Then → assertions with expect()
+4. EXPECTED RESULTS → One expect().toBeVisible() per result
+5. POSTCONDITIONS → Verify final state
+
+Test case:
+{test_cases}
+
+- Use REAL locators (getByRole, getByLabel, getByPlaceholder) for elements visible in the DOM snapshot.
+- Use [{placeholder_prefix}: ...] ONLY for elements not yet visible (appear after interactions).
+Return code only.
 """

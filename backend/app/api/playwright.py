@@ -19,6 +19,7 @@ router = APIRouter(prefix="/playwright", tags=["Playwright E2E"])
 
 class GenerateScriptRequest(BaseModel):
     test_case_id: str
+    app_url: Optional[str] = None
 
 
 class GenerateScriptResponse(BaseModel):
@@ -57,6 +58,14 @@ class SuiteRunRequest(BaseModel):
     stop_on_failure: bool = Field(default=False, description="Stop suite if a TC fails")
 
 
+class SuiteSmartRunRequest(BaseModel):
+    """Execute all TCs in a suite: auto-generate missing scripts + resolve + run."""
+    app_url: Optional[str] = None
+    browser: str = Field(default="chromium", description="chromium, firefox, webkit")
+    headless: bool = Field(default=True)
+    stop_on_failure: bool = Field(default=False)
+
+
 class SendReportEmailRequest(BaseModel):
     recipients: List[str] = Field(..., description="List of email addresses")
 
@@ -69,6 +78,10 @@ class CreateJiraIssueRequest(BaseModel):
 
 class CreateDefectRequest(BaseModel):
     test_case_id: str
+
+
+class UpdateScriptRequest(BaseModel):
+    script_content: str = Field(..., min_length=1, description="Edited TypeScript content")
 
 
 class AsyncStartResponse(BaseModel):
@@ -128,6 +141,24 @@ async def _full_workflow_background(
         )
 
 
+async def _suite_smart_run_background(
+    suite_id: str,
+    app_url: Optional[str],
+    browser: str,
+    headless: bool,
+    stop_on_failure: bool,
+):
+    async with async_session_maker() as db:
+        await service.run_suite_smart(
+            db,
+            suite_id=suite_id,
+            app_url=app_url,
+            browser=browser,
+            headless=headless,
+            stop_on_failure=stop_on_failure,
+        )
+
+
 async def _suite_run_background(
     test_case_ids: List[str],
     app_url: Optional[str],
@@ -160,7 +191,8 @@ async def generate_script_endpoint(
         result = await service.generate_script_v1(
             db,
             test_case_id=request.test_case_id,
-            save_to_db=True
+            app_url=request.app_url,
+            save_to_db=True,
         )
         
         return GenerateScriptResponse(**result)
@@ -385,6 +417,58 @@ async def get_script_content_endpoint(
     }
 
 
+@router.patch("/script/{script_version_id}")
+async def update_script_endpoint(
+    script_version_id: str,
+    request: UpdateScriptRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Save a manual edit as a new script version.
+    Creates a new PlaywrightScriptVersion with source=MANUAL_EDIT, marks it active,
+    and updates TestCase.active_playwright_script_id.
+    Preserves the original version in history.
+    """
+    import re as _re
+    from app.repositories import playwright_repository as repo
+    from app.models.playwright_script_version import ScriptSource, ScriptValidationStatus
+
+    existing = await repo.get_script_version(db, script_version_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Script {script_version_id} not found")
+
+    placeholder_count = len(_re.findall(r'\[TESTFORGEAI:', request.script_content))
+
+    new_version = await repo.save_script(
+        db,
+        test_case_id=existing.test_case_id,
+        script_content=request.script_content,
+        source=ScriptSource.MANUAL_EDIT,
+        placeholder_count=placeholder_count,
+        is_active=True,
+    )
+
+    # Keep TestCase.active_playwright_script_id in sync
+    await repo.update_test_case_after_execution(
+        db,
+        test_case_id=existing.test_case_id,
+        active_script_id=str(new_version.id),
+        locator_mapping={},
+    )
+
+    await db.commit()
+
+    return {
+        "id": str(new_version.id),
+        "version_number": new_version.version_number,
+        "source": new_version.source,
+        "is_active": new_version.is_active,
+        "placeholder_count": new_version.placeholder_count,
+        "validation_status": new_version.validation_status,
+        "created_at": new_version.created_at.isoformat() if new_version.created_at else None,
+    }
+
+
 @router.get("/test-case/{test_case_id}/last-run")
 async def get_last_test_run_endpoint(
     test_case_id: str,
@@ -493,6 +577,156 @@ async def list_test_runs_endpoint(
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# SUITE SMART EXECUTION
+# ============================================================
+
+@router.post("/suite/{suite_id}/execute-smart")
+async def execute_suite_smart_endpoint(
+    suite_id: str,
+    request: SuiteSmartRunRequest,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Execute all test cases in a suite sequentially.
+    Auto-generates Playwright scripts for TCs that don't have one yet.
+    Stream progress via GET /playwright/suite/{suite_id}/stream.
+    """
+    background_tasks.add_task(
+        _suite_smart_run_background,
+        suite_id,
+        request.app_url,
+        request.browser,
+        request.headless,
+        request.stop_on_failure,
+    )
+    return {
+        "status": "started",
+        "suite_id": suite_id,
+        "stream_url": f"/playwright/suite/{suite_id}/stream",
+        "message": f"Suite execution started. Connect to /playwright/suite/{suite_id}/stream for live updates.",
+    }
+
+
+@router.get("/suite/{suite_id}/stream")
+async def stream_suite_execution(request: Request, suite_id: str):
+    """SSE stream for suite-level execution progress."""
+    return StreamingResponse(
+        event_generator(f"suite_{suite_id}", request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/suite/{suite_id}/last-run")
+async def get_suite_last_run(
+    suite_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns the most recent run result for every active TC in a suite.
+    Used to restore the execution panel after navigating away and back.
+    """
+    from sqlalchemy import select as _select
+    from app.models.test_case import TestCase as _TC
+    from app.repositories import playwright_repository as repo
+
+    tc_rows = (await db.execute(
+        _select(_TC)
+        .where(_TC.test_suite_id == suite_id, _TC.is_active == True)
+        .order_by(_TC.execution_order.asc().nullslast(), _TC.tc_code.asc())
+    )).scalars().all()
+
+    results = []
+    passed = failed = 0
+    total_duration = 0.0
+    has_runs = False
+
+    for tc in tc_rows:
+        latest_run = await repo.get_latest_run_for_test_case(db, tc.id)
+        if latest_run:
+            has_runs = True
+            result_obj = await repo.get_test_result(db, latest_run.id)
+            if (
+                latest_run.status.value == "completed"
+                and (result_obj is None or result_obj.status.value == "passed")
+            ):
+                tc_status = "passed"
+                passed += 1
+            else:
+                tc_status = "failed"
+                failed += 1
+            total_duration += latest_run.duration or 0.0
+        else:
+            tc_status = "pending"
+
+        results.append({
+            "tc_id": tc.id,
+            "tc_code": tc.tc_code,
+            "title": tc.title,
+            "status": tc_status,
+            "run_id": latest_run.id if latest_run else None,
+            "duration": latest_run.duration if latest_run else None,
+            "started_at": latest_run.started_at.isoformat() if latest_run and latest_run.started_at else None,
+        })
+
+    return {
+        "suite_id": suite_id,
+        "has_runs": has_runs,
+        "results": results,
+        "summary": {
+            "total": len(results),
+            "passed": passed,
+            "failed": failed,
+            "skipped": 0,
+            "duration": round(total_duration, 1),
+        } if has_runs else None,
+    }
+
+
+@router.get("/suite/{suite_id}/scripts-status")
+async def get_suite_scripts_status(
+    suite_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns the Playwright script status for every active TC in a suite.
+    Used by the frontend 'Review Scripts' step before launching execution.
+    """
+    from sqlalchemy import select as _select
+    from app.models.test_case import TestCase as _TC
+    from app.models.playwright_script_version import PlaywrightScriptVersion as _PSV
+
+    tc_rows = (await db.execute(
+        _select(_TC)
+        .where(_TC.test_suite_id == suite_id, _TC.is_active == True)
+        .order_by(_TC.execution_order.asc().nullslast(), _TC.tc_code.asc())
+    )).scalars().all()
+
+    result = []
+    for tc in tc_rows:
+        script = None
+        if tc.active_playwright_script_id:
+            script = await db.get(_PSV, tc.active_playwright_script_id)
+
+        result.append({
+            "tc_id": tc.id,
+            "tc_code": tc.tc_code,
+            "title": tc.title,
+            "has_script": script is not None,
+            "script_id": script.id if script else None,
+            "version_number": script.version_number if script else None,
+            "placeholder_count": script.placeholder_count if script else None,
+            "source": script.source.value if script else None,
+        })
+
+    return {"suite_id": suite_id, "test_cases": result, "total": len(result)}
 
 
 # ============================================================

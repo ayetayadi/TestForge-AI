@@ -74,11 +74,14 @@ class PlaywrightScriptVersion(Base):
     # ==============================
 
     test_case: Mapped["TestCase"] = relationship(
-        "TestCase", back_populates="script_versions"
+        "TestCase",
+        back_populates="script_versions",
+        primaryjoin="PlaywrightScriptVersion.test_case_id == TestCase.id",
+        foreign_keys="[PlaywrightScriptVersion.test_case_id]",
     )
 
     test_runs: Mapped[List["TestRun"]] = relationship(
-        "TestRun", back_populates="script_version"
+        "TestRun", back_populates="script_version", passive_deletes=True
     )
 
     # ==============================

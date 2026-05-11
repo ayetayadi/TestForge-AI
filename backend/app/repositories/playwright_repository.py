@@ -29,6 +29,38 @@ async def get_test_case(db: AsyncSession, test_case_id: str) -> Optional[TestCas
     return result.scalar_one_or_none()
 
 
+async def update_test_case_after_execution(
+    db: AsyncSession,
+    test_case_id: str,
+    active_script_id: str,
+    locator_mapping: Dict[str, str],
+) -> None:
+    """
+    After a successful execution, pin the active script on the TestCase and
+    persist the discovered locators so future generation can reuse them.
+    """
+    locators = [
+        {"name": desc, "selector": locator, "reliability": "high"}
+        for desc, locator in locator_mapping.items()
+        if locator
+    ]
+
+    values: Dict[str, Any] = {"active_playwright_script_id": active_script_id}
+    if locators:
+        values["locators"] = locators
+
+    await db.execute(
+        update(TestCase)
+        .where(TestCase.id == test_case_id)
+        .values(**values)
+    )
+    await db.flush()
+    logger.info(
+        f"TestCase {test_case_id} updated: active_script={active_script_id}, "
+        f"{len(locators)} locators saved"
+    )
+
+
 async def get_test_case_by_tc_code(db: AsyncSession, tc_code: str) -> Optional[TestCase]:
     """Récupère un test case par son code TC-XXX."""
     result = await db.execute(

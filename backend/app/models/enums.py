@@ -87,6 +87,7 @@ class ScriptSource(str, Enum):
     AI_FIXED     = "ai_fixed"
     V1_DRAFT     = "v1_draft"
     V2_CORRECTED = "v2_corrected"
+    MANUAL_EDIT  = "manual_edit"
 
 class DefectSeverity(str, Enum):
     CRITICAL = "critical"

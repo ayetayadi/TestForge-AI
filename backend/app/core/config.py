@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     JIRA_CLIENT_SECRET: str
     JIRA_REDIRECT_URI: str = "http://localhost:8000/jira/callback"
     FRONTEND_URL: str = "http://localhost:4200"
+    # Comma-separated CORS origins — override in .env for production
+    ALLOWED_ORIGINS: str = "http://localhost:4200"
 
     # =========================
     # ENCRYPTION

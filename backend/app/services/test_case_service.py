@@ -215,67 +215,72 @@ async def generate_test_cases_for_plan(
     effective_scenario_type = scenario_type or "positive"
 
     # ============================================================
-    # Helper: generate TCs for a single US
+    # Helper: generate TCs for a single US (owns its own DB session)
+    # Semaphore caps concurrent LLM calls to avoid Groq rate limits.
     # ============================================================
+    from app.core.database import async_session_maker
+    _sem = asyncio.Semaphore(3)
+
     async def _generate_for_single_us(us: UserStory) -> Dict[str, Any]:
-        """Generate TCs for a single user story (used in parallel)."""
-        approved_result = await db.execute(
-            select(UserStoryVersion)
-            .where(UserStoryVersion.user_story_id == us.id, UserStoryVersion.decision_status == StoryDecision.APPROVED)
-            .order_by(UserStoryVersion.version_number.desc()).limit(1)
-        )
-        approved = approved_result.scalar_one_or_none()
+        async with _sem:
+            async with async_session_maker() as session:
+                approved_result = await session.execute(
+                    select(UserStoryVersion)
+                    .where(UserStoryVersion.user_story_id == us.id, UserStoryVersion.decision_status == StoryDecision.APPROVED)
+                    .order_by(UserStoryVersion.version_number.desc()).limit(1)
+                )
+                approved = approved_result.scalar_one_or_none()
 
-        if approved and approved.improved_story:
-            story_text = approved.improved_story
-            ac_list = approved.generated_acceptance_criteria or []
-        else:
-            story_text = us.description or us.title or ""
-            ac_list = us.acceptance_criteria or []
+                if approved and approved.improved_story:
+                    story_text = approved.improved_story
+                    ac_list = approved.generated_acceptance_criteria or []
+                else:
+                    story_text = us.description or us.title or ""
+                    ac_list = us.acceptance_criteria or []
 
-        logger.info(f"[TC_GEN] Generating '{effective_scenario_type}' TCs for {us.issue_key} ({len(ac_list)} ACs)...")
+                logger.info(f"[TC_GEN] Generating '{effective_scenario_type}' TCs for {us.issue_key} ({len(ac_list)} ACs)...")
 
-        pipeline = get_pipeline()
-        
-        risks_result = await db.execute(
-        select(Risk).where(
-                Risk.user_story_id == us.id,
-                Risk.is_accepted == True
-            )
-        )
-        us_risks = risks_result.scalars().all()
-        
-        risk_mitigation = " | ".join([r.mitigation for r in us_risks if r.mitigation]) or "N/A"
-        result = await pipeline.run(
-            story=story_text,
-            acceptance_criteria=[str(ac).strip() for ac in ac_list if ac and str(ac).strip()],
-            risk_level=effective_risk_level,
-            risk_score=effective_risk_score,
-            risk_description=risk_description or _build_risk_description(risk_ids),
-            risk_mitigation=risk_mitigation,
-            risk_ids=risk_ids,
-            user_story_id=us.id,
-            issue_key=us.issue_key,
-            tc_start_index=1,
-            progress_callback=progress_callback,
-            scenario_type=effective_scenario_type,
-        )
-        ac_cov = result.get("ac_coverage", {})
+                pipeline = get_pipeline()
 
-        # Upsert coverage record for this (plan, us, type)
-        await _upsert_tc_coverage(
-            db=db,
-            test_plan_id=test_plan_id,
-            user_story_id=us.id,
-            issue_key=us.issue_key,
-            user_story_title=us.title,
-            scenario_type=effective_scenario_type,
-            ac_coverage=ac_cov,
-            tc_count=len(result.get("test_cases", [])),
-        )
+                risks_result = await session.execute(
+                    select(Risk).where(
+                        Risk.user_story_id == us.id,
+                        Risk.is_accepted == True,
+                    )
+                )
+                us_risks = risks_result.scalars().all()
 
-        return result
-    
+                risk_mitigation = " | ".join([r.mitigation for r in us_risks if r.mitigation]) or "N/A"
+                result = await pipeline.run(
+                    story=story_text,
+                    acceptance_criteria=[str(ac).strip() for ac in ac_list if ac and str(ac).strip()],
+                    risk_level=effective_risk_level,
+                    risk_score=effective_risk_score,
+                    risk_description=risk_description or _build_risk_description(risk_ids),
+                    risk_mitigation=risk_mitigation,
+                    risk_ids=risk_ids,
+                    user_story_id=us.id,
+                    issue_key=us.issue_key,
+                    tc_start_index=1,
+                    progress_callback=progress_callback,
+                    scenario_type=effective_scenario_type,
+                )
+                ac_cov = result.get("ac_coverage", {})
+
+                await _upsert_tc_coverage(
+                    db=session,
+                    test_plan_id=test_plan_id,
+                    user_story_id=us.id,
+                    issue_key=us.issue_key,
+                    user_story_title=us.title,
+                    scenario_type=effective_scenario_type,
+                    ac_coverage=ac_cov,
+                    tc_count=len(result.get("test_cases", [])),
+                )
+                await session.commit()
+
+                return result
+
     # ============================================================
     # LANCER TOUTES LES GÉNÉRATIONS EN PARALLÈLE
     # ============================================================
@@ -298,11 +303,10 @@ async def generate_test_cases_for_plan(
             })
         return result
 
-    # Séquentiel
-    results = []
-    for us in us_list:
-        result = await _generate_with_progress(us)
-        results.append(result)
+    results = await asyncio.gather(
+        *[_generate_with_progress(us) for us in us_list],
+        return_exceptions=True,
+    )
     
     # ============================================================
     # ASSEMBLER LES RÉSULTATS

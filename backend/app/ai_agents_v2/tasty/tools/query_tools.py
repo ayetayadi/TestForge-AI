@@ -13,7 +13,12 @@ from sqlalchemy import func, select
 from app.core.database import async_session_maker
 from app.models.jira_connection import JiraConnection
 from app.models.jira_project import JiraProject
+from app.models.playwright_script_version import PlaywrightScriptVersion
 from app.models.test_case import TestCase
+from app.models.test_plan import TestPlan
+from app.models.test_result import TestResult
+from app.models.test_run import TestRun
+from app.models.test_suite import TestSuite
 from app.models.user_story import UserStory
 
 logger = logging.getLogger(__name__)
@@ -237,4 +242,151 @@ def make_query_tools(user_id: str) -> List:
             + "\n".join(rows)
         )
 
-    return [get_projects, get_user_stories, get_test_cases, get_test_stats, search_test_cases]
+    @tool("get_test_suites")
+    async def get_test_suites(project_id: str) -> str:
+        """
+        List all test suites in a project, with their TC count, status, and
+        Playwright execution readiness.
+
+        Args:
+            project_id: The project UUID (from get_projects)
+        """
+        async with async_session_maker() as db:
+            proj_result = await db.execute(
+                select(JiraProject)
+                .join(JiraConnection, JiraConnection.id == JiraProject.jira_connection_id)
+                .where(JiraProject.id == project_id, JiraConnection.user_id == user_id)
+            )
+            project = proj_result.scalar_one_or_none()
+            if not project:
+                return f"Project `{project_id}` not found or you don't have access to it."
+
+            plans_r = await db.execute(
+                select(TestPlan.id).where(TestPlan.project_id == project_id)
+            )
+            plan_ids = [r[0] for r in plans_r.fetchall()]
+            if not plan_ids:
+                return (
+                    f"No test plans found in **{project.project_name}**. "
+                    "Create a test plan first to organise your suites."
+                )
+
+            suites_r = await db.execute(
+                select(TestSuite)
+                .where(TestSuite.test_plan_id.in_(plan_ids))
+                .order_by(TestSuite.execution_order.asc().nullslast(), TestSuite.title)
+            )
+            suites = suites_r.scalars().all()
+
+            if not suites:
+                return f"No test suites found in **{project.project_name}**."
+
+            # Batch TC counts
+            tc_counts_r = await db.execute(
+                select(TestCase.test_suite_id, func.count(TestCase.id).label("cnt"))
+                .where(
+                    TestCase.test_suite_id.in_([s.id for s in suites]),
+                    TestCase.is_active == True,
+                )
+                .group_by(TestCase.test_suite_id)
+            )
+            tc_map = {row.test_suite_id: row.cnt for row in tc_counts_r.fetchall()}
+
+        rows = []
+        for s in suites:
+            tc_cnt = tc_map.get(s.id, 0)
+            rows.append(
+                f"- **{s.title}** | {tc_cnt} TCs | Status: `{s.status}` | "
+                f"Priority: {s.priority or '—'} | ID: `{s.id}`"
+            )
+
+        return (
+            f"## Test Suites in **{project.project_name}** ({len(suites)} suites)\n\n"
+            + "\n".join(rows)
+            + "\n\nTip: use `get_suite_results(suite_id)` to see the latest execution results, "
+            "or ask me to run a suite."
+        )
+
+    @tool("get_suite_results")
+    async def get_suite_results(suite_id: str) -> str:
+        """
+        Get the latest Playwright execution results for every test case in a suite.
+
+        Args:
+            suite_id: The test suite UUID (from get_test_suites)
+        """
+        async with async_session_maker() as db:
+            suite = await db.get(TestSuite, suite_id)
+            if not suite:
+                return f"Test suite `{suite_id}` not found."
+
+            tcs_r = await db.execute(
+                select(TestCase)
+                .where(TestCase.test_suite_id == suite_id, TestCase.is_active == True)
+                .order_by(TestCase.execution_order.asc().nullslast(), TestCase.tc_code)
+            )
+            tcs = tcs_r.scalars().all()
+
+        if not tcs:
+            return f"Suite **{suite.title}** has no active test cases."
+
+        rows = []
+        passed = failed = pending = 0
+        async with async_session_maker() as db:
+            for tc in tcs:
+                # Latest TestRun for this TC (via script_version)
+                run_r = await db.execute(
+                    select(TestRun)
+                    .join(
+                        PlaywrightScriptVersion,
+                        TestRun.script_version_id == PlaywrightScriptVersion.id,
+                    )
+                    .where(PlaywrightScriptVersion.test_case_id == tc.id)
+                    .order_by(TestRun.started_at.desc())
+                    .limit(1)
+                )
+                run = run_r.scalar_one_or_none()
+
+                if run is None:
+                    status_icon = "⏳"
+                    status_text = "not run"
+                    pending += 1
+                else:
+                    result_r = await db.execute(
+                        select(TestResult).where(TestResult.test_run_id == run.id)
+                    )
+                    result = result_r.scalar_one_or_none()
+                    result_status = result.status.value if result else run.status.value
+                    if result_status in ("passed",):
+                        status_icon, status_text = "✅", "passed"
+                        passed += 1
+                    elif result_status in ("error",):
+                        status_icon, status_text = "💥", "error"
+                        failed += 1
+                    else:
+                        status_icon, status_text = "❌", "failed"
+                        failed += 1
+
+                    duration = f" ({round(run.duration or 0, 1)} s)" if run.duration else ""
+                    rows.append(
+                        f"- {status_icon} **{tc.tc_code}**: {tc.title[:65]} "
+                        f"— `{status_text}`{duration}"
+                    )
+                    continue
+
+                rows.append(
+                    f"- {status_icon} **{tc.tc_code}**: {tc.title[:65]} — `{status_text}`"
+                )
+
+        total = len(tcs)
+        summary = (
+            f"**{passed}/{total} passed** | {failed} failed | {pending} not run yet"
+        )
+        return (
+            f"## Execution Results — {suite.title}\n\n"
+            f"{summary}\n\n"
+            + "\n".join(rows)
+        )
+
+    return [get_projects, get_user_stories, get_test_cases, get_test_stats,
+            search_test_cases, get_test_suites, get_suite_results]

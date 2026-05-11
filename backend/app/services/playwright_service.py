@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
@@ -6,7 +7,8 @@ from app.core.config import settings
 
 from app.repositories import playwright_repository as repo
 from app.ai_agents_v2.playwright_e2e.script_generator import get_script_generator
-from app.ai_agents_v2.playwright_e2e.agent import PlaywrightReActAgent
+from app.ai_agents_v2.playwright_e2e.agent import PlaywrightReActAgent, _compress_dom
+from app.ai_agents_v2.playwright_e2e.tools import PlaywrightMCPClient
 from app.models.enums import (
     ScriptSource, ScriptValidationStatus,
     TestRunStatus, TestResultStatus, StepType, StepStatus
@@ -17,6 +19,32 @@ logger = logging.getLogger(__name__)
 # Initialisation des agents (globale)
 _script_generator = get_script_generator()
 _react_agent = PlaywrightReActAgent()
+_agent_instance = PlaywrightReActAgent()
+
+
+async def _take_landing_snapshot(app_url: str) -> Optional[str]:
+    """
+    Open a headless Chromium session, navigate to app_url, take one DOM snapshot,
+    compress it to interactive elements only, and return it.
+    Returns None if anything fails — generation falls back to blind mode.
+    """
+    try:
+        logger.info(f"Taking landing page snapshot for: {app_url}")
+        async with PlaywrightMCPClient(headless=True, browser="chromium") as mcp:
+            tools = {t.name: t for t in mcp.tools}
+            if "browser_navigate" not in tools or "browser_snapshot" not in tools:
+                logger.warning("Landing snapshot: required MCP tools unavailable")
+                return None
+            await tools["browser_navigate"].ainvoke({"url": app_url})
+            await asyncio.sleep(2.0)
+            raw = str(await tools["browser_snapshot"].ainvoke({}))
+            snapshot = _agent_instance._extract_snapshot_text(raw)
+            compressed = _compress_dom(snapshot)
+            logger.info(f"Landing snapshot captured ({len(compressed)} chars)")
+            return compressed
+    except Exception as e:
+        logger.warning(f"Landing snapshot failed — falling back to blind generation: {e}")
+        return None
 
 
 # ============================================================
@@ -26,12 +54,16 @@ _react_agent = PlaywrightReActAgent()
 async def generate_script_v1(
     db: AsyncSession,
     test_case_id: str,
-    save_to_db: bool = True
+    app_url: Optional[str] = None,
+    save_to_db: bool = True,
+    dom_snapshot: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Génère un Script v1 avec placeholders à partir du TestCase en DB.
+    Génère un Script v1 à partir du TestCase en DB.
+    Si app_url est fourni et dom_snapshot est None, ouvre le navigateur pour capturer le DOM.
+    Passer dom_snapshot pré-capturé pour éviter d'ouvrir une connexion navigateur supplémentaire.
     """
-    logger.info(f"Generating Script v1 for test_case {test_case_id}")
+    logger.info(f"Generating Script v1 for test_case {test_case_id} (app_url={app_url})")
     await _push_event(test_case_id, "generation_started", {"test_case_id": test_case_id})
 
     test_case = await repo.get_test_case(db, test_case_id)
@@ -53,7 +85,10 @@ async def generate_script_v1(
         "locators": test_case.locators,
     }]
 
-    gen_result = await _script_generator.generate(test_cases)
+    if dom_snapshot is None and app_url:
+        dom_snapshot = await _take_landing_snapshot(app_url)
+
+    gen_result = await _script_generator.generate(test_cases, dom_snapshot=dom_snapshot, app_url=app_url)
 
     if gen_result.get("status") != "generated":
         await _push_event(test_case_id, "generation_failed", {"error": gen_result.get("error", "Generation failed")})
@@ -329,8 +364,9 @@ async def _save_execution_results(
         duration=exec_result.get("duration")
     )
     
+    script_v2_record = None
     if exec_result.get("script_v2"):
-        script_v2 = await repo.save_script(
+        script_v2_record = await repo.save_script(
             db,
             test_case_id=script_version.test_case_id,
             script_content=exec_result["script_v2"],
@@ -339,12 +375,16 @@ async def _save_execution_results(
             is_active=True
         )
         await repo.commit(db)
-        
-        await repo.update_test_run(
+
+        # Pin active script + persist discovered locators on the TestCase
+        locator_mapping = exec_result.get("locator_mapping", {})
+        await repo.update_test_case_after_execution(
             db,
-            test_run_id=test_run_id,
-            status=final_status
+            test_case_id=script_version.test_case_id,
+            active_script_id=script_v2_record.id,
+            locator_mapping=locator_mapping,
         )
+        await repo.commit(db)
     
     raw_messages = exec_result.get("raw_messages", [])
     if raw_messages:
@@ -633,6 +673,282 @@ async def run_suite(
         "skipped": skipped,
         "success_rate": round((passed / total * 100) if total > 0 else 0, 1),
         "results": results,
+    }
+
+
+async def run_suite_smart(
+    db: AsyncSession,
+    suite_id: str,
+    app_url: Optional[str] = None,
+    browser: str = "chromium",
+    headless: bool = True,
+    stop_on_failure: bool = False,
+) -> Dict[str, Any]:
+    """
+    Two-phase optimised suite execution.
+
+    Phase 1 — Parallel script generation:
+        For every TC without an active script, take ONE DOM snapshot then run
+        all generators concurrently (semaphore=3, each in its own DB session).
+
+    Phase 2 — Single shared browser session:
+        Open PlaywrightMCPClient once for the whole suite; execute each TC
+        sequentially via run_with_tools() (no per-TC browser launch).
+        Browser state is reset between TCs with a navigate() to app_url.
+        Each TC is guarded by a 180 s timeout.
+    """
+    from sqlalchemy import select as _select
+    from app.models.test_case import TestCase as _TC
+    from app.models.test_suite import TestSuite as _TS
+    from app.core.database import async_session_maker
+
+    channel = f"suite_{suite_id}"
+
+    # ── Load suite metadata ───────────────────────────────────────────────────
+    tc_rows = (await db.execute(
+        _select(_TC)
+        .where(_TC.test_suite_id == suite_id, _TC.is_active == True)
+        .order_by(_TC.execution_order.asc().nullslast(), _TC.tc_code.asc())
+    )).scalars().all()
+
+    suite_row = await db.get(_TS, suite_id)
+    suite_title = suite_row.title if suite_row else suite_id
+
+    if not tc_rows:
+        await _push_event(channel, "completed", {
+            "suite_id": suite_id, "suite_status": "completed",
+            "message": "No active test cases in suite",
+            "passed": 0, "failed": 0, "skipped": 0, "total": 0, "results": [],
+        })
+        return {"suite_status": "completed", "total": 0}
+
+    logger.info(f"Suite smart run: '{suite_title}' — {len(tc_rows)} TCs, app_url={app_url}")
+
+    await _push_event(channel, "suite_started", {
+        "suite_id": suite_id,
+        "suite_title": suite_title,
+        "test_case_ids": [tc.id for tc in tc_rows],
+        "total": len(tc_rows),
+        "app_url": app_url,
+    })
+
+    # ── Phase 1 — Parallel script generation ─────────────────────────────────
+    tcs_needing_scripts: List[Any] = []
+    for tc in tc_rows:
+        if not await repo.get_active_script(db, tc.id):
+            tcs_needing_scripts.append(tc)
+
+    if tcs_needing_scripts:
+        logger.info(f"Phase 1: {len(tcs_needing_scripts)} TCs need scripts")
+        await _push_event(channel, "tc_event", {
+            "test_case_id": suite_id,
+            "type": "phase1",
+            "message": f"Generating {len(tcs_needing_scripts)} missing scripts in parallel…",
+        })
+
+        # One DOM snapshot shared by all generators (avoids N browser launches)
+        shared_snapshot: Optional[str] = None
+        if app_url:
+            shared_snapshot = await _take_landing_snapshot(app_url)
+
+        _gen_sem = asyncio.Semaphore(3)
+
+        async def _gen_one(tc) -> None:
+            async with _gen_sem:
+                async with async_session_maker() as session:
+                    try:
+                        result = await generate_script_v1(
+                            session, tc.id,
+                            app_url=app_url,
+                            save_to_db=True,
+                            dom_snapshot=shared_snapshot,
+                        )
+                        msg_type = "generated" if result.get("status") == "generated" else "gen_failed"
+                        msg = (
+                            f"Script generated ({result.get('placeholder_count', 0)} placeholders)"
+                            if result.get("status") == "generated"
+                            else f"Generation failed: {result.get('error')}"
+                        )
+                    except Exception as e:
+                        msg_type, msg = "gen_failed", f"Generation error: {e}"
+                        logger.error(f"Phase 1 gen error for {tc.tc_code}: {e}")
+                    await _push_event(channel, "tc_event", {
+                        "test_case_id": tc.id, "type": msg_type, "message": msg,
+                    })
+
+        await asyncio.gather(*[_gen_one(tc) for tc in tcs_needing_scripts], return_exceptions=True)
+        logger.info("Phase 1 done")
+
+    # ── Phase 2 — Single shared browser session ───────────────────────────────
+    results: List[Dict[str, Any]] = []
+    passed = failed = skipped = 0
+
+    async with PlaywrightMCPClient(headless=headless, browser=browser) as mcp:
+        tools = {t.name: t for t in mcp.tools}
+
+        # Navigate to app_url once to warm up the browser
+        if app_url and "browser_navigate" in tools:
+            try:
+                await tools["browser_navigate"].ainvoke({"url": app_url})
+                await asyncio.sleep(1.5)
+            except Exception as warm_e:
+                logger.warning(f"Browser warm-up navigate failed: {warm_e}")
+
+        for idx, tc in enumerate(tc_rows):
+            tc_id = tc.id
+
+            await _push_event(channel, "tc_started", {
+                "index": idx + 1,
+                "total": len(tc_rows),
+                "tc_id": tc_id,
+                "tc_code": tc.tc_code,
+                "title": tc.title,
+            })
+
+            # Re-query script (Phase 1 may have just created it)
+            active_script = await repo.get_active_script(db, tc_id)
+            if not active_script:
+                logger.warning(f"Suite P2: no script for {tc.tc_code} — marking error")
+                failed += 1
+                tc_result = {
+                    "tc_id": tc_id, "tc_code": tc.tc_code, "title": tc.title,
+                    "status": "error", "run_id": None,
+                    "steps_passed": 0, "steps_failed": 0, "duration": 0,
+                    "error": "No script available (generation failed)",
+                }
+                results.append(tc_result)
+                await _push_event(channel, "tc_completed", tc_result)
+                if stop_on_failure:
+                    for rem_tc in tc_rows[idx + 1:]:
+                        skipped += 1
+                        results.append({
+                            "tc_id": rem_tc.id, "tc_code": rem_tc.tc_code,
+                            "title": rem_tc.title, "status": "skipped",
+                            "run_id": None, "steps_passed": 0, "steps_failed": 0,
+                            "duration": 0, "error": "Skipped — previous TC failed",
+                        })
+                    break
+                continue
+
+            # Reset browser to app_url between TCs (skip for first TC — already done)
+            if idx > 0 and app_url and "browser_navigate" in tools:
+                try:
+                    await tools["browser_navigate"].ainvoke({"url": app_url})
+                    await asyncio.sleep(1.0)
+                except Exception as nav_e:
+                    logger.warning(f"Browser reset failed for {tc.tc_code}: {nav_e}")
+
+            # Create TestRun record before execution
+            test_run = await repo.create_test_run(
+                db,
+                script_version_id=active_script.id,
+                base_url=app_url or settings.TEST_APPLICATION_URL,
+                browser=browser,
+                headless=headless,
+            )
+            await repo.commit(db)
+
+            async def _on_step(label: str, status: str, error: str = None, _tc_id=tc_id):
+                await _push_event(_tc_id, "agent_step", {
+                    "step_type": "act",
+                    "tool": "playwright",
+                    "content": label,
+                    "status": "success" if status == "passed" else "failed",
+                    "error": error,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+
+            try:
+                exec_result = await asyncio.wait_for(
+                    _react_agent.run_with_tools(
+                        tools,
+                        script_v1=active_script.script_content,
+                        app_url=app_url or settings.TEST_APPLICATION_URL,
+                        test_case_id=tc_id,
+                        on_step=_on_step,
+                    ),
+                    timeout=180.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"TC {tc.tc_code} timed out after 180 s")
+                exec_result = {
+                    "execution_status": "error",
+                    "error": "Timed out after 180 s",
+                    "steps_passed": 0, "steps_failed": 0,
+                    "step_details": [], "duration": 180.0,
+                    "remaining_placeholders": 0,
+                }
+            except Exception as exec_e:
+                logger.error(f"TC {tc.tc_code} execution error: {exec_e}", exc_info=True)
+                exec_result = {
+                    "execution_status": "error",
+                    "error": str(exec_e),
+                    "steps_passed": 0, "steps_failed": 0,
+                    "step_details": [], "duration": 0.0,
+                    "remaining_placeholders": 0,
+                }
+
+            try:
+                await _save_execution_results(db, test_run.id, active_script, exec_result)
+            except Exception as save_e:
+                logger.error(f"Failed to save results for {tc.tc_code}: {save_e}")
+
+            status = exec_result.get("execution_status", "error")
+            tc_result = {
+                "tc_id": tc_id, "tc_code": tc.tc_code, "title": tc.title,
+                "status": status,
+                "run_id": test_run.id,
+                "steps_passed": exec_result.get("steps_passed", 0),
+                "steps_failed": exec_result.get("steps_failed", 0),
+                "duration": round(exec_result.get("duration", 0) or 0, 1),
+                "error": exec_result.get("error"),
+            }
+            results.append(tc_result)
+
+            if status in ("passed", "completed"):
+                passed += 1
+            else:
+                failed += 1
+
+            await _push_event(channel, "tc_completed", tc_result)
+
+            if failed > 0 and stop_on_failure:
+                for rem_tc in tc_rows[idx + 1:]:
+                    skipped += 1
+                    skipped_result = {
+                        "tc_id": rem_tc.id, "tc_code": rem_tc.tc_code,
+                        "title": rem_tc.title, "status": "skipped",
+                        "run_id": None, "steps_passed": 0, "steps_failed": 0,
+                        "duration": 0, "error": "Skipped — previous TC failed",
+                    }
+                    results.append(skipped_result)
+                    await _push_event(channel, "tc_completed", skipped_result)
+                break
+
+    # ── Final summary ─────────────────────────────────────────────────────────
+    total = len(tc_rows)
+    suite_status = "passed" if failed == 0 and skipped == 0 else ("partial" if passed > 0 else "failed")
+    success_rate = round((passed / total * 100) if total > 0 else 0, 1)
+    total_duration = round(sum(r.get("duration", 0) or 0 for r in results), 1)
+
+    logger.info(f"Suite smart done: {passed} passed, {failed} failed, {skipped} skipped / {total}")
+
+    await _push_event(channel, "completed", {
+        "suite_id": suite_id,
+        "suite_status": suite_status,
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "success_rate": success_rate,
+        "duration": total_duration,
+        "results": results,
+    })
+
+    return {
+        "suite_status": suite_status,
+        "total": total, "passed": passed, "failed": failed,
+        "skipped": skipped, "success_rate": success_rate, "results": results,
     }
 
 

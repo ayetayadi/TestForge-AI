@@ -1,35 +1,91 @@
+import logging
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import (
-    verify_password, 
-    hash_password, 
+    verify_password,
+    hash_password,
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
-    decode_access_token
 )
 from app.models.user import User
-from app.schemas.user_schema import LoginRequest, TokenResponse, SetupPasswordRequest, UserRead, ForgotPasswordRequest, ResetPasswordRequest
+from app.schemas.user_schema import (
+    LoginRequest, TokenResponse, SetupPasswordRequest,
+    ForgotPasswordRequest, ResetPasswordRequest,
+)
 from app.api.deps import get_current_user
-import secrets
-from datetime import datetime, timedelta
 from app.services.mail_service import send_reset_email
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# Blacklist simple en mémoire (pour production, utilise Redis)
-_blacklisted_refresh_tokens = set()
+# ---------------------------------------------------------------------------
+# Token blacklist — Redis-backed with automatic in-memory fallback
+# ---------------------------------------------------------------------------
+_mem_blacklist: set[str] = set()
 
-# ===================== LOGIN avec REFRESH TOKEN =====================
 
+async def _blacklist_jti(jti: str) -> None:
+    """Revoke a token by JTI. Uses Redis when available, falls back to memory."""
+    try:
+        from app.core.redis_client import get_redis
+        redis = await get_redis()
+        if redis:
+            ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400
+            await redis.setex(f"blacklist:{jti}", ttl, "1")
+            return
+    except Exception:
+        pass
+    _mem_blacklist.add(jti)
+
+
+async def _is_blacklisted(jti: str) -> bool:
+    """Return True if the JTI has been revoked."""
+    try:
+        from app.core.redis_client import get_redis
+        redis = await get_redis()
+        if redis:
+            return await redis.exists(f"blacklist:{jti}") == 1
+    except Exception:
+        pass
+    return jti in _mem_blacklist
+
+
+# ---------------------------------------------------------------------------
+# Cookie helper — secure flag is OFF locally, ON in production
+# ---------------------------------------------------------------------------
+_SECURE_COOKIE = settings.ENV not in ("dev", "local", "development")
+_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  # 30 days in seconds
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key="refresh_token",
+        value=token,
+        httponly=True,
+        secure=_SECURE_COOKIE,
+        samesite="lax",
+        max_age=_COOKIE_MAX_AGE,
+    )
+
+
+# ---------------------------------------------------------------------------
+# LOGIN
+# ---------------------------------------------------------------------------
 @router.post("/login", response_model=TokenResponse)
 async def login(
-    payload: LoginRequest, 
+    payload: LoginRequest,
     db: AsyncSession = Depends(get_db),
-    response: Response = None
+    response: Response = None,
 ):
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
@@ -40,164 +96,95 @@ async def login(
             detail="Incorrect email or password",
         )
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account disabled"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
 
-    # Données à inclure dans les tokens
-    token_data = {
-        "sub": str(user.id), 
-        "is_admin": user.is_admin, 
-        "email": user.email
-    }
-    
-    # Créer les deux tokens
+    token_data = {"sub": str(user.id), "is_admin": user.is_admin, "email": user.email}
     access_token = create_access_token(token_data)
-    refresh_token, jti = create_refresh_token(token_data)
-    
-    # Stocker le refresh token dans un cookie httpOnly (plus sécurisé)
+    refresh_token, _ = create_refresh_token(token_data)
+
     if response:
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            httponly=True,      # Inaccessible via JavaScript (protection XSS)
-            secure=False,       # Mettre True en production avec HTTPS
-            samesite="lax",     # Protection CSRF
-            max_age=30 * 24 * 60 * 60  # 30 jours en secondes
-        )
-    
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-    )
+        _set_refresh_cookie(response, refresh_token)
 
-# ===================== REFRESH ENDPOINT =====================
+    return TokenResponse(access_token=access_token, token_type="bearer")
 
+
+# ---------------------------------------------------------------------------
+# REFRESH
+# ---------------------------------------------------------------------------
 @router.post("/refresh")
 async def refresh_access_token(
     response: Response,
     refresh_token: Optional[str] = Cookie(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Rafraîchit l'access token automatiquement
-    Le frontend appelle ce endpoint quand il reçoit un 401
-    """
     if not refresh_token:
-        print("[REFRESH DEBUG] No cookie received")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="No refresh token provided"
-        )
-    
-    # 1. Vérifier et décoder le refresh token
-    print(f"[REFRESH DEBUG] Cookie received, token prefix: {refresh_token[:20]}...")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided")
+
     payload = decode_refresh_token(refresh_token)
     if not payload:
-        print("[REFRESH DEBUG] Token decode failed (invalid or expired)")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Invalid refresh token"
-        )
-    
-    # 2. Vérifier si le token est blacklisté
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
     jti = payload.get("jti")
-    if jti in _blacklisted_refresh_tokens:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Refresh token revoked"
-        )
-    
-    # 3. Vérifier expiration (déjà fait par decode, mais on vérifie explicitement)
+    if jti and await _is_blacklisted(jti):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
+
     exp = payload.get("exp")
-    if exp and datetime.fromtimestamp(exp) < datetime.utcnow():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Refresh token expired"
-        )
-    
-    # 4. Récupérer l'utilisateur
+    if exp and datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+
     user_id = payload.get("sub")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    
     if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="User not found or inactive"
-        )
-    
-    # 5. Créer NOUVEAUX tokens (rotation)
-    token_data = {
-        "sub": str(user.id), 
-        "is_admin": user.is_admin, 
-        "email": user.email
-    }
-    
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+
+    token_data = {"sub": str(user.id), "is_admin": user.is_admin, "email": user.email}
     new_access_token = create_access_token(token_data)
-    new_refresh_token, new_jti = create_refresh_token(token_data)
-    
-    # 6. Blacklist l'ancien refresh token (rotation - empêche réutilisation)
-    _blacklisted_refresh_tokens.add(jti)
-    
-    # Nettoyage optionnel de la blacklist (supprimer les tokens expirés)
-    # Pour simplifier, on garde en mémoire, c'est suffisant pour un petit volume
-    
-    # 7. Mettre à jour le cookie avec le nouveau refresh token
-    response.set_cookie(
-        key="refresh_token",
-        value=new_refresh_token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=30 * 24 * 60 * 60
-    )
-    
+    new_refresh_token, _ = create_refresh_token(token_data)
+
+    # Revoke old token (rotation — prevents replay)
+    if jti:
+        await _blacklist_jti(jti)
+
+    _set_refresh_cookie(response, new_refresh_token)
     return {"access_token": new_access_token, "token_type": "bearer"}
 
-# ===================== LOGOUT =====================
 
+# ---------------------------------------------------------------------------
+# LOGOUT
+# ---------------------------------------------------------------------------
 @router.post("/logout")
 async def logout(
     response: Response,
-    refresh_token: Optional[str] = Cookie(None)
+    refresh_token: Optional[str] = Cookie(None),
 ):
-    """Déconnexion - révoque le refresh token"""
     if refresh_token:
         payload = decode_refresh_token(refresh_token)
-        if payload:
-            jti = payload.get("jti")
-            _blacklisted_refresh_tokens.add(jti)
-    
-    # Supprimer le cookie refresh_token
+        if payload and payload.get("jti"):
+            await _blacklist_jti(payload["jti"])
+
     response.delete_cookie("refresh_token")
-    
     return {"message": "Logged out successfully"}
 
-# ===================== LOGOUT EVERYWHERE =====================
 
 @router.post("/logout-all")
 async def logout_all_devices(
     response: Response,
     current_user: User = Depends(get_current_user),
-    refresh_token: Optional[str] = Cookie(None)
+    refresh_token: Optional[str] = Cookie(None),
 ):
-    """Déconnecte de tous les appareils - révoque TOUS les refresh tokens"""
-    # Pour une vraie implémentation, il faudrait stocker tous les jti par user
-    # En attendant, on révoque juste le token actuel
     if refresh_token:
         payload = decode_refresh_token(refresh_token)
-        if payload:
-            jti = payload.get("jti")
-            _blacklisted_refresh_tokens.add(jti)
-    
+        if payload and payload.get("jti"):
+            await _blacklist_jti(payload["jti"])
+
     response.delete_cookie("refresh_token")
-    
     return {"message": "Logged out from all devices"}
 
-# ===================== TES ENDPOINTS EXISTANTS (inchangés) =====================
 
+# ---------------------------------------------------------------------------
+# PASSWORD RESET
+# ---------------------------------------------------------------------------
 @router.post("/forgot-password")
 async def forgot_password(
     payload: ForgotPasswordRequest,
@@ -206,26 +193,25 @@ async def forgot_password(
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
 
-    # Always return 200 — never reveal whether email exists
+    # Always return 200 — never reveal whether the email exists
     if not user or not user.is_active:
         return {"message": "If that email is registered, a reset link has been sent."}
 
     token = secrets.token_urlsafe(48)
     user.reset_token = token
-    user.reset_token_expires_at = datetime.utcnow() + timedelta(minutes=30)
+    user.reset_token_expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).replace(tzinfo=None)
     await db.commit()
 
     try:
         await send_reset_email(user.email, user.username, token)
-    except Exception as e:
-        # Roll back token if email fails so user can retry
+    except Exception:
         user.reset_token = None
         user.reset_token_expires_at = None
         await db.commit()
-        raise HTTPException(status_code=500,
-                            detail="Failed to send email. Please try again.")
+        raise HTTPException(status_code=500, detail="Failed to send email. Please try again.")
 
     return {"message": "If that email is registered, a reset link has been sent."}
+
 
 @router.post("/reset-password")
 async def reset_password(
@@ -235,16 +221,13 @@ async def reset_password(
     if payload.new_password != payload.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
-    result = await db.execute(
-        select(User).where(User.reset_token == payload.token)
-    )
+    result = await db.execute(select(User).where(User.reset_token == payload.token))
     user = result.scalar_one_or_none()
 
     if not user or not user.reset_token_expires_at:
         raise HTTPException(status_code=400, detail="Invalid or expired reset link")
 
     if datetime.utcnow() > user.reset_token_expires_at:
-        # Clean up expired token
         user.reset_token = None
         user.reset_token_expires_at = None
         await db.commit()
@@ -254,30 +237,25 @@ async def reset_password(
     user.reset_token = None
     user.reset_token_expires_at = None
     await db.commit()
-
     return {"message": "Password reset successfully. You can now log in."}
+
 
 @router.post("/setup-password")
 async def setup_password(
     payload: SetupPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    # Find user by token
-    result = await db.execute(
-        select(User).where(User.setup_token == payload.token)
-    )
+    result = await db.execute(select(User).where(User.setup_token == payload.token))
     user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or expired setup link")
-
     if len(payload.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
-    user.hashed_password = hash_password(payload.password)  # ← CORRIGÉ: payload.password
+    user.hashed_password = hash_password(payload.password)
     user.is_active = True
     user.is_verified = True
     user.setup_token = None
     await db.commit()
-
     return {"message": "Password set successfully. You can now log in."}

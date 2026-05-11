@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from app.models.test_suite import TestSuite
     from app.models.test_case_dependency import TestCaseDependency
     from app.models.defect import Defect
+    from app.models.user_story import UserStory
+    from app.models.test_plan import TestPlan
 
 
 class TestCase(Base):
@@ -92,6 +94,14 @@ class TestCase(Base):
     # [{"name": "emailInput", "selector": "[data-testid='email-input']", "reliability": "high"}]
     locators: Mapped[Optional[List[dict]]] = mapped_column(JSONB)
 
+    # Référence directe au script Playwright actif (V2_CORRECTED le plus récent)
+    active_playwright_script_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("playwright_script_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
     # Ordre d'exécution dans le plan priorisé (calculé par l'algorithme §p.245)
     execution_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
@@ -135,7 +145,17 @@ class TestCase(Base):
         "PlaywrightScriptVersion",
         back_populates="test_case",
         cascade="all, delete-orphan",
+        primaryjoin="TestCase.id == PlaywrightScriptVersion.test_case_id",
+        foreign_keys="[PlaywrightScriptVersion.test_case_id]",
         order_by="PlaywrightScriptVersion.version_number"
+    )
+
+    active_playwright_script: Mapped[Optional["PlaywrightScriptVersion"]] = relationship(
+        "PlaywrightScriptVersion",
+        primaryjoin="TestCase.active_playwright_script_id == PlaywrightScriptVersion.id",
+        foreign_keys="[TestCase.active_playwright_script_id]",
+        uselist=False,
+        viewonly=True,
     )
 
     # Dépendances où CE test est la source (il doit s'exécuter avant d'autres)

@@ -78,6 +78,14 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   issueKey = signal<string>('');
   testCaseCode = signal<string>('');
 
+  // Inline editor
+  isEditing = signal(false);
+  isSavingEdit = signal(false);
+  editContentStr = '';
+
+  // Script generation
+  isGenerating = signal(false);
+
   // Script v2
   executionReport = signal<ExecutionReport | null>(null);
   showReport = signal(false);
@@ -358,6 +366,66 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
 
   rerunScript(): void {
     this.runScript();
+  }
+
+  enterEditMode(): void {
+    this.editContentStr = this.selectedContent() ?? '';
+    this.isEditing.set(true);
+  }
+
+  cancelEdit(): void {
+    this.isEditing.set(false);
+    this.editContentStr = '';
+  }
+
+  saveEdit(): void {
+    const content = this.editContentStr.trim();
+    if (!content) {
+      this.toastService.error('Script cannot be empty');
+      return;
+    }
+    const versionId = this.selectedVersionId();
+    if (!versionId) return;
+
+    this.isSavingEdit.set(true);
+    this.playwrightService.updateScript(versionId, content).subscribe({
+      next: (res) => {
+        this.isSavingEdit.set(false);
+        this.isEditing.set(false);
+        this.editContentStr = '';
+        this.toastService.success(`Saved as v${res.version_number}`);
+        this.loadScripts(); // auto-selects the new active version
+      },
+      error: (err) => {
+        this.isSavingEdit.set(false);
+        this.toastService.error(err?.error?.detail ?? 'Failed to save script');
+      },
+    });
+  }
+
+  generateScript(): void {
+    const tcId = this.testCaseId();
+    if (!tcId) return;
+    const url = this.appUrl() || undefined;
+    this.isGenerating.set(true);
+    this.playwrightService.generateScript({ test_case_id: tcId, app_url: url }).subscribe({
+      next: (res) => {
+        this.isGenerating.set(false);
+        if (res.status === 'generated') {
+          this.toastService.success(
+            url ? `Script generated from live DOM (${res.placeholder_count} placeholders)`
+                : `Script generated (${res.placeholder_count} placeholders)`
+          );
+          this.loadScripts();
+        } else {
+          this.toastService.error(res.error ?? 'Generation failed');
+        }
+      },
+      error: (err) => {
+        this.isGenerating.set(false);
+        this.toastService.error(err?.message ?? 'Generation failed');
+      },
+    });
   }
 
   applyNewScript(): void {

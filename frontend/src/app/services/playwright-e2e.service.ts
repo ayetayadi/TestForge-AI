@@ -17,10 +17,12 @@ import {
   LastRunResponse,
   HealthCheckResponse,
   PlaywrightSSEEvent,
-  ScriptInfo, 
+  ScriptInfo,
   ScriptVersionUI,
   ExecutionStep,
-  DiscoveredLocator
+  DiscoveredLocator,
+  UpdateScriptRequest,
+  UpdateScriptResponse,
 } from '../models/playwright.models';
 
 import { SseService } from './sse.service';
@@ -131,6 +133,30 @@ export interface SuiteRunRequest {
   browser?: string;
   headless?: boolean;
   stop_on_failure?: boolean;
+}
+
+export interface SuiteSmartRunRequest {
+  app_url: string;
+  browser?: string;
+  headless?: boolean;
+  stop_on_failure?: boolean;
+}
+
+export interface SuiteSSEEvent {
+  type: string;
+  data: Record<string, any>;
+  timestamp: string;
+}
+
+export interface SuiteScriptStatus {
+  tc_id: string;
+  tc_code: string;
+  title: string;
+  has_script: boolean;
+  script_id?: string;
+  version_number?: number;
+  placeholder_count?: number;
+  source?: string;
 }
 
 export interface TestRunListItem {
@@ -404,6 +430,20 @@ export class PlaywrightE2EService {
   }
 
   /**
+   * Save a manual edit as a new script version.
+   * PATCH /playwright/script/{script_version_id}
+   */
+  updateScript(scriptVersionId: string, scriptContent: string): Observable<UpdateScriptResponse> {
+    const body: UpdateScriptRequest = { script_content: scriptContent };
+    return this.http.patch<UpdateScriptResponse>(
+      `${this.apiUrl}/script/${scriptVersionId}`,
+      body
+    ).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  /**
    * Récupère les infos de script pour plusieurs test cases (batch)
    */
   getScriptsInfoBatch(testCaseIds: string[]): Observable<Map<string, { 
@@ -556,6 +596,56 @@ export class PlaywrightE2EService {
         this.isExecutingSubject.next(false);
         return this.handleError(err);
       })
+    );
+  }
+
+  /**
+   * Lance le smart-run pour toute une suite (génère + exécute chaque TC)
+   * POST /playwright/suite/{suite_id}/execute-smart
+   */
+  executeSuiteSmart(suiteId: string, request: SuiteSmartRunRequest): Observable<{ status: string; message: string }> {
+    return this.http.post<{ status: string; message: string }>(
+      `${this.apiUrl}/suite/${suiteId}/execute-smart`,
+      request
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Récupère le statut des scripts pour chaque TC d'une suite
+   * GET /playwright/suite/{suite_id}/scripts-status
+   */
+  getSuiteScriptsStatus(suiteId: string): Observable<{ suite_id: string; test_cases: SuiteScriptStatus[]; total: number }> {
+    return this.http.get<{ suite_id: string; test_cases: SuiteScriptStatus[]; total: number }>(
+      `${this.apiUrl}/suite/${suiteId}/scripts-status`
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Returns the most recent run result per TC in a suite (for panel restore on navigation).
+   * GET /playwright/suite/{suite_id}/last-run
+   */
+  getLastSuiteRun(suiteId: string): Observable<{
+    suite_id: string;
+    has_runs: boolean;
+    results: Array<{
+      tc_id: string; tc_code: string; title: string;
+      status: string; run_id: string | null;
+      duration: number | null; started_at: string | null;
+    }>;
+    summary: { total: number; passed: number; failed: number; skipped: number; duration: number } | null;
+  }> {
+    return this.http.get<any>(`${this.apiUrl}/suite/${suiteId}/last-run`).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Ouvre le stream SSE pour suivre l'exécution d'une suite
+   * GET /playwright/suite/{suite_id}/stream
+   */
+  connectSuiteStream(suiteId: string): Observable<SuiteSSEEvent> {
+    const url = `${this.apiUrl}/suite/${suiteId}/stream`;
+    return this.sseService.connectToStream<SuiteSSEEvent>(
+      url, `suite_${suiteId}`,
+      ['suite_started', 'tc_started', 'tc_event', 'tc_completed', 'completed']
     );
   }
   

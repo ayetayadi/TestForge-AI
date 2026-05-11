@@ -157,18 +157,15 @@ async def analyze_project_risks(
         UserStory.created_at.asc()
     )
     
-    if request.limit:
-        query = query.limit(request.limit)
-    
     result = await db.execute(query)
     stories = result.scalars().all()
-    
+
     if not stories:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No user stories found with filters: {filters_applied}",
         )
-    
+
     # Handle reanalysis logic
     already_analyzed = 0
     if not request.force_reanalyze:
@@ -180,14 +177,19 @@ async def analyze_project_risks(
                 stories_to_analyze.append(story)
             else:
                 already_analyzed += 1
-        
+
         if not stories_to_analyze:
             return {
                 "submitted": 0,
                 "message": "All matching stories already analyzed. Use force_reanalyze=true.",
                 "already_analyzed": already_analyzed,
             }
+        # Apply limit after filtering so we don't skip unanalyzed stories
+        if request.limit:
+            stories_to_analyze = stories_to_analyze[:request.limit]
         stories = stories_to_analyze
+    elif request.limit:
+        stories = list(stories)[:request.limit]
     
     # Submit jobs to worker
     job_ids = []
