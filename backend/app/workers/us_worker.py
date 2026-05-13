@@ -804,12 +804,6 @@ async def _propose_changes_to_po(
     paragraphs.extend([
         "",
         "---",
-        "**🗳️ Comment utiliser cette proposition?**",
-        "",
-        "1. **✅ Accepter** - Copiez la version améliorée dans Jira",
-        "2. **🔧 Adapter** - Modifiez selon votre contexte",
-        "3. **❌ Ignorer** - Gardez la version actuelle",
-        "",
         f"📱 **Voir la version complète dans TestForge AI**",
         "",
         "*Note: L'IA n'a pas modifié le contexte métier, seulement clarifié la formulation.*"

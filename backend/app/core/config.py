@@ -70,12 +70,6 @@ class Settings(BaseSettings):
     GROQ_API_KEY_5: str | None = None
 
     # =========================
-    # ATLAS CLOUD CONFIGURATION
-    # =========================
-    ATLAS_API_KEY: str = os.getenv("ATLAS_API_KEY", "")
-    ATLAS_BASE_URL: str = os.getenv("ATLAS_BASE_URL", "https://api.atlascloud.ai/v1")
-
-    # =========================
     # Hugging Face CONFIG
     # =========================
     HF_TOKEN: str | None = None
@@ -96,17 +90,10 @@ class Settings(BaseSettings):
     MEMORY_CACHE_SIZE: int = 500
 
     # =========================
-    # RAG / EMBEDDINGS
+    # EMBEDDINGS
     # =========================
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_DIM: int = 384
-
-    # =========================
-    # TEMPERATURES
-    # =========================
-    ANALYSIS_TEMP: float = 0.0
-    REFINEMENT_TEMP: float = 0.2
-    AC_REPAIR_TEMP: float = 0.2
 
     # =========================
     # WORKER CONFIG
