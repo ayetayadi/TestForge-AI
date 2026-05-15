@@ -19,7 +19,7 @@ import { Router } from '@angular/router';
             <span class="brand-ai">AI</span>
           </div>
         </div>
-        <p class="brand-subtitle">AUTOMATION TEST INTELLIGENT</p>
+        <p class="brand-subtitle">AUTOMATION E2E TEST INTELLIGENT</p>
       </div>
     </a>
   `,

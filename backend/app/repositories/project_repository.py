@@ -1,5 +1,8 @@
+from typing import List, Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
+from app.models.jira_connection import JiraConnection
 from app.models.jira_project import JiraProject
 from app.models.user_story import UserStory
 
@@ -64,8 +67,8 @@ async def create_project(
 # =========================
 # PROJECTS + STORY COUNT
 # =========================
-async def get_projects_with_story_count(db: AsyncSession):
-    result = await db.execute(
+async def get_projects_with_story_count(db: AsyncSession, user_id: Optional[str] = None):
+    query = (
         select(
             JiraProject.id,
             JiraProject.project_key,
@@ -79,6 +82,9 @@ async def get_projects_with_story_count(db: AsyncSession):
             JiraProject.project_name
         )
     )
+    if user_id:
+        query = query.join(JiraConnection, JiraProject.jira_connection_id == JiraConnection.id).where(JiraConnection.user_id == user_id)
+    result = await db.execute(query)
     return result.all()
 
 

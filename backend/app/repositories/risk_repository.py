@@ -196,25 +196,18 @@ class RiskRepository:
         level: Optional[str] = None,
         is_accepted: Optional[bool] = None,
         source: Optional[str] = None,
+        project_ids: Optional[List[str]] = None,
     ) -> Tuple[List[Risk], int]:
-        """
-        Get all risks with optional filters.
-        
-        Examples:
-        - get_all() → All risks
-        - get_all(project_id="proj-1") → Project risks
-        - get_all(project_id="proj-1", sprint="Sprint 4") → Sprint risks
-        - get_all(project_id="proj-1", epic_key="SCRUM-12") → Epic risks
-        - get_all(level="critical") → Critical risks across all projects
-        - get_all(source="approved_version") → Risks from approved versions
-        """
+        """Get all risks with optional filters."""
         stmt = select(Risk).options(selectinload(Risk.user_story))
-        
-        # JOIN only if filtering by project/sprint/epic
-        if project_id or sprint or epic_key:
+
+        needs_story_join = project_id or sprint or epic_key or (project_ids is not None)
+        if needs_story_join:
             stmt = stmt.join(UserStory, Risk.user_story_id == UserStory.id)
-            
-            if project_id:
+
+            if project_ids is not None:
+                stmt = stmt.where(UserStory.project_id.in_(project_ids))
+            elif project_id:
                 stmt = stmt.where(UserStory.project_id == project_id)
             if sprint:
                 stmt = stmt.where(UserStory.sprint == sprint)

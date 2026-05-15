@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user, get_user_project_ids
 from app.core.database import get_db
+from app.models.user import User
 from app.repositories.user_story_version_repository import get_versions_by_story_id
 from app.services.user_story_service import (
     list_stories,
@@ -11,9 +13,14 @@ from app.services.user_story_service import (
 )
 
 router = APIRouter(prefix="/user-stories", tags=["user-stories"])
+
 @router.get("/")
-async def get_user_stories(db: AsyncSession = Depends(get_db)):
-    return await list_stories(db)
+async def get_user_stories(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project_ids = await get_user_project_ids(db, current_user.id)
+    return await list_stories(db, project_ids=project_ids)
 
 
 @router.get("/{user_story_id}")

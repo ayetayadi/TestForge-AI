@@ -39,7 +39,7 @@ export class HeaderComponent implements OnInit {
     this.userService.getMyProfile().subscribe({
       next: (user: UserRead) => {
         this.username = user.username;
-        this.role = user.is_admin ? 'Admin' : 'User';
+        this.role = user.is_admin ? 'Admin' : 'Tester';
       },
       error: (err) => {
         console.error('Failed to load current user', err);

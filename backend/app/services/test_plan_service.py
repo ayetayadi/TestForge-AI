@@ -230,9 +230,16 @@ class TestPlanService:
         status: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
+        project_ids=None,
     ) -> TestPlanListResponse:
         """Récupère tous les Test Plans avec filtres."""
-        items, total = await self.repository.get_all(project_id, status, page, page_size)
+        items, total = await self.repository.get_all(
+            project_id=project_id,
+            status=status,
+            page=page,
+            page_size=page_size,
+            project_ids=project_ids,
+        )
         pagination = TestPlanRepository.compute_pagination(total, page, page_size)
         return TestPlanListResponse(
             items=[TestPlanResponse.model_validate(p) for p in items],

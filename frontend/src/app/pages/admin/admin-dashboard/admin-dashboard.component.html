@@ -1,118 +1,527 @@
 <div class="admin-dashboard">
+
+  <!-- ══════════════════════════════════════════════
+       HEADER
+  ══════════════════════════════════════════════ -->
   <div class="page-header">
-    <div>
-      <h1>Admin Dashboard</h1>
-      <p>Gestion des utilisateurs de la plateforme TestForge</p>
+    <div class="header-left">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="page-title">Admin Analytics</h1>
+        <p class="page-subtitle">Real-time platform overview — testers, projects &amp; quality metrics</p>
+      </div>
     </div>
-
-    <button class="create-btn" (click)="createUser()">
-      + Créer un utilisateur
-    </button>
+    <div class="header-actions">
+      <button class="btn-outline" (click)="load(true)" [disabled]="refreshing">
+        <svg class="icon-sm" [class.spin]="refreshing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Refresh
+      </button>
+      <button class="btn-white" (click)="createUser()">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        New Tester
+      </button>
+    </div>
   </div>
 
-  <div *ngIf="loading" class="info-box">
-    Chargement des utilisateurs...
+  <!-- ══════════════════════════════════════════════
+       LOADING
+  ══════════════════════════════════════════════ -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <span>Loading analytics…</span>
   </div>
 
-  <div *ngIf="errorMessage" class="error-box">
+  <!-- ══════════════════════════════════════════════
+       ERROR
+  ══════════════════════════════════════════════ -->
+  <div *ngIf="errorMessage && !loading" class="error-banner">
+    <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
     {{ errorMessage }}
   </div>
 
-  <ng-container *ngIf="!loading && !errorMessage">
-    <div class="stats-grid">
-      <div class="stat-card">
-        <h3>Total Utilisateurs</h3>
-        <h2>{{ totalUsers }}</h2>
-        <span>Tous les comptes</span>
+  <ng-container *ngIf="!loading && analytics">
+
+    <!-- ══════════════════════════════════════════════
+         KPI GRID — 7 cards
+    ══════════════════════════════════════════════ -->
+    <div class="kpi-grid">
+
+      <div class="kpi-card kpi-card--primary">
+        <div class="kpi-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-value">{{ global?.total_testers ?? 0 }}</div>
+          <div class="kpi-label">Testers</div>
+          <div class="kpi-sub">Platform users</div>
+        </div>
       </div>
 
-      <div class="stat-card">
-        <h3>Utilisateurs Actifs</h3>
-        <h2>{{ activeUsers }}</h2>
-        <span>Comptes activés</span>
+      <div class="kpi-card kpi-card--teal">
+        <div class="kpi-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-value">{{ global?.total_projects ?? 0 }}</div>
+          <div class="kpi-label">Projects</div>
+          <div class="kpi-sub">Jira imports</div>
+        </div>
       </div>
 
-      <div class="stat-card">
-        <h3>Admins</h3>
-        <h2>{{ adminUsers }}</h2>
-        <span>Comptes administrateurs</span>
+      <div class="kpi-card kpi-card--violet">
+        <div class="kpi-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-value">{{ global?.total_stories ?? 0 }}</div>
+          <div class="kpi-label">User Stories</div>
+          <div class="kpi-sub">All projects</div>
+        </div>
       </div>
 
-      <div class="stat-card">
-        <h3>Jira Connecté</h3>
-        <h2>{{ jiraConnectedUsers }}</h2>
-        <span>Comptes liés à Jira</span>
+      <div class="kpi-card kpi-card--sky">
+        <div class="kpi-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-value">{{ global?.total_test_cases ?? 0 }}</div>
+          <div class="kpi-label">Test Cases</div>
+          <div class="kpi-sub">AI-generated</div>
+        </div>
       </div>
+
+      <div class="kpi-card kpi-card--purple">
+        <div class="kpi-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-value">{{ global?.total_test_plans ?? 0 }}</div>
+          <div class="kpi-label">Test Plans</div>
+          <div class="kpi-sub">Planned</div>
+        </div>
+      </div>
+
+      <div class="kpi-card kpi-card--danger">
+        <div class="kpi-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-value">{{ global?.total_defects ?? 0 }}</div>
+          <div class="kpi-label">Defects</div>
+          <div class="kpi-sub">Detected</div>
+        </div>
+      </div>
+
+      <div class="kpi-card kpi-card--warn">
+        <div class="kpi-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-value">{{ global?.total_risks ?? 0 }}</div>
+          <div class="kpi-label">Risks</div>
+          <div class="kpi-sub">Identified</div>
+        </div>
+      </div>
+
     </div>
 
-    <div class="filters-card">
-      <div class="filters-row">
-        <input
-          type="text"
-          placeholder="Rechercher par username ou email"
-          [(ngModel)]="searchTerm"
-        />
+    <!-- ══════════════════════════════════════════════
+         CHARTS ROW
+    ══════════════════════════════════════════════ -->
+    <div class="charts-row">
 
-        <select [(ngModel)]="roleFilter">
-          <option value="all">Tous les rôles</option>
-          <option value="admin">Admins</option>
-          <option value="user">Utilisateurs</option>
-        </select>
-
-        <select [(ngModel)]="statusFilter">
-          <option value="all">Tous les statuts</option>
-          <option value="active">Actifs</option>
-          <option value="inactive">Inactifs</option>
-        </select>
+      <!-- Bar: Testers Activity -->
+      <div class="chart-card chart-card--bar">
+        <div class="chart-header">
+          <div>
+            <h3 class="chart-title">Testers Activity</h3>
+            <p class="chart-sub">Stories · Test Cases · Defects per tester (top 8)</p>
+          </div>
+        </div>
+        <apx-chart
+          *ngIf="barSeries.length > 0"
+          [series]="barSeries"
+          [chart]="barChart"
+          [plotOptions]="barPlotOptions"
+          [dataLabels]="barDataLabels"
+          [xaxis]="barXaxis"
+          [yaxis]="barYaxis"
+          [colors]="barColors"
+          [legend]="barLegend"
+          [tooltip]="barTooltip"
+          [grid]="barGrid"
+        ></apx-chart>
+        <div *ngIf="barSeries.length === 0" class="chart-empty">No tester data yet</div>
       </div>
+
+      <!-- Donut: Quality split -->
+      <div class="chart-card chart-card--donut">
+        <div class="chart-header">
+          <div>
+            <h3 class="chart-title">Quality Split</h3>
+            <p class="chart-sub">Distribution across all artifact types</p>
+          </div>
+        </div>
+        <apx-chart
+          *ngIf="donutSeries.length > 0"
+          [series]="donutSeries"
+          [chart]="donutChart"
+          [labels]="donutLabels"
+          [colors]="donutColors"
+          [dataLabels]="donutDataLabels"
+          [plotOptions]="donutPlotOptions"
+          [legend]="donutLegend"
+          [tooltip]="donutTooltip"
+          [responsive]="donutResponsive"
+        ></apx-chart>
+        <div *ngIf="donutSeries.length === 0" class="chart-empty">No data yet</div>
+      </div>
+
     </div>
 
-    <div class="table-card">
-      <div class="table-header">
-        <h2>Liste des utilisateurs</h2>
-      </div>
-
-      <div class="table-wrapper">
-        <table>
-          <thead>
-          <tr>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Rôle</th>
-            <th>Statut</th>
-            <th>Jira</th>
-          </tr>
-          </thead>
-
-          <tbody>
-          <tr *ngFor="let user of filteredUsers">
-            <td>{{ user.username }}</td>
-            <td>{{ user.email }}</td>
-            <td>
-                <span class="badge" [ngClass]="user.is_admin ? 'admin' : 'user'">
-                  {{ user.is_admin ? 'Admin' : 'User' }}
-                </span>
-            </td>
-            <td>
-                <span class="badge" [ngClass]="user.is_active ? 'active' : 'inactive'">
-                  {{ user.is_active ? 'Actif' : 'Inactif' }}
-                </span>
-            </td>
-            <td>
-                <span class="badge" [ngClass]="user.jira_connected ? 'jira-on' : 'jira-off'">
-                  {{ user.jira_connected ? 'Connecté' : 'Non connecté' }}
-                </span>
-            </td>
-          </tr>
-
-          <tr *ngIf="filteredUsers.length === 0">
-            <td colspan="6" class="empty-state">
-              Aucun utilisateur trouvé
-            </td>
-          </tr>
-          </tbody>
-        </table>
-      </div>
+    <!-- ══════════════════════════════════════════════
+         TAB NAV
+    ══════════════════════════════════════════════ -->
+    <div class="tab-nav">
+      <button class="tab-nav-btn" [class.active]="activeTab === 'testers'" (click)="setTab('testers')">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+        </svg>
+        Testers Overview
+        <span class="tab-chip">{{ analytics.testers.length }}</span>
+      </button>
+      <button class="tab-nav-btn" [class.active]="activeTab === 'projects'" (click)="setTab('projects')">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        Projects Matrix
+        <span class="tab-chip">{{ allProjects.length }}</span>
+      </button>
     </div>
+
+    <!-- ══════════════════════════════════════════════
+         TESTERS TAB
+    ══════════════════════════════════════════════ -->
+    <ng-container *ngIf="activeTab === 'testers'">
+
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="text"
+            class="search-input"
+            placeholder="Search testers by name or email…"
+            [ngModel]="testerSearch"
+            (ngModelChange)="onTesterSearch($event)"
+          />
+        </div>
+        <span class="result-count">
+          {{ filteredTesters.length }} tester{{ filteredTesters.length !== 1 ? 's' : '' }}
+        </span>
+      </div>
+
+      <!-- empty -->
+      <div class="empty-state" *ngIf="filteredTesters.length === 0">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+          </svg>
+        </div>
+        <h3>No testers found</h3>
+        <p>Create a tester account to get started</p>
+        <button class="btn-action mt-16" (click)="createUser()">New Tester</button>
+      </div>
+
+      <!-- tester cards -->
+      <div class="tester-list" *ngIf="filteredTesters.length > 0">
+        <div
+          class="tester-card"
+          *ngFor="let t of pagedTesters; trackBy: trackTester"
+          [class.expanded]="expandedTester === t.id"
+        >
+
+          <!-- ── card header ── -->
+          <div class="tester-header" (click)="toggleTester(t.id)">
+
+            <div class="tester-identity">
+              <div class="avatar" [class.av-active]="t.is_active" [class.av-inactive]="!t.is_active">
+                {{ initial(t.username) }}
+              </div>
+              <div class="tester-info">
+                <span class="tester-name">{{ t.username }}</span>
+                <span class="tester-email">{{ t.email }}</span>
+              </div>
+              <div class="badge-row">
+                <span class="pill" [class.pill--active]="t.is_active" [class.pill--inactive]="!t.is_active">
+                  {{ t.is_active ? 'Active' : 'Pending' }}
+                </span>
+                <span class="pill" [class.pill--jira]="t.jira_connected" [class.pill--nojira]="!t.jira_connected">
+                  <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                  </svg>
+                  {{ t.jira_connected ? 'Jira' : 'No Jira' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- metrics strip -->
+            <div class="metrics-strip">
+              <div class="metric">
+                <span class="metric-val c-primary">{{ t.project_count }}</span>
+                <span class="metric-lbl">Projects</span>
+              </div>
+              <div class="metric-sep"></div>
+              <div class="metric">
+                <span class="metric-val c-teal">{{ t.total_stories }}</span>
+                <span class="metric-lbl">Stories</span>
+              </div>
+              <div class="metric-sep"></div>
+              <div class="metric">
+                <span class="metric-val c-sky">{{ t.total_test_cases }}</span>
+                <span class="metric-lbl">Test Cases</span>
+              </div>
+              <div class="metric-sep"></div>
+              <div class="metric">
+                <span class="metric-val c-purple">{{ t.total_test_plans }}</span>
+                <span class="metric-lbl">Plans</span>
+              </div>
+              <div class="metric-sep"></div>
+              <div class="metric">
+                <span class="metric-val c-danger">{{ t.total_defects }}</span>
+                <span class="metric-lbl">Defects</span>
+              </div>
+              <div class="metric-sep"></div>
+              <div class="metric">
+                <span class="metric-val c-warn">{{ t.total_risks }}</span>
+                <span class="metric-lbl">Risks</span>
+              </div>
+            </div>
+
+            <!-- story share bar -->
+            <div class="share-bar-wrap" [title]="pct(t.total_stories, global?.total_stories ?? 0) + '% of all stories'">
+              <div class="share-track">
+                <div class="share-fill" [style.width.%]="barWidth(t.total_stories, maxTesterStories)"></div>
+              </div>
+              <span class="share-pct">{{ pct(t.total_stories, global?.total_stories ?? 0) }}%</span>
+            </div>
+
+            <svg class="chevron" [class.chevron--open]="expandedTester === t.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+
+          </div>
+
+          <!-- ── projects breakdown (expanded) ── -->
+          <div class="tester-detail" *ngIf="expandedTester === t.id">
+
+            <div class="no-projects" *ngIf="t.projects.length === 0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              <p>No projects — tester needs to connect Jira first</p>
+            </div>
+
+            <table class="proj-table" *ngIf="t.projects.length > 0">
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th class="ta-r">Stories</th>
+                  <th class="ta-r">Test Cases</th>
+                  <th class="ta-r">Test Plans</th>
+                  <th class="ta-r">Defects</th>
+                  <th class="ta-r">Risks</th>
+                  <th>Story share</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let p of t.projects; trackBy: trackProject">
+                  <td>
+                    <div class="proj-cell">
+                      <span class="proj-key">{{ p.project_key }}</span>
+                      <span class="proj-name-text">{{ p.project_name }}</span>
+                    </div>
+                  </td>
+                  <td class="ta-r fw-600 c-teal">{{ p.story_count }}</td>
+                  <td class="ta-r fw-600 c-sky">{{ p.test_case_count }}</td>
+                  <td class="ta-r fw-600 c-purple">{{ p.test_plan_count }}</td>
+                  <td class="ta-r fw-600" [class.c-danger]="p.defect_count > 0" [class.c-muted]="p.defect_count === 0">{{ p.defect_count }}</td>
+                  <td class="ta-r fw-600" [class.c-warn]="p.risk_count > 0" [class.c-muted]="p.risk_count === 0">{{ p.risk_count }}</td>
+                  <td>
+                    <div class="inline-bar">
+                      <div class="inline-track">
+                        <div class="inline-fill" [style.width.%]="barWidth(p.story_count, t.total_stories)"></div>
+                      </div>
+                      <span class="inline-pct">{{ pct(p.story_count, t.total_stories) }}%</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Pagination — testers -->
+      <app-pagination
+        *ngIf="filteredTesters.length > testerPageSize"
+        [totalItems]="filteredTesters.length"
+        [currentPage]="testerPage"
+        [pageSize]="testerPageSize"
+        [pageSizeOptions]="[5, 10, 20]"
+        (pageChange)="testerPage = $event"
+        (pageSizeChange)="testerPageSize = $event; testerPage = 1"
+      ></app-pagination>
+
+    </ng-container>
+
+    <!-- ══════════════════════════════════════════════
+         PROJECTS MATRIX TAB
+    ══════════════════════════════════════════════ -->
+    <ng-container *ngIf="activeTab === 'projects'">
+
+      <div class="section-card">
+        <div class="section-top">
+          <div>
+            <h2 class="section-title">Projects Matrix</h2>
+            <p class="section-sub">All imported projects with their tester and quality metrics</p>
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="allProjects.length === 0">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <h3>No projects imported yet</h3>
+          <p>Testers must connect Jira and import a project first</p>
+        </div>
+
+        <div class="table-scroll" *ngIf="allProjects.length > 0">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Project Name</th>
+                <th>Tester</th>
+                <th class="ta-r">Stories</th>
+                <th class="ta-r">Test Cases</th>
+                <th class="ta-r">Test Plans</th>
+                <th class="ta-r">Defects</th>
+                <th class="ta-r">Risks</th>
+                <th>Coverage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of pagedProjects; trackBy: trackProject" class="matrix-row">
+                <td><span class="key-pill">{{ p.project_key }}</span></td>
+                <td class="proj-name-cell">{{ p.project_name }}</td>
+                <td>
+                  <div class="tester-chip">
+                    <div class="chip-av">{{ initial(p.tester) }}</div>
+                    <div>
+                      <div class="chip-name">{{ p.tester }}</div>
+                      <div class="chip-email">{{ p.testerEmail }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="ta-r"><span class="num c-teal">{{ p.story_count }}</span></td>
+                <td class="ta-r"><span class="num c-sky">{{ p.test_case_count }}</span></td>
+                <td class="ta-r"><span class="num c-purple">{{ p.test_plan_count }}</span></td>
+                <td class="ta-r">
+                  <span class="num" [class.c-danger]="p.defect_count > 0" [class.c-muted]="p.defect_count === 0">
+                    {{ p.defect_count }}
+                  </span>
+                </td>
+                <td class="ta-r">
+                  <span class="num" [class.c-warn]="p.risk_count > 0" [class.c-muted]="p.risk_count === 0">
+                    {{ p.risk_count }}
+                  </span>
+                </td>
+                <td>
+                  <div class="cov-bar">
+                    <div class="cov-track">
+                      <div class="cov-fill" [style.width.%]="barWidth(p.story_count, maxStories)"></div>
+                    </div>
+                    <span class="cov-pct">{{ pct(p.story_count, global?.total_stories ?? 0) }}%</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="totals-row">
+                <td colspan="3" class="totals-label">Platform Totals</td>
+                <td class="ta-r fw-700 c-teal">{{ global?.total_stories ?? 0 }}</td>
+                <td class="ta-r fw-700 c-sky">{{ global?.total_test_cases ?? 0 }}</td>
+                <td class="ta-r fw-700 c-purple">{{ global?.total_test_plans ?? 0 }}</td>
+                <td class="ta-r fw-700 c-danger">{{ global?.total_defects ?? 0 }}</td>
+                <td class="ta-r fw-700 c-warn">{{ global?.total_risks ?? 0 }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Pagination — projects -->
+        <app-pagination
+          *ngIf="allProjects.length > projectPageSize"
+          [totalItems]="allProjects.length"
+          [currentPage]="projectPage"
+          [pageSize]="projectPageSize"
+          [pageSizeOptions]="[10, 20, 50]"
+          (pageChange)="projectPage = $event"
+          (pageSizeChange)="projectPageSize = $event; projectPage = 1"
+        ></app-pagination>
+
+      </div>
+
+    </ng-container>
+
   </ng-container>
 </div>

@@ -402,12 +402,16 @@ async def get_all_risks(
     is_accepted: Optional[bool] = Query(None),
     source: Optional[str] = Query(None),
     db: AsyncSession = Depends(deps.get_db),
+    current_user: deps.User = Depends(deps.get_current_user),
 ) -> List[RiskResponse]:
-    """Get all risks across all projects with optional filters."""
+    """Get all risks for the current user's projects with optional filters."""
+    from app.api.deps import get_user_project_ids
+    project_ids = await get_user_project_ids(db, current_user.id)
     service = RiskService(db)
     return await service.get_all_risks(
         project_id=project_id, sprint=sprint, epic_key=epic_key,
         level=level, is_accepted=is_accepted, source=source,
+        project_ids=project_ids,
     )
 
 @router.get(

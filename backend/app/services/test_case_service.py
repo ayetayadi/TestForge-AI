@@ -33,6 +33,7 @@ async def get_all_test_cases(
     test_suite_id: Optional[str] = None,
     test_plan_id: Optional[str] = None,
     project_id: Optional[str] = None,
+    project_ids=None,
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
     priority: Optional[List[str]] = None,
@@ -42,12 +43,13 @@ async def get_all_test_cases(
     offset: int = 0,
 ) -> List[Dict[str, Any]]:
     """Récupère tous les test cases avec filtres."""
-    
+
     items = await repo.get_all_test_cases(
         db,
         test_suite_id=test_suite_id,
         test_plan_id=test_plan_id,
         project_id=project_id,
+        project_ids=project_ids,
         search=search,
         status=status,
         priority=priority,

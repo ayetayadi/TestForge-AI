@@ -5,13 +5,13 @@ export const navItems: NavItem[] = [
     navCap: 'Home',
   },
   {
-    displayName: 'Admin Dashboard',
+    displayName: 'Dashboard',
     iconName: 'solar:widget-add-line-duotone',
     route: '/admin-dashboard',
     adminOnly: true,
   },
   {
-    displayName: 'User Dashboard',
+    displayName: 'Dashboard',
     iconName: 'solar:widget-add-line-duotone',
     route: '/user-dashboard',
     userOnly: true,
@@ -71,7 +71,7 @@ export const navItems: NavItem[] = [
     adminOnly: true,
   },
   {
-    displayName: 'Manage Users',
+    displayName: 'Manage Testers',
     iconName: 'solar:users-group-rounded-line-duotone',
     route: '/admin/users',
     adminOnly: true,
