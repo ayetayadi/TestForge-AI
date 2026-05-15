@@ -55,6 +55,7 @@ async def get_all_test_cases(
     test_suite_id: Optional[str] = None,
     test_plan_id: Optional[str] = None,
     project_id: Optional[str] = None,
+    project_ids: Optional[List[str]] = None,
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
     priority: Optional[List[str]] = None,
@@ -65,23 +66,22 @@ async def get_all_test_cases(
     offset: int = 0
 ) -> List[TestCase]:
     """Récupère tous les test cases avec filtres."""
-    
-    # ✅ Eager loading : TestCase → TestPlan → JiraProject + TestSuite
+
     query = select(TestCase).options(joinedload(TestCase.user_story),
         joinedload(TestCase.test_plan).joinedload(TestPlan.jira_project),
         joinedload(TestCase.test_suite),
     )
 
-    # ✅ Filtre DIRECT par test_plan_id
     if test_plan_id:
         query = query.where(TestCase.test_plan_id == test_plan_id)
 
-    # ✅ Filtre par TestSuite
     if test_suite_id:
         query = query.where(TestCase.test_suite_id == test_suite_id)
 
-    # ✅ Filtre par Projet (via test_plan_id → TestPlan)
-    if project_id:
+    if project_ids is not None:
+        query = query.join(TestPlan, TestCase.test_plan_id == TestPlan.id)
+        query = query.where(TestPlan.project_id.in_(project_ids))
+    elif project_id:
         query = query.join(TestPlan, TestCase.test_plan_id == TestPlan.id)
         query = query.where(TestPlan.project_id == project_id)
 

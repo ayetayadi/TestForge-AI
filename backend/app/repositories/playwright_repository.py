@@ -439,16 +439,34 @@ async def get_all_test_runs_with_context(
     offset: int = 0,
     status_filter: Optional[str] = None,
     result_filter: Optional[str] = None,
+    project_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Récupère tous les test runs avec leur contexte complet :
     test case, résultat, defect lié, et statistiques globales.
     """
     from app.models.defect import Defect
+    from app.models.test_plan import TestPlan
     from sqlalchemy import func as sql_func, desc as sql_desc
 
     base_query = select(TestRun).order_by(desc(TestRun.started_at))
     count_query = select(sql_func.count(TestRun.id))
+
+    if project_ids is not None:
+        base_query = (
+            base_query
+            .join(PlaywrightScriptVersion, TestRun.script_version_id == PlaywrightScriptVersion.id)
+            .join(TestCase, PlaywrightScriptVersion.test_case_id == TestCase.id)
+            .join(TestPlan, TestCase.test_plan_id == TestPlan.id)
+            .where(TestPlan.project_id.in_(project_ids))
+        )
+        count_query = (
+            count_query
+            .join(PlaywrightScriptVersion, TestRun.script_version_id == PlaywrightScriptVersion.id)
+            .join(TestCase, PlaywrightScriptVersion.test_case_id == TestCase.id)
+            .join(TestPlan, TestCase.test_plan_id == TestPlan.id)
+            .where(TestPlan.project_id.in_(project_ids))
+        )
 
     if status_filter and status_filter != "all":
         base_query = base_query.where(TestRun.status == status_filter)
@@ -465,7 +483,7 @@ async def get_all_test_runs_with_context(
     total_res = await db.execute(count_query)
     total = total_res.scalar_one()
 
-    # Global stats (pas de filtre pour avoir le tableau complet)
+    # Global stats filtrées par projets de l'utilisateur
     stats_q = (
         select(
             TestResult.status,
@@ -474,6 +492,15 @@ async def get_all_test_runs_with_context(
         .join(TestRun, TestResult.test_run_id == TestRun.id)
         .group_by(TestResult.status)
     )
+    if project_ids is not None:
+        from app.models.test_plan import TestPlan as _TP
+        stats_q = (
+            stats_q
+            .join(PlaywrightScriptVersion, TestRun.script_version_id == PlaywrightScriptVersion.id)
+            .join(TestCase, PlaywrightScriptVersion.test_case_id == TestCase.id)
+            .join(_TP, TestCase.test_plan_id == _TP.id)
+            .where(_TP.project_id.in_(project_ids))
+        )
     stats_rows = (await db.execute(stats_q)).all()
 
     passed_count = sum(r.cnt for r in stats_rows if r.status and r.status.value == "passed")

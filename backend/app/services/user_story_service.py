@@ -110,8 +110,8 @@ async def _enrich_with_versions(db: AsyncSession, stories):
 # =========================
 # LIST
 # =========================
-async def list_stories(db: AsyncSession):
-    stories = await get_all_user_stories(db)
+async def list_stories(db: AsyncSession, project_ids=None):
+    stories = await get_all_user_stories(db, project_ids=project_ids)
     return await _enrich_with_versions(db, stories)
 
 

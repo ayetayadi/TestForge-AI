@@ -25,8 +25,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user, get_user_project_ids
 from app.core.database import get_db
 from app.models.test_plan import TestPlan
+from app.models.user import User
 from app.services import test_case_service as service
 from app.workers.tc_worker import submit_tc_job
 from app.streaming.sse_manager import connections, event_buffer
@@ -50,6 +52,7 @@ router = APIRouter(prefix="/test-cases", tags=["Test Cases"])
 @router.get("/", response_model=List[TestCaseResponse])
 async def get_all_test_cases(
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     test_suite_id: Optional[str] = Query(None, description="Filter by test suite ID"),
     test_plan_id: Optional[str] = Query(None, description="Filter by test plan ID"),
     project_id: Optional[str] = Query(None, description="Filter by project ID"),
@@ -61,13 +64,15 @@ async def get_all_test_cases(
     limit: int = Query(100, le=1000),
     offset: int = Query(0),
 ):
-    """Récupère tous les test cases avec filtres."""
+    """Récupère les test cases de l'utilisateur avec filtres."""
     try:
+        project_ids = await get_user_project_ids(db, current_user.id)
         result = await service.get_all_test_cases(
             db,
             test_suite_id=test_suite_id,
             test_plan_id=test_plan_id,
             project_id=project_id,
+            project_ids=project_ids,
             search=search,
             status=status,
             priority=priority,

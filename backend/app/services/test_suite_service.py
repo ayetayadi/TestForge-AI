@@ -118,12 +118,14 @@ class TestSuiteService:
         project_id: Optional[str] = None,
         suite_type: Optional[str] = None,
         status: Optional[str] = None,
+        project_ids=None,
     ) -> TestSuiteListResponse:
         suites = await self.repo.get_all(
             plan_id=plan_id,
             project_id=project_id,
             suite_type=suite_type,
             status=status,
+            project_ids=project_ids,
         )
         items = [self._to_list_item(s) for s in suites]
         return TestSuiteListResponse(items=items, total=len(items))

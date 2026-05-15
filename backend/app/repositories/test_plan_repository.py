@@ -135,12 +135,15 @@ class TestPlanRepository:
         status: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
+        project_ids: Optional[List[str]] = None,
     ) -> Tuple[List[TestPlan], int]:
         """Récupère tous les Test Plans avec filtres optionnels."""
-        
+
         base = select(TestPlan).options(selectinload(TestPlan.jira_project))
 
-        if project_id:
+        if project_ids is not None:
+            base = base.where(TestPlan.project_id.in_(project_ids))
+        elif project_id:
             base = base.where(TestPlan.project_id == project_id)
         if status:
             base = base.where(TestPlan.status == status)

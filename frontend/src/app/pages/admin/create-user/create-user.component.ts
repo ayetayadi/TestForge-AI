@@ -4,20 +4,30 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MaterialModule } from 'src/app/material.module';
 import { AdminService, UserRead } from '../../../services/admin.service';
-import { signal } from '@angular/core';
+import { signal, computed } from '@angular/core';
+import { PaginationComponent } from '../../../components/pagination/pagination.component';
 
 
 @Component({
   selector: 'app-create-user',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, MaterialModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, MaterialModule, RouterModule, PaginationComponent],
   templateUrl: './create-user.component.html',
 })
 
 
 export class CreateUserComponent implements OnInit {
-  users: UserRead[] = [];
+  users = signal<UserRead[]>([]);
   loading = false;
+
+  currentPage = signal(1);
+  pageSize = signal(10);
+
+  testers = computed(() => this.users().filter(u => !u.is_admin));
+  pagedTesters = computed(() => {
+    const start = (this.currentPage() - 1) * this.pageSize();
+    return this.testers().slice(start, start + this.pageSize());
+  });
   submitting = false;
   successMessage = '';
   errorMessage = '';
@@ -60,7 +70,7 @@ confirmDialogData = signal<{
   loadUsers() {
     this.loading = true;
     this.adminService.getUsers().subscribe({
-      next: (users) => { this.users = users; this.loading = false; },
+      next: (users) => { this.users.set(users); this.loading = false; },
       error: () => { this.loading = false; }
     });
   }
@@ -163,5 +173,14 @@ deleteUser(id: string): void {
       is_admin: false,
       is_active: false
     });
+  }
+
+  onPageChange(page: number): void {
+    this.currentPage.set(page);
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.currentPage.set(1);
   }
 }

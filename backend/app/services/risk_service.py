@@ -236,6 +236,7 @@ class RiskService:
         level: Optional[str] = None,
         is_accepted: Optional[bool] = None,
         source: Optional[str] = None,
+        project_ids=None,
     ) -> List[RiskResponse]:
         """Get all risks with optional filters (no pagination)."""
         items, _ = await self.repository.get_all(
@@ -245,6 +246,7 @@ class RiskService:
             level=level,
             is_accepted=is_accepted,
             source=source,
+            project_ids=project_ids,
         )
         return [RiskResponse.model_validate(item) for item in items]
 
