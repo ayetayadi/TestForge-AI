@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 from app.core.database import get_db, async_session_maker
 from app.services import playwright_service as service
 from app.streaming.sse_manager import event_generator, event_buffer
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_user_project_ids
 from app.models.user import User
 
 router = APIRouter(prefix="/playwright", tags=["Playwright E2E"])
@@ -560,19 +560,21 @@ async def list_test_runs_endpoint(
     offset: int = 0,
     result_filter: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Liste tous les test runs avec leur contexte complet :
-    test case, résultat, defect, statistiques globales.
+    Liste les test runs de l'utilisateur avec contexte complet.
     result_filter: passed | failed | error | skipped | all
     """
     try:
         from app.repositories.playwright_repository import get_all_test_runs_with_context
+        project_ids = await get_user_project_ids(db, current_user.id)
         data = await get_all_test_runs_with_context(
             db,
             limit=limit,
             offset=offset,
             result_filter=result_filter if result_filter and result_filter != "all" else None,
+            project_ids=project_ids,
         )
         return data
     except Exception as e:

@@ -32,8 +32,9 @@ class TestSuiteRepository:
         project_id: Optional[str] = None,
         suite_type: Optional[str] = None,
         status: Optional[str] = None,
+        project_ids=None,
     ) -> List[TestSuite]:
-        return await get_all_test_suites(self.db, plan_id, project_id, suite_type, status)
+        return await get_all_test_suites(self.db, plan_id, project_id, suite_type, status, project_ids=project_ids)
 
     async def get_by_id(self, suite_id: str) -> Optional[TestSuite]:
         return await get_test_suite_by_id(self.db, suite_id)
@@ -61,9 +62,10 @@ async def get_all_test_suites(
     project_id: Optional[str] = None,
     suite_type: Optional[str] = None,
     status: Optional[str] = None,
+    project_ids: Optional[List[str]] = None,
 ) -> List[TestSuite]:
     """Récupère toutes les suites avec leurs test cases et plan."""
-    
+
     query = (
         select(TestSuite)
         .options(
@@ -76,10 +78,14 @@ async def get_all_test_suites(
     if plan_id:
         query = query.where(TestSuite.test_plan_id == plan_id)
 
-    if project_id:
-        query = query.join(TestPlan, TestSuite.test_plan_id == TestPlan.id).where(
-            TestPlan.project_id == project_id
-        )
+    needs_plan_join = (project_ids is not None) or bool(project_id)
+    if needs_plan_join and not plan_id:
+        query = query.join(TestPlan, TestSuite.test_plan_id == TestPlan.id)
+
+    if project_ids is not None:
+        query = query.where(TestPlan.project_id.in_(project_ids))
+    elif project_id:
+        query = query.where(TestPlan.project_id == project_id)
 
     if suite_type:
         query = query.where(TestSuite.suite_type == suite_type)

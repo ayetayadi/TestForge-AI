@@ -16,9 +16,9 @@ from app.services.jira_session_manager import JiraSessionManager
 from app.services.user_story_service import import_project_stories
 from app.services.notification_service import NotificationService, JiraChangeDetector as StoryChangeDetector
 
-async def get_all_projects(db: AsyncSession):
-    """Récupère tous les projets avec leur nombre de stories"""
-    projects = await get_projects_with_story_count(db)
+async def get_all_projects(db: AsyncSession, user_id: Optional[str] = None):
+    """Récupère les projets de l'utilisateur avec leur nombre de stories"""
+    projects = await get_projects_with_story_count(db, user_id=user_id)
     return [
         {
             "id": p.id,

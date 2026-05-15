@@ -42,12 +42,15 @@ async def list_test_suites(
     db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> TestSuiteListResponse:
+    from app.api.deps import get_user_project_ids
+    project_ids = await get_user_project_ids(db, current_user.id)
     service = TestSuiteService(db)
     return await service.get_all(
         plan_id=plan_id,
         project_id=project_id,
         suite_type=suite_type,
         status=status,
+        project_ids=project_ids,
     )
 
 
