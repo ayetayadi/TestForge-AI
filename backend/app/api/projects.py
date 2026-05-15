@@ -18,15 +18,13 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 
 @router.get("/", status_code=status.HTTP_200_OK)
 async def get_projects(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return await get_all_projects(db)
+        return await get_all_projects(db, user_id=current_user.id)
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)  # utile en dev
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{project_key}/import")

@@ -132,12 +132,15 @@ async def get_all_test_plans(
     db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> TestPlanListResponse:
+    from app.api.deps import get_user_project_ids
+    project_ids = await get_user_project_ids(db, current_user.id)
     service = TestPlanService(db)
     return await service.get_all_test_plans(
         project_id=project_id,
         status=status,
         page=page,
         page_size=page_size,
+        project_ids=project_ids,
     )
 
 

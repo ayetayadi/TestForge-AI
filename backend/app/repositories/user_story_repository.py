@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.models.user_story import UserStory
@@ -7,11 +9,11 @@ from datetime import datetime
 # =========================
 # GET ALL
 # =========================
-async def get_all_user_stories(db: AsyncSession):
-    result = await db.execute(
-        select(UserStory)
-        .order_by(UserStory.issue_key.asc())
-    )
+async def get_all_user_stories(db: AsyncSession, project_ids: Optional[List[str]] = None):
+    query = select(UserStory).order_by(UserStory.issue_key.asc())
+    if project_ids is not None:
+        query = query.where(UserStory.project_id.in_(project_ids))
+    result = await db.execute(query)
     return result.scalars().all()
 
 
