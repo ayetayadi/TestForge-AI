@@ -58,7 +58,17 @@ async def start_version(
     """
     
     latest = await get_latest_version(db, user_story.id)
-    
+
+    # ============================================================
+    # Guard: max 5 refined versions per story
+    # ============================================================
+    existing_versions = await get_versions_by_story_id(db, user_story.id)
+    if len(existing_versions) >= 5:
+        raise HTTPException(
+            400,
+            f"Story {user_story.issue_key} has reached the maximum of 5 refined versions"
+        )
+
     print(f"[START_VERSION] {user_story.issue_key}")
     print(f"[START_VERSION] latest_version exists: {latest is not None}")
 
