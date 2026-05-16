@@ -34,11 +34,13 @@ async def import_project(
     current_user: User = Depends(get_current_user),
     epic_key: str | None = Query(default=None, description="Import only stories under this epic (e.g. PROJ-1)"),
     sprint_name: str | None = Query(default=None, description="Import only stories in this sprint (exact name)"),
+    use_or: bool = False,
 ):
     return await import_project_by_key(
         db, project_key, current_user,
         epic_key=epic_key,
         sprint_name=sprint_name,
+        use_or=use_or
     )
 
 

@@ -194,26 +194,67 @@ class JiraClient:
         "customfield_10008",
     ]
 
+    
     async def get_stories(
         self,
         project_key: str,
         epic_key: str | None = None,
         sprint_name: str | None = None,
+        use_or: bool = False,
     ) -> list[dict]:
         """Full story data used by the import pipeline.
-        Optionally filter by epic_key or sprint_name (client-side after fetch).
+        
+        Args:
+            project_key: Le projet Jira
+            epic_key: Filtrer par epic (optionnel)
+            sprint_name: Filtrer par sprint (optionnel)
+            use_or: Paramètre gardé pour compatibilité (non utilisé)
         """
         jql = f'project="{project_key}" AND issuetype="Story" ORDER BY created DESC'
         issues = await self._search_jql(jql, self._FULL_FIELDS)
         mapped = [self._map_issue(i) for i in issues]
-
+        
+        print(f"[DEBUG] Total stories before filter: {len(mapped)}")
+        
+        # CAS 1: Epic ET Sprint sélectionnés → UNION (OU)
+        if epic_key and sprint_name:
+            epic_key_norm = epic_key.strip().upper()
+            sprint_name_norm = sprint_name.strip().lower()
+            
+            print(f"[DEBUG] Mode UNION (OR) - Epic: {epic_key_norm} OR Sprint: {sprint_name_norm}")
+            
+            result = []
+            for story in mapped:
+                match_epic = (story.get("epic") or "").strip().upper() == epic_key_norm
+                match_sprint = (story.get("sprint") or "").strip().lower() == sprint_name_norm
+                
+                if match_epic or match_sprint:
+                    result.append(story)
+            
+            epic_count = len([s for s in result if (s.get("epic") or "").strip().upper() == epic_key_norm])
+            sprint_count = len([s for s in result if (s.get("sprint") or "").strip().lower() == sprint_name_norm])
+            
+            print(f"[DEBUG] UNION result: {len(result)} stories (epic: {epic_count}, sprint: {sprint_count})")
+            return result
+        
+        # CAS 2: Seulement Epic sélectionné
         if epic_key:
             epic_key_norm = epic_key.strip().upper()
-            mapped = [m for m in mapped if (m.get("epic") or "").strip().upper() == epic_key_norm]
+            print(f"[DEBUG] Filtering by epic only: {epic_key_norm}")
+            result = [m for m in mapped if (m.get("epic") or "").strip().upper() == epic_key_norm]
+            print(f"[DEBUG] Result: {len(result)} stories")
+            return result
+        
+        # CAS 3: Seulement Sprint sélectionné
         if sprint_name:
             sprint_name_norm = sprint_name.strip().lower()
-            mapped = [m for m in mapped if (m.get("sprint") or "").strip().lower() == sprint_name_norm]
-
+            print(f"[DEBUG] Filtering by sprint only: {sprint_name_norm}")
+            result = [m for m in mapped if (m.get("sprint") or "").strip().lower() == sprint_name_norm]
+            print(f"[DEBUG] Result: {len(result)} stories")
+            return result
+        
+        # CAS 4: Aucun filtre
+        print(f"[DEBUG] No filters - returning all {len(mapped)} stories")
         return mapped
 
     async def get_stories_preview(
@@ -311,28 +352,75 @@ class JiraClient:
         data = await self._request("POST", url, json=body)
         return {"key": data.get("key"), "id": data.get("id")}
 
+    
     async def get_sprints(self, project_key: str) -> list[dict]:
-        """Return all sprints for a project across all its Scrum boards."""
-        data = await self._get_agile("/board", params={"projectKeyOrId": project_key})
-        boards = data.get("values", [])
-
-        seen: dict[int, dict] = {}
-        for board in boards:
-            board_id = board.get("id")
-            try:
-                sprint_data = await self._get_agile(f"/board/{board_id}/sprint")
-                for s in sprint_data.get("values", []):
-                    sid = s.get("id")
-                    if sid and sid not in seen:
-                        seen[sid] = {
-                            "id":         sid,
-                            "name":       s.get("name"),
-                            "state":      s.get("state"),   # active | closed | future
-                            "start_date": s.get("startDate"),
-                            "end_date":   s.get("endDate"),
+        """Return all sprints for a project using JQL search."""
+        print(f"[DEBUG] Getting sprints for project: {project_key}")
+        
+        try:
+            # Utiliser uniquement customfield_10020 qui contient les sprints
+            jql = f'project = "{project_key}" AND customfield_10020 IS NOT EMPTY'
+            url = f"{ATLASSIAN_API_URL}/ex/jira/{self.cloud_id}/rest/api/3/search/jql"
+            
+            print(f"[DEBUG] JQL: {jql}")
+            
+            body = {
+                "jql": jql,
+                "fields": ["customfield_10020"],
+                "maxResults": 100
+            }
+            
+            data = await self._request("POST", url, json=body)
+            issues = data.get("issues", [])
+            
+            print(f"[DEBUG] Found {len(issues)} issues with sprint data")
+            
+            sprints_dict = {}
+            
+            for issue in issues:
+                fields = issue.get("fields", {})
+                sprint_data = fields.get("customfield_10020")
+                
+                if not sprint_data:
+                    continue
+                
+                # Le champ customfield_10020 est une liste de sprints
+                if isinstance(sprint_data, list):
+                    for sprint in sprint_data:
+                        if isinstance(sprint, dict):
+                            sprint_id = sprint.get("id")
+                            if sprint_id and sprint_id not in sprints_dict:
+                                sprints_dict[sprint_id] = {
+                                    "id": sprint_id,
+                                    "name": sprint.get("name", "Unknown"),
+                                    "state": sprint.get("state", "unknown"),
+                                    "start_date": sprint.get("startDate"),
+                                    "end_date": sprint.get("endDate"),
+                                }
+                                print(f"[DEBUG] Found sprint: {sprint.get('name')}")
+                elif isinstance(sprint_data, dict):
+                    sprint_id = sprint_data.get("id")
+                    if sprint_id and sprint_id not in sprints_dict:
+                        sprints_dict[sprint_id] = {
+                            "id": sprint_id,
+                            "name": sprint_data.get("name", "Unknown"),
+                            "state": sprint_data.get("state", "unknown"),
+                            "start_date": sprint_data.get("startDate"),
+                            "end_date": sprint_data.get("endDate"),
                         }
-            except Exception:
-                # Kanban boards have no sprints — silently skip
-                pass
-
-        return list(seen.values())
+                        print(f"[DEBUG] Found sprint: {sprint_data.get('name')}")
+            
+            result = list(sprints_dict.values())
+            print(f"[DEBUG] Total unique sprints: {len(result)}")
+            
+            # Trier par état (active d'abord)
+            state_order = {"active": 0, "future": 1, "closed": 2}
+            result.sort(key=lambda x: state_order.get(x.get("state", "closed"), 3))
+            
+            return result
+            
+        except Exception as e:
+            print(f"[DEBUG] Error in get_sprints: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
