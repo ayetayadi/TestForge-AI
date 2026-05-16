@@ -203,6 +203,8 @@ export class ReviewComponent implements OnInit, OnDestroy {
    */
   versionCount = computed(() => this.allVersions().length);
 
+  atVersionLimit = computed(() => this.versionCount() >= 5);
+
   // ─────────────────────────────────────────────
   // LIFECYCLE
   // ─────────────────────────────────────────────
