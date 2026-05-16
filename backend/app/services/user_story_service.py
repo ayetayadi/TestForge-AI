@@ -6,7 +6,8 @@ from app.repositories.user_story_repository import (
     get_user_stories_by_project_id,
     get_user_story_by_id,
     create_user_story,
-    get_user_story_by_issue_key
+    get_user_story_by_issue_key,
+    delete_user_story_by_id,
 )
 from app.repositories.user_story_version_repository import get_versions_by_story_ids
 from app.utils.mapper_utils import map_jira_issue
@@ -224,6 +225,13 @@ async def import_project_stories(
         "skipped": skipped,
         "total": len(jira_issues)
     }
+
+# =========================
+# DELETE
+# =========================
+async def delete_story(db: AsyncSession, user_story_id: str) -> bool:
+    return await delete_user_story_by_id(db, user_story_id)
+
 
 # =========================
 # GET BY ISSUE KEY
