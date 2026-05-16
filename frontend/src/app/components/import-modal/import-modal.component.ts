@@ -36,6 +36,7 @@ export class ImportModalComponent {
   sprints = signal<JiraSprint[]>([]);
   selectedEpicKey = signal<string>('');
   selectedSprintName = signal<string>('');
+  useOrMode = signal(false);
 
   open(): void {
     this.visible.set(true);
@@ -135,8 +136,9 @@ export class ImportModalComponent {
 
     const epicKey = this.selectedEpicKey() || null;
     const sprintName = this.selectedSprintName() || null;
+    const useOr = this.useOrMode();
 
-    this.projectsService.importStories(project.key, epicKey, sprintName).subscribe({
+    this.projectsService.importStories(project.key, epicKey, sprintName, useOr).subscribe({
       next: (response: ImportStoriesResponse) => {
         const imported = response?.result?.imported ?? 0;
         const skipped = response?.result?.skipped ?? 0;

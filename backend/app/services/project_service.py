@@ -37,6 +37,7 @@ async def import_project_by_key(
     epic_key: Optional[str] = None,
     sprint_name: Optional[str] = None,
     notify_changes: bool = True,
+    use_or: bool = False,
 ) -> dict:
     """
     Importe un projet Jira avec détection des changements et notifications
@@ -48,6 +49,7 @@ async def import_project_by_key(
         epic_key: Filtrer par epic (optionnel)
         sprint_name: Filtrer par sprint (optionnel)
         notify_changes: Activer/désactiver les notifications
+        use_or: Mode UNION (OU) au lieu de INTERSECTION (ET)
     
     Returns:
         Dictionnaire avec les résultats de l'import
@@ -104,6 +106,7 @@ async def import_project_by_key(
             project_key,
             epic_key=epic_key,
             sprint_name=sprint_name,
+            use_or=use_or,
         )
         
         print(f"[IMPORT] ✅ {len(jira_issues)} stories récupérées de Jira")

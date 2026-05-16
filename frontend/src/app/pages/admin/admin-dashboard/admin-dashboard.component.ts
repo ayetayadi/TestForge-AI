@@ -37,7 +37,7 @@ export class AdminDashboardComponent implements OnInit {
 
   // ── Donut chart ───────────────────────────────────────────
   donutSeries: number[] = [];
-  donutLabels: string[] = ['Stories', 'Test Cases', 'Test Plans', 'Defects', 'Risks'];
+  donutLabels: string[] = ['User Stories', 'Test Cases', 'Test Plans', 'Defects', 'Risks'];
   donutColors = ['#0d9488', '#0284c7', '#9333ea', '#dc2626', '#ea580c'];
   donutChart = { type: 'donut' as const, height: 280, toolbar: { show: false }, fontFamily: 'inherit' };
   donutDataLabels = { enabled: false };
@@ -130,7 +130,7 @@ export class AdminDashboardComponent implements OnInit {
     this.barCategories = top.map((t) => t.username);
     this.barXaxis = { categories: this.barCategories, labels: { style: { fontSize: '11px' } } };
     this.barSeries = [
-      { name: 'Stories',    data: top.map((t) => t.total_stories) },
+      { name: 'User Stories',    data: top.map((t) => t.total_stories) },
       { name: 'Test Cases', data: top.map((t) => t.total_test_cases) },
       { name: 'Defects',    data: top.map((t) => t.total_defects) },
     ];
