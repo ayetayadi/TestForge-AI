@@ -19,6 +19,7 @@ from app.services.notification_service import NotificationService, JiraChangeDet
 async def get_all_projects(db: AsyncSession, user_id: Optional[str] = None):
     """Récupère les projets de l'utilisateur avec leur nombre de stories"""
     projects = await get_projects_with_story_count(db, user_id=user_id)
+    projects.sort(key=lambda p: p.story_count, reverse=True)
     return [
         {
             "id": p.id,

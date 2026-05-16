@@ -94,6 +94,10 @@ filterGroups: FilterGroup[] = [
       { value: 'medium',  label: 'Medium' },
       { value: 'low',     label: 'Low' },
       { value: 'lowest',  label: 'Lowest' },
+      { value: 'must',    label: 'Must' },
+      { value: 'should',  label: 'Should' },
+      { value: 'could',   label: 'Could' },
+      { value: "won't",   label: "Won't" },
     ],
   },
   {
