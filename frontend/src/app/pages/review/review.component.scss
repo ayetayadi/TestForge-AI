@@ -226,8 +226,34 @@ $gray-900: #111827;
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 4px;
-  
+
   @include scrollbar;
+}
+
+.version-delete-btn {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d1d5db;
+  transition: color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  &:hover {
+    color: #ef4444;
+    background: #fee2e2;
+  }
 }
 
 .version-card {
@@ -240,7 +266,10 @@ $gray-900: #111827;
   cursor: pointer;
   transition: all $transition;
   position: relative;
-  
+  text-align: left;
+  outline: none;
+  user-select: none;
+
   @include focus-ring;
   
   &:hover {

@@ -152,6 +152,34 @@ class JiraClient:
                 return sprint.get("name")
             return None
 
+        @staticmethod
+        def _priority(f: dict) -> str | None:
+            """Return priority from MoSCoW custom field first, then standard."""
+            
+            # 1. D'abord chercher dans le champ MoSCoW customfield_10137
+            moscow_value = f.get("customfield_10137")
+            std = f.get("priority")
+            print(f"[DEBUG] MoSCoW field: {moscow_value}")
+            print(f"[DEBUG] Standard priority: {std}")
+            if moscow_value:
+                if isinstance(moscow_value, dict):
+                    return moscow_value.get("value")
+                if isinstance(moscow_value, list) and moscow_value:
+                    first = moscow_value[0]
+                    if isinstance(first, dict):
+                        return first.get("value")
+                    return str(first)
+                return str(moscow_value)
+            
+            # 2. Sinon, utiliser la priorité standard Jira
+            priority = f.get("priority")
+            if priority:
+                if isinstance(priority, dict):
+                    return priority.get("name")
+                return str(priority)
+            
+            return None 
+            
         return {
             "id":           i.get("id"),
             "key":          i.get("key"),
@@ -159,7 +187,7 @@ class JiraClient:
             "description":  fields.get("description"),
             "issue_type":   _name(fields.get("issuetype")),
             "status":       _name(fields.get("status")),
-            "priority":     _name(fields.get("priority")),
+            "priority":     _priority(fields),
             "story_points": fields.get("customfield_10016"),
             "assignee":     _name(fields.get("assignee")),
             "reporter":     _name(fields.get("reporter")),
@@ -191,7 +219,7 @@ class JiraClient:
         "summary", "description", "status", "priority", "assignee", "reporter",
         "issuetype", "customfield_10016", "customfield_10014", "customfield_10020",
         "labels", "components", "fixVersions", "created", "updated", "parent",
-        "customfield_10008",
+        "customfield_10008","customfield_10137",
     ]
 
     

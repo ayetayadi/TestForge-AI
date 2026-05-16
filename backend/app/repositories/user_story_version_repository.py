@@ -277,8 +277,16 @@ async def reset_customization(
     
     version.is_customized = False
     version.customized_at = None
-    
+
     await db.flush()
     await db.refresh(version)
-    
+
     return version
+
+
+async def delete_version_by_id(db: AsyncSession, version_id: str) -> bool:
+    from sqlalchemy import delete as sql_delete
+    result = await db.execute(
+        sql_delete(UserStoryVersion).where(UserStoryVersion.id == version_id)
+    )
+    return result.rowcount > 0

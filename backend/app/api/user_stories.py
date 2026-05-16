@@ -9,7 +9,8 @@ from app.services.user_story_service import (
     list_stories,
     get_user_story_details,
     list_stories_by_project,
-    get_story_by_issue_key
+    get_story_by_issue_key,
+    delete_story,
 )
 
 router = APIRouter(prefix="/user-stories", tags=["user-stories"])
@@ -42,6 +43,18 @@ async def get_user_story_by_issue_key(issue_key: str, db: AsyncSession = Depends
     except ValueError:
         raise HTTPException(404, "User story not found")
     
+
+@router.delete("/{user_story_id}")
+async def delete_user_story(
+    user_story_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    deleted = await delete_story(db, user_story_id)
+    if not deleted:
+        raise HTTPException(404, "User story not found")
+    return {"message": "User story deleted"}
+
 
 @router.get("/{story_id}/versions")
 async def get_story_versions(

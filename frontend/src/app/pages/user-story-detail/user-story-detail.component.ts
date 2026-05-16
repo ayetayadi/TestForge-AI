@@ -10,11 +10,12 @@ import { StoriesService, PipelineService, VersionsService, ToastService } from '
 import { TestCaseService, WorkflowGenerationResponse } from '../../services/test-case.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ScoreBadgeComponent } from '../../shared/score-badge/score-badge.component';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-user-story-detail',
   standalone: true,
-  imports: [CommonModule, SpinnerComponent, ScoreBadgeComponent],
+  imports: [CommonModule, SpinnerComponent, ScoreBadgeComponent, ConfirmDialogComponent],
   templateUrl: './user-story-detail.component.html',
   styleUrl: './user-story-detail.component.scss',
 })
@@ -140,6 +141,7 @@ generateTestCase(): void {
     this.loading.set(true);
     this.storiesService.getStoryById(storyId).subscribe({
       next: (raw: any) => {
+        
         const story: StoryWithVersion = {
           ...raw,
           selected_version: raw.selected_version ?? null,
@@ -156,7 +158,13 @@ generateTestCase(): void {
           versions_count: raw.versions_count ?? 0,
         };
         this.story.set(story);
-        this.versions.set(raw.versions ?? []);
+        // If API returns empty versions array but a latest/selected version exists, seed from it
+        let versions: UserStoryVersion[] = raw.versions ?? [];
+        if (versions.length === 0) {
+          const fallback = raw.selected_version ?? raw.latest_version;
+          if (fallback) versions = [fallback];
+        }
+        this.versions.set(versions);
         this.loading.set(false);
 
         if (story.has_processing && raw.processing_version?.id) {
@@ -336,6 +344,67 @@ generateTestCase(): void {
   viewVersion(version: UserStoryVersion): void {
     this.router.navigate(['/review', version.id], {
       queryParams: { issueKey: this.story()?.issue_key },
+    });
+  }
+
+  // ── Delete version dialog ──────────────────────────────────────────
+  deleteDialogVisible = signal(false);
+  private versionToDelete = signal<UserStoryVersion | null>(null);
+
+  get deleteDialogTitle(): string {
+    const v = this.versionToDelete();
+    if (!v) return 'Delete Version';
+    const idx = this.versions().indexOf(v);
+    return `Delete Version v${this.versions().length - idx}`;
+  }
+
+  get deleteDialogMessage(): string {
+    return 'This refined version will be permanently deleted. This action cannot be undone.';
+  }
+
+  openDeleteDialog(version: UserStoryVersion, event: Event): void {
+    event.stopPropagation();
+    this.versionToDelete.set(version);
+    this.deleteDialogVisible.set(true);
+  }
+
+  cancelDeleteVersion(): void {
+    this.deleteDialogVisible.set(false);
+    this.versionToDelete.set(null);
+  }
+
+  confirmDeleteVersion(): void {
+    const version = this.versionToDelete();
+    if (!version) return;
+    this.deleteDialogVisible.set(false);
+
+    this.versionsService.deleteVersion(version.id).subscribe({
+      next: () => {
+        const remaining = this.versions().filter(v => v.id !== version.id);
+        this.versions.set(remaining);
+        this.versionToDelete.set(null);
+        this.toastService.success('Version deleted');
+
+        if (remaining.length === 0) {
+          this.goBack();
+        } else {
+          const latest = remaining[0];
+          const selected = remaining.find(v => v.decision_status === 'approved') ?? null;
+          this.story.update(current => current ? {
+            ...current,
+            versions: remaining,
+            versions_count: (current.versions_count ?? 1) - 1,
+            latest_version: latest,
+            selected_version: selected ?? current.selected_version,
+            display_version: selected ?? latest,
+          } : current);
+        }
+      },
+      error: (err) => {
+        const msg = err?.error?.detail ?? 'Failed to delete version';
+        this.toastService.error('Delete failed', msg);
+        this.versionToDelete.set(null);
+      },
     });
   }
 

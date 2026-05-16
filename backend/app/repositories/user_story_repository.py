@@ -131,3 +131,15 @@ async def create_user_story(
     await db.flush()
 
     return user_story
+
+
+# =========================
+# DELETE
+# =========================
+async def delete_user_story_by_id(db: AsyncSession, user_story_id: str) -> bool:
+    story = await get_user_story_by_id(db, user_story_id)
+    if not story:
+        return False
+    await db.delete(story)
+    await db.commit()
+    return True

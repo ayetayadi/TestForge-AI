@@ -19,6 +19,7 @@ from app.core.database import get_db
 from app.services.user_story_version_service import (
     apply_decision,
     can_edit,
+    delete_version,
     edit_version,
     get_versions_by_issue_keys,
     reset_to_original,
@@ -479,5 +480,26 @@ async def reset_customization_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# DELETE VERSION
+# ============================================================
+
+@router.delete("/{version_id}")
+async def delete_version_endpoint(
+    version_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a refined version.
+    Approved and currently processing versions cannot be deleted.
+    """
+    try:
+        return await delete_version(db, version_id)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

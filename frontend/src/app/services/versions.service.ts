@@ -151,6 +151,12 @@ editVersion(versionId: string, improvedStory: string, acceptanceCriteria: string
   });
 }
 
+deleteVersion(versionId: string): Observable<{ message: string; version_id: string; user_story_id: string }> {
+  return this.http.delete<{ message: string; version_id: string; user_story_id: string }>(
+    `${this.baseUrl}/${versionId}`
+  ).pipe(catchError(this.handleError));
+}
+
   /**
    * Vérifie si une version peut être modifiée
    * @param versionId ID de la version

@@ -26,4 +26,8 @@ export class StoriesService {
   getStoryByIssueKey(issueKey: string): Observable<UserStory> {
     return this.http.get<UserStory>(`${this.apiUrl}/by-issue-key/${issueKey}`);
   }
+
+  deleteStory(userStoryId: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/${userStoryId}`);
+  }
 }
