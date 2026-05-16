@@ -14,6 +14,7 @@ from app.models.enums import WorkflowStatus, StoryDecision
 from app.repositories.user_story_repository import get_user_story_by_id
 from app.repositories.user_story_version_repository import (
     create_version,
+    delete_version_by_id,
     get_latest_version,
     get_selected_version,
     get_version_by_id,
@@ -548,10 +549,40 @@ def _validate_content(story: str, criteria: List[str]) -> None:
 def _is_content_identical(version, new_story: str, new_criteria: List[str]) -> bool:
     """Vérifie si le contenu est identique à l'original"""
     story_identical = version.improved_story == new_story
-    
+
     criteria_identical = (
         len(version.generated_acceptance_criteria) == len(new_criteria) and
         all(a == b for a, b in zip(version.generated_acceptance_criteria, new_criteria))
     )
-    
+
     return story_identical and criteria_identical
+
+
+async def delete_version(db: AsyncSession, version_id: str) -> Dict[str, Any]:
+    """
+    Delete a refined version.
+    Rules: approved versions and processing versions cannot be deleted.
+    """
+    version = await get_version_by_id(db, version_id)
+    if not version:
+        raise HTTPException(404, "Version not found")
+
+    if version.decision_status == StoryDecision.APPROVED:
+        raise HTTPException(400, "Cannot delete an approved version")
+
+    if version.workflow_status == WorkflowStatus.PROCESSING:
+        raise HTTPException(400, "Cannot delete a version that is currently processing")
+
+    user_story_id = version.user_story_id
+    deleted = await delete_version_by_id(db, version_id)
+    if not deleted:
+        raise HTTPException(500, "Failed to delete version")
+
+    await db.commit()
+    logger.info(f"Version {version_id} deleted")
+
+    return {
+        "message": "Version deleted successfully",
+        "version_id": version_id,
+        "user_story_id": user_story_id,
+    }

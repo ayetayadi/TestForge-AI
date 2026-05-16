@@ -14,6 +14,7 @@ import { PaginationComponent } from '../../components/pagination/pagination.comp
 import { ImportModalComponent } from '../../components/import-modal/import-modal.component';
 import { NavigationService } from '../../services/navigation.service';
 import { InAppNotificationService } from '../../services/in-app-notification.service';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-user-stories',
@@ -27,6 +28,7 @@ import { InAppNotificationService } from '../../services/in-app-notification.ser
     FilterBarComponent,
     PaginationComponent,
     ImportModalComponent,
+    ConfirmDialogComponent,
   ],
   templateUrl: './user-stories.component.html',
   styleUrl: './user-stories.component.scss',
@@ -71,6 +73,12 @@ selectedProjectId = signal<string>('');
   // Selection
   private selectedKeys = signal<Set<string>>(new Set());
 
+  // Delete dialog
+  deleteDialogVisible = signal(false);
+  deleteDialogTitle = signal('');
+  deleteDialogMessage = signal('');
+  private storyToDelete = signal<StoryWithVersion | null>(null);
+
   // SSE subscriptions
   private sseSubscriptions = new Map<string, Subscription>();
 
@@ -86,6 +94,10 @@ filterGroups: FilterGroup[] = [
       { value: 'medium',  label: 'Medium' },
       { value: 'low',     label: 'Low' },
       { value: 'lowest',  label: 'Lowest' },
+      { value: 'must',    label: 'Must' },
+      { value: 'should',  label: 'Should' },
+      { value: 'could',   label: 'Could' },
+      { value: "won't",   label: "Won't" },
     ],
   },
   {
@@ -662,6 +674,51 @@ getDisplayVersion(story: StoryWithVersion): UserStoryVersion | null {
   }
 
   // ─── Pipeline ───────────────────────────────────────────────────
+
+  deleteStory(story: StoryWithVersion): void {
+    const versionsCount = story.versions_count ?? story.versions?.length ?? 0;
+    const label = story.title || story.issue_key;
+
+    if (versionsCount > 0) {
+      const vLabel = versionsCount === 1 ? '1 refined version' : `${versionsCount} refined versions`;
+      this.deleteDialogTitle.set('Delete Story with Refined Versions');
+      this.deleteDialogMessage.set(
+        `"${label}" has ${vLabel} (approved or pending review).\n\nDeleting this story will permanently remove the original story and all its refined versions.\n\nThis action cannot be undone.`
+      );
+    } else {
+      this.deleteDialogTitle.set('Delete User Story');
+      this.deleteDialogMessage.set(
+        `Are you sure you want to delete "${label}"?\n\nThis action cannot be undone.`
+      );
+    }
+
+    this.storyToDelete.set(story);
+    this.deleteDialogVisible.set(true);
+  }
+
+  confirmDelete(): void {
+    const story = this.storyToDelete();
+    if (!story) return;
+
+    this.deleteDialogVisible.set(false);
+
+    this.storiesService.deleteStory(story.id).subscribe({
+      next: () => {
+        this.stories.update(list => list.filter(s => s.id !== story.id));
+        this.toastService.success('User story deleted');
+        this.storyToDelete.set(null);
+      },
+      error: () => {
+        this.toastService.error('Failed to delete user story');
+        this.storyToDelete.set(null);
+      },
+    });
+  }
+
+  cancelDelete(): void {
+    this.deleteDialogVisible.set(false);
+    this.storyToDelete.set(null);
+  }
 
   rerunPipeline(story: StoryWithVersion): void {
     this.runPipeline([story.issue_key]);
