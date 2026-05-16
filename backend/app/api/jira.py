@@ -131,6 +131,60 @@ async def stories(
     return await client.get_stories_preview(project_key)
 
 
+@router.get("/debug/fields/{project_key}")
+async def debug_fields(
+    project_key: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Debug: Affiche tous les champs d'une story du projet."""
+    manager = JiraSessionManager(db)
+    conn = await manager.get_connection(user.id)
+    client = await manager.get_client(conn)
+    
+    try:
+        # Récupérer une seule story du projet
+        jql = f'project="{project_key}" AND issuetype="Story"'
+        url = f"{ATLASSIAN_API_URL}/ex/jira/{client.cloud_id}/rest/api/3/search/jql"
+        
+        body = {
+            "jql": jql,
+            "fields": ["*all"],
+            "maxResults": 1
+        }
+        
+        data = await client._request("POST", url, json=body)
+        issues = data.get("issues", [])
+        
+        if not issues:
+            return {"error": "No story found"}
+        
+        fields = issues[0].get("fields", {})
+        
+        # Chercher les champs qui pourraient contenir MoSCoW
+        result = {
+            "story_key": issues[0].get("key"),
+            "moscow_candidates": [],
+            "all_custom_fields": {}
+        }
+        
+        for key, value in fields.items():
+            if key.startswith("customfield_"):
+                value_str = str(value)[:150]
+                result["all_custom_fields"][key] = value_str
+                
+                # Chercher des valeurs MoSCoW potentielles
+                if any(word in value_str.lower() for word in ["must", "should", "could", "won't", "moscow"]):
+                    result["moscow_candidates"].append({
+                        "field": key,
+                        "value": value_str
+                    })
+        
+        return result
+        
+    except Exception as e:
+        return {"error": str(e)}
+    
 # =========================
 # 6. EPICS
 # =========================

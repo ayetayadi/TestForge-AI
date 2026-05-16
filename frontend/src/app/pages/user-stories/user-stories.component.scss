@@ -759,10 +759,11 @@ $primary: #4f46e5;
   white-space: nowrap;
   display: inline-block;
   
-  &.priority {
+ &.priority {
     background: #f3f4f6;
     color: #6b7280;
     
+    // Priorités standard Jira
     &[data-priority="highest"],
     &[data-priority="critical"] {
       background: rgba(239, 68, 68, 0.08);
@@ -784,7 +785,29 @@ $primary: #4f46e5;
       background: rgba(16, 185, 129, 0.08);
       color: #059669;
     }
-  }
+    
+    // Priorités MoSCoW
+    &[data-priority="must"] {
+      background: rgba(239, 68, 68, 0.08);
+      color: #dc2626;
+    }
+    
+    &[data-priority="should"] {
+      background: rgba(245, 158, 11, 0.08);
+      color: #d97706;
+    }
+    
+    &[data-priority="could"] {
+      background: rgba(99, 102, 241, 0.08);
+      color: #4f46e5;
+    }
+    
+    &[data-priority="won't"],
+    &[data-priority="wont"] {
+      background: rgba(107, 114, 128, 0.08);
+      color: #6b7280;
+    }
+}
 }
 
 // ============================================

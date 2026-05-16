@@ -202,6 +202,12 @@ $border: 1px solid #e5e7eb;
   &[data-priority='medium']  { background: #fef9c3; color: #a16207; }
   &[data-priority='low']     { background: #f0f9ff; color: #0369a1; }
   &[data-priority='lowest']  { background: #f9fafb; color: #6b7280; }
+
+  // MoSCoW priorities
+  &[data-priority='Must']    { background: #fee2e2; color: #dc2626; }
+  &[data-priority='should']  { background: #fef3c7; color: #d97706; }
+  &[data-priority='could']   { background: #f0fdf4; color: #16a34a; }
+  &[data-priority="won't"]   { background: #f9fafb; color: #6b7280; }
 }
 
 .status-chip {
@@ -537,6 +543,34 @@ $border: 1px solid #e5e7eb;
   &:hover {
     border-color: #6366f1;
     background: #fafafa;
+  }
+}
+
+.version-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.version-delete-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 3px;
+  color: #d1d5db;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+
+  svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  &:hover {
+    color: #ef4444;
+    background: #fee2e2;
   }
 }
 

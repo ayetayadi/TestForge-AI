@@ -9,11 +9,12 @@ import { VersionsService, ToastService, PipelineService, SseService } from '../.
 import { DecisionChoice, VersionState, SSEEvent, TraceEntry, UserStoryVersion, WorkflowStatus } from '../../models/user_story.model';
 import { environment } from '../../../environments/environment';
 import { NavigationService } from '../../services/navigation.service';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-review',
   standalone: true,
-  imports: [CommonModule, SpinnerComponent, ScoreBadgeComponent, FormsModule],
+  imports: [CommonModule, SpinnerComponent, ScoreBadgeComponent, FormsModule, ConfirmDialogComponent],
   templateUrl: './review.component.html',
   styleUrls: ['./review.component.scss'],
 })
@@ -403,6 +404,61 @@ export class ReviewComponent implements OnInit, OnDestroy {
 
   isLatest(index: number): boolean {
     return index === this.allVersions().length - 1;
+  }
+
+  // ── Delete version dialog ──────────────────────────────────────────
+  deleteDialogVisible = signal(false);
+  private versionToDelete = signal<UserStoryVersion | null>(null);
+
+  get deleteDialogTitle(): string {
+    const v = this.versionToDelete();
+    if (!v) return 'Delete Version';
+    const idx = this.allVersions().indexOf(v);
+    return `Delete Version V${idx + 1}`;
+  }
+
+  get deleteDialogMessage(): string {
+    return 'This refined version will be permanently deleted. This action cannot be undone.';
+  }
+
+  openDeleteDialog(version: UserStoryVersion, event: Event): void {
+    event.stopPropagation();
+    this.versionToDelete.set(version);
+    this.deleteDialogVisible.set(true);
+  }
+
+  cancelDeleteVersion(): void {
+    this.deleteDialogVisible.set(false);
+    this.versionToDelete.set(null);
+  }
+
+  confirmDeleteVersion(): void {
+    const version = this.versionToDelete();
+    if (!version) return;
+    this.deleteDialogVisible.set(false);
+
+    this.versionsService.deleteVersion(version.id).subscribe({
+      next: () => {
+        const remaining = this.allVersions().filter(v => v.id !== version.id);
+        this.allVersions.set(remaining);
+        this.versionToDelete.set(null);
+
+        if (remaining.length === 0) {
+          this.toastService.success('Version deleted');
+          this.navigateToStories();
+        } else {
+          if (this.isViewing(version)) {
+            this.viewingVersionId.set(remaining[remaining.length - 1].id);
+          }
+          this.toastService.success('Version deleted');
+        }
+      },
+      error: (err) => {
+        const msg = err?.error?.detail ?? 'Failed to delete version';
+        this.toastService.error('Delete failed', msg);
+        this.versionToDelete.set(null);
+      },
+    });
   }
 
   // ─────────────────────────────────────────────
