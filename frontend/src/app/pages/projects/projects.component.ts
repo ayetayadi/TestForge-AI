@@ -260,6 +260,5 @@ deleteProject(project: Project): void {
   toggleViewMode(mode: 'grid' | 'list'): void {
     this.viewMode = mode;
     localStorage.setItem('projectsViewMode', mode);
-    this.toastService.info(`View changed`, `${mode === 'grid' ? 'Grid' : 'List'} view activated`);
   }
 }

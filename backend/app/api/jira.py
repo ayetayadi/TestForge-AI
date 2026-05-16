@@ -19,6 +19,7 @@ from app.services.jira_service import (
     get_cloud_id,
 )
 from app.services.jira_session_manager import JiraSessionManager
+from app.services.jira_client import ATLASSIAN_API_URL
 
 router = APIRouter(prefix="/jira", tags=["Jira"])
 
