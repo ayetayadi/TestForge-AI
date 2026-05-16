@@ -91,9 +91,12 @@ generateTestCase(): void {
     if (!s) return;
     this.router.navigate(['/test-cases']);
   }
+  atVersionLimit = computed(() => (this.story()?.versions_count ?? 0) >= 5);
+
   canRunPipeline = computed(() => {
     const s = this.story();
     if (!s || this.isProcessing()) return false;
+    if (this.atVersionLimit()) return false;
     return !s.version || ['completed', 'failed'].includes(s.WorkflowStatus ?? '');
   });
 
