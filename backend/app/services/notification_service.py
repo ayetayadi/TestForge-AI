@@ -2,9 +2,8 @@
 Notification service for TestForge AI.
 
 Responsibilities:
-  1. Persist notifications to DB (so users who reconnect see missed notifications).
-  2. Push real-time events via SSE (existing sse_manager).
-  3. Post Atlassian Document Format comments to Jira when relevant.
+  1. Push real-time events via SSE (sse_manager).
+  2. Post Atlassian Document Format comments to Jira when relevant.
 
 SSE channel convention:
   - "notifications:{project_key}"  → project-scoped events (Jira sync, quality issues)
@@ -12,13 +11,12 @@ SSE channel convention:
 """
 
 import logging
-from datetime import datetime
 from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.models.notification import Notification
 from app.models.user_story import UserStory
 from app.streaming.sse_manager import push_event
 
@@ -27,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 def _sse_channel(project_key: str) -> str:
     return f"notifications:{project_key}"
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 class NotificationService:
@@ -45,10 +47,6 @@ class NotificationService:
         project_key: str,
         changes: Dict[str, List],
     ) -> None:
-        """
-        Called after a Jira sync. Persists one notification per change type
-        and pushes a single SSE batch event so the frontend can refresh.
-        """
         added = changes.get("added", [])
         updated = changes.get("updated", [])
         deleted = changes.get("deleted", [])
@@ -71,29 +69,6 @@ class NotificationService:
             parts.append(f"{len(deleted)} US supprimée(s)")
 
         title = f"Synchronisation Jira — {', '.join(parts)}"
-        body_lines = ["Le Product Owner a modifié des User Stories dans Jira."]
-
-        if added:
-            body_lines.append(f"\nAjoutées : {', '.join(s['key'] for s in added)}")
-        if updated:
-            body_lines.append(f"Modifiées : {', '.join(s['key'] for s in updated)}")
-        if deleted:
-            deleted_keys = [
-                s.issue_key if hasattr(s, "issue_key") else s.get("key", "?")
-                for s in deleted
-            ]
-            body_lines.append(f"Supprimées : {', '.join(deleted_keys)}")
-
-        print(f"[NOTIFY_JIRA] 💾 Persistence en base...")
-        notif = await self._persist(
-            project_key=project_key,
-            issue_key=None,
-            notif_type="story_updated" if updated else "story_added" if added else "story_deleted",
-            title=title,
-            body="\n".join(body_lines),
-            severity="info",
-        )
-        print(f"[NOTIFY_JIRA] ✅ Notification persistée (id={notif.id})")
 
         channel = _sse_channel(project_key)
         print(f"[NOTIFY_JIRA] 📡 Push SSE sur channel '{channel}'...")
@@ -101,17 +76,15 @@ class NotificationService:
             channel,
             "jira_sync",
             {
-                "id": notif.id,
-                "title": notif.title,
-                "body": notif.body,
-                "severity": notif.severity,
+                "title": title,
+                "severity": "info",
                 "added": [s["key"] for s in added],
                 "updated": [s["key"] for s in updated],
                 "deleted": [
                     s.issue_key if hasattr(s, "issue_key") else s.get("key", "?")
                     for s in deleted
                 ],
-                "timestamp": notif.created_at.isoformat(),
+                "timestamp": _now_iso(),
             },
         )
         print(f"[NOTIFY_JIRA] ✅ SSE envoyé")
@@ -124,54 +97,25 @@ class NotificationService:
         detected_issues: List[str],
         improved_story: Optional[str] = None,
     ) -> None:
-        """
-        Called when the refinement pipeline detects an ambiguous / low-quality US.
-        Persists a notification AND posts a comment to Jira so the PO is aware.
-        """
         score_pct = round(initial_score * 100, 1)
         title = f"Alerte qualité — {issue_key} (score {score_pct}/100)"
-
-        body_parts = [
-            f"La user story {issue_key} a été analysée et présente une qualité insuffisante.",
-            f"Score qualité : {score_pct}/100",
-            "",
-            "Problèmes détectés :",
-        ] + [f"  • {p}" for p in detected_issues[:8]]
-
-        if improved_story:
-            preview = improved_story[:400] + "..." if len(improved_story) > 400 else improved_story
-            body_parts += ["", "Version améliorée proposée :", preview]
-
-        notif = await self._persist(
-            project_key=project_key,
-            issue_key=issue_key,
-            notif_type="quality_issue",
-            title=title,
-            body="\n".join(body_parts),
-            severity="warning",
-        )
 
         await push_event(
             _sse_channel(project_key),
             "quality_issue",
             {
-                "id": notif.id,
                 "issue_key": issue_key,
-                "title": notif.title,
+                "title": title,
                 "score": score_pct,
                 "issues": detected_issues,
-                "severity": notif.severity,
-                "timestamp": notif.created_at.isoformat(),
+                "severity": "warning",
+                "timestamp": _now_iso(),
             },
         )
 
-        # Post to Jira so the PO sees it in their board
-        jira_posted = await self._post_jira_quality_comment(
+        await self._post_jira_quality_comment(
             issue_key, score_pct, detected_issues, improved_story
         )
-        if jira_posted:
-            notif.jira_comment_posted = True
-            await self.db.commit()
 
     async def notify_story_approved(
         self,
@@ -179,33 +123,15 @@ class NotificationService:
         project_key: str,
         refined_content: str,
     ) -> None:
-        """
-        Called when the tester approves a refined user story.
-        Notifies Jira (PO) via comment that an improved version is available.
-        """
         title = f"User Story approuvée — {issue_key}"
-        body = (
-            f"Le testeur a approuvé la version raffinée de {issue_key}.\n\n"
-            f"Version approuvée :\n{refined_content[:500]}"
-        )
-
-        notif = await self._persist(
-            project_key=project_key,
-            issue_key=issue_key,
-            notif_type="story_approved",
-            title=title,
-            body=body,
-            severity="info",
-        )
 
         await push_event(
             _sse_channel(project_key),
             "story_approved",
             {
-                "id": notif.id,
                 "issue_key": issue_key,
-                "title": notif.title,
-                "timestamp": notif.created_at.isoformat(),
+                "title": title,
+                "timestamp": _now_iso(),
             },
         )
 
@@ -218,10 +144,7 @@ class NotificationService:
             "Version approuvée :",
             refined_content[:600],
         ]
-        jira_posted = await self._post_jira_comment(issue_key, paragraphs)
-        if jira_posted:
-            notif.jira_comment_posted = True
-            await self.db.commit()
+        await self._post_jira_comment(issue_key, paragraphs)
 
     async def notify_ambiguous_story(
         self,
@@ -229,35 +152,17 @@ class NotificationService:
         project_key: str,
         ambiguity_reasons: List[str],
     ) -> None:
-        """
-        Called when the pipeline detects an ambiguous US that the PO must fix.
-        Posts a Jira comment tagging the PO and persists an in-app notification.
-        """
         title = f"User Story ambiguë — action requise du PO — {issue_key}"
-        body = (
-            f"La user story {issue_key} contient des ambiguïtés qui bloquent la génération des tests.\n\n"
-            + "\n".join(f"  • {r}" for r in ambiguity_reasons)
-        )
-
-        notif = await self._persist(
-            project_key=project_key,
-            issue_key=issue_key,
-            notif_type="ambiguous_story",
-            title=title,
-            body=body,
-            severity="error",
-        )
 
         await push_event(
             _sse_channel(project_key),
             "ambiguous_story",
             {
-                "id": notif.id,
                 "issue_key": issue_key,
-                "title": notif.title,
+                "title": title,
                 "reasons": ambiguity_reasons,
-                "severity": notif.severity,
-                "timestamp": notif.created_at.isoformat(),
+                "severity": "error",
+                "timestamp": _now_iso(),
             },
         )
 
@@ -271,38 +176,11 @@ class NotificationService:
             "",
             "Merci de corriger cette user story afin de débloquer le processus de test.",
         ]
-        jira_posted = await self._post_jira_comment(issue_key, paragraphs)
-        if jira_posted:
-            notif.jira_comment_posted = True
-            await self.db.commit()
+        await self._post_jira_comment(issue_key, paragraphs)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
-    async def _persist(
-        self,
-        *,
-        project_key: Optional[str],
-        issue_key: Optional[str],
-        notif_type: str,
-        title: str,
-        body: str,
-        severity: str,
-    ) -> Notification:
-        notif = Notification(
-            project_key=project_key,
-            issue_key=issue_key,
-            type=notif_type,
-            title=title,
-            body=body,
-            severity=severity,
-        )
-        self.db.add(notif)
-        await self.db.commit()
-        await self.db.refresh(notif)
-        logger.info("Notification persisted: type=%s project=%s issue=%s", notif_type, project_key, issue_key)
-        return notif
 
     async def _post_jira_comment(self, issue_key: str, paragraphs: List[str]) -> bool:
         if not self.jira_client:
@@ -350,8 +228,7 @@ class NotificationService:
 
 
 # ---------------------------------------------------------------------------
-# Change detector (single implementation — replaces the duplicate in
-# jira_sync_service.py and the old StoryChangeDetector in this file)
+# Change detector (diff Jira vs DB state)
 # ---------------------------------------------------------------------------
 
 class JiraChangeDetector:
@@ -412,7 +289,6 @@ class JiraChangeDetector:
 
     @staticmethod
     def _has_changed(db_story: UserStory, jira_story: Dict[str, Any]) -> bool:
-        # Apply the same pipeline as import so we compare apples to apples
         from app.utils.mapper_utils import map_jira_issue
         mapped = map_jira_issue(jira_story)
 

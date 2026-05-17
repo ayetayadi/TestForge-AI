@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, signal, computed, inject, ViewChild } fro
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subscription } from 'rxjs';
+import { Subscription, Subject, takeUntil } from 'rxjs';
 
 import { UserStory, UserStoryVersion, SSEEvent, PipelineResponse, StoryWithVersion, Project } from '../../models/user_story.model';
 import { StoriesService, PipelineService, SseService, ToastService, VersionsService, ProjectsService } from '../../services';
@@ -81,6 +81,7 @@ selectedProjectId = signal<string>('');
 
   // SSE subscriptions
   private sseSubscriptions = new Map<string, Subscription>();
+  private destroy$ = new Subject<void>();
 
   // ─── Filter config ──────────────────────────────────────────────
 filterGroups: FilterGroup[] = [
@@ -247,7 +248,11 @@ ngOnInit(): void {
 
         this.loadProjects();
         this.loadStories();
-        
+
+        this.notifService.syncCompleted$
+          .pipe(takeUntil(this.destroy$))
+          .subscribe(() => this.loadStories());
+
         if (highlightKey) {
             setTimeout(() => {
                 this.scrollToStory(highlightKey);
@@ -258,9 +263,9 @@ ngOnInit(): void {
 
   ngOnDestroy(): void {
     console.log("[COMPONENT DESTROYED] cleaning up subscriptions");
-    this.sseSubscriptions.forEach((sub) => {
-      sub.unsubscribe();
-    });
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.sseSubscriptions.forEach((sub) => sub.unsubscribe());
     this.sseSubscriptions.clear();
     this.versionsService.disconnectAllStreams();
   }
