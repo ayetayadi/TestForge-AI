@@ -5,7 +5,7 @@ import {
 } from '@angular/core';
 import {
   provideHttpClient,
-  withInterceptors,          // ← changed from withInterceptorsFromDi
+  withInterceptors,
 } from '@angular/common/http';
 import { routes } from './app.routes';
 import { ToastService } from './services/toast.service';

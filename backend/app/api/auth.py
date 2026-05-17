@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -84,8 +85,8 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 @router.post("/login", response_model=TokenResponse)
 async def login(
     payload: LoginRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
-    response: Response = None,
 ):
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
@@ -100,13 +101,11 @@ async def login(
 
     token_data = {"sub": str(user.id), "is_admin": user.is_admin, "email": user.email}
     access_token = create_access_token(token_data)
-    refresh_token, _ = create_refresh_token(token_data)
+    refresh_token, jti = create_refresh_token(token_data)
 
-    if response:
-        _set_refresh_cookie(response, refresh_token)
+    _set_refresh_cookie(response, refresh_token)
 
     return TokenResponse(access_token=access_token, token_type="bearer")
-
 
 # ---------------------------------------------------------------------------
 # REFRESH
@@ -125,6 +124,7 @@ async def refresh_access_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     jti = payload.get("jti")
+    
     if jti and await _is_blacklisted(jti):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
 
@@ -140,16 +140,19 @@ async def refresh_access_token(
 
     token_data = {"sub": str(user.id), "is_admin": user.is_admin, "email": user.email}
     new_access_token = create_access_token(token_data)
-    new_refresh_token, _ = create_refresh_token(token_data)
+    new_refresh_token, new_jti = create_refresh_token(token_data)
 
-    # Revoke old token (rotation — prevents replay)
     if jti:
-        await _blacklist_jti(jti)
+        asyncio.create_task(_delayed_blacklist(jti, delay=5))
 
     _set_refresh_cookie(response, new_refresh_token)
     return {"access_token": new_access_token, "token_type": "bearer"}
 
-
+async def _delayed_blacklist(jti: str, delay: int = 5):
+    """Blacklist un JTI après un délai pour éviter les problèmes de requêtes simultanées"""
+    await asyncio.sleep(delay)
+    await _blacklist_jti(jti)
+    
 # ---------------------------------------------------------------------------
 # LOGOUT
 # ---------------------------------------------------------------------------

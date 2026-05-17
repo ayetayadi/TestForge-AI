@@ -14,7 +14,6 @@ from app.core.database import async_session_maker
 from app.streaming.sse_manager import push_event
 from app.ai_workflows.user_story_refinement.pipeline import get_pipeline
 from app.models.user_story_version import UserStoryVersion
-from app.services.defect_service import create_defect
 from .us_queue import job_queue
 from app.llm.llm_control import set_worker_api_key
 
@@ -318,9 +317,7 @@ async def async_worker(worker_id: int) -> None:
                 ) 
                 
                 if needs_po_review:
-                    print(f"\n[WORKER-{worker_id}] ⚠️ STORY TROP AMBIGUË - Notification au PO")
-                    print(f"[WORKER-{worker_id}]    Raison: {workflow_status if workflow_status != 'best_effort' else f'score trop bas ({initial_score:.3f} < {AMBIGUOUS_SCORE_THRESHOLD})'}")
-# 1. Poster un commentaire dans Jira
+                    print(f"\n[WORKER-{worker_id}] ⚠️ STORY INCOMPLÈTE/AMBIGUË - Notification au PO")
                     comment_id = await _notify_product_owner_with_suggestions(
                         db=db,
                         user_story_id=state["user_story_id"],
@@ -332,48 +329,25 @@ async def async_worker(worker_id: int) -> None:
                         improved_ac=result.get("acceptance_criteria"),
                         version_id=version_id,
                     )
-                    
                     if comment_id:
                         print(f"[WORKER-{worker_id}] ✅ Commentaire posté dans Jira (ID: {comment_id})")
-                        print(f"[WORKER-{worker_id}]    Le PO a été invité à clarifier la story")
                     else:
                         print(f"[WORKER-{worker_id}] ❌ Échec de l'envoi du commentaire Jira")
-                    
-                    # 2. Créer un defect interne
-                    from app.services.defect_service import create_defect
-                    user_story = await get_user_story_by_id(db, state["user_story_id"])
-                    jira_client = await _get_jira_client(db, state["user_story_id"])
-                    
-                    defect = await create_defect(
-                        db=db,
-                        user_story=user_story,
-                        version_id=version_id,
-                        detected_issues=detected_issues,
-                        initial_score=initial_score,
-                        workflow_status=workflow_status,
-                        jira_client=jira_client,
-                    )
-                    
-                    print(f"[WORKER-{worker_id}] 🐛 Defect créé (ID: {defect.id})")
-                    
-                    # 3. Notification dans l'app TestForge AI
                     await push_event(version_id, "po_notification_sent", {
                         "message": f"Le Product Owner a été notifié pour clarifier {jira_id}",
                         "jira_comment_id": comment_id,
-                        "defect_id": defect.id,
                         "timestamp": datetime.now().isoformat(),
                     })
-                    
-                    print(f"[WORKER-{worker_id}] 📢 Notification envoyée dans l'app")
                 
                 # Si la story a été améliorée, proposer les changements au PO
                 elif result.get("is_improved") and final_score > initial_score + 0.1:
                     print(f"\n[WORKER-{worker_id}] ✨ AMÉLIORATION PROPOSÉE")
                     print(f"[WORKER-{worker_id}]   • Gain de qualité: +{(final_score - initial_score)*100:.1f}%")
-                    
+
                     # Proposer les changements au PO pour acceptation/refus
                     await _propose_changes_to_po(
                         db=db,
+                        user_story_id=state["user_story_id"],
                         jira_id=jira_id,
                         original_story=state["raw_story"],
                         improved_story=result.get("improved_story"),
@@ -399,53 +373,6 @@ async def async_worker(worker_id: int) -> None:
                     result=result,
                     state=state,
                 )
-
-                # ── TECH LEAD MODE: notify product owner + create defect ──
-                needs_po_review = (
-                    workflow_status == "garbage_input"
-                    or (workflow_status == "best_effort" and initial_score < AMBIGUOUS_SCORE_THRESHOLD)
-                )
-                if needs_po_review:
-                    try:
-                        user_story = await get_user_story_by_id(db, state["user_story_id"])
-                        detected_issues = result.get("testability_issues", [])
-                        jira_client = await _get_jira_client(db, state["user_story_id"])
-
-                        # 1. Comment on the original Jira ticket
-                        comment_id = await _notify_product_owner(
-                            db=db,
-                            user_story=user_story,
-                            jira_id=jira_id,
-                            initial_score=initial_score,
-                            workflow_status=workflow_status,
-                            detected_issues=detected_issues,
-                            version_id=version_id,
-                        )
-
-                        # 2. Create internal defect record (+ optional new Bug ticket)
-                        defect = await create_defect(
-                            db=db,
-                            user_story=user_story,
-                            version_id=version_id,
-                            detected_issues=detected_issues,
-                            initial_score=initial_score,
-                            workflow_status=workflow_status,
-                            jira_client=jira_client,
-                        )
-
-                        await push_event(version_id, "defect_created", {
-                            "defect_id": defect.id,
-                            "jira_issue_key": defect.jira_issue_key,
-                            "jira_comment_posted": comment_id is not None,
-                            "severity": defect.severity.value,
-                            "message": (
-                                "Story trop vague — commentaire envoyé au Product Owner"
-                                + (f" sur {jira_id}" if comment_id else " (hors ligne Jira)")
-                            ),
-                            "timestamp": datetime.now().isoformat(),
-                        })
-                    except Exception as defect_exc:
-                        logger.warning(f"[DEFECT] Creation failed for {version_id}: {defect_exc}")
 
                 await push_event(version_id, "version_created", {
                     "version_id": version.id,
@@ -750,6 +677,7 @@ async def _notify_product_owner_with_suggestions(
 
 async def _propose_changes_to_po(
     db,
+    user_story_id: str,
     jira_id: str,
     original_story: str,
     improved_story: str,
@@ -759,10 +687,10 @@ async def _propose_changes_to_po(
     score_improvement: float
 ):
     """Propose les changements au PO pour acceptation/refus"""
-    
+
     print(f"\n[PROPOSAL] 💡 Préparation de la proposition pour {jira_id}")
-    
-    jira_client = await _get_jira_client(db, None)  # À adapter
+
+    jira_client = await _get_jira_client(db, user_story_id)
     if not jira_client:
         print(f"[PROPOSAL] ❌ Client Jira non disponible")
         return

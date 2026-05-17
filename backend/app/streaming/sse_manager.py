@@ -81,16 +81,17 @@ def _safe_put(queue: asyncio.Queue, message: dict):
         print("[SSE WARNING] Queue full → dropping event")
 
 
-async def event_generator(version_id: str, request: Request):
+async def event_generator(version_id: str, request: Request, replay: bool = True):
     queue = asyncio.Queue(maxsize=100)
     connections.setdefault(version_id, []).append(queue)
 
     print(f"[SSE CONNECT] version={version_id}")
 
-    # REPLAY buffered events
-    for msg in event_buffer.get(version_id, []):
-        yield f"event: {msg['event']}\n"
-        yield f"data: {json.dumps(msg['data'])}\n\n"
+    # REPLAY buffered events (disabled for notification channels — no duplicate toasts)
+    if replay:
+        for msg in event_buffer.get(version_id, []):
+            yield f"event: {msg['event']}\n"
+            yield f"data: {json.dumps(msg['data'])}\n\n"
 
     try:
         while True:
@@ -124,9 +125,9 @@ async def event_generator(version_id: str, request: Request):
         #     del event_buffer[version_id]
 
 
-def sse_endpoint(request: Request, version_id: str):
+def sse_endpoint(request: Request, version_id: str, replay: bool = True):
     return StreamingResponse(
-        event_generator(version_id, request),
+        event_generator(version_id, request, replay=replay),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
