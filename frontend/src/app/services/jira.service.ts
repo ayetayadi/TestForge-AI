@@ -58,7 +58,7 @@ export class JiraService {
   }
 
   getProjects(): Observable<JiraProject[]> {
-    return this.http.get<JiraProject[]>(`${this.apiUrl}/projects`);
+    return this.http.get<JiraProject[]>(`${this.apiUrl}/projects/`);
   }
 
   getEpics(projectKey: string): Observable<JiraEpic[]> {

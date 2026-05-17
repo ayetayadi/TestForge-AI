@@ -141,7 +141,9 @@ generateTestCase(): void {
     this.loading.set(true);
     this.storiesService.getStoryById(storyId).subscribe({
       next: (raw: any) => {
-        
+        const versionsList: UserStoryVersion[] = raw.versions ?? [];
+  const latestVersion = versionsList.length > 0 ? versionsList[0] : null;
+  const selectedVersion = versionsList.find(v => v.decision_status === 'approved') ?? latestVersion;
         const story: StoryWithVersion = {
           ...raw,
           selected_version: raw.selected_version ?? null,
