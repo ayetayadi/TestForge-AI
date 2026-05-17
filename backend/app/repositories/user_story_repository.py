@@ -1,3 +1,4 @@
+import re
 from typing import List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,14 +21,22 @@ async def get_all_user_stories(db: AsyncSession, project_ids: Optional[List[str]
 # =========================
 # GET BY PROJECT
 # =========================
+def natural_sort_key(key: str):
+    """Extrait le numéro pour tri naturel : ADQEP-9 → ['ADQEP-', 9]"""
+    return [int(text) if text.isdigit() else text.lower() 
+            for text in re.split('([0-9]+)', key)]
+
 async def get_user_stories_by_project_id(db: AsyncSession, project_id: str):
     result = await db.execute(
         select(UserStory)
         .where(UserStory.project_id == project_id)
         .order_by(UserStory.issue_key.asc())
     )
-    return result.scalars().all()
-
+    stories = result.scalars().all()
+    
+    # Tri naturel par numéro
+    stories.sort(key=lambda x: natural_sort_key(x.issue_key))
+    return stories
 
 async def count_user_stories_by_project(db: AsyncSession, project_id: str) -> int:
     result = await db.execute(
