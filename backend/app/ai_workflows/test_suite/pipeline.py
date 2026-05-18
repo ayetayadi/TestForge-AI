@@ -315,7 +315,7 @@ class TestSuitePipeline:
             return self._get_default_classifications(test_cases)
     
 
-    @traceable(name="test_suite_pipeline")
+    @traceable(name="test_suite_workflow")
     async def run(
         self,
         test_cases: List[Dict[str, Any]],

@@ -1,5 +1,5 @@
 # app/main.py
-# ENV must load before any app import so langfuse auto-initialises with real credentials.
+# ENV must load before any app import so LangSmith auto-initialises with real credentials.
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -141,16 +141,8 @@ async def lifespan(app: FastAPI):
     logger.info("[STARTUP] Validating configuration...")
     _validate_required_settings()
 
-    if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
-        from app.core.observability import init_langfuse
-        init_langfuse(
-            public_key=settings.LANGFUSE_PUBLIC_KEY,
-            secret_key=settings.LANGFUSE_SECRET_KEY,
-            host=settings.LANGFUSE_HOST,
-        )
-        logger.info("[LANGFUSE] Tracing enabled")
-    else:
-        logger.info("[LANGFUSE] Keys not set — tracing disabled")
+    from app.core.observability import init_langsmith
+    init_langsmith()
 
     if settings.HF_TOKEN:
         os.environ["HF_TOKEN"] = settings.HF_TOKEN
@@ -178,11 +170,9 @@ async def lifespan(app: FastAPI):
     await stop_tc_workers()
     logger.info("[SHUTDOWN] Workers stopped")
 
-    from app.core.observability import is_langfuse_enabled
-    if is_langfuse_enabled():
-        from langfuse import get_client
-        get_client().flush()
-        logger.info("[LANGFUSE] Flushed pending spans")
+    from app.core.observability import is_langsmith_enabled
+    if is_langsmith_enabled():
+        logger.info("[LANGSMITH] Tracing session closed")
 
 
 # =========================

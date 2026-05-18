@@ -99,7 +99,7 @@ class TestCasePipeline:
         except Exception:
             pass
 
-    @traceable(name="test_case_pipeline")
+    @traceable(name="test_case_workflow")
     async def run(
         self,
         story: str,

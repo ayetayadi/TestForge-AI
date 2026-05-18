@@ -6,10 +6,8 @@ import time
 from typing import Dict, Any, List, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langfuse import observe
-from langfuse import get_client as get_langfuse_client
+from langsmith import traceable
 
-from app.core.observability import fire_evaluation, get_trace_callback
 from app.llm.llm_control import create_llm
 from .tools import PlaywrightMCPClient
 from .prompts import (
@@ -64,7 +62,7 @@ class PlaywrightReActAgent:
     locator_mapping (dict passed back to the service to persist on TestCase).
     """
 
-    @observe(name="playwright_merged_agent")
+    @traceable(name="playwright_merged_agent", run_type="chain")
     async def run(
         self,
         script_v1: str,
@@ -77,11 +75,6 @@ class PlaywrightReActAgent:
         start = time.time()
         actual_headless = headless if headless is not None else True
         actual_browser = browser if browser is not None else "chromium"
-
-        get_langfuse_client().update_current_span(
-            input={"script_v1": script_v1, "app_url": app_url, "test_case_id": test_case_id},
-            metadata={"browser": actual_browser, "headless": actual_headless},
-        )
 
         logger.info(f"Merged agent — browser={actual_browser}, headless={actual_headless}")
 
@@ -355,27 +348,6 @@ class PlaywrightReActAgent:
             screenshot=screenshot_b64,
             locator_mapping=accumulated_mapping,
         )
-
-        lf = get_langfuse_client()
-        lf.update_current_span(
-            output={
-                "execution_status": result["execution_status"],
-                "steps_passed": result["steps_passed"],
-                "steps_failed": result["steps_failed"],
-                "remaining_placeholders": result["remaining_placeholders"],
-                "duration": round(result["duration"], 2),
-            },
-            metadata={"test_case_id": test_case_id, "total_placeholders": len(placeholders)},
-        )
-
-        if result["execution_status"] in ("completed", "partial"):
-            trace_id = lf.get_current_trace_id()
-            asyncio.create_task(fire_evaluation(
-                metric="playwright_script_quality",
-                input_text=script_v1,
-                output_text=result["script_v2"],
-                trace_id=trace_id,
-            ))
 
         return result
 
@@ -1009,7 +981,6 @@ class PlaywrightReActAgent:
         dom_excerpt = "\n".join(ref_lines[:120])  # cap to avoid token overflow
 
         try:
-            cb = get_trace_callback()
             response = await llm.ainvoke(
                 [
                     SystemMessage(content=REF_RESOLVER_SYSTEM),
@@ -1019,7 +990,6 @@ class PlaywrightReActAgent:
                         action_type=action_type,
                     )),
                 ],
-                config={"callbacks": [cb]} if cb else {},
             )
         except Exception as e:
             logger.warning(f"🤖 _find_ref_via_llm LLM call failed: {e}")
@@ -1078,7 +1048,6 @@ class PlaywrightReActAgent:
         dom_refs = "\n".join(ref_lines[:150])
 
         try:
-            cb = get_trace_callback()
             response = await llm.ainvoke(
                 [
                     SystemMessage(content=RECOVERY_SYSTEM),
@@ -1089,7 +1058,6 @@ class PlaywrightReActAgent:
                         dom_refs=dom_refs,
                     )),
                 ],
-                config={"callbacks": [cb]} if cb else {},
             )
         except Exception as e:
             logger.warning(f"🔧 Recovery LLM call failed: {e}")
@@ -1545,8 +1513,6 @@ class PlaywrightReActAgent:
 
     async def _resolve_placeholders(self, llm, placeholders: list, dom: str) -> dict:
         """Single LLM call: compressed DOM + placeholder list → JSON locator mapping."""
-        cb = get_trace_callback()
-        invoke_config = {"callbacks": [cb]} if cb else {}
         response = await llm.ainvoke(
             [
                 SystemMessage(content=MAPPING_SYSTEM),
@@ -1555,7 +1521,6 @@ class PlaywrightReActAgent:
                     placeholders=json.dumps(placeholders, indent=2),
                 )),
             ],
-            config=invoke_config,
         )
 
         content = response.content.strip()
