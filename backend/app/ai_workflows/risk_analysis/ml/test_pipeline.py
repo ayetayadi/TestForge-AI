@@ -8,7 +8,7 @@ import os
 # Ajouter le backend au path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from backend.app.ai_workflows.risk_analysis.ml import get_pipeline, reset_pipeline
+from app.ai_workflows.risk_analysis.ml import get_pipeline, reset_pipeline
 
 async def test_risk_analysis():
     """Teste le pipeline avec quelques User Stories."""

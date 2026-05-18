@@ -12,7 +12,7 @@ from app.repositories.user_story_repository import get_user_story_by_id
 from app.core.config import settings
 from app.core.database import async_session_maker
 from app.streaming.sse_manager import push_event
-from app.ai_workflows.user_story_refinement.pipeline import get_pipeline
+from app.ai_workflows.user_story_refinement.workflow import get_pipeline
 from app.models.user_story_version import UserStoryVersion
 from .us_queue import job_queue
 from app.llm.llm_control import set_worker_api_key

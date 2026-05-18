@@ -81,7 +81,7 @@ class RiskAnalysisPipeline:
         except Exception:
             pass
 
-    @traceable(name="risk_analysis_pipeline")
+    @traceable(name="risk_analysis_workflow")
     async def run(
         self,
         story: str,
