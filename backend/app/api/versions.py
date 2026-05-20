@@ -187,9 +187,7 @@ async def start_new_version(
     if not story:
         raise HTTPException(404, "User story not found")
     
-    reset = request.reset if request else False
-    
-    version_id, state = await start_version(db, story, reset=reset)
+    version_id, state = await start_version(db, story)
     
     # Submit to queue
     try:

@@ -36,6 +36,13 @@
               </mat-form-field>
             </div>
 
+
+            <div class="col-md-6 d-flex align-items-center m-t-8">
+              <mat-checkbox formControlName="is_admin" color="primary">
+                Grant admin privileges
+              </mat-checkbox>
+            </div>
+            
             <div class="col-md-6 d-flex align-items-center m-t-8" *ngIf="isEditMode">
               <mat-checkbox formControlName="is_active" color="primary">
                 Account is active
