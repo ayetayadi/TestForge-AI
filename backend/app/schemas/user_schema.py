@@ -40,6 +40,10 @@ class UserUpdate(BaseModel):
     is_admin: bool
     is_active: bool
 
+class ProfileUpdate(BaseModel):
+    username: Annotated[str, StringConstraints(min_length=3, max_length=100)]
+    email: EmailStr
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

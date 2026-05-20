@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="JiraSyncSeqDiagram">
+    <mxGraphModel dx="4260" dy="1870" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===== LIFELINES ===== -->
+
+        <!-- Testeur (Actor) -->
+        <mxCell id="100" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};participant=umlActor;size=40;fillColor=light-dark(#b4b6fd, #8285fc);strokeColor=light-dark(#030303, #9577a3);fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="1320" width="20" x="30" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="101" parent="100" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="1240" width="10" x="5" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="102" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="Testeur" vertex="1">
+          <mxGeometry height="30" width="60" x="10" y="220" as="geometry" />
+        </mxCell>
+
+        <!-- Navigateur -->
+        <mxCell id="103" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};fillColor=#B4B6FD;strokeColor=light-dark(#000000,#1F2020);fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="Navigateur" vertex="1">
+          <mxGeometry height="1310" width="100" x="230" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="104" parent="103" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="1240" width="10" x="45" y="50" as="geometry" />
+        </mxCell>
+
+        <!-- FastAPI -->
+        <mxCell id="105" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};fillColor=#B4B6FD;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="FastAPI" vertex="1">
+          <mxGeometry height="1310" width="100" x="470" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="106" parent="105" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="1240" width="10" x="45" y="50" as="geometry" />
+        </mxCell>
+
+        <!-- PostgreSQL -->
+        <mxCell id="107" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};fillColor=#B4B6FD;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="PostgreSQL" vertex="1">
+          <mxGeometry height="1312" width="100" x="710" y="198" as="geometry" />
+        </mxCell>
+        <!-- activation: msg 3-4 charger stories (polling) — relative y = 350-198=152 -->
+        <mxCell id="108" parent="107" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="55" width="10" x="45" y="152" as="geometry" />
+        </mxCell>
+        <!-- activation: msg 13-14 charger stories (sync) — relative y = 875-198=677 -->
+        <mxCell id="109" parent="107" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="55" width="10" x="45" y="677" as="geometry" />
+        </mxCell>
+        <!-- activation: msg 15-16 importer stories — relative y = 958-198=760 -->
+        <mxCell id="110" parent="107" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="55" width="10" x="45" y="760" as="geometry" />
+        </mxCell>
+        <!-- activation: msg 17-18 supprimer stories — relative y = 1138-198=940 -->
+        <mxCell id="111" parent="107" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="55" width="10" x="45" y="940" as="geometry" />
+        </mxCell>
+
+        <!-- Jira -->
+        <mxCell id="116" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};fillColor=#B4B6FD;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="Jira" vertex="1">
+          <mxGeometry height="1310" width="100" x="950" y="200" as="geometry" />
+        </mxCell>
+        <!-- Jira activation standalone: msg 1-2 (polling) -->
+        <mxCell id="117" parent="1" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="55" width="10" x="995" y="278" as="geometry" />
+        </mxCell>
+        <!-- Jira activation standalone: msg 11-12 (sync) -->
+        <mxCell id="118" parent="1" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="" vertex="1">
+          <mxGeometry height="55" width="10" x="995" y="800" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 1 : loop [toutes les 60 secondes]                   -->
+        <!-- ============================================================ -->
+
+        <mxCell id="200" parent="1" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=100;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="loop [toutes les 60 secondes]" vertex="1">
+          <mxGeometry height="410" width="1160" x="-80" y="255" as="geometry" />
+        </mxCell>
+
+        <!-- 1: FastAPI → Jira : récupérer toutes les stories(project_key) -->
+        <mxCell id="201" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="1 : récupérer toutes les stories(project_key)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="525" y="283" as="sourcePoint" />
+            <mxPoint x="995" y="283" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 2: Jira → FastAPI : retourner les stories du projet -->
+        <mxCell id="202" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="2 : retourner les stories du projet">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="995" y="316" as="sourcePoint" />
+            <mxPoint x="524" y="316" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 3: FastAPI → PostgreSQL : charger les stories existantes(project_key) -->
+        <mxCell id="203" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="3 : charger les stories existantes(project_key)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="525" y="350" as="sourcePoint" />
+            <mxPoint x="755" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 4: PostgreSQL → FastAPI : retourner les stories en base -->
+        <mxCell id="204" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="4 : retourner les stories en base">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="755" y="385" as="sourcePoint" />
+            <mxPoint x="524" y="385" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Note: comment FastAPI détecte les changements -->
+        <mxCell id="205" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=#888888;fillColor=#f5f5f5;align=center;verticalAlign=middle;rounded=1;fontFamily=Times New Roman;fontStyle=2;fontSize=11;fontColor=#555555;" value="FastAPI compare description + AC de chaque story entre Jira et la base" vertex="1">
+          <mxGeometry height="24" width="430" x="305" y="400" as="geometry" />
+        </mxCell>
+
+        <!-- inner alt [des changements détectés] dans le loop -->
+        <mxCell id="206" parent="1" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="alt" vertex="1">
+          <mxGeometry height="215" width="960" x="-60" y="432" as="geometry" />
+        </mxCell>
+        <mxCell id="207" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="[des changements détectés]" vertex="1">
+          <mxGeometry height="20" width="215" x="-60" y="435" as="geometry" />
+        </mxCell>
+
+        <!-- 5: FastAPI → Navigateur : envoyer notification SSE(résumé des changements) -->
+        <mxCell id="208" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="5 : envoyer notification SSE(résumé des changements)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="514" y="460" as="sourcePoint" />
+            <mxPoint x="284" y="460" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 6: Navigateur → Testeur : afficher badge sur la sonnerie -->
+        <mxCell id="209" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="6 : afficher badge sur la sonnerie">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="275" y="493" as="sourcePoint" />
+            <mxPoint x="45" y="493" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- separator inner alt -->
+        <mxCell id="210" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=none;dashed=1;endSize=8;curved=0;rounded=0;endFill=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="900" y="516" as="sourcePoint" />
+            <mxPoint x="-60" y="516" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="211" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="[else]" vertex="1">
+          <mxGeometry height="14" width="33" x="-58" y="519" as="geometry" />
+        </mxCell>
+        <mxCell id="212" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="aucun changement détecté" vertex="1">
+          <mxGeometry height="20" width="200" x="350" y="553" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 2 : Testeur consulte la sonnerie                    -->
+        <!-- ============================================================ -->
+
+        <!-- 7: Testeur → Navigateur : cliquer sur la sonnerie -->
+        <mxCell id="213" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="7 : cliquer sur la sonnerie">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="50" y="690" as="sourcePoint" />
+            <mxPoint x="275" y="690" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 8: Navigateur → Testeur : afficher la liste des changements détectés -->
+        <mxCell id="214" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="8 : afficher la liste des changements détectés">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="275" y="723" as="sourcePoint" />
+            <mxPoint x="45" y="723" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 3 : Synchronisation                                 -->
+        <!-- ============================================================ -->
+
+        <!-- 9: Testeur → Navigateur : cliquer "Synchroniser"(project_key) -->
+        <mxCell id="215" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="9 : cliquer &quot;Synchroniser&quot;(project_key)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="50" y="760" as="sourcePoint" />
+            <mxPoint x="275" y="760" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 10: Navigateur → FastAPI : déclencher la synchronisation(project_key) -->
+        <mxCell id="216" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="10 : déclencher la synchronisation(project_key)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="285" y="793" as="sourcePoint" />
+            <mxPoint x="515" y="793" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 11: FastAPI → Jira : récupérer toutes les stories(project_key) -->
+        <mxCell id="217" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="11 : récupérer toutes les stories(project_key)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="525" y="805" as="sourcePoint" />
+            <mxPoint x="995" y="805" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 12: Jira → FastAPI : retourner les stories du projet -->
+        <mxCell id="218" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="12 : retourner les stories du projet">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="995" y="840" as="sourcePoint" />
+            <mxPoint x="524" y="840" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 13: FastAPI → PostgreSQL : charger les stories existantes(project_key) -->
+        <mxCell id="219" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="13 : charger les stories existantes(project_key)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="525" y="875" as="sourcePoint" />
+            <mxPoint x="755" y="875" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 14: PostgreSQL → FastAPI : retourner les stories en base -->
+        <mxCell id="220" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="14 : retourner les stories en base">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="755" y="910" as="sourcePoint" />
+            <mxPoint x="524" y="910" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Note: détection même mécanisme que polling -->
+        <mxCell id="221" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=#888888;fillColor=#f5f5f5;align=center;verticalAlign=middle;rounded=1;fontFamily=Times New Roman;fontStyle=2;fontSize=11;fontColor=#555555;" value="FastAPI compare description + AC de chaque story entre Jira et la base" vertex="1">
+          <mxGeometry height="24" width="430" x="305" y="928" as="geometry" />
+        </mxCell>
+
+        <!-- ===== alt [stories ajoutées ou modifiées] ===== -->
+        <mxCell id="222" parent="1" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="alt" vertex="1">
+          <mxGeometry height="170" width="1100" x="-80" y="960" as="geometry" />
+        </mxCell>
+        <mxCell id="223" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="[stories ajoutées ou modifiées]" vertex="1">
+          <mxGeometry height="20" width="230" x="-80" y="963" as="geometry" />
+        </mxCell>
+
+        <!-- 15: FastAPI → PostgreSQL : importer les stories(stories) -->
+        <mxCell id="224" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="15 : importer les stories(stories)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="525" y="990" as="sourcePoint" />
+            <mxPoint x="755" y="990" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 16: PostgreSQL → FastAPI : confirmer l'import -->
+        <mxCell id="225" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="16 : confirmer l'import">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="755" y="1025" as="sourcePoint" />
+            <mxPoint x="524" y="1025" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- separator alt 1 -->
+        <mxCell id="226" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=none;dashed=1;endSize=8;curved=0;rounded=0;endFill=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1020" y="1048" as="sourcePoint" />
+            <mxPoint x="-80" y="1048" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="227" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="[else]" vertex="1">
+          <mxGeometry height="14" width="33" x="-78" y="1051" as="geometry" />
+        </mxCell>
+        <mxCell id="228" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="—" vertex="1">
+          <mxGeometry height="20" width="60" x="490" y="1078" as="geometry" />
+        </mxCell>
+
+        <!-- ===== alt [stories supprimées] ===== -->
+        <mxCell id="229" parent="1" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="alt" vertex="1">
+          <mxGeometry height="168" width="1100" x="-80" y="1143" as="geometry" />
+        </mxCell>
+        <mxCell id="230" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="[stories supprimées]" vertex="1">
+          <mxGeometry height="20" width="165" x="-80" y="1146" as="geometry" />
+        </mxCell>
+
+        <!-- 17: FastAPI → PostgreSQL : supprimer les stories(issue_keys) -->
+        <mxCell id="231" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="17 : supprimer les stories(issue_keys)">
+          <mxGeometry relative="1" width="80" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="525" y="1173" as="sourcePoint" />
+            <mxPoint x="755" y="1173" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 18: PostgreSQL → FastAPI : confirmer la suppression -->
+        <mxCell id="232" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="18 : confirmer la suppression">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="755" y="1208" as="sourcePoint" />
+            <mxPoint x="524" y="1208" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- separator alt 2 -->
+        <mxCell id="233" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=none;dashed=1;endSize=8;curved=0;rounded=0;endFill=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1020" y="1230" as="sourcePoint" />
+            <mxPoint x="-80" y="1230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="234" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="[else]" vertex="1">
+          <mxGeometry height="14" width="33" x="-78" y="1233" as="geometry" />
+        </mxCell>
+        <mxCell id="235" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="—" vertex="1">
+          <mxGeometry height="20" width="60" x="490" y="1263" as="geometry" />
+        </mxCell>
+
+        <!-- 19: FastAPI → Navigateur : retourner le résumé(ajoutées, modifiées, supprimées) -->
+        <mxCell id="236" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="19 : retourner le résumé(ajoutées, modifiées, supprimées)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="514" y="1340" as="sourcePoint" />
+            <mxPoint x="284" y="1340" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 20: Navigateur → Testeur : afficher le résultat de la synchronisation -->
+        <mxCell id="237" edge="1" parent="1" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" value="20 : afficher le résultat de la synchronisation">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="275" y="1375" as="sourcePoint" />
+            <mxPoint x="45" y="1375" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

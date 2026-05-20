@@ -76,7 +76,7 @@
           </div>
           <div class="info-value">
             <span class="role-badge" [class.admin]="user.is_admin">
-              {{ user.is_admin ? 'Administrator' : 'User' }}
+              {{ user.is_admin ? 'Administrator' : 'Tester' }}
             </span>
           </div>
         </div>
@@ -129,5 +129,90 @@
 
     </div>
 
+  </div>
+</div>
+
+<!-- ── Edit Profile Modal ──────────────────────────────────── -->
+<div class="modal-overlay" *ngIf="showEditModal" (click)="closeEditModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <button class="modal-close" (click)="closeEditModal()">
+      <mat-icon>close</mat-icon>
+    </button>
+    <div class="modal-header">
+      <div class="modal-icon-wrap"><mat-icon>edit</mat-icon></div>
+      <h3 class="modal-title">Edit Profile</h3>
+      <p class="modal-subtitle">Update your username and email address</p>
+    </div>
+    <div class="modal-body">
+      <div class="form-field">
+        <label>Username</label>
+        <input type="text" [(ngModel)]="editUsername" placeholder="Enter username" class="input-field" />
+      </div>
+      <div class="form-field">
+        <label>Email Address</label>
+        <input type="email" [(ngModel)]="editEmail" placeholder="Enter email" class="input-field" />
+      </div>
+      <div class="modal-feedback error" *ngIf="editError">{{ editError }}</div>
+      <div class="modal-feedback success" *ngIf="editSuccess">{{ editSuccess }}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" (click)="closeEditModal()" [disabled]="editSubmitting">Cancel</button>
+      <button class="btn btn-confirm" (click)="submitEditProfile()" [disabled]="editSubmitting">
+        <span *ngIf="editSubmitting" class="btn-spinner"></span>
+        {{ editSubmitting ? 'Saving...' : 'Save Changes' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Change Password Modal ──────────────────────────────── -->
+<div class="modal-overlay" *ngIf="showPasswordModal" (click)="closePasswordModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <button class="modal-close" (click)="closePasswordModal()">
+      <mat-icon>close</mat-icon>
+    </button>
+    <div class="modal-header">
+      <div class="modal-icon-wrap"><mat-icon>lock</mat-icon></div>
+      <h3 class="modal-title">Change Password</h3>
+      <p class="modal-subtitle">Choose a strong password with at least 8 characters</p>
+    </div>
+    <div class="modal-body">
+      <div class="form-field">
+        <label>Current Password</label>
+        <div class="input-wrapper">
+          <input [type]="showCurrentPwd ? 'text' : 'password'" [(ngModel)]="currentPassword" placeholder="Current password" class="input-field" />
+          <button type="button" class="toggle-pwd" (click)="showCurrentPwd = !showCurrentPwd">
+            <mat-icon>{{ showCurrentPwd ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>New Password</label>
+        <div class="input-wrapper">
+          <input [type]="showNewPwd ? 'text' : 'password'" [(ngModel)]="newPassword" placeholder="New password (min 8 chars)" class="input-field" />
+          <button type="button" class="toggle-pwd" (click)="showNewPwd = !showNewPwd">
+            <mat-icon>{{ showNewPwd ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Confirm New Password</label>
+        <div class="input-wrapper">
+          <input [type]="showConfirmPwd ? 'text' : 'password'" [(ngModel)]="confirmPassword" placeholder="Repeat new password" class="input-field" />
+          <button type="button" class="toggle-pwd" (click)="showConfirmPwd = !showConfirmPwd">
+            <mat-icon>{{ showConfirmPwd ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+        </div>
+      </div>
+      <div class="modal-feedback error" *ngIf="passwordError">{{ passwordError }}</div>
+      <div class="modal-feedback success" *ngIf="passwordSuccess">{{ passwordSuccess }}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" (click)="closePasswordModal()" [disabled]="passwordSubmitting">Cancel</button>
+      <button class="btn btn-confirm" (click)="submitChangePassword()" [disabled]="passwordSubmitting">
+        <span *ngIf="passwordSubmitting" class="btn-spinner"></span>
+        {{ passwordSubmitting ? 'Saving...' : 'Change Password' }}
+      </button>
+    </div>
   </div>
 </div>
