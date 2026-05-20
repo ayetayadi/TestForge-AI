@@ -4,11 +4,13 @@ import {
   EventEmitter,
   Input,
   OnInit,
+  OnDestroy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from 'src/app/material.module';
 import { RouterModule } from '@angular/router';
-import { AuthService, UserRead } from 'src/app/services/auth.service';
+import { Subscription } from 'rxjs';
+import { AuthService } from 'src/app/services/auth.service';
 import { UserService } from 'src/app/services/user.service';
 import { NotificationBellComponent } from 'src/app/shared/notification-bell/notification-bell.component';
 
@@ -19,32 +21,36 @@ import { NotificationBellComponent } from 'src/app/shared/notification-bell/noti
   templateUrl: './header.component.html',
   styleUrls: ['./header.component.scss'],
 })
-export class HeaderComponent implements OnInit {
+export class HeaderComponent implements OnInit, OnDestroy {
   @Input() isSidebarCollapsed = false;
   @Output() toggleSidebar = new EventEmitter<void>();
 
   username = '';
   role = '';
 
+  private sub = new Subscription();
+
   constructor(
-    private authService: AuthService, 
+    private authService: AuthService,
     private userService: UserService
   ) {}
 
   ngOnInit(): void {
-    this.loadCurrentUser();
+    this.sub.add(
+      this.userService.profile$.subscribe(profile => {
+        if (profile) {
+          this.username = profile.username;
+          this.role = profile.is_admin ? 'Admin' : 'Tester';
+        }
+      })
+    );
+    if (!this.userService.currentProfile) {
+      this.userService.getMyProfile().subscribe();
+    }
   }
 
-  loadCurrentUser(): void {
-    this.userService.getMyProfile().subscribe({
-      next: (user: UserRead) => {
-        this.username = user.username;
-        this.role = user.is_admin ? 'Admin' : 'Tester';
-      },
-      error: (err) => {
-        console.error('Failed to load current user', err);
-      }
-    });
+  ngOnDestroy(): void {
+    this.sub.unsubscribe();
   }
 
   getInitials(): string {
