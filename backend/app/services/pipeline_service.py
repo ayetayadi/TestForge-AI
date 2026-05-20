@@ -149,7 +149,7 @@ async def run_pipeline(
     try:
         for us in user_stories:
             try:
-                version_id, state = await start_version(db, us, reset=False)
+                version_id, state = await start_version(db, us)
             except ValueError as e:
                 reason = str(e)
                 skipped.append({"issue_key": us.issue_key, "reason": reason})
