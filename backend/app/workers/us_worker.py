@@ -89,6 +89,38 @@ async def save_ai_version(
         else WorkflowStatus.COMPLETED
     )
 
+    # Build a human-readable note explaining the refinement outcome
+    violations = result.get("violations", [])
+    thought_log = result.get("thought_log", [])
+    reasoning = thought_log[0] if thought_log else ""
+
+    # Detect story language to match the note language
+    from app.ai_workflows.user_story_refinement.nlp_evaluators import detect_language_nlp
+    raw_story = state.get("raw_story", "")
+    lang = detect_language_nlp(raw_story) if raw_story else "en"
+    is_fr = lang == "fr"
+
+    if workflow_status_str == "garbage_input":
+        workflow_note = "Story not improved: content is empty, too short, or incomprehensible."
+    elif workflow_status_str == "safe_revert":
+        reasons = " | ".join(violations) if violations else "safety constraint"
+        workflow_note = f"Improvement reverted by safety guards: {reasons}."
+        if reasoning:
+            workflow_note += f" AI reasoning: {reasoning}"
+    elif workflow_status_str == "success":
+        workflow_note = "Story successfully improved : "
+        if reasoning:
+            workflow_note += f" {reasoning}"
+    elif workflow_status_str == "best_effort":
+        workflow_note = "Partial improvement because the target quality threshold could not be reached :"
+        if reasoning:
+            workflow_note += f" {reasoning}"
+    elif workflow_status_str == "error":
+        error_msg = result.get("error", "unknown")
+        workflow_note = f"Error during processing: {error_msg}."
+    else:
+        workflow_note = None
+
     version = UserStoryVersion(
         id=version_id,
         user_story_id=user_story_id,
@@ -101,6 +133,7 @@ async def save_ai_version(
         is_testable=is_testable,
         testability_issues=testability_issues,
         workflow_status=workflow_status,
+        workflow_note=workflow_note,
         started_at=datetime.now(),
         completed_at=datetime.now(),
         decision_status=StoryDecision.PENDING,

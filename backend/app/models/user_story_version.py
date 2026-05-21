@@ -51,6 +51,11 @@ class UserStoryVersion(Base):
     testability_issues: Mapped[Optional[List[str]]] = mapped_column(JSONB)
 
     # =========================
+    # WORKFLOW NOTE (why story was/wasn't improved)
+    # =========================
+    workflow_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # =========================
     # DECISION
     # =========================
     decision_status: Mapped[StoryDecision] = mapped_column(

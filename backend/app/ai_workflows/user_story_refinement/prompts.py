@@ -28,6 +28,7 @@ SUGGESTIONS:
 RULES:
 - Keep the exact same language (French stays French, English stays English)
 - Keep the actor/role exactly as-is (the "As a [role]" part)
+- The story must contain EXACTLY ONE "so that" / "afin de" clause. If the original already has one, keep or improve it — NEVER add a second one. If the original has none, add exactly one.
 - Keep the core business intent — do not invent new features
 - Target testability_score >= {threshold}
 - KEEP ALL {ac_count} existing acceptance criteria — do not drop any. Rewrite each one to add action verbs and measurable conditions.
