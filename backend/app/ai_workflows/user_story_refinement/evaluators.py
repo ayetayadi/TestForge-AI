@@ -127,7 +127,19 @@ def _syntactic_quality_score(story: str) -> Dict[str, Any]:
         suggestions.append("Provide more meaningful detail")
         score -= 0.10
 
-    found = [w for w in VAGUE_TERMS if w in sl]
+    # NLP-based vague term detection (embedding similarity) — sync fallback to word list
+    try:
+        import asyncio as _asyncio
+        from app.ai_workflows.user_story_refinement.nlp_evaluators import detect_vague_terms_nlp
+        loop = _asyncio.get_event_loop()
+        if loop.is_running():
+            # Inside async context — will be resolved in score_story's gather
+            found = [w for w in VAGUE_TERMS if w in sl]
+        else:
+            found = loop.run_until_complete(detect_vague_terms_nlp(story))
+    except Exception:
+        found = [w for w in VAGUE_TERMS if w in sl]
+
     if found:
         issues.append(f"Vague terms: {', '.join(found)}")
         suggestions.append("Replace vague terms with measurable criteria")
@@ -153,17 +165,21 @@ def _semantic_clarity_score(story: str) -> Dict[str, Any]:
             score -= 0.20
             break
 
-    passive = [
-        r"\bis (created|updated|deleted|processed)\b",
-        r"\bare (created|updated|deleted)\b",
-        r"\best (créé|mis à jour|supprimé)\b",
-    ]
-    for p in passive:
-        if re.search(p, text):
-            issues.append("Passive voice detected")
-            suggestions.append("Use active voice (e.g., 'user creates account')")
-            score -= 0.10
-            break
+    try:
+        from app.ai_workflows.user_story_refinement.nlp_evaluators import detect_passive_voice_nlp
+        has_passive = detect_passive_voice_nlp(text)
+    except Exception:
+        passive_patterns = [
+            r"\bis (created|updated|deleted|processed)\b",
+            r"\bare (created|updated|deleted)\b",
+            r"\best (créé|mis à jour|supprimé)\b",
+        ]
+        has_passive = any(re.search(p, text) for p in passive_patterns)
+
+    if has_passive:
+        issues.append("Passive voice detected")
+        suggestions.append("Use active voice (e.g., 'user creates account')")
+        score -= 0.10
 
     return {"score": round(max(0.0, min(1.0, score)), 3), "issues": issues, "suggestions": suggestions}
 
@@ -188,17 +204,17 @@ def _invest_score(story: str, ac_list: List[str]) -> Dict[str, Any]:
             score -= 0.30
             break
 
-    # N — Negotiable: no implementation technology prescribed
-    for pattern in _IMPLEMENTATION_PATTERNS:
-        if re.search(pattern, sl):
-            issues.append("Story prescribes implementation details (N - Negotiable)")
-            suggestions.append(
-                "Describe WHAT is needed, not HOW — remove technology choices (framework, DB, API type)"
-                if en else
-                "Décrire CE QUI est nécessaire, pas COMMENT — supprimer les choix technologiques"
-            )
-            score -= 0.25
-            break
+    # # N — Negotiable: no implementation technology prescribed
+    # for pattern in _IMPLEMENTATION_PATTERNS:
+    #     if re.search(pattern, sl):
+    #         issues.append("Story prescribes implementation details (N - Negotiable)")
+    #         suggestions.append(
+    #             "Describe WHAT is needed, not HOW — remove technology choices (framework, DB, API type)"
+    #             if en else
+    #             "Décrire CE QUI est nécessaire, pas COMMENT — supprimer les choix technologiques"
+    #         )
+    #         score -= 0.25
+    #         break
 
     # E — Estimable: specific enough for the team to size
     wc = len(story.split())
@@ -288,7 +304,11 @@ def _testability_score(story: str, ac_list: List[str]) -> Dict[str, Any]:
         issues.append("Few acceptance criteria" if lang == "en" else "Peu de critères d'acceptation")
         suggestions.append("Add more criteria (3+ recommended)" if lang == "en" else "Ajouter plus de critères (3+ recommandés)")
 
-    verifiable = sum(1 for ac in ac_list if _VERIFIABLE.search(ac))
+    try:
+        from app.ai_workflows.user_story_refinement.nlp_evaluators import count_action_verbs_nlp
+        verifiable = count_action_verbs_nlp(ac_list)
+    except Exception:
+        verifiable = sum(1 for ac in ac_list if _VERIFIABLE.search(ac))
     v_ratio = verifiable / ac_count
     if v_ratio >= 0.8:
         score += 0.20
@@ -343,28 +363,31 @@ def _weighted_final_score(
     invest_score: float,
     is_garbage: bool,
     is_testable: bool,
+    coherence_score: float = 0.5,
 ) -> float:
     """
-    Weights (with AC):     T=0.45  AC=0.20  INVEST=0.18  Rule=0.12  NLP=0.05  → 1.00
-    Weights (without AC):  T=0.52  INVEST=0.20  Rule=0.18  NLP=0.10           → 1.00
+    Weights (with AC):     T=0.40  AC=0.18  INVEST=0.17  Rule=0.12  NLP=0.05  Coherence=0.08  → 1.00
+    Weights (without AC):  T=0.47  INVEST=0.20  Rule=0.17  NLP=0.08  Coherence=0.08          → 1.00
     """
     if is_garbage:
         return round(min(0.3, ac_score * 0.1 + rule_score * 0.1), 3)
 
     if ac_score > 0:
         base = (
-            testability_score * 0.45 +
-            ac_score          * 0.20 +
-            invest_score      * 0.18 +
+            testability_score * 0.40 +
+            ac_score          * 0.18 +
+            invest_score      * 0.17 +
             rule_score        * 0.12 +
+            coherence_score   * 0.08 +
             nlp_score         * 0.05
         )
     else:
         base = (
-            testability_score * 0.52 +
+            testability_score * 0.47 +
             invest_score      * 0.20 +
-            rule_score        * 0.18 +
-            nlp_score         * 0.10
+            rule_score        * 0.17 +
+            coherence_score   * 0.08 +
+            nlp_score         * 0.08
         )
 
     if not is_testable:
@@ -437,11 +460,13 @@ async def score_story(
         acceptance_criteria = acceptance_criteria or []
         is_garbage = _is_garbage(story)
 
-        rule, nlp, testability, invest = await asyncio.gather(
+        from app.ai_workflows.user_story_refinement.nlp_evaluators import score_ac_coherence_nlp
+        rule, nlp, testability, invest, coherence = await asyncio.gather(
             asyncio.to_thread(_syntactic_quality_score, story),
             asyncio.to_thread(_semantic_clarity_score, story),
             asyncio.to_thread(_testability_score, story, acceptance_criteria),
             asyncio.to_thread(_invest_score, story, acceptance_criteria),
+            score_ac_coherence_nlp(story, acceptance_criteria),
         )
 
         ac_sc = _ac_quality_score(acceptance_criteria)
@@ -451,6 +476,7 @@ async def score_story(
             nlp_score=nlp["score"],
             testability_score=testability["score"],
             invest_score=invest["score"],
+            coherence_score=coherence["score"],
             is_garbage=is_garbage,
             is_testable=testability["is_testable"],
         )
@@ -458,7 +484,8 @@ async def score_story(
         logger.info(
             f"[EVALUATOR] score={final_score:.3f} rule={rule['score']:.3f} "
             f"nlp={nlp['score']:.3f} ac={ac_sc:.3f} test={testability['score']:.3f} "
-            f"invest={invest['score']:.3f} testable={testability['is_testable']} garbage={is_garbage}"
+            f"invest={invest['score']:.3f} coherence={coherence['score']:.3f} "
+            f"testable={testability['is_testable']} garbage={is_garbage}"
         )
 
         return {
@@ -512,14 +539,15 @@ async def validate_constraints(
         acceptance_criteria = acceptance_criteria or []
         violations: List[str] = []
 
-        lang_orig = _detect_language(original_story)
-        lang_impr = _detect_language(improved_story)
+        from app.ai_workflows.user_story_refinement.nlp_evaluators import detect_language_nlp, extract_actor_nlp
+        lang_orig = detect_language_nlp(original_story)
+        lang_impr = detect_language_nlp(improved_story)
         language_match = lang_orig == lang_impr
         if not language_match:
             violations.append(f"Language changed: {lang_orig} → {lang_impr}")
 
-        orig_role = _extract_role(original_story)
-        impr_role = _extract_role(improved_story)
+        orig_role = extract_actor_nlp(original_story)
+        impr_role = extract_actor_nlp(improved_story)
         role_preserved = not orig_role or orig_role == impr_role or orig_role.lower() in impr_role.lower()
         if not role_preserved:
             violations.append(f"Actor changed: '{orig_role}' → '{impr_role}'")

@@ -65,7 +65,7 @@ def make_action_tools(user_id: str) -> List:
             title = story.title
 
             try:
-                version_id, state = await start_version(db, story, reset=False)
+                version_id, state = await start_version(db, story)
                 await db.commit()
             except ValueError as exc:
                 return f"Cannot start refinement for **{issue_key}**: {exc}"

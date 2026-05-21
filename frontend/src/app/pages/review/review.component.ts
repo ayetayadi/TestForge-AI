@@ -568,6 +568,10 @@ export class ReviewComponent implements OnInit, OnDestroy {
     );
   }
 
+  getWorkflowNote(): string | null {
+    return this.currentVersion()?.workflow_note ?? this.state()?.workflow_note ?? null;
+  }
+
   getTestabilityIssues(): string[] {
     return (
       this.currentVersion()?.testability_issues ??

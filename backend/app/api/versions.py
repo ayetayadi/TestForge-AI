@@ -119,6 +119,7 @@ async def get_version_state(version_id: str, db: AsyncSession = Depends(get_db))
         "testability_score": version.testability_score,
         "is_testable": version.is_testable,
         "testability_issues": version.testability_issues or [],
+        "workflow_note": version.workflow_note,
         "score_delta": (
             (version.final_score - version.initial_score)
             if version.initial_score is not None and version.final_score is not None
@@ -187,9 +188,7 @@ async def start_new_version(
     if not story:
         raise HTTPException(404, "User story not found")
     
-    reset = request.reset if request else False
-    
-    version_id, state = await start_version(db, story, reset=reset)
+    version_id, state = await start_version(db, story)
     
     # Submit to queue
     try:
@@ -318,6 +317,7 @@ async def get_story_versions(
             "final_score": v.final_score,
             "testability_score": v.testability_score,
             "is_testable": v.is_testable,
+            "workflow_note": v.workflow_note,
             "started_at": v.started_at,
             "completed_at": v.completed_at,
         }

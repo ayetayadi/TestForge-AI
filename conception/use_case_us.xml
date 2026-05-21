@@ -1,0 +1,154 @@
+<mxGraphModel>
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+    
+    <!-- Système -->
+    <mxCell id="2" value="TestForge AI" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];shape=mxgraph.flowchart.start_2;fillColor=none;strokeColor=#000000;" vertex="1" parent="1">
+      <mxGeometry x="150" y="20" width="700" height="620" as="geometry" />
+    </mxCell>
+    <mxCell id="sys_label" value="TestForge AI" style="text;html=1;align=left;verticalAlign=bottom;" vertex="1" parent="1">
+      <mxGeometry x="760" y="620" width="100" height="20" as="geometry" />
+    </mxCell>
+
+    <!-- Acteur Testeur -->
+    <mxCell id="3" value="Testeur" style="shape=mxgraph.flowchart.actor;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="30" y="280" width="60" height="80" as="geometry" />
+    </mxCell>
+
+    <!-- Acteur Administrateur -->
+    <mxCell id="4" value="Administrateur" style="shape=mxgraph.flowchart.actor;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="30" y="100" width="60" height="80" as="geometry" />
+    </mxCell>
+
+    <!-- Acteur Jira -->
+    <mxCell id="5" value="&lt;&lt;Actor&gt;&gt;&#xa;Jira" style="shape=rect;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="920" y="280" width="80" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Acteur Product Owner -->
+    <mxCell id="6" value="Product Owner" style="shape=mxgraph.flowchart.actor;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="920" y="100" width="60" height="80" as="geometry" />
+    </mxCell>
+
+    <!-- Cas d'utilisation -->
+    <!-- UC1: S'authentifier -->
+    <mxCell id="uc1" value="S'authentifier" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="680" y="40" width="150" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC2: Se connecter à Jira -->
+    <mxCell id="uc2" value="Se connecter à Jira via OAuth" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="460" y="40" width="180" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC3: Importer un projet Jira -->
+    <mxCell id="uc3" value="Importer un projet Jira" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="250" y="40" width="170" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC4: Synchroniser avec Jira -->
+    <mxCell id="uc4" value="Synchroniser avec Jira" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="250" y="150" width="170" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC5: Gérer les User Stories -->
+    <mxCell id="uc5" value="Gérer les User Stories&#xa;(rechercher, filtrer, supprimer)" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="460" y="150" width="200" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- UC6: Lancer le raffinement -->
+    <mxCell id="uc6" value="Lancer le raffinement&#xa;des User Stories" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="250" y="280" width="170" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- UC7: Consulter le résultat -->
+    <mxCell id="uc7" value="Consulter le résultat&#xa;du raffinement" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="460" y="280" width="170" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- UC8: Accepter la version raffinée -->
+    <mxCell id="uc8" value="Accepter la version raffinée" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="350" y="400" width="170" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC9: Modifier la version raffinée -->
+    <mxCell id="uc9" value="Modifier la version raffinée" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="560" y="400" width="170" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC10: Relancer le raffinement -->
+    <mxCell id="uc10" value="Relancer le raffinement" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="350" y="490" width="170" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC11: Garder l'original -->
+    <mxCell id="uc11" value="Garder l'original" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="560" y="490" width="170" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC12: Supprimer la version raffinée -->
+    <mxCell id="uc12" value="Supprimer la version raffinée" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="460" y="570" width="180" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC13: Signaler une US incomplète -->
+    <mxCell id="uc13" value="Signaler une US incomplète" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="680" y="150" width="170" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- UC14: Notifier le Product Owner via Jira -->
+    <mxCell id="uc14" value="Notifier le Product Owner&#xa;via Jira" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="680" y="250" width="170" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Relations Testeur -->
+    <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="3" target="uc3" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="3" target="uc4" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="3" target="uc5" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="3" target="uc6" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- Relations Administrateur -->
+    <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="4" target="uc1" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- include: Importer inclut Se connecter -->
+    <mxCell id="e6" value="&lt;&lt;include&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc3" target="uc2" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- include: Se connecter inclut S'authentifier -->
+    <mxCell id="e7" value="&lt;&lt;include&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc2" target="uc1" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- include: Lancer le raffinement inclut Consulter le résultat -->
+    <mxCell id="e8" value="&lt;&lt;include&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc6" target="uc7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- extend: Consulter résultat extend Accepter -->
+    <mxCell id="e9" value="&lt;&lt;extend&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc8" target="uc7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- extend: Consulter résultat extend Modifier -->
+    <mxCell id="e10" value="&lt;&lt;extend&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc9" target="uc7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- extend: Consulter résultat extend Relancer -->
+    <mxCell id="e11" value="&lt;&lt;extend&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc10" target="uc7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- extend: Consulter résultat extend Garder original -->
+    <mxCell id="e12" value="&lt;&lt;extend&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc11" target="uc7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- extend: Consulter résultat extend Supprimer version -->
+    <mxCell id="e13" value="&lt;&lt;extend&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc12" target="uc7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- extend: Lancer raffinement extend Signaler US incomplète -->
+    <mxCell id="e14" value="&lt;&lt;extend&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc13" target="uc6" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- include: Signaler inclut Notifier PO -->
+    <mxCell id="e15" value="&lt;&lt;include&gt;&gt;" style="dashed=1;endArrow=open;" edge="1" source="uc13" target="uc14" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- Jira vers Notifier PO -->
+    <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="5" target="uc14" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- Product Owner vers Notifier -->
+    <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="6" target="uc14" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- Synchroniser avec Jira -->
+    <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="5" target="uc4" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+  </root>
+</mxGraphModel>
