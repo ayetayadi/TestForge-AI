@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-google-generativeai
 python-dotenv
 pydantic
 requests
@@ -42,7 +41,7 @@ langchain-mcp-adapters
 langchain-groq
 reportlab
 python-docx
-
+spacy
 
 # ML - Risk Analysis
 xgboost
