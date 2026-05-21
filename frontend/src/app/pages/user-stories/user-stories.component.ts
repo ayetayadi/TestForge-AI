@@ -103,11 +103,10 @@ filterGroups: FilterGroup[] = [
   },
   {
     key: 'pipeline',
-    label: 'Pipeline Status',
+    label: 'Workflow Status',
     multiple: true,
     options: [
       { value: 'idle',       label: 'Not processed' },
-      { value: 'processing', label: 'In progress' },
       { value: 'completed',  label: 'Completed' },
       { value: 'failed',     label: 'Failed' },
     ],

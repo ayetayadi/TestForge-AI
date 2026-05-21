@@ -458,3 +458,212 @@ $transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   outline-offset: 3px;
   border-radius: 8px;
 }
+
+// ============================================
+// MODALS
+// ============================================
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
+
+.modal-container {
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px 28px 24px;
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+  position: relative;
+  animation: slideUp 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  @keyframes slideUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: $transition;
+
+  &:hover { background: #f3f4f6; color: #374151; }
+
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
+}
+
+.modal-header {
+  text-align: center;
+  margin-bottom: 24px;
+
+  .modal-icon-wrap {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: $primary-light;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 14px;
+
+    mat-icon { font-size: 26px; width: 26px; height: 26px; color: $primary; }
+  }
+
+  .modal-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: $text-primary;
+    margin: 0 0 6px;
+  }
+
+  .modal-subtitle {
+    font-size: 0.85rem;
+    color: $text-secondary;
+    margin: 0;
+  }
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  .input-field { padding-right: 42px; }
+
+  .toggle-pwd {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: $text-muted;
+    display: flex;
+    align-items: center;
+    padding: 0;
+    transition: $transition;
+
+    &:hover { color: $primary; }
+    mat-icon { font-size: 20px; width: 20px; height: 20px; }
+  }
+}
+
+.input-field {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid $border-color;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: $text-primary;
+  background: $bg-page;
+  outline: none;
+  transition: $transition;
+  box-sizing: border-box;
+
+  &:focus { border-color: $primary; background: #fff; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+  &::placeholder { color: $text-muted; }
+}
+
+.modal-feedback {
+  font-size: 0.85rem;
+  border-radius: 8px;
+  padding: 8px 12px;
+
+  &.error   { background: rgba(239,68,68,0.08); color: #dc2626; }
+  &.success { background: rgba(16,185,129,0.1);  color: #059669; }
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: $transition;
+
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+  &:active:not(:disabled) { transform: scale(0.97); }
+}
+
+.btn-cancel {
+  background: #f3f4f6;
+  color: #374151;
+  &:hover:not(:disabled) { background: #e5e7eb; }
+}
+
+.btn-confirm {
+  background: $primary;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  &:hover:not(:disabled) { background: $primary-dark; }
+}
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@media (max-width: 480px) {
+  .modal-container { padding: 24px 18px 20px; }
+  .modal-footer { flex-direction: column-reverse; .btn { justify-content: center; } }
+}

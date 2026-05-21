@@ -17,7 +17,7 @@ LLM_MAX_TOKENS = 2000
 # Agent Configuration
 # ============================================================
 MAX_ITERATIONS = 2
-MIN_SCORE_THRESHOLD = 0.7
+MIN_SCORE_THRESHOLD = 0.8
 
 # ============================================================
 MIN_SIMILARITY_THRESHOLD = 0.70

@@ -67,13 +67,14 @@ export interface UserStoryVersion {
   is_testable?: boolean;
   testability_issues?: string[];
 
-  workflow_status: WorkflowStatus;  
+  workflow_status: WorkflowStatus;
   decision_status: 'pending' | 'approved' | 'rejected';
+  workflow_note?: string | null;
 
-  started_at?: string;  
-  completed_at?: string;  
+  started_at?: string;
+  completed_at?: string;
   created_at?: string;
-    is_customized?: boolean;     
+    is_customized?: boolean;
   customized_at?: string | null;
 }
 
@@ -169,8 +170,9 @@ export interface VersionState {
   has_new_version?: boolean;
   versions_count?: number;
 
-  is_customized?: boolean;    
-  customized_at?: string | null; 
+  is_customized?: boolean;
+  customized_at?: string | null;
+  workflow_note?: string | null;
 }
 
 export interface TraceEntry {

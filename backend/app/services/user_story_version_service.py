@@ -51,7 +51,6 @@ async def get_final_details(db: AsyncSession, user_story_id: str):
 async def start_version(
     db: AsyncSession,
     user_story,
-    reset: bool = False
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Start a new version for a user story.
@@ -75,19 +74,11 @@ async def start_version(
 
     # ============================================================
     # Determine input story + AC
+    # Toujours partir de la story originale (source de vérité du PO)
+    # pour éviter la dérive sémantique cumulative entre versions.
     # ============================================================
-    if reset:
-        raw_story = user_story.description
-        acceptance_criteria = user_story.acceptance_criteria or []
-    else:
-        raw_story = (
-            latest.improved_story
-            if latest else user_story.description
-        )
-        acceptance_criteria = (
-            latest.generated_acceptance_criteria
-            if latest else user_story.acceptance_criteria or []
-        )
+    raw_story = user_story.description
+    acceptance_criteria = user_story.acceptance_criteria or []
 
     # ============================================================
     # Guard: description must not be empty
@@ -213,7 +204,6 @@ async def apply_decision(
             new_version_id, state = await start_version(
                 db,
                 user_story,
-                reset=True
             )
 
             await db.commit()

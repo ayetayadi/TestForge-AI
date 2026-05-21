@@ -578,6 +578,60 @@ $gray-900: #111827;
 }
 
 // ============================================
+// WORKFLOW NOTE CARD
+// ============================================
+.workflow-note-card {
+  padding: 14px 18px;
+  border-radius: 10px;
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+  margin-bottom: 16px;
+
+  &.safe-revert {
+    border-left-color: #ef4444;
+    background: #fef2f2;
+
+    .workflow-note-header svg { color: #ef4444; }
+  }
+
+  &.success {
+    border-left-color: #10b981;
+    background: #f0fdf4;
+
+    .workflow-note-header svg { color: #10b981; }
+  }
+
+  .workflow-note-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+
+    svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      color: #f59e0b;
+    }
+
+    span {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+  }
+
+  .workflow-note-text {
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.5;
+    margin: 0;
+  }
+}
+
+// ============================================
 // TESTABILITY CARD
 // ============================================
 .testability-card {

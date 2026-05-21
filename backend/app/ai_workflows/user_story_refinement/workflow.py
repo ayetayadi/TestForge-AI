@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 class ImprovementResult(BaseModel):
     improved_story: str = Field(description="The improved user story text")
     acceptance_criteria: List[str] = Field(description="Improved acceptance criteria list")
-    reasoning: str = Field(description="What issues were found and what was changed")
+    reasoning: str = Field(description="Brief explanation (2-3 sentences max) of what issues were found and what was changed. Explain in English with easy words.")
 
 
 # ============================================================
