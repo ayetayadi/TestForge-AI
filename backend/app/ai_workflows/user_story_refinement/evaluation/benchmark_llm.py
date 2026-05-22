@@ -1,7 +1,7 @@
 """
 Benchmark LLM — Axe 1 : Performance des modèles Groq.
 
-Compare 5 modèles Groq sur le dataset de 12 user stories.
+Compare 3 modèles Groq sur le dataset de 8 user stories.
 Pour chaque modèle, mesure deux sources complémentaires :
 
   ① Rule-based (evaluators.py — déterministe) :
@@ -10,27 +10,25 @@ Pour chaque modèle, mesure deux sources complémentaires :
       - violation_rate   = % contraintes violées
       - latency, success_rate, parse_error_rate
 
-  ② DeepEval GEval (LLM-as-judge — sémantique) :
-      - deepeval_score   = note [0..1] donnée par un juge LLM fixe
-        (llama-3.3-70b, température 0) à chaque output produit
+  ② Root Signals Judge (LLM-as-judge — sémantique) :
+      - deepeval_score   = note [0..1] donnée par RootSignals-Judge-Llama-70B
       - Le juge est TOUJOURS le même modèle, indépendamment du modèle testé.
-        Cela garantit une comparaison équitable entre les 5 modèles.
+        Cela garantit une comparaison équitable entre les 3 modèles.
 
 Les deux sources sont combinées dans un score composite final.
 
-Lancement :
+Lancement (tous les modèles) :
   cd backend
   python -m app.ai_workflows.user_story_refinement.evaluation.benchmark_llm
 
-Ou avec un seul modèle (pour valider avant de tout lancer) :
+Avec un seul modèle (test rapide ~5 min) :
   python -m app.ai_workflows.user_story_refinement.evaluation.benchmark_llm --model Llama-3.3-70B
 
-Sans DeepEval (plus rapide, rule-based seulement) :
-  python -m app.ai_workflows.user_story_refinement.evaluation.benchmark_llm --no-deepeval
+Sans Root Signals (rule-based seulement, ~2 min par modèle) :
+  python -m app.ai_workflows.user_story_refinement.evaluation.benchmark_llm --no-rootsignals
 
-Avec visualisation Confident AI (dashboard DeepEval) :
-  python -m app.ai_workflows.user_story_refinement.evaluation.benchmark_llm --confident
-  (se connecte à app.confident-ai.com et affiche les résultats sur le dashboard)
+Comparaison finale après plusieurs runs séparés (--model) :
+  python -m app.ai_workflows.user_story_refinement.evaluation.benchmark_llm --compare-results
 """
 
 import argparse
@@ -74,27 +72,17 @@ from app.ai_workflows.user_story_refinement.evaluation.metrics import (
     format_report,
 )
 
-# ── DeepEval ──────────────────────────────────────────────────────────────────
-# Import conditionnel : si deepeval n'est pas installé ou si --no-deepeval,
-# on désactive silencieusement sans planter le benchmark.
+# ── Root Signals Judge ────────────────────────────────────────────────────────
+# Juge externe spécialisé pour l'évaluation LLM-as-a-judge.
+# Complètement indépendant des modèles testés → zéro biais d'auto-évaluation.
 try:
-    from deepeval.metrics import GEval
-    from deepeval.test_case import LLMTestCase, LLMTestCaseParams
-    from deepeval.models.base_model import DeepEvalBaseLLM
-    _DEEPEVAL_AVAILABLE = True
+    from root import RootSignals as _RootSignals
+    _ROOT_AVAILABLE = True
 except ImportError:
-    _DEEPEVAL_AVAILABLE = False
-    logger = logging.getLogger("benchmark_llm")
-    logging.getLogger("benchmark_llm").warning(
-        "DeepEval non installé — benchmark rule-based uniquement. "
-        "Installe avec : pip install deepeval"
-    )
+    _ROOT_AVAILABLE = False
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("benchmark_llm")
-
-# Réduire le bruit de DeepEval dans les logs
-logging.getLogger("deepeval").setLevel(logging.ERROR)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -102,6 +90,7 @@ logging.getLogger("httpx").setLevel(logging.ERROR)
 # ─────────────────────────────────────────────────────────────────────────────
 # Clé = nom affiché dans le rapport
 # Valeur = model ID exact renvoyé par l'API Groq (/v1/models)
+
 
 MODELS: Dict[str, str] = {
     "Llama-3.3-70B":   "llama-3.3-70b-versatile",
@@ -119,115 +108,130 @@ CALL_TIMEOUT: float = 60.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MODÈLE JUGE DEEPEVAL (fixe — indépendant du modèle testé)
+# ROOT SIGNALS JUDGE (juge externe, neutre, spécialisé pour l'évaluation LLM)
 # ─────────────────────────────────────────────────────────────────────────────
-# Le juge est TOUJOURS llama-3.3-70b à température 0 (déterministe).
-# Il évalue l'output de chaque modèle testé avec le critère GEval INVEST.
-# Utiliser le même juge pour tous les modèles garantit une comparaison équitable.
+# Root Signals utilise leur modèle juge par défaut (calibré pour l'évaluation LLM).
+# Distinct des modèles testés → zéro biais d'auto-évaluation.
+# Le même juge est utilisé pour TOUS les modèles testés → équité garantie.
 
-_JUDGE_MODEL_ID  = "llama-3.3-70b-versatile"
-_JUDGE_TEMP      = 0.0
-_JUDGE_MAX_TOKENS = 512
+_root_evaluator = None   # singleton — créé à la première utilisation
 
-_geval_metric = None   # singleton — créé à la première utilisation
+_INVEST_PREDICATE = (
+    "CONTEXT — PURPOSE OF THIS EVALUATION:\n"
+    "These user stories will be used to automatically generate software test cases. "
+    "The ONLY goal of the improvement is to REMOVE AMBIGUITY so that tests can be written "
+    "without interpretation. The business context, the actor, and the original feature "
+    "MUST be preserved exactly — the LLM must clarify, not rewrite.\n\n"
+    "Original story (given to the LLM to clarify): {{request}}\n\n"
+    "Improved story (produced by the LLM under test): {{response}}\n\n"
+    "Score HIGH (close to 1.0) when ALL of the following are true:\n"
+    "  (1) Ambiguity removed: vague terms (quickly, easily, seamless, better, fast) "
+    "replaced with concrete, measurable conditions (e.g. 'within 2s', 'at least 8 characters', "
+    "'maximum 3 attempts') — a tester can write a test case without guessing\n"
+    "  (2) Format respected: 'As a [role], I want [feature], so that [benefit]'\n"
+    "  (3) At least 2 acceptance criteria, each with an action verb AND a measurable outcome\n"
+    "  (4) INVEST respected: Independent, Negotiable (no technology imposed), "
+    "Valuable, Estimable, Small, Testable\n"
+    "  (5) CONTEXT PRESERVED: same actor/role, same feature, same business goal — "
+    "no new features invented, no scope changed, no intent altered\n\n"
+    "Score LOW (close to 0.0) when:\n"
+    "  - the improved story is identical or still vague (ambiguity not removed)\n"
+    "  - the actor, feature, or business goal was changed\n"
+    "  - new unrelated features were added\n"
+    "  - a tester still cannot write a test case without interpreting the story"
+)
 
 
-def _get_geval_metric(api_key: str):
+_EVALUATOR_NAME = "INVEST Quality Judge — TestForge"
+
+
+def _get_root_evaluator(root_api_key: str):
     """
-    Retourne le singleton GEval. Le crée à la première utilisation.
-    Utilise un DeepEvalBaseLLM custom qui pointe sur ChatGroq.
+    Retourne le singleton Root Signals evaluator (objet avec .run()).
+    Cherche d'abord par nom — si trouvé, récupère l'objet complet via son ID.
+    list() retourne des métadonnées sans .run() ; get(id) retourne l'objet callable.
     """
-    global _geval_metric
-    if _geval_metric is not None or not _DEEPEVAL_AVAILABLE:
-        return _geval_metric
-
-    class _GroqJudge(DeepEvalBaseLLM):
-        def __init__(self):
-            self._chat = ChatGroq(
-                groq_api_key=api_key,
-                model=_JUDGE_MODEL_ID,
-                temperature=_JUDGE_TEMP,
-                max_tokens=_JUDGE_MAX_TOKENS,
-            )
-    
-        def load_model(self):
-            return self._chat
-    
-        def generate(self, prompt: str, schema=None) -> str:
-            """Retourne UNIQUEMENT le contenu texte, pas un tuple."""
-            response = self._chat.invoke(prompt)
-            return response.content
-    
-        async def a_generate(self, prompt: str, schema=None) -> str:
-            """Retourne UNIQUEMENT le contenu texte, pas un tuple."""
-            response = await self._chat.ainvoke(prompt)
-            return response.content
-    
-        def get_model_name(self) -> str:
-            return f"groq/{_JUDGE_MODEL_ID}"
-
-    _geval_metric = GEval(
-        name="invest_quality",
-        # Critère transmis au juge LLM — il note de 0 à 1
-        criteria=(
-            "Evaluate whether ACTUAL_OUTPUT (the improved user story) is genuinely "
-            "better than INPUT (the original user story) according to the INVEST framework. "
-            "Award a HIGH score (close to 1.0) when ALL of the following are true:\n"
-            "  (1) Format respected: 'As a [role], I want [feature], so that [benefit]'\n"
-            "  (2) Vague terms (quickly, easily, seamless, better, fast) are replaced "
-            "with measurable conditions\n"
-            "  (3) At least 2 acceptance criteria with action verbs AND measurable "
-            "outcomes (e.g. 'within 2s', 'minimum 6 characters', 'at least 3 items')\n"
-            "  (4) INVEST respected: Independent (no dependency on other stories), "
-            "Negotiable (no technology imposed), Valuable (clear business benefit), "
-            "Estimable (specific enough), Small (one sprint), Testable\n"
-            "  (5) Original actor/role and business intent preserved — no new features invented\n"
-            "Award a LOW score (close to 0.0) when the output is identical to the input, "
-            "still vague, or violates the original intent."
-        ),
-        evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
-        model=_GroqJudge(),
-        threshold=0.5,
-        async_mode=False,
-    )
-    return _geval_metric
-
-
-async def _run_deepeval(
-    original_story: str,
-    improved_story: str,
-    api_key: str,
-    confident_mode: bool = False,
-) -> Optional[float]:
-    """
-    Lance GEval en thread (synchrone dans DeepEval) et retourne le score [0..1].
-
-    Avec confident_mode=True : utilise deepeval.evaluate() qui push automatiquement
-    les résultats vers app.confident-ai.com (nécessite deepeval.login() au préalable).
-
-    Retourne None si DeepEval n'est pas disponible ou si l'évaluation échoue.
-    """
-    if not _DEEPEVAL_AVAILABLE:
-        return None
-    metric = _get_geval_metric(api_key)
-    if metric is None:
+    global _root_evaluator
+    if _root_evaluator is not None:
+        return _root_evaluator
+    if not _ROOT_AVAILABLE or not root_api_key:
         return None
     try:
-        test_case = LLMTestCase(input=original_story, actual_output=improved_story)
-        if confident_mode:
-            from deepeval import evaluate
-            eval_result = await asyncio.to_thread(
-                evaluate, [test_case], [metric]
-            )
-            try:
-                return round(float(eval_result.test_results[0].metrics_data[0].score), 3)
-            except (IndexError, AttributeError, TypeError):
-                return round(float(metric.score), 3) if metric.score is not None else None
-        else:
-            await asyncio.to_thread(metric.measure, test_case)
-            return round(float(metric.score), 3)
+        client = _RootSignals(api_key=root_api_key)
+        for ev in client.evaluators.list():
+            if ev.name == _EVALUATOR_NAME:
+                logger.info("[ROOTSIGNALS] Évaluateur existant trouvé : %s", ev.id)
+                # list() retourne des métadonnées — get() retourne l'objet callable avec .run()
+                try:
+                    _root_evaluator = client.evaluators.get(ev.id)
+                except Exception:
+                    _root_evaluator = client.evaluators.retrieve(ev.id)
+                return _root_evaluator
+        _root_evaluator = client.evaluators.create(
+            name=_EVALUATOR_NAME,
+            intent=(
+                "Evaluate whether the improved user story is genuinely better "
+                "than the original according to the INVEST framework"
+            ),
+            predicate=_INVEST_PREDICATE,
+            model="gpt-4o",
+        )
+        logger.info("[ROOTSIGNALS] Évaluateur créé : %s", _root_evaluator.id)
+        return _root_evaluator
     except Exception as exc:
-        logger.warning("[DEEPEVAL] GEval échoué : %s", exc)
+        logger.warning("[ROOTSIGNALS] Création de l'évaluateur échouée : %s", exc)
+        return None
+
+
+async def _run_rootsignals(
+    original_story: str,
+    improved_story: str,
+    root_api_key: str,
+) -> Optional[float]:
+    """
+    Appelle le Root Signals Judge et retourne le score [0..1].
+    Si l'évaluateur mis en cache n'a pas .run() (EvaluatorListOutput),
+    recrée un évaluateur callable via create().
+    """
+    if not _ROOT_AVAILABLE:
+        return None
+    evaluator = _get_root_evaluator(root_api_key)
+    if evaluator is None:
+        return None
+    try:
+        result = await asyncio.to_thread(
+            evaluator.run,
+            request=original_story,
+            response=improved_story,
+        )
+        return round(float(result.score), 3)
+    except AttributeError:
+        # L'objet mis en cache n'a pas .run() — on recrée un évaluateur callable
+        logger.warning("[ROOTSIGNALS] Objet sans .run() — recréation de l'évaluateur")
+        global _root_evaluator
+        _root_evaluator = None   # reset du cache
+        try:
+            client = _RootSignals(api_key=root_api_key)
+            _root_evaluator = client.evaluators.create(
+                name=_EVALUATOR_NAME + " (run)",
+                intent=(
+                    "Evaluate whether the improved user story is genuinely better "
+                    "than the original according to the INVEST framework"
+                ),
+                predicate=_INVEST_PREDICATE,
+                model="gpt-4o",
+            )
+            result = await asyncio.to_thread(
+                _root_evaluator.run,
+                request=original_story,
+                response=improved_story,
+            )
+            return round(float(result.score), 3)
+        except Exception as exc2:
+            logger.warning("[ROOTSIGNALS] Recréation échouée : %s", exc2)
+            return None
+    except Exception as exc:
+        logger.warning("[ROOTSIGNALS] Évaluation échouée : %s", exc)
         return None
 
 
@@ -307,9 +311,9 @@ async def run_story(
     story_entry: Dict[str, Any],
     story_index: int,
     total_stories: int,
-    api_key: str,
-    use_deepeval: bool = True,
-    confident_mode: bool = False,
+    groq_api_key: str,
+    root_api_key: str,
+    use_rootsignals: bool = True,
 ) -> Dict[str, Any]:
     """
     Exécute une story à travers :
@@ -317,8 +321,8 @@ async def run_story(
       2. score_story initial          (no LLM — rule-based)
       3. LLM call (avec retry JSON)   — modèle testé
       4. validate_constraints         (no LLM — rule-based)
-      5. score_story final            (no LLM — rule-based)  ← Métrique ①
-      6. DeepEval GEval               (LLM juge fixe)        ← Métrique ②
+      5. score_story final            (no LLM — rule-based)        ← Métrique ①
+      6. Root Signals Judge           (juge externe, neutre)       ← Métrique ②
 
     Retourne un dict de résultats pour compute_model_metrics().
     """
@@ -372,20 +376,20 @@ async def run_story(
     final_score = final.get("final_score", 0.0)
     score_delta = round(final_score - initial_score, 3)
 
-    # ── Étape 6 : DeepEval GEval (LLM-as-judge) ── Métrique ② ────────────────
-    # Le juge (llama-3.3-70b, T=0) lit l'original et l'amélioré et donne un score.
-    # On ne l'appelle que si la story a été modifiée (inutile si identical).
+    # ── Étape 6 : Root Signals Judge (LLM-as-judge externe) ── Métrique ② ─────
+    # RootSignals-Judge-Llama-70B est distinct de tous les modèles testés.
+    # On ne l'appelle que si la story a été modifiée (inutile si identique).
     deepeval_score: Optional[float] = None
-    if use_deepeval and improved_story != story:
-        print(f"[deepeval…] ", end="", flush=True)
-        deepeval_score = await _run_deepeval(story, improved_story, api_key, confident_mode=confident_mode)
+    if use_rootsignals and improved_story != story:
+        print(f"[root…] ", end="", flush=True)
+        deepeval_score = await _run_rootsignals(story, improved_story, root_api_key)
 
     status_label = "✓" if score_delta > 0 else ("⚠" if violations else "→")
-    geval_str = f" geval={deepeval_score:.3f}" if deepeval_score is not None else ""
+    root_str = f" root={deepeval_score:.3f}" if deepeval_score is not None else ""
     print(
         f"{status_label} Δrule={score_delta:+.3f} "
         f"({initial_score:.3f}→{final_score:.3f})"
-        f"{geval_str} "
+        f"{root_str} "
         f"lat={latency_s}s"
         + (f" [RETRY]" if retried else "")
         + (f" [VIOLATION]" if violations else "")
@@ -403,7 +407,7 @@ async def run_story(
         "final_score":    round(final_score, 3),
         "score_delta":    score_delta,
         "violations":     violations,
-        "deepeval_score": deepeval_score,   # ② LLM-as-judge [0..1] ou None
+        "deepeval_score": deepeval_score,   # ② Root Signals Judge [0..1] ou None
         "improved_story": improved_story,
         "reasoning":      llm_result.reasoning,
     }
@@ -416,10 +420,10 @@ async def run_story(
 async def benchmark_model(
     model_name: str,
     model_id: str,
-    api_key: str,
+    groq_api_key: str,
+    root_api_key: str,
     stories: List[Dict[str, Any]],
-    use_deepeval: bool = True,
-    confident_mode: bool = False,
+    use_rootsignals: bool = True,
 ) -> Dict[str, Any]:
     """
     Benchmark un modèle sur l'ensemble du dataset.
@@ -429,11 +433,14 @@ async def benchmark_model(
     print(f"  Modèle : {model_name} ({model_id})")
     print(f"  {'─'*60}")
 
-    llm = _build_llm(model_id, api_key)
+    llm = _build_llm(model_id, groq_api_key)
     results = []
 
     for i, entry in enumerate(stories, 1):
-        result = await run_story(llm, entry, i, len(stories), api_key, use_deepeval, confident_mode)
+        result = await run_story(
+            llm, entry, i, len(stories),
+            groq_api_key, root_api_key, use_rootsignals,
+        )
         results.append(result)
         if i < len(stories):
             await asyncio.sleep(DELAY_BETWEEN_CALLS)
@@ -454,13 +461,21 @@ async def benchmark_model(
 
 async def main(
     model_filter: Optional[str] = None,
-    use_deepeval: bool = True,
-    confident_mode: bool = False,
+    use_rootsignals: bool = True,
 ) -> None:
-    api_key = os.getenv("GROQ_API_KEY_1", "")
-    if not api_key:
+    groq_api_key = os.getenv("GROQ_API_KEY_1", "")
+    if not groq_api_key:
         print("ERREUR : GROQ_API_KEY_1 introuvable dans .env")
         sys.exit(1)
+
+    root_api_key = os.getenv("ROOTSIGNALS_API_KEY", "")
+    if use_rootsignals and not root_api_key:
+        print("  [!] ROOTSIGNALS_API_KEY introuvable dans .env — Root Signals Judge désactivé.")
+        use_rootsignals = False
+    if use_rootsignals and not _ROOT_AVAILABLE:
+        print("  [!] root-signals non installé — Root Signals Judge désactivé.")
+        print("  [!] Installe avec : pip install root-signals")
+        use_rootsignals = False
 
     models_to_run = {
         name: mid for name, mid in MODELS.items()
@@ -469,27 +484,6 @@ async def main(
     if not models_to_run:
         print(f"ERREUR : modèle '{model_filter}' introuvable. Disponibles : {list(MODELS.keys())}")
         sys.exit(1)
-
-    if use_deepeval and not _DEEPEVAL_AVAILABLE:
-        print("  [!] DeepEval non disponible — benchmark rule-based uniquement.")
-        use_deepeval = False
-        confident_mode = False
-
-    if confident_mode:
-        if not use_deepeval:
-            print("  [!] --confident ignoré car DeepEval est désactivé.")
-            confident_mode = False
-        else:
-            import deepeval as _deepeval
-            confident_key = os.getenv("CONFIDENT_API_KEY", "")
-            if not confident_key:
-                print("  [!] CONFIDENT_API_KEY non trouvée dans .env")
-                print("  [!] --confident désactivé")
-                confident_mode = False
-            else:
-                print("\n  [CONFIDENT AI] Connexion au dashboard DeepEval...")
-                _deepeval.login(api_key=confident_key)
-                print("  [CONFIDENT AI] Connecté — les résultats seront visibles sur app.confident-ai.com\n")
 
     stories = DATASET
 
@@ -500,9 +494,11 @@ async def main(
     print(f"  Stories testées  : {len(stories)}")
     print(f"  Délai entre appels : {DELAY_BETWEEN_CALLS}s")
     print(f"  Temperature : {LLM_TEMPERATURE}  |  Max tokens : {LLM_MAX_TOKENS}")
-    print(f"  DeepEval GEval   : {'✓ activé (juge = ' + _JUDGE_MODEL_ID + ')' if use_deepeval else '✗ désactivé (--no-deepeval)'}")
-    if confident_mode:
-        print(f"  Confident AI     : ✓ activé — résultats pushés sur app.confident-ai.com")
+    if use_rootsignals:
+        print(f"  Juge sémantique  : ✓ Root Signals Judge (RootSignals-Judge-Llama-70B)")
+        print(f"                     Juge externe — distinct de tous les modèles testés")
+    else:
+        print(f"  Juge sémantique  : ✗ désactivé (--no-rootsignals)")
     print("=" * 70)
 
     all_model_metrics: Dict[str, Dict[str, Any]] = {}
@@ -512,7 +508,9 @@ async def main(
 
     for model_name, model_id in models_to_run.items():
         try:
-            data = await benchmark_model(model_name, model_id, api_key, stories, use_deepeval, confident_mode)
+            data = await benchmark_model(
+                model_name, model_id, groq_api_key, root_api_key, stories, use_rootsignals,
+            )
             all_model_metrics[model_name] = data["metrics"]
             all_raw_results[model_name]   = data["raw_results"]
         except Exception as exc:
@@ -564,6 +562,60 @@ async def main(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# MERGE ET COMPARAISON DEPUIS LES FICHIERS JSON (--compare-results)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compare_results_from_files() -> None:
+    """
+    Lit tous les fichiers results/benchmark_llm_*.json, fusionne les raw_results
+    par modèle, recalcule les métriques et affiche le classement comparatif.
+
+    Utile quand les modèles ont été lancés séparément avec --model.
+    Chaque fichier peut contenir un ou plusieurs modèles.
+    Si un modèle apparaît dans plusieurs fichiers, le fichier le plus récent gagne.
+    """
+    results_dir = Path(__file__).parent / "results"
+    json_files = sorted(results_dir.glob("benchmark_llm_*.json"))
+
+    if not json_files:
+        print(f"\n  Aucun fichier trouvé dans : {results_dir}")
+        print("  Lance d'abord : python -m ... --model <NOM>\n")
+        return
+
+    print(f"\n  Lecture de {len(json_files)} fichier(s) dans {results_dir}/")
+
+    merged_raw: Dict[str, List[Dict[str, Any]]] = {}
+
+    for path in json_files:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        raw: Dict[str, List] = data.get("raw_results", {})
+        for model_name, results in raw.items():
+            if results:
+                merged_raw[model_name] = results
+                print(f"    ✓ {path.name}  →  {model_name} ({len(results)} stories)")
+
+    if not merged_raw:
+        print("  Aucun résultat utilisable trouvé.\n")
+        return
+
+    all_model_metrics = {
+        model_name: compute_model_metrics(results)
+        for model_name, results in merged_raw.items()
+    }
+
+    ranking = compare_models(all_model_metrics)
+    print(format_report(ranking))
+
+    if ranking:
+        best = ranking[0]
+        print(f"  MODÈLE RECOMMANDÉ : {best['model']}")
+        print(f"  Score composite   : {best['composite']}")
+        print(f"  Score delta moyen : {best.get('score_delta_mean', 0):+.3f}")
+        print(f"  Latence moyenne   : {best.get('latency_mean_s', 0)}s\n")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Benchmark LLM — Axe 1")
@@ -573,18 +625,21 @@ if __name__ == "__main__":
         help="Tester un seul modèle (nom ou model_id). Omis = tous les modèles.",
     )
     parser.add_argument(
-        "--no-deepeval",
+        "--no-rootsignals",
         action="store_true",
-        help="Désactive DeepEval GEval (benchmark rule-based uniquement, plus rapide).",
+        help="Désactive Root Signals Judge (benchmark rule-based uniquement, plus rapide).",
     )
     parser.add_argument(
-        "--confident",
+        "--compare-results",
         action="store_true",
-        help="Push les résultats DeepEval vers app.confident-ai.com (dashboard visuel).",
+        help="Fusionne tous les fichiers JSON dans results/ et affiche le classement comparatif.",
     )
     args = parser.parse_args()
-    asyncio.run(main(
-        model_filter=args.model,
-        use_deepeval=not args.no_deepeval,
-        confident_mode=args.confident,
-    ))
+
+    if args.compare_results:
+        compare_results_from_files()
+    else:
+        asyncio.run(main(
+            model_filter=args.model,
+            use_rootsignals=not args.no_rootsignals,
+        ))

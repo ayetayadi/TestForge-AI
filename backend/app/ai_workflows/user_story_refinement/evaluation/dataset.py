@@ -1,13 +1,19 @@
 """
 Dataset de test pour le benchmark LLM — User Story Refinement.
 
-12 stories réparties en 3 catégories :
-  - BAD    (score attendu < 0.40) : 4 stories
-  - MEDIUM (score attendu 0.40–0.65) : 5 stories
-  - GOOD   (score attendu >= 0.65) : 3 stories
+8 stories réparties en 3 catégories :
+  - BAD    (score attendu < 0.40) : 3 stories
+  - MEDIUM (score attendu 0.40–0.65) : 4 stories
+  - GOOD   (score attendu >= 0.65) : 1 story
 
 Langues : EN et FR, avec et sans AC.
 Objectif : mesurer la capacité de chaque modèle à améliorer des stories.
+
+Critères de sélection (réduit depuis 12) :
+  - BAD-FR-02 supprimée  : trop triviale (2 mots), cas limite pas représentatif
+  - MED-EN-03 supprimée  : dépendance inter-story (cas spécial, biais pour le benchmark)
+  - GOOD-FR-01 supprimée : doublon fonctionnel avec GOOD-EN-01 (même feature : login)
+  - GOOD-EN-02 supprimée : 1 bonne story suffit (les bonnes ne testent pas l'amélioration)
 """
 
 from typing import List, TypedDict
@@ -67,19 +73,6 @@ DATASET: List[StoryEntry] = [
             "Aucun critère d'acceptation",
         ],
     },
-    {
-        "id": "BAD-FR-02",
-        "category": "bad",
-        "language": "fr",
-        "story": "Fonctionnalité de connexion.",
-        "acceptance_criteria": [],
-        "expected_issues": [
-            "Trop court (< 5 mots)",
-            "Pas de format En tant que / Je veux",
-            "Aucun critère d'acceptation",
-        ],
-    },
-
     # ─── MEDIUM STORIES ───────────────────────────────────────────────────────
     # Format As a / I want présent mais AC absents ou faibles.
 
@@ -112,24 +105,6 @@ DATASET: List[StoryEntry] = [
         "expected_issues": [
             "AC not verifiable (no action verbs, no measurable conditions)",
             "No time or quantity constraints in AC",
-        ],
-    },
-    {
-        "id": "MED-EN-03",
-        "category": "medium",
-        "language": "en",
-        "story": (
-            "As a project manager, I want to assign tasks to team members "
-            "so that I can distribute work efficiently across the team."
-            " This story depends on story US-42 (user management) being completed first."
-        ),
-        "acceptance_criteria": [
-            "The manager can select a team member from a dropdown",
-            "The assigned user receives a notification",
-        ],
-        "expected_issues": [
-            "Cross-story dependency (I - Independent)",
-            "AC lack measurable conditions",
         ],
     },
     {
@@ -166,7 +141,7 @@ DATASET: List[StoryEntry] = [
     },
 
     # ─── GOOD STORIES ─────────────────────────────────────────────────────────
-    # Déjà bien formées — le modèle doit les améliorer légèrement ou les valider.
+    # Déjà bien formées — mesure si le modèle préserve sans dégrader.
 
     {
         "id": "GOOD-EN-01",
@@ -181,38 +156,6 @@ DATASET: List[StoryEntry] = [
             "The reset link expires after 24 hours",
             "The user receives a confirmation message after successfully changing the password",
             "The new password must contain at least 8 characters including one number",
-        ],
-        "expected_issues": [],
-    },
-    {
-        "id": "GOOD-FR-01",
-        "category": "good",
-        "language": "fr",
-        "story": (
-            "En tant qu'utilisateur enregistré, je veux me connecter via email et mot de passe "
-            "afin d'accéder à mon espace personnel et retrouver mes données."
-        ),
-        "acceptance_criteria": [
-            "Le système affiche un message d'erreur si les identifiants sont incorrects",
-            "Le compte est bloqué après 5 tentatives échouées consécutives",
-            "La connexion redirige vers le tableau de bord en moins de 3 secondes",
-            "Un token de session est créé et expire après 30 minutes d'inactivité",
-        ],
-        "expected_issues": [],
-    },
-    {
-        "id": "GOOD-EN-02",
-        "category": "good",
-        "language": "en",
-        "story": (
-            "As an e-commerce customer, I want to add items to my shopping cart "
-            "so that I can purchase multiple products in a single transaction."
-        ),
-        "acceptance_criteria": [
-            "The cart displays a running total updated within 1 second of each addition",
-            "The user can add at least 20 distinct items to the cart",
-            "Removing an item from the cart updates the total immediately",
-            "Cart contents persist for at least 7 days without requiring login",
         ],
         "expected_issues": [],
     },

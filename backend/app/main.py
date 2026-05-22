@@ -50,7 +50,7 @@ from app.api.test_suites import router as test_suites_router
 from app.api.chatbot import router as chatbot_router
 from app.core.database import Base, engine
 from app.streaming.sse_manager import set_main_loop
-from app.core.model_manager import preload_embedding_model
+from app.core.model_manager import preload_embedding_model, preload_spacy_models
 from app.core.config import settings
 from app.workers.us_worker import start_workers, stop_workers
 from app.workers.risk_worker import start_risk_workers, stop_risk_workers
@@ -156,6 +156,7 @@ async def lifespan(app: FastAPI):
     set_main_loop(loop)
 
     await asyncio.to_thread(preload_embedding_model)
+    await asyncio.to_thread(preload_spacy_models)
 
     await start_workers()
     await start_risk_workers()
