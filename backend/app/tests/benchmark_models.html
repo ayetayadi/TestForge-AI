@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benchmark des Modeles Groq — User Story Refinement</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #eef2ff;
+            --success: #10b981;
+            --success-light: #d1fae5;
+            --warning: #f59e0b;
+            --warning-light: #fef3c7;
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-500: #6b7280;
+            --gray-700: #374151;
+            --gray-900: #111827;
+            --radius: 8px;
+            --transition: 0.2s ease;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--primary-light);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        
+        .page-content {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 32px 40px 48px;
+        }
+        
+        @media (max-width: 768px) {
+            .page-content { padding: 20px 20px 32px; }
+        }
+        
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 20px 40px;
+            margin-bottom: 32px;
+        }
+        
+        @media (max-width: 768px) {
+            .page-header { padding: 16px 20px; flex-wrap: wrap; gap: 12px; }
+        }
+        
+        .header-text h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin: 0 0 4px;
+        }
+        
+        .header-text p {
+            font-size: 0.85rem;
+            color: var(--gray-500);
+            margin: 0;
+        }
+        
+        .legend {
+            background: var(--primary-light);
+            border-left: 4px solid var(--primary);
+            padding: 16px 20px;
+            margin: 0 0 28px;
+            border-radius: var(--radius);
+            font-size: 0.85rem;
+            color: var(--gray-700);
+            line-height: 1.6;
+        }
+        
+        .legend strong {
+            color: var(--primary-dark);
+        }
+        
+        h2 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin: 32px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            margin-bottom: 32px;
+            border-radius: var(--radius);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            background: white;
+        }
+        
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 1200px;
+        }
+        
+        th {
+            background: var(--primary-dark);
+            color: white;
+            padding: 14px 10px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+        }
+        
+        td {
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+            color: var(--gray-700);
+        }
+        
+        tr:hover td {
+            background: #f8fafc !important;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        
+        .badge-production {
+            background: var(--success-light);
+            color: #059669;
+        }
+        
+        .badge-preview {
+            background: var(--warning-light);
+            color: #d97706;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding: 16px;
+            background: white;
+            text-align: center;
+            font-size: 12px;
+            color: var(--gray-500);
+            border-radius: var(--radius);
+            border: 1px solid var(--gray-200);
+        }
+    </style>
+</head>
+<body>
+
+<div class="page-header">
+    <div class="header-text">
+        <h1>Benchmark des Modeles Groq</h1>
+        <p>Analyse comparative pour le raffinement de user stories — TestForge AI</p>
+    </div>
+</div>
+
+<div class="page-content">
+
+    <div class="legend">
+        <strong>Source :</strong> Groq API + Docs + Model Cards<br>
+        <strong>Total modeles disponibles :</strong> 16<br>
+        <strong>Modeles de texte analyses :</strong> 7<br>
+        <strong>Critères de sélection :</strong> Architecture, vitesse, prix, tool use, raisonnement, benchmarks (IFEval, MMLU)
+    </div>
+
+    <h2>Modèles Recommandés pour le Benchmark</h2>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Modele</th>
+                    <th>Provider</th>
+                    <th>Architecture</th>
+                    <th>Type</th>
+                    <th>Params</th>
+                    <th>Contexte (in / out)</th>
+                    <th>Vitesse</th>
+                    <th>Prix IN ($/1M)</th>
+                    <th>Prix OUT ($/1M)</th>
+                    <th>Tool Use</th>
+                    <th>Raisonnement</th>
+                    <th>JSON</th>
+                    <th>IFEval</th>
+                    <th>MMLU</th>
+                    <th>Categorie</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+    <tr style="background: #e8f5e9;">
+        <td style="font-weight: 600; color: #1e40af;">qwen/qwen3-32b</td>
+        <td>Alibaba Cloud</td>
+        <td style="font-size: 12px;">Dense</td>
+        <td style="font-size: 12px;">Chat + Raisonnement</td>
+        <td style="text-align: center;">32B</td>
+        <td style="text-align: center;">128K / 40K</td>
+        <td style="text-align: center;">400 t/s</td>
+        <td style="text-align: center;">$0.29</td>
+        <td style="text-align: center;">$0.59</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;"><span class="badge badge-preview">Preview</span></td>
+    </tr>
+    <tr style="background: #e8f5e9;">
+        <td style="font-weight: 600; color: #1e40af;">llama-3.3-70b-versatile</td>
+        <td>Meta</td>
+        <td style="font-size: 12px;">Dense (Transformer optimisé, GQA)</td>
+        <td style="font-size: 12px;">Chat</td>
+        <td style="text-align: center;">70B</td>
+        <td style="text-align: center;">128K / 32K</td>
+        <td style="text-align: center;">280 t/s</td>
+        <td style="text-align: center;">$0.59</td>
+        <td style="text-align: center;">$0.79</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">No</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">92.1</td>
+        <td style="text-align: center;">86.0</td>
+        <td style="text-align: center;"><span class="badge badge-production">Production</span></td>
+    </tr>
+    <tr style="background: #e8f5e9;">
+        <td style="font-weight: 600; color: #1e40af;">openai/gpt-oss-120b</td>
+        <td>OpenAI</td>
+        <td style="font-size: 12px;">MoE (120B total, ~18B actifs, Top-4 routing)</td>
+        <td style="font-size: 12px;">Chat + Raisonnement</td>
+        <td style="text-align: center;">120B</td>
+        <td style="text-align: center;">128K / 64K</td>
+        <td style="text-align: center;">500 t/s</td>
+        <td style="text-align: center;">$0.15</td>
+        <td style="text-align: center;">$0.6</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">85.3</td>
+        <td style="text-align: center;"><span class="badge badge-production">Production</span></td>
+    </tr>
+    <tr style="background: #e8f5e9;">
+        <td style="font-weight: 600; color: #1e40af;">llama-3.1-8b-instant</td>
+        <td>Meta</td>
+        <td style="font-size: 12px;">Dense (Transformer, GQA)</td>
+        <td style="font-size: 12px;">Chat</td>
+        <td style="text-align: center;">8B</td>
+        <td style="text-align: center;">128K / 128K</td>
+        <td style="text-align: center;">560 t/s</td>
+        <td style="text-align: center;">$0.05</td>
+        <td style="text-align: center;">$0.08</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">No</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">80.4</td>
+        <td style="text-align: center;">73.0</td>
+        <td style="text-align: center;"><span class="badge badge-production">Production</span></td>
+    </tr>
+
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Autres Modèles Disponibles</h2>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Modele</th>
+                    <th>Provider</th>
+                    <th>Architecture</th>
+                    <th>Type</th>
+                    <th>Params</th>
+                    <th>Contexte (in / out)</th>
+                    <th>Vitesse</th>
+                    <th>Prix IN ($/1M)</th>
+                    <th>Prix OUT ($/1M)</th>
+                    <th>Tool Use</th>
+                    <th>Raisonnement</th>
+                    <th>JSON</th>
+                    <th>IFEval</th>
+                    <th>MMLU</th>
+                    <th>Categorie</th>
+                </tr>
+            </thead>
+            <tbody>
+     <tr style="background: #e8f5e9;">
+        <td style="font-weight: 600; color: #1e40af;">openai/gpt-oss-20b</td>
+        <td>OpenAI</td>
+        <td style="font-size: 12px;">MoE (20B total, 3.6B actifs, Top-4 routing, 24 layers, 32 experts)</td>
+        <td style="font-size: 12px;">Chat + Raisonnement</td>
+        <td style="text-align: center;">20B</td>
+        <td style="text-align: center;">128K / 64K</td>
+        <td style="text-align: center;">1000 t/s</td>
+        <td style="text-align: center;">$0.075</td>
+        <td style="text-align: center;">$0.3</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">85.3</td>
+        <td style="text-align: center;"><span class="badge badge-production">Production</span></td>
+    </tr>           
+    <tr style="background: #ffffff;">
+        <td style="font-weight: 600; color: #1e40af;">allam-2-7b</td>
+        <td>SDAIA</td>
+        <td style="font-size: 12px;">Dense</td>
+        <td style="font-size: 12px;">Chat</td>
+        <td style="text-align: center;">7B</td>
+        <td style="text-align: center;">4K / 4K</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">No</td>
+        <td style="text-align: center;">No</td>
+        <td style="text-align: center;">No</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;"></td>
+    </tr>
+    <tr style="background: #ffffff;">
+        <td style="font-weight: 600; color: #1e40af;">meta-llama/llama-4-scout-17b-16e-instruct</td>
+        <td>Meta</td>
+        <td style="font-size: 12px;">MoE (16 Experts, 17B actifs / 288B totaux)</td>
+        <td style="font-size: 12px;">Chat</td>
+        <td style="text-align: center;">17B actifs / 288B totaux</td>
+        <td style="text-align: center;">128K / 8K</td>
+        <td style="text-align: center;">750 t/s</td>
+        <td style="text-align: center;">$0.11</td>
+        <td style="text-align: center;">$0.34</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">No</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;"><span class="badge badge-preview">Preview</span></td>
+    </tr>
+        
+            </tbody>
+        </table>
+    </div>
+
+    <div class="footer">
+        Rapport genere automatiquement — TestForge AI — 2026
+    </div>
+
+</div>
+
+</body>
+</html>

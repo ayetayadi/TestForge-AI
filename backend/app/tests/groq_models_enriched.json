@@ -1,0 +1,674 @@
+{
+  "metadata": {
+    "source": "Groq API + Docs + Model Cards",
+    "fetched_at": "2026-05-21T21:39:58.772670",
+    "total_models": 16
+  },
+  "summary": {
+    "total": 16,
+    "by_category": {
+      "Production": 6,
+      "Preview": 7,
+      "Inconnue": 1,
+      "Production System": 2
+    },
+    "by_type": {
+      "Audio (Speech-to-Text)": 2,
+      "Chat + Raisonnement": 3,
+      "Chat": 4,
+      "Agentic System": 2,
+      "Safety Guard": 3,
+      "Audio (Text-to-Speech)": 2
+    },
+    "by_architecture": {
+      "Transformer (Audio Encoder-Decoder)": 2,
+      "Dense": 2,
+      "Système (Multiple modèles + outils)": 2,
+      "Dense (Transformer optimisé, GQA)": 1,
+      "Dense (Classifier)": 2,
+      "MoE (16 Experts, 17B actifs / 288B totaux)": 1,
+      "MoE (120B total, ~18B actifs, Top-4 routing)": 1,
+      "Dense (TTS)": 2,
+      "MoE (20B total)": 1,
+      "Dense (Transformer, GQA)": 1,
+      "MoE (20B total, 3.6B actifs, Top-4 routing, 24 layers, 32 experts)": 1
+    },
+    "chat_models": 9,
+    "reasoning_models": 5,
+    "audio_models": 4,
+    "tool_calling_models": 8
+  },
+  "models": [
+    {
+      "id": "whisper-large-v3",
+      "object": "model",
+      "created": 1693721698,
+      "owned_by": "OpenAI",
+      "active": true,
+      "context_window": 448,
+      "max_completion_tokens": 448,
+      "architecture": "Transformer (Audio Encoder-Decoder)",
+      "category": "Production",
+      "type": "Audio (Speech-to-Text)",
+      "parameters": "1.5B",
+      "provider": "OpenAI",
+      "capabilities": {
+        "tool_calling": false,
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": false,
+        "vision": false,
+        "audio": true
+      },
+      "performance": {
+        "speed_tps": null,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": null,
+        "price_output_per_1M": null,
+        "price_per_hour": 0.111
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "qwen/qwen3-32b",
+      "object": "model",
+      "created": 1748396646,
+      "owned_by": "Alibaba Cloud",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 40960,
+      "architecture": "Dense",
+      "category": "Preview",
+      "type": "Chat + Raisonnement",
+      "parameters": "32B",
+      "provider": "Alibaba Cloud",
+      "capabilities": {
+        "tool_calling": "Parallel",
+        "reasoning": true,
+        "reasoning_efforts": [
+          "none",
+          "default"
+        ],
+        "json_mode": true,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 400,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": 0.29,
+        "price_output_per_1M": 0.59,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": 300000,
+        "rpm": 1000
+      },
+      "languages": [
+        "en",
+        "multilingual"
+      ]
+    },
+    {
+      "id": "allam-2-7b",
+      "object": "model",
+      "created": 1737672203,
+      "owned_by": "SDAIA",
+      "active": true,
+      "context_window": 4096,
+      "max_completion_tokens": 4096,
+      "architecture": "Dense",
+      "category": "Inconnue",
+      "type": "Chat",
+      "parameters": "7B",
+      "provider": "SDAIA",
+      "capabilities": {
+        "tool_calling": false,
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": false,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": null,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": null,
+        "price_output_per_1M": null,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "groq/compound-mini",
+      "object": "model",
+      "created": 1756949707,
+      "owned_by": "Groq",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 8192,
+      "architecture": "Système (Multiple modèles + outils)",
+      "category": "Production System",
+      "type": "Agentic System",
+      "parameters": "N/A",
+      "provider": "Groq",
+      "capabilities": {
+        "tool_calling": "Built-in (Web Search, Code Execution)",
+        "reasoning": true,
+        "reasoning_efforts": null,
+        "json_mode": true,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 450,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": 0,
+        "price_output_per_1M": 0,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "whisper-large-v3-turbo",
+      "object": "model",
+      "created": 1728413088,
+      "owned_by": "OpenAI",
+      "active": true,
+      "context_window": 448,
+      "max_completion_tokens": 448,
+      "architecture": "Transformer (Audio Encoder-Decoder)",
+      "category": "Production",
+      "type": "Audio (Speech-to-Text)",
+      "parameters": "800M",
+      "provider": "OpenAI",
+      "capabilities": {
+        "tool_calling": false,
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": false,
+        "vision": false,
+        "audio": true
+      },
+      "performance": {
+        "speed_tps": null,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": null,
+        "price_output_per_1M": null,
+        "price_per_hour": 0.04
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "llama-3.3-70b-versatile",
+      "object": "model",
+      "created": 1733447754,
+      "owned_by": "Meta",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 32768,
+      "architecture": "Dense (Transformer optimisé, GQA)",
+      "category": "Production",
+      "type": "Chat",
+      "parameters": "70B",
+      "provider": "Meta",
+      "capabilities": {
+        "tool_calling": "Parallel",
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": true,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 280,
+        "ifeval_score": 92.1,
+        "mmlu_score": 86.0
+      },
+      "pricing": {
+        "price_input_per_1M": 0.59,
+        "price_output_per_1M": 0.79,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": 300000,
+        "rpm": 1000
+      },
+      "training_data": "15T tokens",
+      "languages": [
+        "en",
+        "fr",
+        "de",
+        "it",
+        "pt",
+        "hi",
+        "es",
+        "th"
+      ],
+      "knowledge_cutoff": "2023-12",
+      "fine_tuning": "SFT + RLHF"
+    },
+    {
+      "id": "meta-llama/llama-prompt-guard-2-86m",
+      "object": "model",
+      "created": 1748632165,
+      "owned_by": "Meta",
+      "active": true,
+      "context_window": 512,
+      "max_completion_tokens": 512,
+      "architecture": "Dense (Classifier)",
+      "category": "Preview",
+      "type": "Safety Guard",
+      "parameters": "86M",
+      "provider": "Meta",
+      "capabilities": {
+        "tool_calling": false,
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": false,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": null,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": 0.04,
+        "price_output_per_1M": 0.04,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "groq/compound",
+      "object": "model",
+      "created": 1756949530,
+      "owned_by": "Groq",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 8192,
+      "architecture": "Système (Multiple modèles + outils)",
+      "category": "Production System",
+      "type": "Agentic System",
+      "parameters": "N/A",
+      "provider": "Groq",
+      "capabilities": {
+        "tool_calling": "Built-in (Web Search, Code Execution)",
+        "reasoning": true,
+        "reasoning_efforts": null,
+        "json_mode": true,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 450,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": 0,
+        "price_output_per_1M": 0,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "object": "model",
+      "created": 1743874824,
+      "owned_by": "Meta",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 8192,
+      "architecture": "MoE (16 Experts, 17B actifs / 288B totaux)",
+      "category": "Preview",
+      "type": "Chat",
+      "parameters": "17B actifs / 288B totaux",
+      "provider": "Meta",
+      "capabilities": {
+        "tool_calling": "Parallel",
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": true,
+        "vision": true,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 750,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": 0.11,
+        "price_output_per_1M": 0.34,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": 300000,
+        "rpm": 1000
+      }
+    },
+    {
+      "id": "openai/gpt-oss-120b",
+      "object": "model",
+      "created": 1754408224,
+      "owned_by": "OpenAI",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 65536,
+      "architecture": "MoE (120B total, ~18B actifs, Top-4 routing)",
+      "category": "Production",
+      "type": "Chat + Raisonnement",
+      "parameters": "120B",
+      "provider": "OpenAI",
+      "capabilities": {
+        "tool_calling": "Built-in (Web Search, Code Execution, Browser)",
+        "reasoning": true,
+        "reasoning_efforts": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "json_mode": true,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 500,
+        "ifeval_score": null,
+        "mmlu_score": 85.3
+      },
+      "pricing": {
+        "price_input_per_1M": 0.15,
+        "price_output_per_1M": 0.6,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": 250000,
+        "rpm": 1000
+      },
+      "training_data": "N/A",
+      "languages": [
+        "en",
+        "multilingual"
+      ],
+      "knowledge_cutoff": "N/A",
+      "fine_tuning": "N/A"
+    },
+    {
+      "id": "meta-llama/llama-prompt-guard-2-22m",
+      "object": "model",
+      "created": 1748632101,
+      "owned_by": "Meta",
+      "active": true,
+      "context_window": 512,
+      "max_completion_tokens": 512,
+      "architecture": "Dense (Classifier)",
+      "category": "Preview",
+      "type": "Safety Guard",
+      "parameters": "22M",
+      "provider": "Meta",
+      "capabilities": {
+        "tool_calling": false,
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": false,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": null,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": 0.03,
+        "price_output_per_1M": 0.03,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "canopylabs/orpheus-arabic-saudi",
+      "object": "model",
+      "created": 1765926439,
+      "owned_by": "Canopy Labs",
+      "active": true,
+      "context_window": 4000,
+      "max_completion_tokens": 50000,
+      "architecture": "Dense (TTS)",
+      "category": "Preview",
+      "type": "Audio (Text-to-Speech)",
+      "parameters": "N/A",
+      "provider": "Canopy Labs",
+      "capabilities": {
+        "tool_calling": false,
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": false,
+        "vision": false,
+        "audio": true
+      },
+      "performance": {
+        "speed_tps": null,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": null,
+        "price_output_per_1M": null,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "openai/gpt-oss-safeguard-20b",
+      "object": "model",
+      "created": 1761708789,
+      "owned_by": "OpenAI",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 65536,
+      "architecture": "MoE (20B total)",
+      "category": "Preview",
+      "type": "Safety Guard",
+      "parameters": "20B",
+      "provider": "OpenAI",
+      "capabilities": {
+        "tool_calling": false,
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": true,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 1000,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": 0.075,
+        "price_output_per_1M": 0.3,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": 150000,
+        "rpm": 1000
+      }
+    },
+    {
+      "id": "canopylabs/orpheus-v1-english",
+      "object": "model",
+      "created": 1766186316,
+      "owned_by": "Canopy Labs",
+      "active": true,
+      "context_window": 4000,
+      "max_completion_tokens": 50000,
+      "architecture": "Dense (TTS)",
+      "category": "Preview",
+      "type": "Audio (Text-to-Speech)",
+      "parameters": "N/A",
+      "provider": "Canopy Labs",
+      "capabilities": {
+        "tool_calling": false,
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": false,
+        "vision": false,
+        "audio": true
+      },
+      "performance": {
+        "speed_tps": null,
+        "ifeval_score": null,
+        "mmlu_score": null
+      },
+      "pricing": {
+        "price_input_per_1M": null,
+        "price_output_per_1M": null,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": null,
+        "rpm": null
+      }
+    },
+    {
+      "id": "llama-3.1-8b-instant",
+      "object": "model",
+      "created": 1693721698,
+      "owned_by": "Meta",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 131072,
+      "architecture": "Dense (Transformer, GQA)",
+      "category": "Production",
+      "type": "Chat",
+      "parameters": "8B",
+      "provider": "Meta",
+      "capabilities": {
+        "tool_calling": "Parallel",
+        "reasoning": false,
+        "reasoning_efforts": null,
+        "json_mode": true,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 560,
+        "ifeval_score": 80.4,
+        "mmlu_score": 73.0
+      },
+      "pricing": {
+        "price_input_per_1M": 0.05,
+        "price_output_per_1M": 0.08,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": 250000,
+        "rpm": 1000
+      },
+      "training_data": "15T tokens",
+      "languages": [
+        "en",
+        "fr",
+        "de",
+        "it",
+        "pt",
+        "hi",
+        "es",
+        "th"
+      ],
+      "knowledge_cutoff": "2023-12",
+      "fine_tuning": "SFT + RLHF"
+    },
+    {
+      "id": "openai/gpt-oss-20b",
+      "object": "model",
+      "created": 1754407957,
+      "owned_by": "OpenAI",
+      "active": true,
+      "context_window": 131072,
+      "max_completion_tokens": 65536,
+      "architecture": "MoE (20B total, 3.6B actifs, Top-4 routing, 24 layers, 32 experts)",
+      "category": "Production",
+      "type": "Chat + Raisonnement",
+      "parameters": "20B",
+      "provider": "OpenAI",
+      "capabilities": {
+        "tool_calling": "Built-in (Web Search, Code Execution, Browser)",
+        "reasoning": true,
+        "reasoning_efforts": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "json_mode": true,
+        "vision": false,
+        "audio": false
+      },
+      "performance": {
+        "speed_tps": 1000,
+        "ifeval_score": null,
+        "mmlu_score": 85.3
+      },
+      "pricing": {
+        "price_input_per_1M": 0.075,
+        "price_output_per_1M": 0.3,
+        "price_per_hour": null
+      },
+      "rate_limits": {
+        "tpm": 250000,
+        "rpm": 1000
+      },
+      "training_data": "N/A",
+      "languages": [
+        "en",
+        "multilingual"
+      ],
+      "knowledge_cutoff": "N/A",
+      "fine_tuning": "N/A"
+    }
+  ]
+}

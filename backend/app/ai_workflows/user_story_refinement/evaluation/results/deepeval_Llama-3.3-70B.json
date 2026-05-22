@@ -1,0 +1,11 @@
+{
+  "n_total": 8,
+  "TestForgeINVESTQuality_mean": null,
+  "TestForgeINVESTQuality_pass_rate_%": 0.0,
+  "TestForgeAnswerRelevancy_mean": null,
+  "TestForgeAnswerRelevancy_pass_rate_%": 0.0,
+  "TestForgeFaithfulness_mean": null,
+  "TestForgeFaithfulness_pass_rate_%": 0.0,
+  "model": "Llama-3.3-70B",
+  "n_test_cases": 8
+}
