@@ -1,0 +1,178 @@
+<mat-card class="cardWithShadow">
+  <mat-card-content class="p-32">
+    <h2 class="mat-headline-6 f-w-600 m-b-24">Jira Integration</h2>
+
+    <div *ngIf="errorMessage" class="error-banner m-b-16">
+      <mat-icon>error_outline</mat-icon>
+      {{ errorMessage }}
+    </div>
+
+    <!-- Connection status bar -->
+    <div class="connection-bar" [class.is-connected]="status.connected">
+
+      <!-- Left: logo + info -->
+      <div class="connection-info">
+        <div class="jira-logo-wrap" [class.connected]="status.connected">
+          <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" />
+        </div>
+        <div class="info-text">
+          <span class="info-name">Jira</span>
+          <span class="info-subtitle">Atlassian Cloud</span>
+        </div>
+      </div>
+
+      <!-- Right: status badge + action -->
+      <div class="connection-actions">
+
+        <!-- ÉTAT : connecting -->
+        <ng-container *ngIf="connecting">
+          <div class="status-pill loading">
+            <span class="spinner"></span>
+            Connecting…
+          </div>
+        </ng-container>
+
+        <!-- ÉTAT : disconnecting -->
+        <ng-container *ngIf="disconnecting">
+          <div class="status-pill loading">
+            <span class="spinner"></span>
+            Disconnecting…
+          </div>
+        </ng-container>
+
+        <!-- ÉTAT : connected -->
+        <ng-container *ngIf="status.connected && !disconnecting">
+          <div class="status-pill connected">
+            <span class="dot"></span>
+            Connected
+          </div>
+          <button class="btn-disconnect" (click)="disconnect()">
+            <mat-icon>link_off</mat-icon>
+            Disconnect
+          </button>
+        </ng-container>
+
+        <!-- ÉTAT : disconnected -->
+        <ng-container *ngIf="!status.connected && !connecting">
+          <div class="status-pill disconnected">
+            <span class="dot"></span>
+            Not connected
+          </div>
+          <button class="btn-connect" (click)="connectJira()">
+            <mat-icon>link</mat-icon>
+            Connect to Jira
+          </button>
+        </ng-container>
+
+      </div>
+    </div>
+
+  </mat-card-content>
+</mat-card>
+<mat-card class="cardWithShadow m-t-24">
+  <mat-card-content class="p-32">
+    <h2 class="mat-headline-6 f-w-600 m-b-24">Change Password</h2>
+
+    <form [formGroup]="changePasswordForm" (ngSubmit)="changePassword()">
+      <div class="row">
+        <div class="col-12 m-b-16">
+          <mat-form-field appearance="outline" class="w-100">
+            <mat-label>Current Password</mat-label>
+            <input
+              matInput
+              [type]="hideCurrentPassword ? 'password' : 'text'"
+              formControlName="current_password"
+            />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="hideCurrentPassword = !hideCurrentPassword"
+            >
+              <mat-icon>{{ hideCurrentPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+            <mat-error *ngIf="changePasswordForm.get('current_password')?.hasError('required')">
+              Current password is required
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <div class="col-12 m-b-16">
+          <mat-form-field appearance="outline" class="w-100">
+            <mat-label>New Password</mat-label>
+            <input
+              matInput
+              [type]="hideNewPassword ? 'password' : 'text'"
+              formControlName="new_password"
+            />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="hideNewPassword = !hideNewPassword"
+            >
+              <mat-icon>{{ hideNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+            <mat-error *ngIf="changePasswordForm.get('new_password')?.hasError('required')">
+              New password is required
+            </mat-error>
+            <mat-error *ngIf="changePasswordForm.get('new_password')?.hasError('minlength')">
+              Password must be at least 8 characters
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <div class="col-12 m-b-24">
+          <mat-form-field appearance="outline" class="w-100">
+            <mat-label>Confirm New Password</mat-label>
+            <input
+              matInput
+              [type]="hideConfirmPassword ? 'password' : 'text'"
+              formControlName="confirm_password"
+            />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="hideConfirmPassword = !hideConfirmPassword"
+            >
+              <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+            <mat-error *ngIf="changePasswordForm.get('confirm_password')?.hasError('required')">
+              Confirmation is required
+            </mat-error>
+            <mat-error *ngIf="changePasswordForm.hasError('passwordMismatch')">
+              Password confirmation does not match
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <div class="col-12">
+          <button
+            mat-flat-button
+            color="primary"
+            type="submit"
+            [disabled]="changePasswordForm.invalid || changingPassword"
+          >
+            {{ changingPassword ? 'Changing...' : 'Change Password' }}
+          </button>
+        </div>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>
+
+
+<!-- Confirm Dialog -->
+<app-confirm-dialog
+  [visible]="showConfirmDialog()"
+  [title]="confirmDialogData().title"
+  [message]="confirmDialogData().message"
+  [icon]="confirmDialogData().icon"
+  [confirmText]="confirmDialogData().confirmText"
+  [cancelText]="confirmDialogData().cancelText"
+  [variant]="confirmDialogData().variant"
+  (confirmed)="confirmDialogData().onConfirm(); showConfirmDialog.set(false)"
+  (cancelled)="showConfirmDialog.set(false)"
+>
+</app-confirm-dialog>
