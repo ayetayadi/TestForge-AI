@@ -28,15 +28,17 @@ MODEL_PATH_KNN = "app/ai_workflows/risk_analysis/ml/results/risk_knn_embed.txt"
 _encoder = None
 
 
-CACHE_FOLDER = "models/sentence_transformers"
-
-
 def _get_encoder(model_name: str):
     global _encoder
     if _encoder is None:
-        from sentence_transformers import SentenceTransformer
-        logger.info(f"Chargement SentenceTransformer : {model_name}")
-        _encoder = SentenceTransformer(model_name, cache_folder=CACHE_FOLDER)
+        try:
+            from app.core.model_manager import get_embedding_model
+            _encoder = get_embedding_model()
+            logger.info("SentenceTransformer récupéré depuis model_manager (singleton global)")
+        except Exception:
+            from sentence_transformers import SentenceTransformer
+            logger.info(f"Chargement SentenceTransformer standalone : {model_name}")
+            _encoder = SentenceTransformer(model_name)
     return _encoder
 
 

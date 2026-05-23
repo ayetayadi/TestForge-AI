@@ -92,6 +92,14 @@ alembic/versions/*.pyc
 *.tmp
 *.swp
 
+# =========================
+# ML Models (trop lourds pour git)
+# =========================
+models/sentence_transformers/
+models/*.pkl
+models/*.txt
+
+# =========================
 # Clés privées
 *.pem
 *.key
