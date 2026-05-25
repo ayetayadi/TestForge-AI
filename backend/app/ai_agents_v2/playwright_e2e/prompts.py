@@ -233,6 +233,90 @@ Recovery steps (JSON array):"""
 
 
 # ============================================================
+# MULTI-PAGE SCRIPT GENERATOR — LLM sees real DOM for every page
+# Used when pre-flight multi-page snapshots are available.
+# ============================================================
+
+SCRIPT_GENERATOR_SYSTEM_MULTIPAGE = f"""
+You generate TypeScript Playwright tests from test cases.
+You have real accessibility-tree snapshots for MULTIPLE PAGES of the application.
+
+LOCATOR STRATEGY — by priority:
+1. page.getByTestId("...")                       — element has data-testid
+2. page.getByRole("role", {{ name: "name" }})    — ALWAYS for textbox, button, heading, link
+3. page.getByPlaceholder("...")                  — input with placeholder text
+4. page.getByText("...")                         — visible text, NOT an input
+5. page.locator("#id")                           — unique human-written CSS id ONLY
+   ⚠️ NEVER use CSS id if it contains a UUID, hash, or auto-generated string
+
+For elements VISIBLE in ANY page snapshot → use REAL Playwright locators (rules above).
+For elements NOT in any snapshot (appear after clicks) → use placeholders:
+  page.locator("[{PLACEHOLDER_PREFIX}: description]")
+
+Rules:
+- Use test() from '@playwright/test'
+- FIRST LINE: await page.goto('<the exact app_url given>'); — ONE TIME ONLY
+- Use async/await
+- Add short comments per step
+- Use expect() for assertions
+
+⚠️ NAVIGATION RULES — ABSOLUTE:
+- ONLY ONE page.goto() allowed — the very first line with the EXACT URL
+- NEVER add page.goto() for sub-pages — navigate by CLICKING a real or placeholder element
+  ✅ await page.getByRole('link', {{ name: 'Dashboard' }}).click();
+  ✅ await page.locator("[{PLACEHOLDER_PREFIX}: navigation link to Settings]").click();
+  ❌ await page.goto('/settings');  // FORBIDDEN
+
+⚠️ CRITICAL RULES:
+- NEVER click on URL strings (http://..., localhost, etc.)
+- NEVER use waitForSelector, waitForResponse, waitForTimeout
+- NEVER use textContent(), toContain(), toBe()
+- NEVER use page.url() or page.evaluate()
+- ONLY assertion allowed: await expect(...).toBeVisible()
+- ALWAYS inline the locator directly inside expect() — NEVER use intermediate variables:
+  ✅ await expect(page.getByRole('heading', {{ name: 'Dashboard' }})).toBeVisible();
+  ❌ const el = page.getByRole(...); await expect(el).toBeVisible();
+
+⚠️ ASSERTION RULES:
+- Every Expected Result and Postcondition MUST produce an expect().toBeVisible()
+- For success/error messages not in any snapshot → use a placeholder
+- Use ONLY .toBeVisible()
+
+Output: TypeScript code only. No explanation. No markdown fences.
+"""
+
+SCRIPT_GENERATOR_USER_MULTIPAGE = """
+Application URL: {app_url}
+
+⚠️ MANDATORY first line: await page.goto('{app_url}');
+⚠️ NO other page.goto() calls — navigate by clicking real or placeholder elements.
+
+AVAILABLE PAGE SNAPSHOTS (real accessibility tree — use these for locators):
+{page_snapshots_section}
+
+Generate a TypeScript Playwright test from the test case below.
+Use REAL locators (getByRole, getByTestId, getByPlaceholder, getByText) for elements
+visible in ANY snapshot above.
+Use [{placeholder_prefix}: ...] ONLY for elements not visible in any snapshot.
+
+⚠️ Use ALL information from the test case:
+1. PRECONDITIONS → Add as // comments before the test body
+2. TEST DATA → Use directly as fill() values
+3. STEPS (Gherkin: Given/When/Then) → Main test flow
+   - Given → setup/navigation (click real nav elements, NOT goto sub-paths)
+   - When → actions (click, fill, type)
+   - Then → assertions with expect().toBeVisible()
+4. EXPECTED RESULTS → One expect().toBeVisible() per result
+5. POSTCONDITIONS → Verify final state with expect().toBeVisible()
+
+Test case:
+{test_cases}
+
+Return TypeScript code only.
+"""
+
+
+# ============================================================
 # REACT AGENT — Execution + Locator Resolution (kept for reference)
 # ============================================================
 

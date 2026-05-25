@@ -2,14 +2,16 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
-import { 
-  TestSuiteListResponse, 
-  TestSuiteDetail, 
-  GenerateTestSuitesRequest, 
+import {
+  TestSuiteListResponse,
+  TestSuiteDetail,
+  GenerateTestSuitesRequest,
   GenerateTestSuitesResponse,
   UpdateTestSuiteRequest,
   TraceabilityMatrix,
-  DependencyGraph
+  DependencyGraph,
+  ReorderSuitesRequest,
+  TcExecutionUpdateRequest,
 } from '../models/test-suite.model';
 
 @Injectable({ providedIn: 'root' })
@@ -104,5 +106,40 @@ export class TestSuiteService {
     return this.http.get<DependencyGraph>(
       `${this.baseUrl}/dependencies/${planId}`
     );
+  }
+
+  /** Batch-reorder suites (arrows UI) */
+  reorderSuites(req: ReorderSuitesRequest): Observable<{ updated: number; suite_ids: string[] }> {
+    return this.http.patch<{ updated: number; suite_ids: string[] }>(
+      `${this.baseUrl}/reorder`, req
+    );
+  }
+
+  /** Update a single TC's execution_order, excluded_from_run or test_suite_id */
+  updateTcExecution(tcId: string, data: TcExecutionUpdateRequest): Observable<{
+    id: string; execution_order: number | null; excluded_from_run: boolean; test_suite_id: string | null;
+  }> {
+    return this.http.patch<any>(`${this.baseUrl}/tc/${tcId}/execution`, data);
+  }
+
+  exportSuiteReport(suiteId: string, body: {
+    suite_name: string;
+    summary?: { passed: number; failed: number; skipped: number; duration: number } | null;
+    entries: { run_id?: string; tc_code: string; title: string; status: string }[];
+  }): Observable<Blob> {
+    return this.http.post(
+      `${this.baseUrl}/${suiteId}/export/report/pdf`,
+      body,
+      { responseType: 'blob' }
+    );
+  }
+
+  downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 }

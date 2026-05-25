@@ -126,5 +126,10 @@ class Settings(BaseSettings):
     LANGFUSE_SECRET_KEY: str | None = None
     LANGFUSE_HOST: str = "https://cloud.langfuse.com"
 
+    # =========================
+    # DEEPEVAL CONFIG
+    # =========================
+    DEEPEVAL_API_KEY: str | None = None
+
 
 settings = Settings()

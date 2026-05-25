@@ -26,6 +26,7 @@ export interface DashboardStats {
   test_cases_this_week: number;
   gherkin_coverage: number;
   quality_score: number;
+  scored_stories_count: number;
   projects_count: number;
   has_data: boolean;
   test_type_coverage: CoverageItem[];

@@ -45,10 +45,10 @@ class TestCase(Base):
         index=True
     )
 
-    test_plan_id: Mapped[Optional[str]] = mapped_column(
+    test_plan_id: Mapped[str] = mapped_column(
             String(36),
-            ForeignKey("test_plans.id", ondelete="SET NULL"),
-            nullable=True,
+            ForeignKey("test_plans.id", ondelete="CASCADE"),
+            nullable=False,
             index=True
         )
     
@@ -105,6 +105,11 @@ class TestCase(Base):
     # Ordre d'exécution dans le plan priorisé (calculé par l'algorithme §p.245)
     execution_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Exclut ce TC de l'exécution de la suite sans le supprimer (ISTQB §5.3 — skip)
+    excluded_from_run: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     _covered_ac_indices: Mapped[Optional[List[int]]] = mapped_column(
         JSONB, nullable=True, default=lambda: []
     )
@@ -114,6 +119,14 @@ class TestCase(Base):
     # ==============================
     # META
     # ==============================
+
+    @property
+    def covered_ac_indices(self) -> List[int]:
+        return self._covered_ac_indices or []
+
+    @property
+    def ac_coverage_reasoning(self) -> Optional[str]:
+        return self._reasoning
 
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False, server_default="true"
@@ -130,7 +143,7 @@ class TestCase(Base):
     # ==============================
     # RELATIONS
     # ==============================
-    user_story: Mapped[Optional["UserStory"]] = relationship("UserStory", foreign_keys=[user_story_id])
+    user_story: Mapped[Optional["UserStory"]] = relationship("UserStory", foreign_keys=[user_story_id], overlaps="test_cases")
 
     test_suite: Mapped[Optional["TestSuite"]] = relationship(
         "TestSuite",
@@ -139,7 +152,7 @@ class TestCase(Base):
     )
 
 
-    test_plan: Mapped[Optional["TestPlan"]] = relationship("TestPlan")
+    test_plan: Mapped["TestPlan"] = relationship("TestPlan", back_populates="test_cases")
 
     script_versions: Mapped[List["PlaywrightScriptVersion"]] = relationship(
         "PlaywrightScriptVersion",

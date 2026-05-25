@@ -44,7 +44,10 @@ class Risk(Base):
     )
     
     test_plan_id: Mapped[Optional[str]] = mapped_column(
-        String(36), nullable=True
+        String(36),
+        ForeignKey("test_plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
     )
 
     # ==============================

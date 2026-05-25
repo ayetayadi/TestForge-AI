@@ -29,10 +29,10 @@ class TcCoverage(Base):
         index=True,
     )
 
-    user_story_id: Mapped[Optional[str]] = mapped_column(
+    user_story_id: Mapped[str] = mapped_column(
         String(36),
-        ForeignKey("user_stories.id", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("user_stories.id", ondelete="CASCADE"),
+        nullable=False,
         index=True,
     )
 

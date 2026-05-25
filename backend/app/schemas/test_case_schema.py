@@ -91,6 +91,11 @@ class TestCaseResponse(BaseModel):
     expected_results: List[str] = Field(default_factory=list)
     locators: Optional[List[Dict[str, Any]]] = None
     execution_order: Optional[int] = None
+    excluded_from_run: bool = False
+    # Couverture des critères d'acceptation (ISTQB §1.4 — traçabilité RTM)
+    covered_ac_indices: List[int] = Field(default_factory=list)
+    ac_coverage_reasoning: Optional[str] = None
+    active_playwright_script_id: Optional[str] = None
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -140,6 +145,7 @@ class TestCaseUpdate(BaseModel):
     expected_results: Optional[List[str]] = None
     locators: Optional[List[Dict[str, Any]]] = None
     execution_order: Optional[int] = None
+    excluded_from_run: Optional[bool] = None
     is_active: Optional[bool] = None
 
 

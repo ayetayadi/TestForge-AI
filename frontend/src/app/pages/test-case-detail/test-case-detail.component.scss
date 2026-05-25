@@ -686,6 +686,32 @@ $transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
+.btn-testomat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  background: #5a2ee5;
+  color: #fff;
+  border: none;
+  border-radius: $radius-md;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all $t;
+  white-space: nowrap;
+
+  svg { width: 14px; height: 14px; fill: #fff; }
+
+  &:hover:not(:disabled) {
+    background: #4a22cc;
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(90, 46, 229, 0.35);
+  }
+
+  &:disabled { opacity: .55; cursor: not-allowed; }
+}
+
 .no-scripts-message {
   margin-top: 20px;
   padding: 20px 16px;

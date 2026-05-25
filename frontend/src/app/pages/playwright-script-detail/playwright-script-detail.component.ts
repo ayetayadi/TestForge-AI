@@ -7,7 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
 import {
-  PlaywrightE2EService, ExecutionReport, FullExecutionReport, RunHistoryItem
+  PlaywrightE2EService, ExecutionReport, FullExecutionReport, RunHistoryItem, AvailableModel
 } from '../../services/playwright-e2e.service';
 import { ToastService } from '../../services/toast.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
@@ -69,6 +69,10 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   appUrl = signal('');
   browser = signal<'chromium' | 'firefox' | 'webkit'>('chromium');
   headless = signal(true);
+  selectedModel = signal<string>('llama-3.3-70b-versatile');
+
+  // Available models (loaded from API)
+  availableModels = signal<AvailableModel[]>([]);
 
   // SSE steps
   executionSteps = signal<ExecutionStep[]>([]);
@@ -85,6 +89,11 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
 
   // Script generation
   isGenerating = signal(false);
+  isDeletingScript = signal(false);
+
+  // Delete confirmation dialog
+  showDeleteConfirm = signal(false);
+  pendingDeleteId = signal<string | null>(null);
 
   // Script v2
   executionReport = signal<ExecutionReport | null>(null);
@@ -133,6 +142,10 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
 
   selectedVersion = computed(() =>
     this.scripts().find(s => s.id === this.selectedVersionId()) ?? null
+  );
+
+  selectedModelDescription = computed(() =>
+    this.availableModels().find(m => m.id === this.selectedModel())?.description ?? ''
   );
 
   placeholders = computed(() => {
@@ -231,6 +244,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
     this.loadTestCaseInfo(id);
     this.loadScripts();
     this.loadRunHistory();
+    this.loadAvailableModels();
   }
 
   ngOnDestroy(): void {
@@ -255,6 +269,17 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
         this.tcSteps.set(Array.isArray(tc.steps) ? tc.steps : []);
         this.tcExpectedResults.set(Array.isArray(tc.expected_results) ? tc.expected_results : []);
       },
+    });
+  }
+
+  private loadAvailableModels(): void {
+    this.playwrightService.getAvailableModels().subscribe({
+      next: (res) => {
+        this.availableModels.set(res.models);
+        const def = res.models.find(m => m.is_default);
+        if (def) this.selectedModel.set(def.id);
+      },
+      error: () => {},
     });
   }
 
@@ -361,6 +386,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
       app_url: this.appUrl() || undefined,
       browser: this.browser(),
       headless: this.headless(),
+      model_id: this.selectedModel(),
     });
   }
 
@@ -408,7 +434,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
     if (!tcId) return;
     const url = this.appUrl() || undefined;
     this.isGenerating.set(true);
-    this.playwrightService.generateScript({ test_case_id: tcId, app_url: url }).subscribe({
+    this.playwrightService.generateScript({ test_case_id: tcId, app_url: url, model_id: this.selectedModel() }).subscribe({
       next: (res) => {
         this.isGenerating.set(false);
         if (res.status === 'generated') {
@@ -439,6 +465,40 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
 
   viewNewScript(): void {
     this.applyNewScript();
+  }
+
+  deleteVersion(scriptId: string): void {
+    if (this.isDeletingScript() || this.isRunning()) return;
+    this.pendingDeleteId.set(scriptId);
+    this.showDeleteConfirm.set(true);
+  }
+
+  confirmDelete(): void {
+    const scriptId = this.pendingDeleteId();
+    if (!scriptId) return;
+    this.showDeleteConfirm.set(false);
+    this.isDeletingScript.set(true);
+    this.playwrightService.deleteScript(scriptId).subscribe({
+      next: (res) => {
+        this.isDeletingScript.set(false);
+        this.pendingDeleteId.set(null);
+        this.toastService.success('Script version deleted');
+        if (res.was_active) {
+          this.toastService.info('Active version updated automatically');
+        }
+        this.loadScripts();
+      },
+      error: (err) => {
+        this.isDeletingScript.set(false);
+        this.pendingDeleteId.set(null);
+        this.toastService.error(err?.error?.detail ?? 'Failed to delete script version');
+      },
+    });
+  }
+
+  cancelDelete(): void {
+    this.showDeleteConfirm.set(false);
+    this.pendingDeleteId.set(null);
   }
 
   loadHistoricRun(runId: string): void {

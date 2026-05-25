@@ -43,6 +43,10 @@ langchain-groq
 reportlab
 python-docx
 
+# Testing
+pytest
+pytest-asyncio
+aiosqlite
 
 # ML - Risk Analysis
 xgboost

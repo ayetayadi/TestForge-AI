@@ -3,10 +3,11 @@ from typing import List, Dict, Any, Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from app.llm.llm_control import create_llm
+from app.llm.llm_control import create_llm_for_model
 from .prompts import (
     SCRIPT_GENERATOR_SYSTEM, SCRIPT_GENERATOR_USER,
     SCRIPT_GENERATOR_SYSTEM_WITH_DOM, SCRIPT_GENERATOR_USER_WITH_DOM,
+    SCRIPT_GENERATOR_SYSTEM_MULTIPAGE, SCRIPT_GENERATOR_USER_MULTIPAGE,
 )
 from .config import PLACEHOLDER_PREFIX
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 LLM_MODEL = "llama-3.3-70b-versatile"
 LLM_TEMPERATURE = 0.3
-LLM_MAX_TOKENS = 800
+LLM_MAX_TOKENS = 2000  # increased: multi-page context requires richer output
 
 class ScriptGeneratorService:
     """
@@ -23,7 +24,6 @@ class ScriptGeneratorService:
     """
 
     def __init__(self):
-        self.llm = create_llm(temperature=LLM_TEMPERATURE, model=LLM_MODEL, max_tokens=LLM_MAX_TOKENS)
         logger.info("ScriptGeneratorService initialized")
 
     async def generate(
@@ -31,32 +31,38 @@ class ScriptGeneratorService:
         test_cases: List[Dict[str, Any]],
         dom_snapshot: Optional[str] = None,
         app_url: Optional[str] = None,
+        page_snapshots: Optional[Dict[str, str]] = None,
+        model_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Génère un Script Playwright TypeScript v1 à partir des cas de test.
-        Si dom_snapshot est fourni, utilise les locators réels visibles dans le DOM.
-        app_url est injecté dans le prompt pour éviter que le LLM invente des sous-chemins.
+        Generate a TypeScript Playwright v1 script from test cases.
+
+        Priority order for DOM context:
+          1. page_snapshots (multi-page dict)  → SCRIPT_GENERATOR_SYSTEM_MULTIPAGE
+          2. dom_snapshot (single legacy str)   → SCRIPT_GENERATOR_SYSTEM_WITH_DOM
+          3. Neither                            → blind generation with placeholders only
         """
         from .config import APP_BASE_URL
         effective_url = app_url or APP_BASE_URL
+        effective_model = model_id or LLM_MODEL
 
+        # Normalise: legacy single snapshot → page_snapshots dict
+        if dom_snapshot and not page_snapshots:
+            page_snapshots = {"landing": dom_snapshot}
+
+        mode = (
+            f"multi-page ({len(page_snapshots)} pages)" if page_snapshots
+            else "blind — no DOM"
+        )
         logger.info(
             f"Generating TypeScript Playwright script for {len(test_cases)} test case(s) "
-            f"({'with DOM snapshot' if dom_snapshot else 'blind — no DOM'}), url={effective_url}"
+            f"[{mode}], url={effective_url}, model={effective_model}"
         )
 
         formatted_cases = self._format_test_cases(test_cases)
 
-        if dom_snapshot:
-            messages = [
-                SystemMessage(content=SCRIPT_GENERATOR_SYSTEM_WITH_DOM),
-                HumanMessage(content=SCRIPT_GENERATOR_USER_WITH_DOM.format(
-                    dom_snapshot=dom_snapshot,
-                    test_cases=formatted_cases,
-                    placeholder_prefix=PLACEHOLDER_PREFIX,
-                    app_url=effective_url,
-                )),
-            ]
+        if page_snapshots:
+            messages = self._build_multipage_messages(page_snapshots, formatted_cases, effective_url)
         else:
             messages = [
                 SystemMessage(content=SCRIPT_GENERATOR_SYSTEM),
@@ -67,24 +73,27 @@ class ScriptGeneratorService:
                 )),
             ]
 
-        try:
-            response = await self.llm.ainvoke(messages)
-            script_v1 = response.content.strip()
+        llm = create_llm_for_model(effective_model, LLM_TEMPERATURE, LLM_MAX_TOKENS)
 
-            script_v1 = self._strip_markdown_fences(script_v1)
+        try:
+            response = await llm.ainvoke(messages)
+            script_v1 = self._strip_markdown_fences(response.content.strip())
             placeholder_count = script_v1.count(f"[{PLACEHOLDER_PREFIX}:")
 
-            logger.info(f"TypeScript Playwright script generated — {placeholder_count} placeholder(s)")
+            logger.info(
+                f"Script generated [{mode}] — {placeholder_count} placeholder(s) remaining"
+            )
 
             return {
                 "script_v1": script_v1,
                 "placeholder_count": placeholder_count,
-                "model_used": LLM_MODEL,
+                "model_used": effective_model,
                 "status": "generated",
                 "language": "typescript",
+                "generation_mode": mode,
                 "warning": (
-                    f"Script contains {placeholder_count} placeholder locators. "
-                    "Click 'Run Test' to resolve them against the real application."
+                    f"Script contains {placeholder_count} placeholder locator(s). "
+                    "Click 'Run Test' to resolve them against the live application."
                 ) if placeholder_count > 0 else None,
             }
 
@@ -93,10 +102,36 @@ class ScriptGeneratorService:
             return {
                 "script_v1": "",
                 "placeholder_count": 0,
-                "model_used": LLM_MODEL,
+                "model_used": effective_model,
                 "status": "error",
                 "error": str(e),
             }
+
+    def _build_multipage_messages(
+        self,
+        page_snapshots: Dict[str, str],
+        formatted_cases: str,
+        effective_url: str,
+    ) -> list:
+        """
+        Build LLM messages that include a formatted multi-page DOM section.
+        Each page snapshot is capped at 2000 chars to stay within token budget.
+        """
+        sections: List[str] = []
+        for label, snapshot in page_snapshots.items():
+            heading = label.upper().replace("_", " ")
+            sections.append(f"--- PAGE: {heading} ---\n{snapshot[:6000]}")
+        page_snapshots_section = "\n\n".join(sections)
+
+        return [
+            SystemMessage(content=SCRIPT_GENERATOR_SYSTEM_MULTIPAGE),
+            HumanMessage(content=SCRIPT_GENERATOR_USER_MULTIPAGE.format(
+                app_url=effective_url,
+                page_snapshots_section=page_snapshots_section,
+                test_cases=formatted_cases,
+                placeholder_prefix=PLACEHOLDER_PREFIX,
+            )),
+        ]
 
     def _format_test_cases(self, test_cases: List[Dict[str, Any]]) -> str:
         lines = []

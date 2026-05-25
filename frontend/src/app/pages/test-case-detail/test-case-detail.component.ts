@@ -8,6 +8,7 @@ import { ToastService } from '../../services/toast.service';
 import { TestCase, TestStep, Priority, TestCaseStatus } from '../../models/test-case.model';
 import { PlaywrightE2EService } from 'src/app/services/playwright-e2e.service';
 import { ScriptListResponse } from 'src/app/models/playwright.models';
+import { TestomatService } from '../../services/testomat.service';
 
 @Component({
   selector: 'app-test-case-detail',
@@ -33,6 +34,9 @@ export class TestCaseDetailComponent implements OnInit {
   generatingIds = signal<Set<string>>(new Set());
   hasScripts = signal<boolean>(false);
   checkingScripts = signal<boolean>(false);
+  isPushingToTestomat = signal(false);
+
+  private testomatService = inject(TestomatService);
 
   editForm: FormGroup;
 
@@ -198,6 +202,29 @@ private ensureObject(value: any): any {
 
   goBack(): void {
     this.router.navigate(['/test-cases']);
+  }
+
+  pushToTestomat(): void {
+    if (!this.testCase) return;
+    this.isPushingToTestomat.set(true);
+    this.testomatService.pushTestCases([this.testCase.id]).subscribe({
+      next: res => {
+        this.isPushingToTestomat.set(false);
+        this.toastService.success(
+          'Pushed to Testomat',
+          `${res.pushed_count} test case pushed successfully`
+        );
+      },
+      error: err => {
+        this.isPushingToTestomat.set(false);
+        const detail = err?.error?.detail || 'Push failed';
+        if (detail.includes('not connected')) {
+          this.toastService.error('Not connected', 'Go to Integrations → Testomat.io to connect first');
+        } else {
+          this.toastService.error('Push failed', detail);
+        }
+      },
+    });
   }
 
   

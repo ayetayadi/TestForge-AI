@@ -576,7 +576,7 @@ $indigo-100:  #e0e7ff;
     padding: 14px 16px 16px;
     margin-top: auto;
     border-top: 1px solid #f1f5f9;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 }
 
@@ -683,6 +683,120 @@ $indigo-100:  #e0e7ff;
   &--workflow {
     background: #7c3aed;
     &:hover:not(:disabled) { background: #6d28d9; box-shadow: 0 3px 10px rgba(124,58,237,0.3); }
+  }
+}
+
+.btn-delete-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: $radius-sm;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: $danger;
+  cursor: pointer;
+  transition: background $transition, box-shadow $transition;
+
+  svg { width: 13px; height: 13px; fill: $danger; }
+
+  &:hover:not(:disabled) {
+    background: $danger;
+    color: white;
+    border-color: $danger;
+    svg { fill: white; }
+  }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+// ============================================
+// DELETE CONFIRM DIALOG
+// ============================================
+.delete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.delete-dialog {
+  background: white;
+  border-radius: $radius-lg;
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    background: $danger;
+    color: white;
+    border-radius: $radius-lg $radius-lg 0 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+
+    svg { width: 18px; height: 18px; fill: white; flex-shrink: 0; }
+  }
+
+  &__close {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.75;
+    &:hover { opacity: 1; }
+  }
+
+  &__body {
+    padding: 20px;
+    font-size: 0.88rem;
+    color: #374151;
+    line-height: 1.5;
+
+    p { margin: 0; }
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  &__cancel {
+    padding: 7px 16px;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: $radius-sm;
+    font-size: 0.85rem;
+    color: #374151;
+    cursor: pointer;
+    &:hover { background: #f9fafb; }
+  }
+
+  &__confirm {
+    padding: 7px 18px;
+    background: $danger;
+    border: none;
+    border-radius: $radius-sm;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    &:hover { background: $danger-dark; }
   }
 }
 

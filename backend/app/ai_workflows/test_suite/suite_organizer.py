@@ -59,35 +59,43 @@ _TEST_TYPE_ORDER: dict[str, int] = {
 }
 
 
-def assign_suite_order(suites: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def assign_suite_order(
+    suites: List[Dict[str, Any]],
+    flow_order: Optional[Dict[str, int]] = None,
+) -> List[Dict[str, Any]]:
     """
     Sort suites by execution_order.
-    - By suite_type: smoke=0, critical/security=1, high=2, medium=3, low=4, regression=5
-    - By test_type grouping: positive=10, negative=20, boundary=30
+    Primary key (when flow_order provided): business flow rank from LLM.
+    Secondary key: test_type order (positive=10, negative=20, boundary=30).
+    Fallback: suite_type / group_key heuristics.
     """
-    def _order_key(suite: Dict[str, Any]) -> int:
+    def _order_key(suite: Dict[str, Any]) -> tuple:
         st = (suite.get("suite_type") or "").lower()
         gk = (suite.get("_group_key") or "").lower()
 
-        # Smoke always first
-        if st == "smoke":
-            return SUITE_EXECUTION_ORDER.get("smoke", 0)
+        # Primary: LLM business flow rank (if provided)
+        dominant_flow = suite.get("_dominant_flow")
+        primary = 50  # default mid-range
+        if flow_order and dominant_flow:
+            primary = flow_order.get(dominant_flow, 50)
 
-        # Test_type grouping (group_key is the test_type value)
+        # Smoke always absolute first
+        if st == "smoke":
+            return (0, 0)
+
+        # Secondary: test_type order
         for ttype, rank in _TEST_TYPE_ORDER.items():
             if gk == ttype or gk.startswith(ttype):
-                return rank
+                return (primary, rank)
 
-        # Suite type order
+        # Fallback: suite_type / group_key heuristics
         if st in SUITE_EXECUTION_ORDER:
-            return SUITE_EXECUTION_ORDER[st]
-
-        # Group key contains risk level
+            return (primary, SUITE_EXECUTION_ORDER[st])
         for level, order in SUITE_EXECUTION_ORDER.items():
             if level in gk:
-                return order
+                return (primary, order)
 
-        return 99
+        return (primary, 99)
 
     ordered = sorted(suites, key=_order_key)
     for i, suite in enumerate(ordered, start=1):
@@ -107,7 +115,7 @@ def build_suite_record(
     """
     Build a dict ready for TestSuite persistence, plus the list of tc_codes to assign.
     """
-    resolved_type = suite_type or pick_suite_type(group_key, test_cases)
+    resolved_type = suite_type or pick_suite_type(group_key)
     if resolved_type not in VALID_SUITE_TYPES:
         resolved_type = "feature"
 

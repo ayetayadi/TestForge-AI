@@ -1,10 +1,12 @@
-import { Component, OnInit, OnDestroy, inject, signal, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { firstValueFrom, forkJoin, Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
+import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 
-import { PlaywrightE2EService, SuiteSmartRunRequest, SuiteSSEEvent, SuiteScriptStatus } from '../../services/playwright-e2e.service';
+import { PlaywrightE2EService, SuiteSmartRunRequest, SuiteSSEEvent, SuiteScriptStatus, AvailableModel } from '../../services/playwright-e2e.service';
+import { TestomatService } from '../../services/testomat.service';
 
 import { TestSuiteService } from '../../services/test-suite.service';
 import { ToastService } from '../../services/toast.service';
@@ -75,7 +77,7 @@ interface SuiteLogEntry {
 @Component({
   selector: 'app-test-suite-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, DragDropModule],
   templateUrl: './test-suite-detail.component.html',
   styleUrl: './test-suite-detail.component.scss',
 })
@@ -85,6 +87,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   private service = inject(TestSuiteService);
   private toast = inject(ToastService);
   private playwrightService = inject(PlaywrightE2EService);
+  private testomatService   = inject(TestomatService);
 
   // ── State ─────────────────────────────────────────────────────
   suite = signal<TestSuiteDetail | null>(null);
@@ -99,7 +102,13 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   suiteRunBrowser     = signal('chromium');
   suiteRunHeadless    = signal(true);
   suiteRunStopOnFail  = signal(false);
+  suiteRunModel       = signal('llama-3.3-70b-versatile');
+  availableModels     = signal<AvailableModel[]>([]);
+  suiteRunModelDescription = computed(() =>
+    this.availableModels().find(m => m.id === this.suiteRunModel())?.description ?? ''
+  );
   isSuiteRunning      = signal(false);
+  isPushingToTestomat = signal(false);
   showSuitePanel      = signal(false);
   suiteLogEntries     = signal<SuiteLogEntry[]>([]);
   suiteRunSummary     = signal<{ total: number; passed: number; failed: number; skipped: number; duration: number } | null>(null);
@@ -116,6 +125,12 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   isDeletingSuite = signal(false);
   showDeleteConfirm = signal(false);
 
+  // ── Execution order editing ────────────────────────────────────
+  localTcs = signal<EmbeddedTestCase[]>([]);
+  localSuites = signal<import('../../models/test-suite.model').SuiteOrderEntry[]>([]);
+  isSavingTcOrder = signal(false);
+  isSavingSuiteOrder = signal(false);
+
   // ── Test Cases — Filters & Pagination ────────────────────────
   tcSearch = signal('');
   tcPriorityFilter = signal<string>('all');
@@ -128,6 +143,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   lifecycleOpen = signal(true);
   execStrategyOpen = signal(false);
   execOrderOpen = signal(true);
+  tcOrderEditorOpen = signal(true);
 
   // ── Coverage — Card body toggles ─────────────────────────────
   riskCoverageOpen = signal(true);
@@ -177,6 +193,14 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
     }
 
     await this.loadSuite(id);
+    this.playwrightService.getAvailableModels().subscribe({
+      next: (res) => {
+        this.availableModels.set(res.models);
+        const def = res.models.find(m => m.is_default);
+        if (def) this.suiteRunModel.set(def.id);
+      },
+      error: () => {},
+    });
   }
 
   async loadSuite(id: string) {
@@ -186,6 +210,13 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
       this.suite.set(detail ?? null);
       if (detail) {
         this._restoreLastRun(id);
+        // initialise local editable lists
+        this.localTcs.set(
+          [...(detail.test_cases ?? [])].sort(
+            (a, b) => (a.execution_order ?? 999) - (b.execution_order ?? 999)
+          )
+        );
+        this.localSuites.set([...(detail.all_suites_order ?? [])]);
       }
     } catch (err) {
       console.error('Failed to load test suite:', err);
@@ -264,6 +295,105 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ── TC execution order ────────────────────────────────────────
+
+  getExcludedTcCount(): number {
+    return this.localTcs().filter(t => t.excluded_from_run).length;
+  }
+
+  dropTc(event: CdkDragDrop<EmbeddedTestCase[]>): void {
+    const list = [...this.localTcs()];
+    moveItemInArray(list, event.previousIndex, event.currentIndex);
+    this.localTcs.set(list);
+  }
+
+  moveTcUp(tc: EmbeddedTestCase): void {
+    const list = [...this.localTcs()];
+    const idx = list.findIndex(t => t.id === tc.id);
+    if (idx <= 0) return;
+    [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]];
+    this.localTcs.set(list);
+  }
+
+  moveTcDown(tc: EmbeddedTestCase): void {
+    const list = [...this.localTcs()];
+    const idx = list.findIndex(t => t.id === tc.id);
+    if (idx < 0 || idx >= list.length - 1) return;
+    [list[idx], list[idx + 1]] = [list[idx + 1], list[idx]];
+    this.localTcs.set(list);
+  }
+
+  toggleExclude(tc: EmbeddedTestCase): void {
+    this.service.updateTcExecution(tc.id, { excluded_from_run: !tc.excluded_from_run }).subscribe({
+      next: (res) => {
+        this.localTcs.update(list =>
+          list.map(t => t.id === tc.id ? { ...t, excluded_from_run: res.excluded_from_run } : t)
+        );
+        this.suite.update(s => s ? {
+          ...s,
+          test_cases: s.test_cases.map(t =>
+            t.id === tc.id ? { ...t, excluded_from_run: res.excluded_from_run } : t
+          ),
+        } : s);
+        this.toast.success(res.excluded_from_run ? 'Test case excluded from run' : 'Test case included in run');
+      },
+      error: () => this.toast.error('Failed to update test case'),
+    });
+  }
+
+  saveTcOrder(): void {
+    this.isSavingTcOrder.set(true);
+    const list = this.localTcs();
+    const calls = list.map((tc, i) =>
+      firstValueFrom(this.service.updateTcExecution(tc.id, { execution_order: i + 1 }))
+    );
+    Promise.all(calls).then(() => {
+      this.isSavingTcOrder.set(false);
+      this.toast.success('Execution order saved');
+      this.localTcs.update(list => list.map((tc, i) => ({ ...tc, execution_order: i + 1 })));
+    }).catch(() => {
+      this.isSavingTcOrder.set(false);
+      this.toast.error('Failed to save order');
+    });
+  }
+
+  // ── Suite execution order ──────────────────────────────────────
+
+  dropSuite(event: CdkDragDrop<any[]>): void {
+    const list = [...this.localSuites()];
+    moveItemInArray(list, event.previousIndex, event.currentIndex);
+    this.localSuites.set(list);
+  }
+
+  moveSuiteUp(suiteId: string): void {
+    const list = [...this.localSuites()];
+    const idx = list.findIndex(s => s.id === suiteId);
+    if (idx <= 0) return;
+    [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]];
+    this.localSuites.set(list);
+  }
+
+  moveSuiteDown(suiteId: string): void {
+    const list = [...this.localSuites()];
+    const idx = list.findIndex(s => s.id === suiteId);
+    if (idx < 0 || idx >= list.length - 1) return;
+    [list[idx], list[idx + 1]] = [list[idx + 1], list[idx]];
+    this.localSuites.set(list);
+  }
+
+  saveSuiteOrder(): void {
+    this.isSavingSuiteOrder.set(true);
+    const suites = this.localSuites().map((s, i) => ({ id: s.id, execution_order: i + 1 }));
+    firstValueFrom(this.service.reorderSuites({ suites })).then(() => {
+      this.isSavingSuiteOrder.set(false);
+      this.toast.success('Suite order saved');
+      this.localSuites.update(list => list.map((s, i) => ({ ...s, execution_order: i + 1 })));
+    }).catch(() => {
+      this.isSavingSuiteOrder.set(false);
+      this.toast.error('Failed to save suite order');
+    });
+  }
+
   ngOnDestroy(): void {
     this._suiteSub?.unsubscribe();
   }
@@ -333,6 +463,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
       browser:          this.suiteRunBrowser(),
       headless:         this.suiteRunHeadless(),
       stop_on_failure:  this.suiteRunStopOnFail(),
+      model_id:         this.suiteRunModel(),
     }).subscribe({
       error: (err) => {
         console.error('[SUITE RUN] Start error:', err);
@@ -345,76 +476,40 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   downloadSuiteReport(): void {
     const entries = this.suiteLogEntries();
     const summary = this.suiteRunSummary();
-    const suiteName = this.suite()?.title ?? 'suite';
+    const suite = this.suite();
+    const suiteName = suite?.title ?? 'suite';
+    const suiteId = suite?.id;
 
-    const runEntries = entries.filter(e => !!e.run_id);
-    if (!runEntries.length) {
+    if (!suiteId) {
+      this.toast.error('Suite ID not available');
+      return;
+    }
+    if (!entries.some(e => !!e.run_id)) {
       this.toast.error('No run data available to export');
       return;
     }
 
     this.isDownloadingReport.set(true);
 
-    forkJoin(runEntries.map(e => this.playwrightService.getTestRunDetails(e.run_id!))).subscribe({
-      next: (details) => {
-        const now = new Date();
-        const lines: string[] = [
-          '================================================================',
-          'SUITE EXECUTION REPORT',
-          '================================================================',
-          `Suite   : ${suiteName}`,
-          `Date    : ${now.toLocaleString()}`,
-          summary
-            ? `Results : ${summary.passed} passed | ${summary.failed} failed | ${summary.skipped} skipped | ${summary.duration.toFixed(1)}s total`
-            : '',
-          '',
-        ];
+    const safeTitle = suiteName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    const dateStr = new Date().toISOString().slice(0, 10);
 
-        runEntries.forEach((entry, i) => {
-          const detail = details[i];
-          const statusIcon = entry.status === 'passed' ? '✓' : entry.status === 'failed' ? '✗' : '—';
-          lines.push(`────────────────────────────────────────────────────────────`);
-          lines.push(`[${statusIcon}] ${entry.tc_code} — ${entry.title}`);
-          lines.push(`    Status   : ${entry.status.toUpperCase()}`);
-          if (detail?.test_run) {
-            lines.push(`    Browser  : ${detail.test_run.browser}`);
-            lines.push(`    Duration : ${(detail.test_run.duration ?? 0).toFixed(1)}s`);
-            lines.push(`    Run ID   : ${detail.test_run.id}`);
-          }
-          if (detail?.result?.justification) {
-            lines.push(`    Result   : ${detail.result.justification}`);
-          }
-          if (detail?.steps?.length) {
-            lines.push('');
-            lines.push('    Steps:');
-            detail.steps.forEach(s => {
-              const icon = s.status === 'success' ? '  ✓' : '  ✗';
-              const type = s.type.toUpperCase().padEnd(7);
-              lines.push(`${icon} [${type}] ${s.content}`);
-            });
-          }
-          lines.push('');
-        });
-
-        // Entries with no run_id (skipped before execution)
-        entries.filter(e => !e.run_id).forEach(entry => {
-          lines.push(`────────────────────────────────────────────────────────────`);
-          lines.push(`[—] ${entry.tc_code} — ${entry.title}`);
-          lines.push(`    Status: ${entry.status.toUpperCase()}`);
-          lines.push('');
-        });
-
-        lines.push('================================================================');
-
-        const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const safeTitle = suiteName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-        const dateStr = now.toISOString().slice(0, 10);
-        this._triggerDownload(url, `report-${safeTitle}-${dateStr}.txt`);
+    this.service.exportSuiteReport(suiteId, {
+      suite_name: suiteName,
+      summary: summary ?? null,
+      entries: entries.map(e => ({
+        run_id: e.run_id,
+        tc_code: e.tc_code,
+        title: e.title,
+        status: e.status,
+      })),
+    }).subscribe({
+      next: (blob) => {
+        this.service.downloadBlob(blob, `report-${safeTitle}-${dateStr}.pdf`);
         this.isDownloadingReport.set(false);
       },
       error: () => {
-        this.toast.error('Failed to generate report');
+        this.toast.error('Failed to generate PDF report');
         this.isDownloadingReport.set(false);
       },
     });
@@ -463,6 +558,33 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
 
   suiteStatusLabel(status: SuiteLogEntry['status']): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  pushSuiteToTestomat(): void {
+    const tcIds = this.getTestCases().map(tc => tc.id);
+    if (!tcIds.length) {
+      this.toast.error('No test cases', 'This suite has no test cases to push');
+      return;
+    }
+    this.isPushingToTestomat.set(true);
+    this.testomatService.pushTestCases(tcIds).subscribe({
+      next: res => {
+        this.isPushingToTestomat.set(false);
+        this.toast.success(
+          'Pushed to Testomat',
+          `${res.pushed_count} of ${res.total_requested} test cases pushed`
+        );
+      },
+      error: err => {
+        this.isPushingToTestomat.set(false);
+        const detail = err?.error?.detail || 'Push failed';
+        if (detail.includes('not connected')) {
+          this.toast.error('Not connected', 'Go to Integrations → Testomat.io to connect first');
+        } else {
+          this.toast.error('Push failed', detail);
+        }
+      },
+    });
   }
 
   // ── Navigation ────────────────────────────────────────────────

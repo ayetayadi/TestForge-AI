@@ -20,6 +20,7 @@ router = APIRouter(prefix="/playwright", tags=["Playwright E2E"])
 class GenerateScriptRequest(BaseModel):
     test_case_id: str
     app_url: Optional[str] = None
+    model_id: Optional[str] = None
 
 
 class GenerateScriptResponse(BaseModel):
@@ -39,6 +40,7 @@ class ExecuteScriptRequest(BaseModel):
     app_url: Optional[str] = None
     browser: str = Field(default="chromium", description="chromium, firefox, webkit")
     headless: bool = Field(default=True, description="Run in headless mode")
+    model_id: Optional[str] = None
 
 
 class FullWorkflowRequest(BaseModel):
@@ -47,6 +49,7 @@ class FullWorkflowRequest(BaseModel):
     app_url: Optional[str] = None
     browser: str = "chromium"
     headless: bool = True
+    model_id: Optional[str] = None
 
 
 class SuiteRunRequest(BaseModel):
@@ -64,6 +67,7 @@ class SuiteSmartRunRequest(BaseModel):
     browser: str = Field(default="chromium", description="chromium, firefox, webkit")
     headless: bool = Field(default=True)
     stop_on_failure: bool = Field(default=False)
+    model_id: Optional[str] = None
 
 
 class SendReportEmailRequest(BaseModel):
@@ -112,6 +116,7 @@ async def _execute_script_background(
     app_url: Optional[str],
     browser: str,
     headless: bool,
+    model_id: Optional[str] = None,
 ):
     async with async_session_maker() as db:
         await service.execute_script(
@@ -122,6 +127,7 @@ async def _execute_script_background(
             browser=browser,
             headless=headless,
             save_to_db=True,
+            model_id=model_id,
         )
 
 
@@ -130,6 +136,7 @@ async def _full_workflow_background(
     app_url: Optional[str],
     browser: str,
     headless: bool,
+    model_id: Optional[str] = None,
 ):
     async with async_session_maker() as db:
         await service.run_full_workflow(
@@ -138,6 +145,7 @@ async def _full_workflow_background(
             app_url=app_url,
             browser=browser,
             headless=headless,
+            model_id=model_id,
         )
 
 
@@ -147,6 +155,7 @@ async def _suite_smart_run_background(
     browser: str,
     headless: bool,
     stop_on_failure: bool,
+    model_id: Optional[str] = None,
 ):
     async with async_session_maker() as db:
         await service.run_suite_smart(
@@ -156,6 +165,7 @@ async def _suite_smart_run_background(
             browser=browser,
             headless=headless,
             stop_on_failure=stop_on_failure,
+            model_id=model_id,
         )
 
 
@@ -193,6 +203,7 @@ async def generate_script_endpoint(
             test_case_id=request.test_case_id,
             app_url=request.app_url,
             save_to_db=True,
+            model_id=request.model_id,
         )
         
         return GenerateScriptResponse(**result)
@@ -214,6 +225,7 @@ async def execute_script_endpoint(
         request.app_url,
         request.browser,
         request.headless,
+        request.model_id,
     )
     return AsyncStartResponse(
         status="started",
@@ -234,6 +246,7 @@ async def full_workflow_endpoint(
         request.app_url,
         request.browser,
         request.headless,
+        request.model_id,
     )
     return AsyncStartResponse(
         status="started",
@@ -415,6 +428,47 @@ async def get_script_content_endpoint(
         "validation_status": script.validation_status,
         "created_at": script.created_at.isoformat() if script.created_at else None,
     }
+
+
+@router.delete("/script/{script_version_id}", status_code=200)
+async def delete_script_version_endpoint(
+    script_version_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Delete a specific PlaywrightScriptVersion.
+
+    - If the version was active, the next most recent version is promoted automatically.
+    - All TestRuns linked to this version are deleted in cascade.
+    """
+    from app.repositories import playwright_repository as repo
+
+    result = await repo.delete_script_version(db, script_version_id)
+
+    if not result["deleted"]:
+        raise HTTPException(status_code=404, detail=f"Script version {script_version_id} not found")
+
+    await db.commit()
+    return result
+
+
+@router.delete("/test-case/{test_case_id}/scripts", status_code=200)
+async def delete_all_scripts_endpoint(
+    test_case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Delete all Playwright script versions for a test case."""
+    from app.repositories import playwright_repository as repo
+
+    result = await repo.delete_all_scripts_for_test_case(db, test_case_id)
+
+    if not result["deleted"]:
+        raise HTTPException(status_code=404, detail="No scripts found for this test case")
+
+    await db.commit()
+    return result
 
 
 @router.patch("/script/{script_version_id}")
@@ -603,6 +657,7 @@ async def execute_suite_smart_endpoint(
         request.browser,
         request.headless,
         request.stop_on_failure,
+        request.model_id,
     )
     return {
         "status": "started",
@@ -711,24 +766,49 @@ async def get_suite_scripts_status(
         .order_by(_TC.execution_order.asc().nullslast(), _TC.tc_code.asc())
     )).scalars().all()
 
+    from sqlalchemy import select as _sel2
     result = []
     for tc in tc_rows:
         script = None
+        # Primary: use the pinned active pointer
         if tc.active_playwright_script_id:
             script = await db.get(_PSV, tc.active_playwright_script_id)
+        # Fallback: find any is_active version (covers scripts generated before the pointer was written)
+        if script is None:
+            fallback = (await db.execute(
+                _sel2(_PSV)
+                .where(_PSV.test_case_id == tc.id, _PSV.is_active == True)
+                .limit(1)
+            )).scalar_one_or_none()
+            if fallback:
+                script = fallback
+                # Heal the pointer so future calls are fast
+                tc.active_playwright_script_id = str(fallback.id)
+                await db.flush()
 
         result.append({
             "tc_id": tc.id,
             "tc_code": tc.tc_code,
             "title": tc.title,
             "has_script": script is not None,
-            "script_id": script.id if script else None,
+            "script_id": str(script.id) if script else None,
             "version_number": script.version_number if script else None,
             "placeholder_count": script.placeholder_count if script else None,
             "source": script.source.value if script else None,
         })
 
     return {"suite_id": suite_id, "test_cases": result, "total": len(result)}
+
+
+# ============================================================
+# AVAILABLE MODELS
+# ============================================================
+
+@router.get("/models")
+async def get_models_endpoint():
+    """Returns the list of LLM models available for script generation and execution."""
+    from app.llm.llm_control import get_available_models
+    return {"models": get_available_models()}
 
 
 # ============================================================

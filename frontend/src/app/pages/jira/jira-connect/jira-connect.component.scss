@@ -240,6 +240,82 @@ $transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 // ============================================
+// TESTOMAT SECTION
+// ============================================
+
+.testomat-logo-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid $border-color;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: $transition;
+  overflow: hidden;
+
+  &.connected {
+    border-color: rgba(90, 46, 229, 0.3);
+    background: rgba(90, 46, 229, 0.05);
+  }
+
+  svg {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+  }
+}
+
+.tmt-form {
+  .tmt-form-desc {
+    font-size: 0.83rem;
+    color: $text-secondary;
+    margin-bottom: 12px;
+  }
+
+  .tmt-field {
+    margin-bottom: 12px;
+  }
+}
+
+.btn-tmt-connect {
+  background: #5a2ee5 !important;
+  color: white !important;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.tmt-info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(90, 46, 229, 0.05);
+  border-left: 3px solid #5a2ee5;
+  border-radius: 8px;
+  font-size: 0.83rem;
+  color: $text-primary;
+
+  .tmt-info-icon {
+    color: #5a2ee5;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: $text-secondary;
+    line-height: 1.5;
+  }
+}
+
+// ============================================
 // ANIMATIONS
 // ============================================
 

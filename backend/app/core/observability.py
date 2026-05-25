@@ -37,12 +37,21 @@ LangChain LLM tracing (inside an @observe span):
 """
 import asyncio
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_langfuse_enabled = False
+# ──────────────────────────────────────────────────────────────
+# State flags
+# ──────────────────────────────────────────────────────────────
 
+_langfuse_enabled = False
+_deepeval_configured = False
+
+
+# ──────────────────────────────────────────────────────────────
+# Langfuse
+# ──────────────────────────────────────────────────────────────
 
 def init_langfuse(public_key: str, secret_key: str, host: str) -> None:
     """
@@ -52,7 +61,6 @@ def init_langfuse(public_key: str, secret_key: str, host: str) -> None:
     os.environ at this point — load_dotenv() at the top of main.py ensures
     they are set before any module importing langfuse is loaded, so langfuse
     auto-initialises its singleton with the correct credentials.
-    Calling Langfuse() again here would create a second conflicting client.
     """
     global _langfuse_enabled
     try:
@@ -89,16 +97,54 @@ def get_trace_callback():
 
 
 # ──────────────────────────────────────────────────────────────
-# DeepEval: Groq-backed evaluation model (lazy singleton)
+# DeepEval: init + Groq-backed evaluation model
 # ──────────────────────────────────────────────────────────────
 
 _groq_eval_model = None
 
 
+def init_deepeval() -> None:
+    """
+    Validate that DeepEval can be imported and at least one Groq key is
+    available for the eval model. Optionally registers the Confident AI
+    API key so scores appear in the DeepEval cloud dashboard.
+    """
+    global _deepeval_configured
+    try:
+        import deepeval  # noqa: F401 — just verifying import
+        from app.llm.llm_control import _GROQ_KEYS
+        from app.core.config import settings
+
+        if not _GROQ_KEYS:
+            logger.warning("[DEEPEVAL] No Groq keys in pool — evaluation disabled")
+            return
+
+        # Register Confident AI cloud key if provided
+        if settings.DEEPEVAL_API_KEY:
+            import os
+            os.environ.setdefault("DEEPEVAL_API_KEY", settings.DEEPEVAL_API_KEY)
+            logger.info("[DEEPEVAL] Confident AI cloud key configured")
+
+        _deepeval_configured = True
+        logger.info(
+            "[DEEPEVAL] Ready — eval model: groq/llama-3.3-70b-versatile "
+            "(%d key(s) available)", len(_GROQ_KEYS)
+        )
+    except ImportError:
+        logger.warning("[DEEPEVAL] Package not installed — evaluation disabled")
+    except Exception as exc:
+        logger.warning("[DEEPEVAL] Init failed: %s", exc)
+
+
+def is_deepeval_configured() -> bool:
+    return _deepeval_configured
+
+
 def _get_groq_eval_model():
     """
     Lazily build a DeepEvalBaseLLM subclass that routes metric inference
-    through the project's ChatGroq instead of OpenAI, so no OpenAI key is needed.
+    through the project's ChatGroq key pool instead of OpenAI.
+    Uses the first available key from the pool.
     """
     global _groq_eval_model
     if _groq_eval_model is not None:
@@ -106,12 +152,15 @@ def _get_groq_eval_model():
 
     from deepeval.models.base_model import DeepEvalBaseLLM
     from langchain_groq import ChatGroq
-    from app.core.config import settings
+    from app.llm.llm_control import _GROQ_KEYS
+
+    # Pick the first key in the pool (pool is already filtered to non-empty values)
+    eval_key = _GROQ_KEYS[0]
 
     class _GroqEvalModel(DeepEvalBaseLLM):
         def __init__(self):
             self._chat = ChatGroq(
-                groq_api_key=settings.GROQ_API_KEY,
+                groq_api_key=eval_key,
                 model="llama-3.3-70b-versatile",
                 temperature=0.0,
                 max_tokens=1024,
@@ -120,13 +169,12 @@ def _get_groq_eval_model():
         def load_model(self):
             return self._chat
 
-        def generate(self, prompt: str, schema=None) -> Tuple[str, float]:
-            content = self._chat.invoke(prompt).content
-            return content, 0.0
+        def generate(self, prompt: str, schema=None) -> str:
+            return self._chat.invoke(prompt).content
 
-        async def a_generate(self, prompt: str, schema=None) -> Tuple[str, float]:
+        async def a_generate(self, prompt: str, schema=None) -> str:
             response = await self._chat.ainvoke(prompt)
-            return response.content, 0.0
+            return response.content
 
         def get_model_name(self) -> str:
             return "groq/llama-3.3-70b-versatile"
@@ -190,9 +238,36 @@ def _make_playwright_metric():
     )
 
 
+def _make_test_case_metric():
+    from deepeval.metrics import GEval
+    from deepeval.test_case import LLMTestCaseParams
+
+    return GEval(
+        name="test_case_quality",
+        criteria=(
+            "Evaluate ACTUAL_OUTPUT (generated Gherkin test cases) against INPUT "
+            "(the user story and acceptance criteria). Score high when: "
+            "(1) each scenario follows valid Gherkin syntax "
+            "(Given/When/Then with concrete steps), "
+            "(2) at least 80% of acceptance criteria from INPUT are covered by a scenario, "
+            "(3) steps are specific and directly testable — no vague verbs like 'verify', "
+            "'check', or 'ensure' without a measurable outcome, "
+            "(4) test data values (usernames, emails, amounts) are realistic and explicit, "
+            "(5) positive, negative, and/or boundary scenarios are present as appropriate "
+            "for the story. "
+            "Score 1.0 if all criteria are met, 0.0 if Gherkin is missing or ACs uncovered."
+        ),
+        evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
+        model=_get_groq_eval_model(),
+        threshold=0.5,
+        async_mode=False,
+    )
+
+
 _METRIC_FACTORIES = {
-    "user_story_quality": _make_user_story_metric,
+    "user_story_quality":    _make_user_story_metric,
     "playwright_script_quality": _make_playwright_metric,
+    "test_case_quality":     _make_test_case_metric,
 }
 
 
@@ -214,11 +289,14 @@ async def fire_evaluation(
     the main pipeline response.
 
     Args:
-        metric:      'user_story_quality' | 'playwright_script_quality'
-        input_text:  Original input (story or test case description)
-        output_text: Generated output (improved story or Playwright script)
+        metric:      'user_story_quality' | 'playwright_script_quality' | 'test_case_quality'
+        input_text:  Original input (story + ACs, test case description, etc.)
+        output_text: Generated output (improved story, Playwright script, Gherkin TCs)
         trace_id:    Langfuse trace ID to attach the score to (may be None)
     """
+    if not _deepeval_configured:
+        return
+
     factory = _METRIC_FACTORIES.get(metric)
     if factory is None:
         logger.warning("[DEEPEVAL] Unknown metric '%s' — skipping", metric)
@@ -236,7 +314,7 @@ async def fire_evaluation(
         score = float(eval_metric.score)
         reason = (getattr(eval_metric, "reason", "") or "")[:500]
 
-        logger.info("[DEEPEVAL] %s → score=%.3f", metric, score)
+        logger.info("[DEEPEVAL] %s → score=%.3f | %s", metric, score, reason[:120] if reason else "")
 
         if _langfuse_enabled and trace_id:
             from langfuse import get_client

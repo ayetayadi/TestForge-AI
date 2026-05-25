@@ -60,9 +60,15 @@
 
       <div class="stat-card">
         <div class="stat-info">
-          <h3>Average Quality Score</h3>
-          <h2>{{ stats.quality_score }}<span class="score-unit">/100</span></h2>
-          <span class="neutral">{{ stats.projects_count }} project(s) analyzed</span>
+          <h3>Story Quality Score</h3>
+          <h2>
+            @if (stats.scored_stories_count > 0) {
+              {{ stats.quality_score }}<span class="score-unit">/100</span>
+            } @else {
+              <span class="score-unit" style="font-size:1.1rem">Not scored yet</span>
+            }
+          </h2>
+          <span class="neutral">{{ stats.scored_stories_count }} stor{{ stats.scored_stories_count === 1 ? 'y' : 'ies' }} refined by AI</span>
         </div>
         <div class="stat-icon">⭐</div>
       </div>

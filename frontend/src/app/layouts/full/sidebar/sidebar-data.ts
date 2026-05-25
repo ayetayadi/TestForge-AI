@@ -77,13 +77,13 @@ export const navItems: NavItem[] = [
     adminOnly: true,
   },
   {
-    navCap: 'Integrations',
+    navCap: 'Settings',
     divider: true,
     userOnly: true,
   },
   {
     displayName: 'Settings',
-    iconName: 'solar:link-circle-line-duotone',
+    iconName: 'solar:settings-line-duotone',
     route: '/jira',
     userOnly: true,
   },

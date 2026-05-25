@@ -1,5 +1,6 @@
 from .user import User
 from .jira_connection import JiraConnection
+from .testomat_connection import TestomatConnection
 from .jira_project import JiraProject
 from .user_story import UserStory
 from .user_story_version import UserStoryVersion
@@ -23,11 +24,13 @@ from .risk import Risk
 from .test_suite import TestSuite
 from .test_case_dependency import TestCaseDependency
 from .tc_coverage import TcCoverage
+from .job import Job
 
 __all__ = [
     "User",
     "JiraProject",
     "JiraConnection",
+    "TestomatConnection",
     "UserStory",
     "UserStoryVersion",
     "StoryDecision",
@@ -59,4 +62,5 @@ __all__ = [
     "TestSuite",
     "TestCaseDependency",
     "TcCoverage",
+    "Job",
 ]

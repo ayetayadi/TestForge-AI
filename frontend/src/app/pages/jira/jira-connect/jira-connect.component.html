@@ -69,6 +69,99 @@
 
   </mat-card-content>
 </mat-card>
+<!-- ── Testomat.io Integration ─────────────────────────────────────────── -->
+<mat-card class="cardWithShadow m-t-24">
+  <mat-card-content class="p-32">
+    <h2 class="mat-headline-6 f-w-600 m-b-24">Testomat.io Integration</h2>
+
+    <!-- Connection status bar -->
+    <div class="connection-bar" [class.is-connected]="testomatStatus.connected">
+
+      <div class="connection-info">
+        <div class="testomat-logo-wrap" [class.connected]="testomatStatus.connected">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="8" fill="#5A2EE5"/>
+            <path d="M10 20L18 28L30 12" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="info-text">
+          <span class="info-name">Testomat.io</span>
+          <span class="info-subtitle">
+            <ng-container *ngIf="testomatStatus.connected && testomatStatus.api_key_preview">
+              Key: {{ testomatStatus.api_key_preview }}
+            </ng-container>
+            <ng-container *ngIf="!testomatStatus.connected">Test management platform</ng-container>
+          </span>
+        </div>
+      </div>
+
+      <div class="connection-actions">
+        <ng-container *ngIf="connectingTestomat">
+          <div class="status-pill loading"><span class="spinner"></span> Connecting…</div>
+        </ng-container>
+        <ng-container *ngIf="disconnectingTestomat">
+          <div class="status-pill loading"><span class="spinner"></span> Disconnecting…</div>
+        </ng-container>
+        <ng-container *ngIf="testomatStatus.connected && !disconnectingTestomat">
+          <div class="status-pill connected"><span class="dot"></span> Connected</div>
+          <button class="btn-disconnect" (click)="disconnectTestomat()">
+            <mat-icon>link_off</mat-icon> Disconnect
+          </button>
+        </ng-container>
+        <ng-container *ngIf="!testomatStatus.connected && !connectingTestomat">
+          <div class="status-pill disconnected"><span class="dot"></span> Not connected</div>
+        </ng-container>
+      </div>
+    </div>
+
+    <!-- Connect form -->
+    <ng-container *ngIf="!testomatStatus.connected && !connectingTestomat">
+      <div class="tmt-form m-t-16">
+        <p class="tmt-form-desc">
+          Find your API key in Testomat.io under
+          <strong>Project → Settings → API → API Keys</strong>.
+        </p>
+        <div class="tmt-field">
+          <mat-form-field appearance="outline" class="w-100">
+            <mat-label>Testomat.io API Key</mat-label>
+            <input
+              matInput
+              [type]="showTestomatKey ? 'text' : 'password'"
+              placeholder="Enter your project API key"
+              [(ngModel)]="testomatApiKeyInput"
+              (keydown.enter)="connectTestomat()"
+            />
+            <button mat-icon-button matSuffix type="button" (click)="showTestomatKey = !showTestomatKey">
+              <mat-icon>{{ showTestomatKey ? 'visibility' : 'visibility_off' }}</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+        <button
+          mat-flat-button
+          class="btn-tmt-connect"
+          (click)="connectTestomat()"
+          [disabled]="!testomatApiKeyInput.trim()"
+        >
+          Connect to Testomat.io
+        </button>
+      </div>
+    </ng-container>
+
+    <!-- Info box when connected -->
+    <ng-container *ngIf="testomatStatus.connected">
+      <div class="tmt-info-box m-t-16">
+        <mat-icon class="tmt-info-icon">info_outline</mat-icon>
+        <div>
+          <strong>Ready to push</strong>
+          <p>Open any test case or test suite and click <strong>Push to Testomat</strong> to sync test cases to your project.</p>
+        </div>
+      </div>
+    </ng-container>
+
+  </mat-card-content>
+</mat-card>
+
+<!-- ── Change Password ─────────────────────────────────────────────────── -->
 <mat-card class="cardWithShadow m-t-24">
   <mat-card-content class="p-32">
     <h2 class="mat-headline-6 f-w-600 m-b-24">Change Password</h2>

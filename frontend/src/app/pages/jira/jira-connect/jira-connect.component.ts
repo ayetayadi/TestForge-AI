@@ -4,6 +4,7 @@ import {
   AbstractControl,
   FormBuilder,
   FormGroup,
+  FormsModule,
   ReactiveFormsModule,
   ValidationErrors,
   Validators,
@@ -25,6 +26,7 @@ import {
   JiraStatus,
   UserStory,
 } from '../../../services/jira.service';
+import { TestomatService, TestomatStatus } from '../../../services/testomat.service';
 import { ConfirmDialogComponent } from 'src/app/components/confirm-dialog/confirm-dialog.component';
 
 function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
@@ -45,6 +47,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
   imports: [
     CommonModule,
     ReactiveFormsModule,
+    FormsModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
@@ -68,6 +71,12 @@ export class JiraConnectComponent implements OnInit {
   connecting = false;
   disconnecting = false;
   errorMessage = '';
+
+  testomatStatus: TestomatStatus = { connected: false };
+  testomatApiKeyInput = '';
+  showTestomatKey = false;
+  connectingTestomat = false;
+  disconnectingTestomat = false;
 
   changePasswordForm!: FormGroup;
   changingPassword = false;
@@ -100,6 +109,7 @@ confirmDialogData = signal<{
     private jiraService: JiraService,
     private userService: UserService,
     private toastService: ToastService,
+    private testomatService: TestomatService,
     private route: ActivatedRoute
   ) {}
 
@@ -119,6 +129,8 @@ confirmDialogData = signal<{
       }
       this.checkStatus();
     });
+
+    this.loadTestomatStatus();
   }
 
   checkStatus(): void {
@@ -235,6 +247,57 @@ disconnect(): void {
   });
   this.showConfirmDialog.set(true);
 }
+  loadTestomatStatus(): void {
+    this.testomatService.getStatus().subscribe({
+      next: s => { this.testomatStatus = s; },
+      error: () => {},
+    });
+  }
+
+  connectTestomat(): void {
+    const key = this.testomatApiKeyInput.trim();
+    if (!key) return;
+    this.connectingTestomat = true;
+    this.testomatService.connect(key).subscribe({
+      next: s => {
+        this.testomatStatus = s;
+        this.testomatApiKeyInput = '';
+        this.connectingTestomat = false;
+        this.toastService.success('Connected', 'Testomat.io connected successfully');
+      },
+      error: err => {
+        this.connectingTestomat = false;
+        this.toastService.error('Connection failed', err?.error?.detail || 'Invalid API key');
+      },
+    });
+  }
+
+  disconnectTestomat(): void {
+    this.confirmDialogData.set({
+      title: 'Disconnect Testomat',
+      message: 'Remove your Testomat.io connection? You can reconnect at any time.',
+      icon: '🔌',
+      confirmText: 'Disconnect',
+      cancelText: 'Cancel',
+      variant: 'warning',
+      onConfirm: () => {
+        this.disconnectingTestomat = true;
+        this.testomatService.disconnect().subscribe({
+          next: () => {
+            this.testomatStatus = { connected: false };
+            this.disconnectingTestomat = false;
+            this.toastService.success('Disconnected', 'Testomat.io disconnected');
+          },
+          error: () => {
+            this.disconnectingTestomat = false;
+            this.toastService.error('Error', 'Failed to disconnect');
+          },
+        });
+      },
+    });
+    this.showConfirmDialog.set(true);
+  }
+
   changePassword(): void {
     if (this.changePasswordForm.invalid) {
       this.changePasswordForm.markAllAsTouched();

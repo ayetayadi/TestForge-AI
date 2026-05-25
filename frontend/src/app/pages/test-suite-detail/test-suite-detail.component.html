@@ -44,6 +44,16 @@
 
       <!-- Actions -->
       <div class="tsd-header-actions">
+        <!-- Push to Testomat -->
+        <button class="btn-action btn-testomat" [disabled]="isPushingToTestomat()" (click)="pushSuiteToTestomat()">
+          @if (isPushingToTestomat()) {
+            <span class="spinner-xs"></span> Pushing…
+          } @else {
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+            Push to Testomat
+          }
+        </button>
+
         <!-- Run on Playwright -->
         <button class="btn-action btn-playwright" [disabled]="isSuiteRunning()" (click)="openSuiteRunModal()">
           @if (isSuiteRunning()) {
@@ -431,19 +441,53 @@
             </div>
             @if (execOrderOpen()) {
               <div class="panel-section-body">
-                <div class="order-list">
-                  @for (s of getAllSuitesOrder(); track s.id) {
-                    <div class="order-item" [class.active]="s.id === suite.id">
-                      <span class="order-num">{{ s.execution_order }}</span>
-                      <div class="order-info">
-                        <span class="order-title">{{ s.title }}</span>
+                <div class="exec-drag-list"
+                     cdkDropList
+                     [cdkDropListData]="localSuites()"
+                     (cdkDropListDropped)="dropSuite($event)">
+                  @for (s of localSuites(); track s.id; let i = $index) {
+                    <div class="exec-drag-item"
+                         [class.exec-drag-item--current]="s.id === suite.id"
+                         cdkDrag
+                         [cdkDragDisabled]="isSavingSuiteOrder()">
+                      <div class="drag-handle" cdkDragHandle title="Drag to reorder">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/>
+                          <circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/>
+                          <circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/>
+                        </svg>
+                      </div>
+                      <span class="exec-pos-badge">{{ i + 1 }}</span>
+                      <div class="exec-tc-info">
+                        <span class="exec-tc-title">{{ s.title }}</span>
                         @if (s.id === suite.id) {
                           <span class="order-current-badge">Current</span>
                         }
                       </div>
                       <span class="order-count">{{ s.test_case_count }} TCs</span>
+                      <div class="exec-arrows">
+                        <button class="arrow-btn" [disabled]="i === 0 || isSavingSuiteOrder()"
+                                (click)="moveSuiteUp(s.id); $event.stopPropagation()" title="Move up">▲</button>
+                        <button class="arrow-btn" [disabled]="i === localSuites().length - 1 || isSavingSuiteOrder()"
+                                (click)="moveSuiteDown(s.id); $event.stopPropagation()" title="Move down">▼</button>
+                      </div>
+                      <div class="exec-drag-placeholder" *cdkDragPlaceholder></div>
                     </div>
                   }
+                </div>
+                <div class="exec-order-footer">
+                  <span class="exec-order-footer-hint">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    Drag rows or use ▲▼ to reorder
+                  </span>
+                  <button class="btn-save-order" [disabled]="isSavingSuiteOrder()" (click)="saveSuiteOrder()">
+                    @if (isSavingSuiteOrder()) {
+                      <span class="spinner-xs-dark"></span> Saving…
+                    } @else {
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                      Save order
+                    }
+                  </button>
                 </div>
               </div>
             }
@@ -458,6 +502,109 @@
     <!-- ══════════════════════════════════════════════════════════════════════ -->
     @if (activeTab() === 'cases') {
       <div class="tab-panel">
+
+        <!-- Execution Order Editor ─────────────────────────────────────────── -->
+        <div class="exec-order-card">
+          <div class="exec-order-card-header" (click)="tcOrderEditorOpen.set(!tcOrderEditorOpen())" role="button">
+            <div class="exec-order-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <span>Execution Order & Exclusions</span>
+              <span class="section-badge">{{ localTcs().length }} cases</span>
+              @if (getExcludedTcCount() > 0) {
+                <span class="exec-excl-badge">{{ getExcludedTcCount() }} excluded</span>
+              }
+            </div>
+            <div class="exec-order-card-right">
+              <span class="exec-order-hint">Drag to reorder</span>
+              <span class="section-chevron" [class.open]="tcOrderEditorOpen()">▾</span>
+            </div>
+          </div>
+
+          @if (tcOrderEditorOpen()) {
+            <div class="exec-order-body">
+              <div class="exec-drag-list"
+                   cdkDropList
+                   [cdkDropListData]="localTcs()"
+                   (cdkDropListDropped)="dropTc($event)">
+                @for (tc of localTcs(); track tc.id; let i = $index) {
+                  <div class="exec-drag-item"
+                       [class.exec-drag-item--excluded]="tc.excluded_from_run"
+                       cdkDrag
+                       [cdkDragDisabled]="isSavingTcOrder()">
+
+                    <!-- Drag handle -->
+                    <div class="drag-handle" cdkDragHandle title="Drag to reorder">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/>
+                        <circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/>
+                        <circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/>
+                      </svg>
+                    </div>
+
+                    <!-- Position badge -->
+                    <span class="exec-pos-badge" [class.exec-pos-badge--excluded]="tc.excluded_from_run">
+                      {{ tc.excluded_from_run ? '—' : i + 1 }}
+                    </span>
+
+                    <!-- TC info -->
+                    <div class="exec-tc-info">
+                      <span class="exec-tc-code">{{ tc.tc_code }}</span>
+                      <span class="exec-tc-title">{{ tc.title }}</span>
+                      @if (tc.priority) {
+                        <span class="exec-tc-priority"
+                              [style.background]="getRiskLevelBg(tc.priority)"
+                              [style.color]="getRiskLevelColor(tc.priority)">
+                          {{ tc.priority }}
+                        </span>
+                      }
+                    </div>
+
+                    <!-- Arrow nudge buttons -->
+                    <div class="exec-arrows">
+                      <button class="arrow-btn" [disabled]="i === 0 || isSavingTcOrder()"
+                              (click)="moveTcUp(tc); $event.stopPropagation()" title="Move up">▲</button>
+                      <button class="arrow-btn" [disabled]="i === localTcs().length - 1 || isSavingTcOrder()"
+                              (click)="moveTcDown(tc); $event.stopPropagation()" title="Move down">▼</button>
+                    </div>
+
+                    <!-- Exclude toggle -->
+                    <button class="exec-excl-toggle"
+                            [class.exec-excl-toggle--excluded]="tc.excluded_from_run"
+                            [disabled]="isSavingTcOrder()"
+                            (click)="toggleExclude(tc); $event.stopPropagation()"
+                            [title]="tc.excluded_from_run ? 'Click to include in run' : 'Click to exclude from run'">
+                      @if (tc.excluded_from_run) {
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                        Excluded
+                      } @else {
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        Include
+                      }
+                    </button>
+
+                    <!-- CDK drag placeholder -->
+                    <div class="exec-drag-placeholder" *cdkDragPlaceholder></div>
+                  </div>
+                }
+              </div>
+
+              <div class="exec-order-footer">
+                <span class="exec-order-footer-hint">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  Drag rows or use ▲▼ to reorder · Excluded cases are skipped during run
+                </span>
+                <button class="btn-save-order" [disabled]="isSavingTcOrder()" (click)="saveTcOrder()">
+                  @if (isSavingTcOrder()) {
+                    <span class="spinner-xs-dark"></span> Saving…
+                  } @else {
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Save order
+                  }
+                </button>
+              </div>
+            </div>
+          }
+        </div>
 
         <!-- Toolbar ─────────────────────────────────────────────────────────── -->
         <div class="tc-toolbar">
@@ -1028,6 +1175,19 @@
               <span class="spr-hint">The running instance of your application</span>
             </div>
 
+            @if (availableModels().length > 0) {
+              <div class="spr-field">
+                <label>AI Model</label>
+                <select [value]="suiteRunModel()" (change)="suiteRunModel.set($any($event.target).value)">
+                  @for (m of availableModels(); track m.id) {
+                    <option [value]="m.id">{{ m.label }}</option>
+                  }
+                </select>
+                @if (suiteRunModelDescription()) {
+                  <span class="spr-hint">{{ suiteRunModelDescription() }}</span>
+                }
+              </div>
+            }
             <div class="spr-field-row">
               <div class="spr-field">
                 <label>Browser</label>

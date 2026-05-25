@@ -21,3 +21,4 @@ class User(Base):
     reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     jira_connection = relationship("JiraConnection", back_populates="user", uselist=False)
+    testomat_connection = relationship("TestomatConnection", back_populates="user", uselist=False)

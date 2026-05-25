@@ -60,6 +60,9 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
   rows = signal<TestCaseScriptRow[]>([]);
   projects = signal<Project[]>([]);
   isLoading = signal(false);
+
+  showDeleteConfirm = signal(false);
+  pendingDeleteId = signal<string | null>(null);
   // tc_code → 1-based position from the dependency graph topological sort
   tcOrderMap = signal<Map<string, number>>(new Map());
 
@@ -404,6 +407,39 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
 
   isActiveTestCase(testCaseId: string): boolean {
     return this.activeTestCaseId() === testCaseId;
+  }
+
+  requestDeleteAllScripts(testCaseId: string): void {
+    this.pendingDeleteId.set(testCaseId);
+    this.showDeleteConfirm.set(true);
+  }
+
+  confirmDeleteAllScripts(): void {
+    const id = this.pendingDeleteId();
+    if (!id) return;
+    this.showDeleteConfirm.set(false);
+    this.playwrightService.deleteAllScripts(id).subscribe({
+      next: (res) => {
+        this.pendingDeleteId.set(null);
+        this.toastService.success(`Deleted ${res.count} script version(s)`);
+        this.updateRow(id, {
+          hasScript: false,
+          activeScriptId: null,
+          activeScriptVersion: null,
+          placeholderCount: 0,
+          lastRunStatus: null,
+        });
+      },
+      error: (err) => {
+        this.pendingDeleteId.set(null);
+        this.toastService.error(err?.error?.detail ?? 'Failed to delete scripts');
+      },
+    });
+  }
+
+  cancelDeleteAllScripts(): void {
+    this.showDeleteConfirm.set(false);
+    this.pendingDeleteId.set(null);
   }
 
   getStepIcon(type: string): string {

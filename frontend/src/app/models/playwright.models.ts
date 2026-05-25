@@ -48,6 +48,7 @@ export type ExecutionStatus = 'passed' | 'failed' | 'completed' | 'error';
 export interface GenerateScriptRequest {
   test_case_id: string;
   app_url?: string;
+  model_id?: string;
 }
 
 export interface UpdateScriptRequest {
@@ -70,6 +71,7 @@ export interface ExecuteScriptRequest {
   app_url?: string;
   browser?: 'chromium' | 'firefox' | 'webkit';
   headless?: boolean;
+  model_id?: string;
 }
 
 export interface FullWorkflowRequest {
@@ -77,6 +79,7 @@ export interface FullWorkflowRequest {
   app_url?: string;
   browser?: 'chromium' | 'firefox' | 'webkit';
   headless?: boolean;
+  model_id?: string;
 }
 
 // ============================================================

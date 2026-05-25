@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re as _re
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,30 +22,199 @@ _script_generator = get_script_generator()
 _react_agent = PlaywrightReActAgent()
 _agent_instance = PlaywrightReActAgent()
 
+# ============================================================
+# PRE-FLIGHT HELPERS — multi-page snapshot capture
+# ============================================================
 
-async def _take_landing_snapshot(app_url: str) -> Optional[str]:
+# Accessibility-tree element types considered navigational
+_NAV_ELEMENT_PATTERNS = [
+    _re.compile(r'link\s+"([^"]{2,40})"\s+\[ref=(e\d+)\]', _re.IGNORECASE),
+    _re.compile(r'menuitem\s+"([^"]{2,40})"\s+\[ref=(e\d+)\]', _re.IGNORECASE),
+    _re.compile(r'tab\s+"([^"]{2,40})"\s+\[ref=(e\d+)\]', _re.IGNORECASE),
+]
+
+# Words that should never be treated as page keywords
+_STOP_WORDS = frozenset({
+    "the", "and", "that", "this", "with", "for", "from", "click", "then",
+    "when", "given", "have", "should", "user", "button", "form", "field",
+    "enter", "fill", "type", "select", "verify", "assert", "check",
+})
+
+
+def _extract_nav_keywords(
+    steps: Optional[list] = None,
+    gherkin_source: Optional[str] = None,
+) -> frozenset:
     """
-    Open a headless Chromium session, navigate to app_url, take one DOM snapshot,
-    compress it to interactive elements only, and return it.
-    Returns None if anything fails — generation falls back to blind mode.
+    Derive navigation-target page names from test case steps / Gherkin text.
+    Returns a frozenset of lowercase keywords (e.g. {'dashboard', 'users'}).
+    """
+    raw_text = ""
+    if gherkin_source:
+        raw_text += gherkin_source.lower() + "\n"
+    if steps:
+        for step in steps:
+            if isinstance(step, dict):
+                raw_text += step.get("action", "").lower() + "\n"
+                raw_text += step.get("expected", "").lower() + "\n"
+            elif isinstance(step, str):
+                raw_text += step.lower() + "\n"
+
+    if not raw_text.strip():
+        return frozenset()
+
+    keywords: set = set()
+
+    # Pattern 1 — explicit navigation verbs followed by a destination
+    nav_verb_re = _re.compile(
+        r'(?:navigate|go|click|open|access|visit|go\s+to)\s+'
+        r'(?:to\s+)?(?:the\s+)?([a-z][a-z\s]{2,24}?)(?:\s+(?:page|screen|section|tab|menu|panel))?'
+        r'(?:\s*$|[.,;])',
+        _re.IGNORECASE | _re.MULTILINE,
+    )
+    for m in nav_verb_re.finditer(raw_text):
+        kw = m.group(1).strip()
+        if 2 < len(kw) < 30 and kw not in _STOP_WORDS:
+            keywords.add(kw)
+
+    # Pattern 2 — "on/from the X page/section" references
+    page_ref_re = _re.compile(
+        r'(?:on|from|in)\s+(?:the\s+)?([a-z][a-z\s]{2,20}?)\s+'
+        r'(?:page|screen|section|tab|dashboard)',
+        _re.IGNORECASE,
+    )
+    for m in page_ref_re.finditer(raw_text):
+        kw = m.group(1).strip()
+        if 2 < len(kw) < 30 and kw not in _STOP_WORDS:
+            keywords.add(kw)
+
+    # Pattern 3 — well-known SPA page names appearing anywhere in the text
+    well_known = {
+        "dashboard", "login", "register", "signup", "sign up",
+        "settings", "profile", "users", "admin", "home",
+        "projects", "reports", "analytics", "test cases", "test suites",
+        "test plans", "risks", "jira",
+    }
+    for wk in well_known:
+        if wk in raw_text:
+            keywords.add(wk)
+
+    return frozenset(keywords)
+
+
+def _parse_nav_links(snapshot_text: str) -> List[tuple]:
+    """
+    Extract clickable navigation elements from a raw accessibility-tree snapshot.
+    Returns [(display_text, ref_id), ...] — duplicates removed, URLs excluded.
+    """
+    links: List[tuple] = []
+    seen: set = set()
+    for pattern in _NAV_ELEMENT_PATTERNS:
+        for m in pattern.finditer(snapshot_text):
+            text = m.group(1).strip()
+            ref = m.group(2)
+            text_lower = text.lower()
+            if text_lower in seen:
+                continue
+            # Skip entries that look like URL fragments
+            if any(skip in text_lower for skip in ("http", "www", "://", ".com", ".org")):
+                continue
+            seen.add(text_lower)
+            links.append((text, ref))
+    return links
+
+
+async def _take_multipage_snapshot(
+    app_url: str,
+    steps: Optional[list] = None,
+    gherkin_source: Optional[str] = None,
+    max_extra_pages: int = 2,
+) -> Dict[str, str]:
+    """
+    Pre-flight multi-page DOM capture.
+
+    Opens ONE browser session and captures:
+      - The landing page DOM (always)
+      - Up to `max_extra_pages` additional pages identified from test steps
+
+    Navigation to sub-pages is done by clicking matching links found in the
+    landing accessibility tree — no URL guessing.
+
+    Returns { page_label: compressed_snapshot } or {} on total failure.
     """
     try:
-        logger.info(f"Taking landing page snapshot for: {app_url}")
+        nav_keywords = _extract_nav_keywords(steps, gherkin_source)
+        logger.info(f"Pre-flight: app_url={app_url}, keywords={nav_keywords or 'none'}")
+
         async with PlaywrightMCPClient(headless=True, browser="chromium") as mcp:
             tools = {t.name: t for t in mcp.tools}
-            if "browser_navigate" not in tools or "browser_snapshot" not in tools:
-                logger.warning("Landing snapshot: required MCP tools unavailable")
-                return None
+            required = {"browser_navigate", "browser_snapshot"}
+            if not required.issubset(tools):
+                logger.warning("Pre-flight: required MCP tools not available — skipping")
+                return {}
+
+            # ── Landing page ──────────────────────────────────────────────────
             await tools["browser_navigate"].ainvoke({"url": app_url})
             await asyncio.sleep(2.0)
             raw = str(await tools["browser_snapshot"].ainvoke({}))
-            snapshot = _agent_instance._extract_snapshot_text(raw)
-            compressed = _compress_dom(snapshot)
-            logger.info(f"Landing snapshot captured ({len(compressed)} chars)")
-            return compressed
+            landing_text = _agent_instance._extract_snapshot_text(raw)
+            snapshots: Dict[str, str] = {"landing": _compress_dom(landing_text)}
+            logger.info(f"Pre-flight: landing snapshot captured ({len(snapshots['landing'])} chars)")
+
+            if not nav_keywords or max_extra_pages <= 0 or "browser_click" not in tools:
+                return snapshots
+
+            # ── Additional pages via nav-link clicks ──────────────────────────
+            nav_links = _parse_nav_links(landing_text)
+            logger.info(f"Pre-flight: {len(nav_links)} nav links found in landing DOM")
+
+            visited: set = set()
+            extra_count = 0
+
+            for link_text, link_ref in nav_links:
+                if extra_count >= max_extra_pages:
+                    break
+                link_lower = link_text.lower().strip()
+                # Match link against any extracted keyword
+                if not any(kw in link_lower or link_lower in kw for kw in nav_keywords):
+                    continue
+                if link_lower in visited:
+                    continue
+
+                visited.add(link_lower)
+                try:
+                    await tools["browser_click"].ainvoke(
+                        {"element": link_text, "ref": link_ref}
+                    )
+                    await asyncio.sleep(1.5)
+                    raw2 = str(await tools["browser_snapshot"].ainvoke({}))
+                    page_text = _agent_instance._extract_snapshot_text(raw2)
+                    label = link_lower.replace(" ", "_")
+                    snapshots[label] = _compress_dom(page_text)
+                    extra_count += 1
+                    logger.info(
+                        f"Pre-flight: captured '{label}' ({len(snapshots[label])} chars)"
+                    )
+                    # Return to landing for next iteration
+                    await tools["browser_navigate"].ainvoke({"url": app_url})
+                    await asyncio.sleep(1.0)
+                except Exception as click_err:
+                    logger.warning(f"Pre-flight: click on '{link_text}' failed: {click_err}")
+                    try:
+                        await tools["browser_navigate"].ainvoke({"url": app_url})
+                        await asyncio.sleep(1.0)
+                    except Exception:
+                        pass
+
+        logger.info(
+            f"Pre-flight complete: {len(snapshots)} snapshot(s) captured — "
+            f"{list(snapshots.keys())}"
+        )
+        return snapshots
+
     except Exception as e:
-        logger.warning(f"Landing snapshot failed — falling back to blind generation: {e}")
-        return None
+        logger.warning(f"Pre-flight multi-page snapshot failed — blind generation: {e}")
+        return {}
 
 
 # ============================================================
@@ -57,11 +227,17 @@ async def generate_script_v1(
     app_url: Optional[str] = None,
     save_to_db: bool = True,
     dom_snapshot: Optional[str] = None,
+    page_snapshots: Optional[Dict[str, str]] = None,
+    model_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Génère un Script v1 à partir du TestCase en DB.
-    Si app_url est fourni et dom_snapshot est None, ouvre le navigateur pour capturer le DOM.
-    Passer dom_snapshot pré-capturé pour éviter d'ouvrir une connexion navigateur supplémentaire.
+    Generate a v1 Playwright script from a TestCase in the DB.
+
+    Snapshot resolution priority:
+      1. page_snapshots (pre-captured multi-page dict) — best quality, fewest placeholders
+      2. dom_snapshot (legacy single-page str) — merged into page_snapshots["landing"]
+      3. app_url provided but no snapshots → trigger pre-flight multi-page capture
+      4. Nothing → blind generation (all placeholders)
     """
     logger.info(f"Generating Script v1 for test_case {test_case_id} (app_url={app_url})")
     await _push_event(test_case_id, "generation_started", {"test_case_id": test_case_id})
@@ -85,10 +261,24 @@ async def generate_script_v1(
         "locators": test_case.locators,
     }]
 
-    if dom_snapshot is None and app_url:
-        dom_snapshot = await _take_landing_snapshot(app_url)
+    # Normalise legacy single snapshot
+    if dom_snapshot and not page_snapshots:
+        page_snapshots = {"landing": dom_snapshot}
 
-    gen_result = await _script_generator.generate(test_cases, dom_snapshot=dom_snapshot, app_url=app_url)
+    # Pre-flight: capture multi-page snapshots when we have a URL but no snapshots yet
+    if page_snapshots is None and app_url:
+        page_snapshots = await _take_multipage_snapshot(
+            app_url,
+            steps=test_case.steps,
+            gherkin_source=test_case.gherkin_source,
+        )
+
+    gen_result = await _script_generator.generate(
+        test_cases,
+        app_url=app_url,
+        page_snapshots=page_snapshots if page_snapshots else None,
+        model_id=model_id,
+    )
 
     if gen_result.get("status") != "generated":
         await _push_event(test_case_id, "generation_failed", {"error": gen_result.get("error", "Generation failed")})
@@ -101,16 +291,17 @@ async def generate_script_v1(
             script_content=gen_result["script_v1"],
             source=ScriptSource.V1_DRAFT,
             placeholder_count=gen_result["placeholder_count"],
-            validation_status=ScriptValidationStatus.NOT_VALIDATED
+            validation_status=ScriptValidationStatus.NOT_VALIDATED,
         )
         await repo.commit(db)
-        
+
         gen_result["script_version_id"] = script_version.id
         gen_result["version_number"] = script_version.version_number
 
     await _push_event(test_case_id, "generation_completed", {
         "placeholder_count": gen_result["placeholder_count"],
         "script_version_id": gen_result.get("script_version_id"),
+        "generation_mode": gen_result.get("generation_mode", "unknown"),
     })
     return gen_result
 
@@ -120,9 +311,11 @@ async def execute_script(
     test_case_id: str,
     script_version_id: Optional[str] = None,
     app_url: Optional[str] = None,
-    browser: str = "chromium",   # Valeur par défaut (normalement écrasée par frontend)
-    headless: bool = True,       # Valeur par défaut (normalement écrasée par frontend)
-    save_to_db: bool = True
+    browser: str = "chromium",
+    headless: bool = True,
+    save_to_db: bool = True,
+    page_snapshots: Optional[Dict[str, str]] = None,
+    model_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Exécute un script avec le ReAct Agent.
@@ -191,6 +384,8 @@ async def execute_script(
             headless=headless,
             browser=browser,
             on_step=_on_step,
+            page_snapshots=page_snapshots or {},
+            model_id=model_id,
         )
 
         if save_to_db and test_run:
@@ -445,17 +640,36 @@ async def run_full_workflow(
     test_case_id: str,
     app_url: Optional[str] = None,
     browser: str = "chromium",
-    headless: bool = True
+    headless: bool = True,
+    model_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Workflow complet: Génération + Exécution."""
+    """
+    Full workflow: pre-flight snapshot → generation → execution.
+    Snapshots are captured once and reused at both phases to avoid duplicate
+    browser launches and redundant LLM DOM-resolution calls at runtime.
+    """
     logger.info(f"Starting full workflow for test_case {test_case_id}")
+
+    # Pre-flight: capture multi-page snapshots once for reuse across both phases
+    page_snapshots: Dict[str, str] = {}
+    if app_url:
+        test_case = await repo.get_test_case(db, test_case_id)
+        if test_case:
+            page_snapshots = await _take_multipage_snapshot(
+                app_url,
+                steps=test_case.steps,
+                gherkin_source=test_case.gherkin_source,
+            )
 
     gen_result = await generate_script_v1(
         db,
         test_case_id=test_case_id,
-        save_to_db=True
+        app_url=app_url,
+        save_to_db=True,
+        page_snapshots=page_snapshots or None,
+        model_id=model_id,
     )
-    
+
     if gen_result.get("status") != "generated":
         return {
             "workflow_status": "generation_failed",
@@ -463,14 +677,16 @@ async def run_full_workflow(
             "execution": None,
             "summary": {"error": gen_result.get("error", "Generation failed")}
         }
-    
+
     exec_result = await execute_script(
         db,
         test_case_id=test_case_id,
         app_url=app_url,
         browser=browser,
         headless=headless,
-        save_to_db=True
+        save_to_db=True,
+        page_snapshots=page_snapshots or None,
+        model_id=model_id,
     )
     
     total_steps = exec_result.get("steps_passed", 0) + exec_result.get("steps_failed", 0)
@@ -609,7 +825,15 @@ async def run_suite(
                 save_to_db=True,
             )
 
-            status = exec_result.get("execution_status", "error")
+            raw_exec_status = exec_result.get("execution_status", "error")
+            steps_failed_count = exec_result.get("steps_failed", 0)
+            if raw_exec_status in ("passed", "completed") and steps_failed_count == 0:
+                status = "passed"
+            elif raw_exec_status == "error":
+                status = "error"
+            else:
+                status = "failed"
+
             results.append({
                 "test_case_id": tc_id,
                 "status": status,
@@ -618,7 +842,7 @@ async def run_suite(
                 "error": exec_result.get("error"),
             })
 
-            if status in ("passed", "completed"):
+            if status == "passed":
                 passed += 1
             else:
                 failed += 1
@@ -683,6 +907,7 @@ async def run_suite_smart(
     browser: str = "chromium",
     headless: bool = True,
     stop_on_failure: bool = False,
+    model_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Two-phase optimised suite execution.
@@ -733,6 +958,7 @@ async def run_suite_smart(
     })
 
     # ── Phase 1 — Parallel script generation ─────────────────────────────────
+    shared_snapshots: Dict[str, str] = {}  # initialised here so Phase 2 always sees it
     tcs_needing_scripts: List[Any] = []
     for tc in tc_rows:
         if not await repo.get_active_script(db, tc.id):
@@ -746,10 +972,21 @@ async def run_suite_smart(
             "message": f"Generating {len(tcs_needing_scripts)} missing scripts in parallel…",
         })
 
-        # One DOM snapshot shared by all generators (avoids N browser launches)
-        shared_snapshot: Optional[str] = None
+        # One multi-page snapshot set shared across all generators
+        # Aggregate steps from all TCs needing scripts to maximise page coverage
         if app_url:
-            shared_snapshot = await _take_landing_snapshot(app_url)
+            all_steps: list = []
+            all_gherkin_parts: list = []
+            for tc in tcs_needing_scripts:
+                if tc.steps:
+                    all_steps.extend(tc.steps)
+                if tc.gherkin_source:
+                    all_gherkin_parts.append(tc.gherkin_source)
+            shared_snapshots = await _take_multipage_snapshot(
+                app_url,
+                steps=all_steps,
+                gherkin_source="\n".join(all_gherkin_parts) if all_gherkin_parts else None,
+            )
 
         _gen_sem = asyncio.Semaphore(3)
 
@@ -761,7 +998,8 @@ async def run_suite_smart(
                             session, tc.id,
                             app_url=app_url,
                             save_to_db=True,
-                            dom_snapshot=shared_snapshot,
+                            page_snapshots=shared_snapshots or None,
+                            model_id=model_id,
                         )
                         msg_type = "generated" if result.get("status") == "generated" else "gen_failed"
                         msg = (
@@ -782,6 +1020,48 @@ async def run_suite_smart(
     # ── Phase 2 — Single shared browser session ───────────────────────────────
     results: List[Dict[str, Any]] = []
     passed = failed = skipped = 0
+
+    def _is_auth_tc(title: str, script_content: str) -> bool:
+        """Heuristic: true when a TC performs a login/sign-in action."""
+        kws = ("login", "sign in", "signin", "log in", "authenticate", "auth")
+        if any(kw in title.lower() for kw in kws):
+            return True
+        sc = script_content.lower()
+        return "password" in sc and ".fill(" in sc
+
+    _saved_local_storage: Optional[str] = None  # JSON string of localStorage after auth TC
+
+    async def _save_local_storage(tools: dict) -> Optional[str]:
+        if "browser_evaluate" not in tools:
+            return None
+        try:
+            raw = await tools["browser_evaluate"].ainvoke({
+                "expression": "JSON.stringify(Object.fromEntries(Object.entries(localStorage)))"
+            })
+            result = str(raw).strip()
+            if result and result != "{}":
+                logger.info(f"Suite: localStorage saved ({len(result)} chars)")
+                return result
+        except Exception as e:
+            logger.warning(f"Suite: localStorage save failed: {e}")
+        return None
+
+    async def _restore_local_storage(tools: dict, saved: str) -> None:
+        if "browser_evaluate" not in tools or not saved:
+            return
+        try:
+            # Use a self-invoking function to safely iterate and set entries
+            inject = (
+                "(function(d){"
+                "try{var o=JSON.parse(d);"
+                "Object.keys(o).forEach(function(k){localStorage.setItem(k,o[k]);});"
+                "}catch(e){}"
+                "})('" + saved.replace("'", "\\'") + "')"
+            )
+            await tools["browser_evaluate"].ainvoke({"expression": inject})
+            logger.info("Suite: localStorage restored")
+        except Exception as e:
+            logger.warning(f"Suite: localStorage restore failed: {e}")
 
     async with PlaywrightMCPClient(headless=headless, browser=browser) as mcp:
         tools = {t.name: t for t in mcp.tools}
@@ -830,13 +1110,17 @@ async def run_suite_smart(
                     break
                 continue
 
-            # Reset browser to app_url between TCs (skip for first TC — already done)
-            if idx > 0 and app_url and "browser_navigate" in tools:
-                try:
-                    await tools["browser_navigate"].ainvoke({"url": app_url})
-                    await asyncio.sleep(1.0)
-                except Exception as nav_e:
-                    logger.warning(f"Browser reset failed for {tc.tc_code}: {nav_e}")
+            # Between TCs: do NOT navigate back to app_url.
+            # The browser keeps whatever authenticated state TC (idx-1) left.
+            # run_with_tools(suite_continuation=True) will skip the TC script's own
+            # root navigate if the browser is already on an authenticated page,
+            # preventing the "page.goto(app_url) → login redirect → wrong form filled"
+            # failure pattern. A short pause lets any pending animations settle.
+            if idx > 0:
+                await asyncio.sleep(0.5)
+                # Restore localStorage (JWT/tokens) for non-auth TCs that rely on a prior login
+                if _saved_local_storage and not _is_auth_tc(tc.title, active_script.script_content if active_script else ""):
+                    await _restore_local_storage(tools, _saved_local_storage)
 
             # Create TestRun record before execution
             test_run = await repo.create_test_run(
@@ -866,6 +1150,9 @@ async def run_suite_smart(
                         app_url=app_url or settings.TEST_APPLICATION_URL,
                         test_case_id=tc_id,
                         on_step=_on_step,
+                        page_snapshots=shared_snapshots if shared_snapshots else {},
+                        suite_continuation=(idx > 0),
+                        model_id=model_id,
                     ),
                     timeout=180.0,
                 )
@@ -893,7 +1180,24 @@ async def run_suite_smart(
             except Exception as save_e:
                 logger.error(f"Failed to save results for {tc.tc_code}: {save_e}")
 
-            status = exec_result.get("execution_status", "error")
+            # After a successful auth TC, capture localStorage so subsequent TCs
+            # that rely on stored tokens (JWT in localStorage) can restore it.
+            if exec_result.get("execution_status") in ("passed", "completed"):
+                if _is_auth_tc(tc.title, active_script.script_content):
+                    captured = await _save_local_storage(tools)
+                    if captured:
+                        _saved_local_storage = captured
+
+            raw_exec_status = exec_result.get("execution_status", "error")
+            steps_failed_count = exec_result.get("steps_failed", 0)
+            # Translate to the same status the DB stores (same logic as _save_exec_result_to_db)
+            if raw_exec_status in ("passed", "completed") and steps_failed_count == 0:
+                status = "passed"
+            elif raw_exec_status == "error":
+                status = "error"
+            else:
+                status = "failed"
+
             tc_result = {
                 "tc_id": tc_id, "tc_code": tc.tc_code, "title": tc.title,
                 "status": status,
@@ -905,7 +1209,7 @@ async def run_suite_smart(
             }
             results.append(tc_result)
 
-            if status in ("passed", "completed"):
+            if status == "passed":
                 passed += 1
             else:
                 failed += 1
