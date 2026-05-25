@@ -113,7 +113,7 @@ confirmDialogData = signal<{
 
   readonly statusConfig = TEST_PLAN_STATUS_CONFIG;
   readonly statusTabs: Array<TestPlanStatus | 'all'> = [
-    'all', 'ai_proposed', 'draft', 'approved', 'active', 'archived',
+    'all', 'ai_proposed', 'draft', 'approved', 'archived',
   ];
   readonly scopeTypes = ['manual', 'epic', 'sprint'];
   readonly environments = ['dev', 'staging', 'prod', 'uat'];

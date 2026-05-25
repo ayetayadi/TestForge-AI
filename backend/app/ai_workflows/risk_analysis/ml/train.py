@@ -1,11 +1,13 @@
 """
-Entraînement — GaussianNB et KNN + SentenceTransformers (5 CLASSES)
+Entraînement — GaussianNB, KNN et Decision Tree + SentenceTransformers (5 CLASSES)
 
 Métriques : Accuracy, Precision, Recall, F1-Score par classe.
 
 Usage :
     python -m app.ai_workflows.risk_analysis.ml.train --model gnb
     python -m app.ai_workflows.risk_analysis.ml.train --model knn
+    python -m app.ai_workflows.risk_analysis.ml.train --model dt
+    python -m app.ai_workflows.risk_analysis.ml.train --model all
 """
 
 import logging
@@ -19,10 +21,12 @@ from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
 
 from .nb_embed import (
     GaussianNBEmbedModel, MODEL_PATH_GNB,
     KNNEmbedModel, MODEL_PATH_KNN,
+    DecisionTreeEmbedModel, MODEL_PATH_DT,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -214,19 +218,89 @@ def main_knn():
     logger.info(f"\nModèle sauvegardé : {MODEL_PATH_KNN}")
 
 
+# ── Decision Tree ───────────────────────────────────────────────────────────────
+
+def _best_dt(X_train, y_train, label: str) -> DecisionTreeClassifier:
+    param_grid = {
+        "criterion":          ["gini", "entropy"],
+        "max_depth":          [5, 10, 15, 20, None],
+        "min_samples_split":  [2, 5, 10],
+        "min_samples_leaf":   [1, 2, 4],
+        "max_features":       ["sqrt", "log2", None],
+        "class_weight":       [None, "balanced"],
+    }
+    grid = GridSearchCV(
+        DecisionTreeClassifier(random_state=42),
+        param_grid=param_grid,
+        cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
+        scoring="accuracy", n_jobs=-1,
+    )
+    grid.fit(X_train, y_train)
+    p = grid.best_params_
+    logger.info(
+        f"  {label} → criterion={p['criterion']}, max_depth={p['max_depth']}, "
+        f"min_samples_split={p['min_samples_split']}, min_samples_leaf={p['min_samples_leaf']}, "
+        f"max_features={p['max_features']}, class_weight={p['class_weight']} "
+        f"| CV={grid.best_score_:.3f}"
+    )
+    return grid.best_estimator_
+
+
+def main_dt():
+    logger.info("=" * 55)
+    logger.info("ENTRAÎNEMENT — Decision Tree + SentenceTransformers (5 CLASSES)")
+    logger.info("=" * 55)
+
+    df = load_data()
+    df["user_story"] = df["user_story"].apply(_clean)
+    df["acceptance_criteria"] = df["acceptance_criteria"].apply(_clean)
+    df["text"] = df["user_story"] + " " + df["acceptance_criteria"].fillna("")
+
+    texts = df["text"].tolist()
+    y_P = df["probability"].astype(int).tolist()
+    y_I = df["impact"].astype(int).tolist()
+
+    X_train_txt, X_test_txt, y_train_P, y_test_P, y_train_I, y_test_I = train_test_split(
+        texts, y_P, y_I, test_size=0.2, random_state=42, stratify=y_P,
+    )
+    logger.info(f"Train : {len(X_train_txt)} | Test : {len(X_test_txt)}")
+
+    dt_model = DecisionTreeEmbedModel()
+    logger.info("Encodage...")
+    X_train = dt_model.encode(X_train_txt)
+    X_test = dt_model.encode(X_test_txt)
+    logger.info(f"Dimensions : {X_train.shape[1]}")
+
+    logger.info("GridSearch P...")
+    dt_model.model_P = _best_dt(X_train, y_train_P, "P")
+    logger.info("GridSearch I...")
+    dt_model.model_I = _best_dt(X_train, y_train_I, "I")
+    dt_model.is_trained = True
+
+    evaluate(y_test_P, dt_model.model_P.predict(X_test).tolist(), "Decision Tree — P (Probabilité)")
+    evaluate(y_test_I, dt_model.model_I.predict(X_test).tolist(), "Decision Tree — I (Impact)")
+
+    dt_model.save(MODEL_PATH_DT)
+    logger.info(f"\nModèle sauvegardé : {MODEL_PATH_DT}")
+
+
 # ── Main ────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Entraînement Risk Analysis ML")
-    parser.add_argument("--model", choices=["gnb", "knn", "all"], default="knn")
+    parser.add_argument("--model", choices=["gnb", "knn", "dt", "all"], default="knn")
     args = parser.parse_args()
 
     if args.model == "gnb":
         main_gnb()
     elif args.model == "knn":
         main_knn()
+    elif args.model == "dt":
+        main_dt()
     else:
         main_gnb()
         logger.info("\n" + "=" * 55)
         main_knn()
+        logger.info("\n" + "=" * 55)
+        main_dt()
