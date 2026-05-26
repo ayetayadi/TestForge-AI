@@ -4,9 +4,13 @@ from datetime import datetime
 import logging
 from typing import List, Optional, Dict, Any
 
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.risk_repository import RiskRepository
+from app.models.user_story_version import UserStoryVersion
+from app.models.enums import StoryDecision
+from app.models.risk import Risk as RiskModel
 from app.schemas.risk_schema import (
     RiskCreate,
     RiskUpdate,
@@ -228,6 +232,49 @@ class RiskService:
         risk = await self.repository.get_by_id(risk_id)
         return RiskResponse.model_validate(risk) if risk else None
     
+    async def _compute_eligibility(self, risks: list) -> dict:
+        """
+        Batch-compute eligible_for_reanalysis for a list of Risk ORM objects.
+
+        A story is eligible when, since its last risk was created:
+          - Condition A: it was re-synced from Jira (jira_updated_at or updated_at > risk.created_at)
+          - Condition B: a new approved refinement version was created (version.started_at > risk.created_at)
+
+        Returns a dict {risk_id: bool}.
+        """
+        if not risks:
+            return {}
+
+        story_ids = [r.user_story_id for r in risks if r.user_story_id]
+
+        # Batch: latest approved version date per story
+        approved_map: dict[str, datetime] = {}
+        if story_ids:
+            stmt = (
+                select(UserStoryVersion.user_story_id, func.max(UserStoryVersion.started_at))
+                .where(
+                    UserStoryVersion.user_story_id.in_(story_ids),
+                    UserStoryVersion.decision_status == StoryDecision.APPROVED,
+                )
+                .group_by(UserStoryVersion.user_story_id)
+            )
+            result = await self.db.execute(stmt)
+            approved_map = {row[0]: row[1] for row in result.all()}
+
+        eligibility: dict[str, bool] = {}
+        for risk in risks:
+            story = risk.user_story
+            if not story:
+                eligibility[risk.id] = False
+                continue
+            jira_ts = story.jira_updated_at or story.updated_at
+            cond_a = jira_ts is not None and jira_ts > risk.created_at
+            latest_approved = approved_map.get(risk.user_story_id)
+            cond_b = latest_approved is not None and latest_approved > risk.created_at
+            eligibility[risk.id] = bool(cond_a or cond_b)
+
+        return eligibility
+
     async def get_all_risks(
         self,
         project_id: Optional[str] = None,
@@ -248,7 +295,13 @@ class RiskService:
             source=source,
             project_ids=project_ids,
         )
-        return [RiskResponse.model_validate(item) for item in items]
+        eligibility = await self._compute_eligibility(items)
+        responses = []
+        for item in items:
+            resp = RiskResponse.model_validate(item)
+            resp.eligible_for_reanalysis = eligibility.get(item.id, False)
+            responses.append(resp)
+        return responses
 
     async def list_risks(
         self,
@@ -297,7 +350,13 @@ class RiskService:
             is_ai_generated=is_ai_generated,
         )
         risks = await self.repository.get_by_project(project_id, filters)
-        return [RiskResponse.model_validate(r) for r in risks]
+        eligibility = await self._compute_eligibility(risks)
+        responses = []
+        for r in risks:
+            resp = RiskResponse.model_validate(r)
+            resp.eligible_for_reanalysis = eligibility.get(r.id, False)
+            responses.append(resp)
+        return responses
     
     async def get_risks_by_sprint(
         self,

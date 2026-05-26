@@ -117,7 +117,7 @@ async def refresh_access_token(
     db: AsyncSession = Depends(get_db),
 ):
     if not refresh_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     payload = decode_refresh_token(refresh_token)
     if not payload:

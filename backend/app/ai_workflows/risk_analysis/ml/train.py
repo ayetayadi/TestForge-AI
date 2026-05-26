@@ -165,14 +165,14 @@ def main_gnb():
 
 def _best_knn(X_train, y_train, label: str) -> KNeighborsClassifier:
     param_grid = {
-        "n_neighbors": [3, 5, 7, 9, 11, 15, 21],
+        "n_neighbors": [7, 9, 11, 15, 21, 31, 41],
         "weights": ["uniform", "distance"],
     }
     grid = GridSearchCV(
         KNeighborsClassifier(metric="cosine", algorithm="brute"),
         param_grid=param_grid,
         cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
-        scoring="accuracy", n_jobs=-1,
+        scoring="f1_macro", n_jobs=-1,
     )
     grid.fit(X_train, y_train)
     logger.info(f"  {label} → k={grid.best_params_['n_neighbors']}, "

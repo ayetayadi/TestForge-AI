@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import List, Optional, Dict, Any, Callable
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, func
 
 from app.repositories import test_case_repository as repo
 from app.models.test_case import TestCase
@@ -221,11 +221,26 @@ async def generate_test_cases_for_plan(
     # Semaphore caps concurrent LLM calls to avoid Groq rate limits.
     # ============================================================
     from app.core.database import async_session_maker
-    _sem = asyncio.Semaphore(3)
+    _sem = asyncio.Semaphore(5)
 
     async def _generate_for_single_us(us: UserStory) -> Dict[str, Any]:
         async with _sem:
             async with async_session_maker() as session:
+                # Skip US that already have TCs of this type in this plan
+                existing_check = await session.execute(
+                    select(TestCase.id).where(
+                        TestCase.user_story_id == us.id,
+                        TestCase.test_plan_id == test_plan_id,
+                        TestCase.test_type == effective_scenario_type,
+                    ).limit(1)
+                )
+                if existing_check.scalar_one_or_none():
+                    logger.info(
+                        f"[TC_GEN] Skipping {us.issue_key} — already has "
+                        f"'{effective_scenario_type}' TCs in this plan"
+                    )
+                    return {"workflow_status": "skipped", "test_cases": [], "issue_key": us.issue_key}
+
                 approved_result = await session.execute(
                     select(UserStoryVersion)
                     .where(UserStoryVersion.user_story_id == us.id, UserStoryVersion.decision_status == StoryDecision.APPROVED)
@@ -267,19 +282,25 @@ async def generate_test_cases_for_plan(
                     progress_callback=progress_callback,
                     scenario_type=effective_scenario_type,
                 )
-                ac_cov = result.get("ac_coverage", {})
-
-                await _upsert_tc_coverage(
-                    db=session,
-                    test_plan_id=test_plan_id,
-                    user_story_id=us.id,
-                    issue_key=us.issue_key,
-                    user_story_title=us.title,
-                    scenario_type=effective_scenario_type,
-                    ac_coverage=ac_cov,
-                    tc_count=len(result.get("test_cases", [])),
-                )
-                await session.commit()
+                # Only persist coverage when generation succeeded
+                if result.get("workflow_status") != "error":
+                    ac_cov = result.get("ac_coverage", {})
+                    await _upsert_tc_coverage(
+                        db=session,
+                        test_plan_id=test_plan_id,
+                        user_story_id=us.id,
+                        issue_key=us.issue_key,
+                        user_story_title=us.title,
+                        scenario_type=effective_scenario_type,
+                        ac_coverage=ac_cov,
+                        tc_count=len(result.get("test_cases", [])),
+                    )
+                    await session.commit()
+                else:
+                    logger.error(
+                        f"[TC_GEN] Skipping coverage upsert for {us.issue_key} "
+                        f"— pipeline error: {result.get('error')}"
+                    )
 
                 return result
 
@@ -287,6 +308,16 @@ async def generate_test_cases_for_plan(
     # LANCER TOUTES LES GÉNÉRATIONS EN PARALLÈLE
     # ============================================================
     total_us = len(us_list)
+
+    # Starting TC code index: continue after existing TCs of this type in this plan
+    existing_tc_count_result = await db.execute(
+        select(func.count(TestCase.id)).where(
+            TestCase.test_plan_id == test_plan_id,
+            TestCase.test_type == effective_scenario_type,
+        )
+    )
+    existing_tc_count = existing_tc_count_result.scalar() or 0
+
     if progress_callback:
         await progress_callback("tc_init", {"total_us": total_us, "message": f"Starting generation for {total_us} user stories..."})
 
@@ -314,38 +345,54 @@ async def generate_test_cases_for_plan(
     # ASSEMBLER LES RÉSULTATS
     # ============================================================
     all_tcs = []
-    tc_index = 1
-    
+    failed_user_stories = []
+    skipped_count = 0
+    tc_index = existing_tc_count + 1
+
     for i, result in enumerate(results):
         us = us_list[i]
-        
+
         if isinstance(result, Exception):
             logger.error(f"[TC_GEN] Failed for {us.issue_key}: {result}", exc_info=True)
+            failed_user_stories.append({"issue_key": us.issue_key, "error": str(result)})
             continue
-        
+
+        if result.get("workflow_status") == "skipped":
+            skipped_count += 1
+            continue
+
         if result.get("workflow_status") == "error":
             logger.error(f"[TC_GEN] Failed for {us.issue_key}: {result.get('error')}")
+            failed_user_stories.append({"issue_key": us.issue_key, "error": result.get("error", "unknown")})
             continue
-        
+
         us_tcs = result.get("test_cases", [])
-        
-        # Réassigner les tc_code avec les bons indices séquentiels
+
         for tc in us_tcs:
-            tc["tc_code"] = build_tc_code(tc_index)  # ou format "TC-{tc_index:04d}"
+            tc["tc_code"] = build_tc_code(tc_index)
             tc_index += 1
-        
+
         all_tcs.extend(us_tcs)
         logger.info(f"[TC_GEN] {us.issue_key}: generated {len(us_tcs)} TCs")
-    
-    # 6. Persist ALL TCs
+
+    logger.info(
+        f"[TC_GEN] Summary: {len(all_tcs)} new TCs, "
+        f"{skipped_count} US skipped (already covered), "
+        f"{len(failed_user_stories)} failed"
+    )
+
+    # 6. Persist new TCs only (existing TCs are preserved)
     if not all_tcs:
         return {
             "test_cases": [], "count": 0,
             "test_plan_id": test_plan_id, "test_suite_id": test_suite_id,
-            "workflow_status": "success",
+            "workflow_status": "partial" if failed_user_stories else "success",
             "feature_gherkin": "", "coverage": {}, "coverage_hints": [],
+            "failed_user_stories": failed_user_stories,
+            "failed_count": len(failed_user_stories),
+            "skipped_count": skipped_count,
         }
-    
+
     db_data = [_pipeline_tc_to_db(tc, test_plan_id, test_suite_id) for tc in all_tcs]
     created = await repo.batch_create_test_cases(db, db_data)
     
@@ -359,7 +406,10 @@ async def generate_test_cases_for_plan(
         "coverage_hints": [],
         "test_plan_id": test_plan_id,
         "test_suite_id": test_suite_id,
-        "workflow_status": "success",
+        "workflow_status": "partial" if failed_user_stories else "success",
+        "failed_user_stories": failed_user_stories,
+        "failed_count": len(failed_user_stories),
+        "skipped_count": skipped_count,
     }
 
 # ============================================================
@@ -624,8 +674,9 @@ def _pipeline_tc_to_db(tc: Dict[str, Any], test_plan_id: str, test_suite_id: Opt
         "user_story_id":   tc.get("user_story_id"), 
         "test_plan_id":    test_plan_id,
         "test_suite_id":   test_suite_id,
-        "execution_order": tc.get("execution_order"),
-        "is_active":       True,
+        "execution_order":    tc.get("execution_order"),
+        "estimated_duration": tc.get("estimated_duration"),
+        "is_active":          True,
         "_covered_ac_indices": tc.get("_covered_ac_indices", []),
         "_reasoning": tc.get("_reasoning", ""),
     }
@@ -647,8 +698,9 @@ def _db_tc_to_response(tc) -> Dict[str, Any]:
         "expected_results": tc.expected_results or [],
         "test_plan_id":    tc.test_plan_id,
         "test_suite_id":   tc.test_suite_id,
-        "execution_order": tc.execution_order,
-        "is_active":       tc.is_active,
-        "created_at":      tc.created_at.isoformat() if tc.created_at else None,
-        "updated_at":      tc.updated_at.isoformat() if tc.updated_at else None,
+        "execution_order":    tc.execution_order,
+        "estimated_duration": tc.estimated_duration,
+        "is_active":          tc.is_active,
+        "created_at":         tc.created_at.isoformat() if tc.created_at else None,
+        "updated_at":         tc.updated_at.isoformat() if tc.updated_at else None,
     }

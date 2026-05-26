@@ -262,6 +262,7 @@ class RiskResponse(RiskBase):
     source_acceptance_criteria: Optional[str] = None
     is_accepted: Optional[bool] = None
     accepted_at: Optional[datetime] = None
+    eligible_for_reanalysis: Optional[bool] = None
 
     class Config:
         from_attributes = True

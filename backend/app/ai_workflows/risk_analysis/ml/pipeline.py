@@ -17,7 +17,7 @@ from langsmith import traceable
 from .config import ML_CONFIDENCE_THRESHOLD, LLM_TEMPERATURE, LLM_MODEL, LLM_MAX_TOKENS, LLM_TIMEOUT_SECONDS
 from .models import RiskAnalysisInput, RiskAnalysisResult, MLPrediction, LLMExplanation
 from .calculator import compute_full_result
-from .nb_embed import NaiveBayesEmbedModel
+from .nb_embed import KNNEmbedModel
 from .prompts import RBT_EXPLANATION_PROMPT, RISK_ANALYSIS_PROMPT_FALLBACK
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class RiskAnalysisPipeline:
 
     def __init__(self):
-        self.ml_model = NaiveBayesEmbedModel()
+        self.ml_model = KNNEmbedModel()
         self._llm = None
         self._initialized = False
 

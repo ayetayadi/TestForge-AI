@@ -3,16 +3,15 @@ ISTQB §5.4 Test Case Design Pipeline.
 
 Flow per User Story:
   1. User picks ONE scenario type (positive | negative | boundary)
-  2. count = ceil(total_ACs / AC_TO_TC_RATIO), minimum 1
-  3. LLM generates {count} test cases of the chosen type
-  4. AC coverage check (≥ 80%)
-  5. If insufficient → correction loop (max MAX_CORRECTION_ITERATIONS)
+  2. LLM analyzes all ACs, groups those sharing the same flow, generates one TC per group
+  3. AC coverage check (≥ 80%)
+  4. If insufficient → correction loop (max MAX_CORRECTION_ITERATIONS)
 """
 
 import asyncio
 import logging
 import math
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 
 from langsmith import traceable
 from pydantic import BaseModel, Field
@@ -56,6 +55,12 @@ class StepOutput(BaseModel):
 class TestCaseOutput(BaseModel):
     title: str = Field(description="Short imperative sentence, max 100 chars")
     test_type: str = Field(description="positive | negative | boundary")
+    outcome_type: Literal["success", "error"] = Field(
+        description=(
+            "'success' if the test expects a successful outcome (positive test), "
+            "'error' if the test expects an error, rejection, or failure (negative test)"
+        )
+    )
     priority: str = Field(description="critical | high | medium | low")
     preconditions: List[str]
     postconditions: List[str]
@@ -66,6 +71,10 @@ class TestCaseOutput(BaseModel):
     covered_ac_indices: List[int]
     reasoning: str
     covered_risk_ids: List[str] = Field(default_factory=list)
+    estimated_duration: Optional[int] = Field(
+        default=None,
+        description="Estimated execution time in minutes (e.g. 5 for a simple TC, 15 for a complex one)"
+    )
 
 
 class TestCaseBatch(BaseModel):
@@ -76,6 +85,32 @@ class TestCaseBatch(BaseModel):
 # TYPE ORDER (for finalize sorting)
 # ============================================================
 _TYPE_ORDER = {"positive": 0, "negative": 1, "boundary": 2}
+
+# Phrases in a title that betray boundary-value content even when test_type = "positive"
+_BOUNDARY_TITLE_SIGNALS = frozenset({
+    "minimum length", "maximum length", "min length", "max length",
+    "minimum password", "maximum password", "minimum username", "maximum username",
+    "minimum email", "maximum email", "long email", "long password", "long username",
+    "long name", "long string", "at minimum", "at maximum", "at limit",
+    "boundary", "edge case", "limit value", "empty string", "null value",
+    "zero value", "too long", "too short", "special character", "special char",
+})
+
+def _has_boundary_signals(tc: dict) -> bool:
+    title_lower = tc.get("title", "").lower()
+    return any(signal in title_lower for signal in _BOUNDARY_TITLE_SIGNALS)
+
+
+_ERROR_RESULT_PATTERNS = ("error message", "is not created", "is not updated", "no session token")
+
+
+def _has_negative_signals(tc: dict) -> bool:
+    # Primary: outcome_type declared by the LLM
+    if tc.get("outcome_type", "success") == "error":
+        return True
+    # Backup: catch cases where LLM set outcome_type="success" but expected_results betray the truth
+    results_lower = " ".join(tc.get("expected_results", [])).lower()
+    return any(p in results_lower for p in _ERROR_RESULT_PATTERNS)
 
 
 # ============================================================
@@ -142,12 +177,9 @@ class TestCasePipeline:
 
         level = risk_level.lower()
 
-        # STEP 2: Estimate count = ceil(total_ACs / ratio), minimum 1
-        count = max(1, math.ceil(len(acceptance_criteria) / AC_TO_TC_RATIO)) if acceptance_criteria else 1
-
         logger.info(
             f"[TEST CASE] Starting: issue={issue_key} type={scenario_type} "
-            f"count={count} ac={len(acceptance_criteria)}"
+            f"ac={len(acceptance_criteria)}"
         )
 
         try:
@@ -155,7 +187,7 @@ class TestCasePipeline:
             await self._emit(progress_callback, "phase", {
                 "phase": "analyzing",
                 "message": (
-                    f"Estimating {count} {scenario_type} test case(s) "
+                    f"Generating {scenario_type} test cases "
                     f"for {len(acceptance_criteria)} AC(s)..."
                 ),
             })
@@ -167,14 +199,14 @@ class TestCasePipeline:
             # ── STEP 3-4: INITIAL LLM GENERATION ─────────
             await self._emit(progress_callback, "phase", {
                 "phase": "generating",
-                "message": f"Generating {count} {scenario_type} test case(s)...",
+                "message": f"Generating {scenario_type} test cases...",
             })
 
             try:
                 batch: TestCaseBatch = await asyncio.wait_for(
                     self._call_llm(
                         story, acceptance_criteria, level, risk_score,
-                        risk_description, risk_mitigation, risk_ids, scenario_type, count,
+                        risk_description, risk_mitigation, risk_ids, scenario_type,
                     ),
                     timeout=LLM_TIMEOUT_SECONDS,
                 )
@@ -217,10 +249,12 @@ class TestCasePipeline:
                     ),
                 })
 
+                existing_titles = [tc.get("title", "") for tc in raw_tcs if tc.get("title")]
                 try:
                     extra_batch: TestCaseBatch = await asyncio.wait_for(
                         self._call_llm_correction(
                             story, acceptance_criteria, uncovered,
+                            existing_titles,
                             level, risk_mitigation, risk_description, risk_ids, scenario_type, correction_count,
                         ),
                         timeout=LLM_TIMEOUT_SECONDS,
@@ -241,7 +275,7 @@ class TestCasePipeline:
                 "message": "Assigning TC codes and building feature Gherkin...",
             })
 
-            finalized = self._finalize(raw_tcs, user_story_id, tc_start_index)
+            finalized = self._finalize(raw_tcs, user_story_id, tc_start_index, scenario_type)
             tcs_generated = len(finalized)
             feature_gherkin = self._build_feature_gherkin(story, finalized)
 
@@ -308,7 +342,6 @@ class TestCasePipeline:
         risk_mitigation: str,
         risk_ids: List[str],
         scenario_type: str,
-        count: int,
     ) -> TestCaseBatch:
         ac_text = (
             "\n".join(f"{i}. {ac}" for i, ac in enumerate(acceptance_criteria))
@@ -327,7 +360,6 @@ class TestCasePipeline:
             risk_mitigation=risk_mitigation or "N/A",
             risk_ids_list=risk_ids_list,
             scenario_type=scenario_type,
-            count=count,
         )
         return await self._llm.ainvoke(prompt)
 
@@ -336,6 +368,7 @@ class TestCasePipeline:
         story: str,
         acceptance_criteria: List[str],
         uncovered_acs: List[str],
+        existing_titles: List[str],
         risk_level: str,
         risk_mitigation: str,
         risk_description: str,
@@ -348,6 +381,10 @@ class TestCasePipeline:
             if acceptance_criteria else "(none)"
         )
         uncovered_text = "\n".join(f"- {ac}" for ac in uncovered_acs)
+        existing_titles_text = (
+            "\n".join(f"  - {t}" for t in existing_titles)
+            if existing_titles else "  (none yet)"
+        )
         risk_ids_list = (
             "\n".join(f"  - RISK-{i + 1}" for i in range(len(risk_ids)))
             if risk_ids else "  (no accepted risks — use empty list [])"
@@ -356,6 +393,7 @@ class TestCasePipeline:
             story=story,
             acceptance_criteria=ac_text,
             uncovered_acs=uncovered_text,
+            existing_titles=existing_titles_text,
             risk_level=risk_level.upper(),
             risk_ids_list=risk_ids_list,
             scenario_type=scenario_type,
@@ -411,9 +449,59 @@ class TestCasePipeline:
         test_cases: List[Dict[str, Any]],
         user_story_id: Optional[str],
         start_index: int,
+        scenario_type: str = "positive",
     ) -> List[Dict[str, Any]]:
+        # Filter 1: keep only TCs matching the requested type field
+        type_filtered = [
+            tc for tc in test_cases
+            if tc.get("test_type", "positive").lower().strip() == scenario_type
+        ]
+        if not type_filtered:
+            logger.warning(
+                f"[TEST CASE] No TCs matched type '{scenario_type}' "
+                f"(got: {[tc.get('test_type') for tc in test_cases]}). Keeping all."
+            )
+            type_filtered = test_cases
+
+        # Filter 2: reject boundary-content TCs when positive or negative was requested
+        # (LLM sometimes sets test_type=positive but generates min/max/long/empty scenarios)
+        if scenario_type != "boundary":
+            content_ok = [tc for tc in type_filtered if not _has_boundary_signals(tc)]
+            if content_ok:
+                removed = len(type_filtered) - len(content_ok)
+                if removed:
+                    logger.warning(
+                        f"[TEST CASE] Removed {removed} boundary-content TC(s) "
+                        f"from '{scenario_type}' batch."
+                    )
+                type_filtered = content_ok
+
+        # Filter 3: reject negative-content TCs when positive was requested
+        # (LLM sometimes sets test_type=positive but generates invalid/reject/error scenarios)
+        if scenario_type == "positive":
+            content_ok = [tc for tc in type_filtered if not _has_negative_signals(tc)]
+            if content_ok:
+                removed = len(type_filtered) - len(content_ok)
+                if removed:
+                    logger.warning(
+                        f"[TEST CASE] Removed {removed} negative-content TC(s) "
+                        f"from 'positive' batch."
+                    )
+                type_filtered = content_ok
+
+        # Deduplicate by normalized title (keeps first occurrence)
+        seen_titles: set = set()
+        deduped = []
+        for tc in type_filtered:
+            norm_title = tc.get("title", "").lower().strip()
+            if norm_title in seen_titles:
+                logger.warning(f"[TEST CASE] Duplicate title removed: '{tc.get('title')}'")
+                continue
+            seen_titles.add(norm_title)
+            deduped.append(tc)
+
         sorted_tcs = sorted(
-            test_cases, key=lambda tc: _TYPE_ORDER.get(tc.get("test_type", ""), 99)
+            deduped, key=lambda tc: _TYPE_ORDER.get(tc.get("test_type", ""), 99)
         )
 
         finalized = []
@@ -432,6 +520,7 @@ class TestCasePipeline:
                 "tc_code": build_tc_code(start_index + order - 1),
                 "title": tc.get("title", ""),
                 "test_type": tc.get("test_type", "positive"),
+                "outcome_type": tc.get("outcome_type", "success"),
                 "priority": tc.get("priority", "medium"),
                 "preconditions": tc.get("preconditions", []),
                 "postconditions": tc.get("postconditions", []),
@@ -446,6 +535,7 @@ class TestCasePipeline:
                 "_covered_ac_indices": tc.get("covered_ac_indices", []),
                 "_reasoning": tc.get("reasoning", ""),
                 "risk_ids": tc.get("covered_risk_ids", []),
+                "estimated_duration": tc.get("estimated_duration"),
             })
 
         return finalized

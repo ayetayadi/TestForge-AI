@@ -105,6 +105,9 @@ class TestCase(Base):
     # Ordre d'exécution dans le plan priorisé (calculé par l'algorithme §p.245)
     execution_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Durée estimée d'exécution en minutes (estimée par le LLM à la génération)
+    estimated_duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     _covered_ac_indices: Mapped[Optional[List[int]]] = mapped_column(
         JSONB, nullable=True, default=lambda: []
     )

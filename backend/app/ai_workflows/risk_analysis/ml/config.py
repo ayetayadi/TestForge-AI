@@ -32,10 +32,10 @@ TEST_DEPTH = {
 }
 
 # ML
-ML_CONFIDENCE_THRESHOLD = 0.40
+ML_CONFIDENCE_THRESHOLD = 0.50
 
 # Embedding multilingue (français + anglais), 384 dims, ~120 Mo
-EMBED_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+EMBED_MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 
 # LLM
 LLM_TEMPERATURE = 0.1
