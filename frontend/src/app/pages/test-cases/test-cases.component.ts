@@ -342,8 +342,12 @@ confirmDialogData = signal<{
           this.genProgressCurrent.set(0);
           this.genCurrentUsKey.set('');
         } else if (e.type === 'us_done') {
-          this.genProgressCurrent.set(e.data.completed);
-          this.genCurrentUsKey.set(e.data.issue_key ?? '');
+          if (e.data.completed > this.genProgressCurrent()) {
+            this.genProgressCurrent.set(e.data.completed);
+          }
+          if (e.data.issue_key && e.data.issue_key !== 'generating...') {
+            this.genCurrentUsKey.set(e.data.issue_key);
+          }
         } else if (e.type === 'tc_generated') {
           this._updateJob(planId, { status: 'generated', count: e.data.count });
           sub.unsubscribe(); this.sseSubscriptions.delete(jobId); this._checkGenerationDone();

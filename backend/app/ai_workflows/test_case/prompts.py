@@ -73,6 +73,17 @@ STEP 1 — ANALYZE AND GROUP:
     Only generate separate TCs when the STEPS are fundamentally different.
     Example: "create project" vs "delete project" → different navigation, different action → TWO TCs.
 
+  RULE D — OPTIONAL FIELD CREATES A SECOND TC:
+    When an AC explicitly says "field X can be omitted" or "field X is optional", generate TWO TCs:
+    TC-main (critical):   Fill ALL fields (required + optional fields populated).
+    TC-variant (medium):  Fill ONLY required fields — leave optional fields absent, verify default/omitted behavior.
+    These test DIFFERENT data paths even though the navigation steps look structurally similar.
+    MERGE: If two ACs both describe the "optional-field-absent" scenario
+           (e.g., "color can be omitted" + "when color absent, default color applied"),
+           they belong to ONE variant TC — do NOT split them into two separate TCs.
+    EXCEPTION: A postcondition AC like "on success, item appears in list" is shared by
+               BOTH the main and the variant TC. It is NOT a trigger for a third TC.
+
 STEP 2 — GENERATE ONE TC PER GROUP:
   Generate exactly ONE test case per distinct group — no more, no less.
   List ALL AC indices of the group in covered_ac_indices.
@@ -101,7 +112,14 @@ outcome_type
 
 priority
   One of: critical | high | medium | low
-  (critical = blocks the core user flow; use sparingly)
+  Rules:
+    critical → TC with the MOST covered_ac_indices for this story (the main happy path with all fields).
+               Also use for: core feature actions that block the product if broken (login, create, delete).
+    high     → Important secondary flows that are frequently exercised.
+    medium   → Variant TCs (optional field omitted), secondary valid-data combinations.
+    low      → Rarely-used positive paths or minor UI-state verifications.
+  SELF-CHECK: The TC with the most covered_ac_indices must have priority = critical.
+              Variant TCs (optional-field-absent, RULE D) must have priority = medium.
 
 preconditions
   List of strings — system state required BEFORE the test starts.
@@ -269,6 +287,89 @@ STRICT CONSTRAINTS — ANY VIOLATION MAKES THE OUTPUT INVALID:
    - No two TCs differ only in which form field is filled — if so, merge into one TC that fills ALL fields ✓
    - Every AC index appears in at least one covered_ac_indices ✓
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+
+
+BATCH_GENERATION_PROMPT = """You are an ISTQB-certified test analyst generating test cases for multiple user stories in one pass.
+
+SCENARIO TYPE: {scenario_type}
+Generate "{scenario_type}" test cases for ALL {story_count} user stories listed below.
+Apply all grouping and quality rules to EACH story independently.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USER STORIES:
+{stories_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GROUPING RULES (apply per story):
+
+RULE A — SAME FORM, MULTIPLE FIELDS:
+  ACs for different fields of the SAME form → ONE TC filling ALL fields simultaneously.
+  ✅ "enter name" + "enter email" + "enter phone" → ONE TC covering all three
+  ❌ WRONG: one TC per field
+
+RULE B — SAME ACTION, MULTIPLE OUTCOMES:
+  ACs describing consequences of the SAME action → ONE TC with all postconditions asserted.
+
+RULE C — GENUINELY DISTINCT FLOWS:
+  Separate TCs only when steps or preconditions are fundamentally different.
+
+RULE D — OPTIONAL FIELD CREATES A SECOND TC:
+  When an AC says "field X can be omitted" or "field X is optional", generate TWO TCs:
+  TC-main (critical):   ALL fields filled (required + optional).
+  TC-variant (medium):  ONLY required fields — optional field absent, verify default/omitted behavior.
+  MERGE: ACs "field X optional" + "default applied when X absent" → ONE variant TC (not two).
+  EXCEPTION: A shared postcondition AC ("on success, item visible in list") is NOT a new TC trigger.
+
+TYPE CONSTRAINTS:
+  positive → valid inputs, success outcome, outcome_type = "success"
+  negative → invalid inputs, error outcome,   outcome_type = "error"
+  boundary → limit values, outcome_type = "success" if accepted, "error" if rejected
+  Every test case MUST have test_type = "{scenario_type}".
+
+PRIORITY per story:
+  critical → TC with the MOST covered_ac_indices (main happy path, all fields)
+  medium   → Variant TCs (optional field omitted) and secondary outcome TCs
+
+DEDUPLICATION per story:
+  No two TCs may execute identical steps on the same data — merge them.
+  Every AC index must appear in at least one covered_ac_indices for that story.
+
+FIELDS FOR EACH TEST CASE:
+  title              Short imperative sentence (max 100 chars)
+  test_type          Must be exactly: {scenario_type}
+  outcome_type       "success" or "error"
+  priority           critical | high | medium | low
+  preconditions      List[str] — state required before the test
+  postconditions     List[str] — verifiable state after the test
+  gherkin_scenario   Full Gherkin BDD block (Scenario / Given / When / Then / And).
+                     Use single quotes for values inside strings, NEVER double quotes.
+  steps              List of {{order, action, expected}}
+  test_data          JSON object with concrete test values (standard JSON double quotes)
+  expected_results   List[str] of final assertions (single quotes for values inside strings)
+  covered_ac_indices 0-based indices of ACs this TC covers (from THAT story's AC list only)
+  reasoning          One sentence explaining what this TC verifies
+  covered_risk_ids   [] (empty list — risk linking handled separately)
+  estimated_duration Minutes (int): 3 for 1-3 steps, 5 for 4-6 steps, 10 for 7+ steps
+
+JSON FORMATTING: Single quotes INSIDE strings, double quotes ONLY as JSON field delimiters.
+
+OUTPUT: A JSON object with a "stories" array. Each element:
+{{
+  "story_index": <int, 0-based, matching [STORY N] above>,
+  "test_cases": [<array of test case objects>]
+}}
+
+Every [STORY N] index (0 to {story_count_minus_1}) MUST appear in the output.
+Output ONLY the JSON object — no markdown code blocks, no extra text before or after.
+
+SELF-CHECK before outputting:
+  ✓ Every story_index from 0 to {story_count_minus_1} is present
+  ✓ All test_type values = "{scenario_type}"
+  ✓ Every AC index covered for each story
+  ✓ For each story with optional-field ACs: variant TC (RULE D) exists
+  ✓ TC with most covered_ac_indices per story → priority = critical
+  ✓ No duplicate titles within the same story
 """
 
 

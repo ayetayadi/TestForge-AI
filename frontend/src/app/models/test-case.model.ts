@@ -136,6 +136,7 @@ export interface TestCase {
   expected_results: string[] | null;
   locators: Locator[] | null;
   execution_order: number | null;
+  estimated_duration: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

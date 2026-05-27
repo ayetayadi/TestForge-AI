@@ -32,11 +32,13 @@ from app.ai_workflows.test_case.coverage_checker import (
 from app.ai_workflows.test_case.prompts import (
     TEST_CASE_GENERATION_PROMPT,
     CORRECTION_PROMPT,
+    BATCH_GENERATION_PROMPT,
 )
 from app.llm.llm_control import create_llm
 from .config import (
     LLM_TEMPERATURE, LLM_MODEL, LLM_MAX_TOKENS, LLM_TIMEOUT_SECONDS,
     AC_TO_TC_RATIO, MAX_CORRECTION_ITERATIONS,
+    BATCH_LLM_MAX_TOKENS, BATCH_LLM_TIMEOUT_SECONDS, BATCH_MAX_STORIES,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +85,15 @@ class TestCaseBatch(BaseModel):
     test_cases: List[TestCaseOutput]
 
 
+class UserStoryBatchItem(BaseModel):
+    story_index: int = Field(description="0-based index matching the input story list")
+    test_cases: List[TestCaseOutput]
+
+
+class AllStoriesBatch(BaseModel):
+    stories: List[UserStoryBatchItem]
+
+
 # ============================================================
 # TYPE ORDER (for finalize sorting)
 # ============================================================
@@ -125,7 +136,9 @@ class TestCasePipeline:
     def __init__(self, temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL):
         logger.info("[TEST CASE] Initializing pipeline...")
         llm = create_llm(temperature=temperature, model=model, max_tokens=LLM_MAX_TOKENS)
-        self._llm = llm.with_structured_output(TestCaseBatch)
+        self._llm = llm.with_structured_output(TestCaseBatch, method="json_mode")
+        batch_llm = create_llm(temperature=temperature, model=model, max_tokens=BATCH_LLM_MAX_TOKENS)
+        self._batch_llm = batch_llm.with_structured_output(AllStoriesBatch, method="json_mode")
         logger.info("[TEST CASE] Ready")
 
     async def _emit(self, callback: Optional[Callable], event_type: str, data: dict) -> None:
@@ -355,6 +368,224 @@ class TestCasePipeline:
             }
 
     # ============================================================
+    # BATCH GENERATION (multiple user stories → single LLM call)
+    # ============================================================
+
+    @observe(name="test_case_batch_pipeline")
+    async def run_batch(
+        self,
+        stories_data: List[Dict[str, Any]],
+        scenario_type: str = "positive",
+        risk_level: str = "medium",
+        risk_score: float = 1.5,
+        risk_description: str = "",
+        risk_ids: List[str] = None,
+        progress_callback: Optional[Callable] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate TCs for MULTIPLE User Stories in a single LLM call.
+
+        stories_data items must contain:
+            user_story_id, issue_key, story, acceptance_criteria,
+            risk_mitigation (optional), user_story_title (optional)
+
+        Returns a list of result dicts in the same format as run().
+        Falls back to individual run() calls if the batch LLM call fails.
+        """
+        if not stories_data:
+            return []
+
+        risk_ids = risk_ids or []
+        scenario_type = scenario_type.lower()
+        if scenario_type not in VALID_SCENARIO_TYPES:
+            scenario_type = "positive"
+
+        logger.info(
+            f"[TC BATCH] Starting: {len(stories_data)} stories, type={scenario_type}"
+        )
+
+        await self._emit(progress_callback, "phase", {
+            "phase": "generating",
+            "message": f"Generating {scenario_type} test cases for {len(stories_data)} user stories...",
+        })
+
+        stories_block = self._format_stories_block(stories_data)
+        story_count = len(stories_data)
+
+        prompt = BATCH_GENERATION_PROMPT.format(
+            scenario_type=scenario_type,
+            story_count=story_count,
+            story_count_minus_1=story_count - 1,
+            stories_block=stories_block,
+        )
+
+        try:
+            all_batch: AllStoriesBatch = await asyncio.wait_for(
+                self._batch_llm.ainvoke(prompt),
+                timeout=BATCH_LLM_TIMEOUT_SECONDS,
+            )
+        except (asyncio.TimeoutError, Exception) as exc:
+            logger.warning(
+                f"[TC BATCH] Batch LLM failed ({exc.__class__.__name__}: {exc}), "
+                "falling back to individual generation."
+            )
+            return await self._run_individual_fallback(
+                stories_data, scenario_type, risk_level, risk_score,
+                risk_description, risk_ids, progress_callback,
+            )
+
+        if all_batch is None:
+            logger.warning("[TC BATCH] LLM returned None — falling back to individual generation.")
+            return await self._run_individual_fallback(
+                stories_data, scenario_type, risk_level, risk_score,
+                risk_description, risk_ids, progress_callback,
+            )
+
+        story_items_by_index: Dict[int, UserStoryBatchItem] = {
+            item.story_index: item for item in all_batch.stories
+        }
+        risk_label_map: Dict[str, str] = {
+            f"RISK-{i + 1}": rid for i, rid in enumerate(risk_ids)
+        }
+
+        results: List[Dict[str, Any]] = []
+
+        for idx, story_data in enumerate(stories_data):
+            acceptance_criteria = story_data.get("acceptance_criteria", [])
+            item = story_items_by_index.get(idx)
+
+            if item is None or not item.test_cases:
+                logger.warning(
+                    f"[TC BATCH] No TCs in batch result for story {idx} "
+                    f"({story_data.get('issue_key')}) — running correction."
+                )
+                raw_tcs: List[Dict[str, Any]] = []
+            else:
+                raw_tcs = [tc.model_dump() for tc in item.test_cases]
+                self._remap_risk_ids(raw_tcs, risk_label_map)
+                raw_tcs = self._repair_gherkin(raw_tcs)
+
+            ac_coverage = validate_ac_coverage(raw_tcs, acceptance_criteria)
+
+            if not ac_coverage["is_sufficient"]:
+                uncovered = ac_coverage["uncovered"]
+                correction_count = max(1, math.ceil(len(uncovered) / AC_TO_TC_RATIO))
+                existing_titles = [tc.get("title", "") for tc in raw_tcs if tc.get("title")]
+                logger.info(
+                    f"[TC BATCH] Coverage {ac_coverage['coverage_pct']:.0%} for "
+                    f"{story_data.get('issue_key')} — correcting with {correction_count} more TCs."
+                )
+                try:
+                    extra_batch: TestCaseBatch = await asyncio.wait_for(
+                        self._call_llm_correction(
+                            story_data["story"], acceptance_criteria, uncovered,
+                            existing_titles, risk_level,
+                            story_data.get("risk_mitigation", "N/A"),
+                            risk_description, risk_ids, scenario_type, correction_count,
+                        ),
+                        timeout=LLM_TIMEOUT_SECONDS,
+                    )
+                    extra_tcs = [tc.model_dump() for tc in extra_batch.test_cases]
+                    self._remap_risk_ids(extra_tcs, risk_label_map)
+                    extra_tcs = self._repair_gherkin(extra_tcs)
+                    raw_tcs.extend(extra_tcs)
+                    ac_coverage = validate_ac_coverage(raw_tcs, acceptance_criteria)
+                except Exception as e:
+                    logger.warning(
+                        f"[TC BATCH] Correction failed for {story_data.get('issue_key')}: {e}"
+                    )
+
+            finalized = self._finalize(
+                raw_tcs, story_data.get("user_story_id"), 1, scenario_type
+            )
+            feature_gherkin = self._build_feature_gherkin(story_data["story"], finalized)
+
+            results.append({
+                "test_cases": finalized,
+                "count": len(finalized),
+                "risk_level": risk_level,
+                "scenario_type": scenario_type,
+                "ac_coverage": ac_coverage,
+                "coverage_hints": suggest_hints(ac_coverage["uncovered"]),
+                "feature_gherkin": feature_gherkin,
+                "issue_key": story_data.get("issue_key"),
+                "user_story_id": story_data.get("user_story_id"),
+                "workflow_status": "success",
+            })
+
+        logger.info(
+            f"[TC BATCH] Done: {sum(r['count'] for r in results)} TCs "
+            f"across {len(results)} stories."
+        )
+        return results
+
+    async def _run_individual_fallback(
+        self,
+        stories_data: List[Dict[str, Any]],
+        scenario_type: str,
+        risk_level: str,
+        risk_score: float,
+        risk_description: str,
+        risk_ids: List[str],
+        progress_callback: Optional[Callable],
+    ) -> List[Dict[str, Any]]:
+        """Run individual pipeline.run() for each story when batch LLM fails."""
+        tasks = [
+            self.run(
+                story=s["story"],
+                acceptance_criteria=s.get("acceptance_criteria", []),
+                risk_level=risk_level,
+                risk_score=risk_score,
+                risk_description=risk_description,
+                risk_ids=risk_ids,
+                user_story_id=s.get("user_story_id"),
+                issue_key=s.get("issue_key", "?"),
+                tc_start_index=1,
+                progress_callback=progress_callback,
+                scenario_type=scenario_type,
+            )
+            for s in stories_data
+        ]
+        outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+        results = []
+        for i, outcome in enumerate(outcomes):
+            if isinstance(outcome, Exception):
+                logger.error(
+                    f"[TC BATCH FALLBACK] Failed for {stories_data[i].get('issue_key')}: {outcome}"
+                )
+                results.append({
+                    "test_cases": [], "count": 0, "risk_level": risk_level,
+                    "scenario_type": scenario_type,
+                    "ac_coverage": {"is_sufficient": False, "coverage_pct": 0.0,
+                                    "covered_count": 0, "total_count": 0,
+                                    "uncovered": [], "uncovered_indices": []},
+                    "coverage_hints": [], "feature_gherkin": "",
+                    "issue_key": stories_data[i].get("issue_key"),
+                    "user_story_id": stories_data[i].get("user_story_id"),
+                    "workflow_status": "error", "error": str(outcome),
+                })
+            else:
+                results.append(outcome)
+        return results
+
+    @staticmethod
+    def _format_stories_block(stories_data: List[Dict[str, Any]]) -> str:
+        lines: List[str] = []
+        for i, s in enumerate(stories_data):
+            lines.append(f"[STORY {i}] {s.get('issue_key', '?')}")
+            story_text = (s.get("story") or "").strip()
+            lines.append(f"Story: {story_text[:400]}")
+            acs = s.get("acceptance_criteria", [])
+            if acs:
+                lines.append("Acceptance Criteria:")
+                for j, ac in enumerate(acs):
+                    lines.append(f"  {j}. {ac}")
+            else:
+                lines.append("Acceptance Criteria: (none)")
+            lines.append("")
+        return "\n".join(lines)
+
+    # ============================================================
     # LLM CALLS
     # ============================================================
 
@@ -526,9 +757,20 @@ class TestCasePipeline:
             seen_titles.add(norm_title)
             deduped.append(tc)
 
+        # Sort: by type order first, then by coverage count descending (main TC first)
         sorted_tcs = sorted(
-            deduped, key=lambda tc: _TYPE_ORDER.get(tc.get("test_type", ""), 99)
+            deduped,
+            key=lambda tc: (
+                _TYPE_ORDER.get(tc.get("test_type", ""), 99),
+                -len(tc.get("covered_ac_indices", [])),
+            ),
         )
+
+        # Ensure the TC with the most covered ACs is marked critical (main happy path)
+        if scenario_type == "positive" and sorted_tcs:
+            main_tc = sorted_tcs[0]
+            if main_tc.get("priority", "medium") in ("low", "medium"):
+                main_tc["priority"] = "critical"
 
         finalized = []
         for order, tc in enumerate(sorted_tcs, start=1):

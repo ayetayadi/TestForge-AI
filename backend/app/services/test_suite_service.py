@@ -391,7 +391,9 @@ class TestSuiteService:
         # ============================================================
         risk_map = {r.user_story_id: r for r in all_risks}
         dependency_count = await self._create_dependencies_for_suites(
-            result["suites"], tc_map, test_plan_id, risk_map
+            result["suites"], tc_map, test_plan_id, risk_map,
+            flow_order=flow_order,
+            tc_classifications=llm_tc_classifications,
         )
         logger.info(f"[SUITE GEN] Created {dependency_count} dependencies between TCs")
         
@@ -412,9 +414,11 @@ class TestSuiteService:
         tc_map: Dict[str, TestCase],
         test_plan_id: str,
         risk_map: Dict[str, Risk],
+        flow_order: Optional[Dict[str, int]] = None,
+        tc_classifications: Optional[Dict[str, Any]] = None,
     ) -> int:
         """
-        Crée des dépendances séquentielles DANS CHAQUE suite (par flux métier).
+        Crée des dépendances séquentielles DANS CHAQUE suite (par flux métier + risque).
         1 suite = 1 graphe de dépendances indépendant.
         Résultat: 1 à 3 graphes selon les types de scénarios (positive/negative/boundary).
         """
@@ -430,35 +434,22 @@ class TestSuiteService:
         )
         await self.db.flush()
 
-        # Charger le flow_order et les classifications LLM du plan
-        flow_order = _BUSINESS_FLOW_RANK
-        tc_classifications: Dict[str, Any] = {}
-        seen_pairs: set = set()  # deduplicate across suites
+        # Utiliser directement les paramètres passés (déjà calculés par generate_suites)
+        # pas de re-lecture DB — évite les problèmes de timing et de relations non chargées
+        _flow_order: Dict[str, int] = flow_order or _BUSINESS_FLOW_RANK
+        _tc_classifications: Dict[str, Any] = tc_classifications or {}
+        seen_pairs: set = set()
 
-        try:
-            plan_result = await self.db.execute(
-                select(TestPlan).where(TestPlan.id == test_plan_id)
-            )
-            plan = plan_result.scalar_one_or_none()
-            if plan:
-                if plan.business_flow_order:
-                    flow_order = plan.business_flow_order
-                    logger.info(f"[DEP] Using LLM flow order: {flow_order}")
-                if plan.tc_classifications:
-                    tc_classifications = plan.tc_classifications
-                    logger.info(f"[DEP] Using LLM classifications for {len(tc_classifications)} TCs")
-        except Exception as e:
-            logger.warning(f"[DEP] Could not load plan data: {e}")
+        logger.info(
+            f"[DEP] flow_order={_flow_order} | "
+            f"classifications={len(_tc_classifications)} TCs"
+        )
 
         def _sort_key(tc: TestCase) -> Tuple[int, int]:
-            if tc.tc_code in tc_classifications:
-                llm = tc_classifications[tc.tc_code]
-                flow = llm.get("business_flow", "other")
-                risk_level = llm.get("risk_level", tc.priority or "medium")
-            else:
-                flow = self._get_business_flow(tc)
-                risk_level = tc.priority or "medium"
-            flow_rank = flow_order.get(flow, 99)
+            clf = _tc_classifications.get(tc.tc_code, {})
+            flow = clf.get("business_flow") or self._keyword_flow(tc.title or "")
+            risk_level = clf.get("risk_level") or tc.priority or "medium"
+            flow_rank = _flow_order.get(flow, 99)
             risk_wt = _RISK_WEIGHT.get(risk_level, _PRIORITY_WEIGHT.get(tc.priority or "medium", 300))
             return (flow_rank, -risk_wt)
 
@@ -484,9 +475,10 @@ class TestSuiteService:
                 f"création de {len(sorted_suite_tcs) - 1} dépendances"
             )
             for i, tc in enumerate(sorted_suite_tcs):
-                llm = tc_classifications.get(tc.tc_code, {})
-                flow = llm.get("business_flow") or self._get_business_flow(tc)
-                logger.info(f"  {i + 1}. {tc.tc_code} (flow={flow})")
+                clf = _tc_classifications.get(tc.tc_code, {})
+                flow = clf.get("business_flow") or self._keyword_flow(tc.title or "")
+                risk = clf.get("risk_level") or tc.priority or "medium"
+                logger.info(f"  {i + 1}. {tc.tc_code} | flow={flow} | risk={risk}")
 
             for i in range(1, len(sorted_suite_tcs)):
                 prev, curr = sorted_suite_tcs[i - 1], sorted_suite_tcs[i]
@@ -689,21 +681,26 @@ class TestSuiteService:
         )
 
 
+    def _keyword_flow(self, text: str) -> str:
+        """Détection du flux métier par mots-clés dans le titre (fallback pur)."""
+        t = text.lower()
+        for flow, keywords in _BUSINESS_FLOW_KEYWORDS.items():
+            if any(kw in t for kw in keywords):
+                return flow
+        return "other"
+
     def _get_business_flow(self, tc: TestCase) -> str:
         """
-        🔥 PRIORITÉ 1 : Classification LLM stockée dans le TestPlan
-        🔥 PRIORITÉ 2 : Détection par mots-clés (fallback)
+        Priorité 1 : classification LLM stockée dans le TestPlan (relations chargées).
+        Priorité 2 : détection par mots-clés sur le titre.
         """
-        # ── 1. Essayer la classification LLM ──
         if tc.test_suite and tc.test_suite.test_plan:
             plan = tc.test_suite.test_plan
             if plan.tc_classifications and tc.tc_code in plan.tc_classifications:
                 llm_flow = plan.tc_classifications[tc.tc_code].get("business_flow")
                 if llm_flow:
                     return llm_flow
-        
-
-        return "other"
+        return self._keyword_flow(tc.title or "")
 
     def _prioritize_cases_by_risk(
         self,

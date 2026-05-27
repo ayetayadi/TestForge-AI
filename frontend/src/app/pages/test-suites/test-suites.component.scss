@@ -1068,5 +1068,104 @@ $transition: 0.15s ease;
 }
 
 // ══════════════════════════════════════════════════════════════
-// FILTERS BAR (updated)
+// RISK COVERAGE — LIST VIEW
 // ══════════════════════════════════════════════════════════════
+
+// Spans the Risk Cov. + AC Cov. columns (2 grid cells) in .list-row
+.coverage-mini {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coverage-mini-bar {
+  flex: 1;
+  height: 4px;
+  background: #f3f4f6;
+  border-radius: 100px;
+  overflow: hidden;
+  min-width: 40px;
+
+  div {
+    height: 100%;
+    border-radius: 100px;
+    transition: width 0.4s ease;
+  }
+}
+
+.coverage-mini-pct {
+  font-size: 0.72rem;
+  font-weight: 700;
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.coverage-label {
+  font-size: 0.68rem;
+  color: $text-muted;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+// ══════════════════════════════════════════════════════════════
+// MITIGATION STATUS BADGE — CARD + LIST
+// ══════════════════════════════════════════════════════════════
+
+.mitigation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 100px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+
+  &.fully_mitigated     { background: #dcfce7; color: #15803d; }
+  &.partially_mitigated { background: #fef9c3; color: #854d0e; }
+  &.not_mitigated       { background: #fee2e2; color: #991b1b; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// RISK LEVEL DOT (inline indicator in cards)
+// ══════════════════════════════════════════════════════════════
+
+.risk-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.critical { background: #ef4444; }
+  &.high     { background: #f97316; }
+  &.medium   { background: #eab308; }
+  &.low      { background: #22c55e; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// RISK COVERAGE — CARD (GRID VIEW)
+// .coverage-section / .coverage-row / .cov-label / .cov-bar /
+// .cov-fill / .cov-pct are already defined above (lines 584-625)
+// ══════════════════════════════════════════════════════════════
+
+.coverage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+
+  .coverage-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+// stat card accent for risk coverage
+.stat-card.accent-orange::before { background: #f97316; }

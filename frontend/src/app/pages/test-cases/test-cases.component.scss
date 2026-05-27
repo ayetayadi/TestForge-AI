@@ -2117,6 +2117,7 @@ $text-muted:       #94a3b8;
 .btn-view-details {
   @include flex-center;
   gap: 6px;
+  margin-left: 35%;
   padding: 6px 12px;
   flex: 0 0 auto;
   background: linear-gradient(135deg, $primary, #6366f1);
