@@ -379,11 +379,13 @@
             {{ acceptanceLabel(risk.is_accepted) }}
           </div>
           <div class="decision-buttons">
-            <button class="btn-accept" [class.is-active]="risk.is_accepted === true"
+            <button class="btn-accept"
+              *ngIf="risk.is_accepted !== true"
               (click)="acceptRisk(true)">
               ✓ Accept Risk
             </button>
-            <button class="btn-reject" [class.is-active]="risk.is_accepted === false"
+            <button class="btn-reject"
+              *ngIf="risk.is_accepted !== false"
               (click)="acceptRisk(false)">
               ✗ Reject Risk
             </button>

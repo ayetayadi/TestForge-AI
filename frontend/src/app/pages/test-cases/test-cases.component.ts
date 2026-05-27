@@ -183,6 +183,27 @@ confirmDialogData = signal<{
   selectedCount = computed(() => this.selectedTestCases().size);
   allSelected = computed(() => this.paginatedTestCases().length > 0 && this.paginatedTestCases().every(tc => this.selectedTestCases().has(tc.id)));
 
+  statsByPriority = computed(() => {
+    const items = this.allTestCases();
+    return {
+      critical: items.filter(tc => tc.priority === 'critical').length,
+      high: items.filter(tc => tc.priority === 'high').length,
+      medium: items.filter(tc => tc.priority === 'medium').length,
+      low: items.filter(tc => tc.priority === 'low').length,
+    };
+  });
+
+  selectedPlanTitle = computed(() =>
+    this.testPlans().find(p => p.id === this.selectedTestPlanId())?.title ?? ''
+  );
+
+  hasActiveFilters = computed(() =>
+    this.selectedPriorities().length > 0 ||
+    this.selectedTestTypes().length > 0 ||
+    this.selectedTags().length > 0 ||
+    this.selectedStatus() !== 'all'
+  );
+
   // Gen panel
   genTotalJobs = computed(() => this.genJobs().length);
   genCompletedJobs = computed(() => this.genJobs().filter(j => j.status === 'generated' || j.status === 'failed').length);

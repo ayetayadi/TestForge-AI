@@ -1,210 +1,239 @@
 <div class="test-cases-page">
 
-  <!-- ═══════════════════════════════════════════════════════
+  <!-- ══════════════════════════════════════════════
        HEADER
-  ════════════════════════════════════════════════════════ -->
+  ══════════════════════════════════════════════ -->
   <div class="page-header">
     <div class="header-left">
-      <h1>Test Cases</h1>
-      <p class="subtitle">Generate and manage your test cases by Test Plan</p>
-    </div>
-    <div class="header-actions">
-      <div class="view-toggle">
-        <button class="view-toggle__btn" [class.active]="viewMode() === 'cards'" (click)="setViewMode('cards')" title="Card view">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-          </svg>
-        </button>
-        <button class="view-toggle__btn" [class.active]="viewMode() === 'table'" (click)="setViewMode('table')" title="Table view">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M.99 5.24A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25l.01 9.5A2.25 2.25 0 0116.76 17H3.26A2.272 2.272 0 011 14.74l-.01-9.5zm8.26 9.52v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75v.615c0 .414.336.75.75.75h5.373a.75.75 0 00.627-.74zm1.5 0a.75.75 0 00.627.74h5.373a.75.75 0 00.75-.75v-.615a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75v.625zm6.75-3.63v-.625a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75v.625c0 .414.336.75.75.75h5.25a.75.75 0 00.75-.75zm-8.25 0v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75v.625c0 .414.336.75.75.75H8.5a.75.75 0 00.75-.75zM17.5 7.5v-.625a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75V7.5c0 .414.336.75.75.75h5.25a.75.75 0 00.75-.75zm-8.25 0v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75V7.5c0 .414.336.75.75.75H8.5a.75.75 0 00.75-.75z" clip-rule="evenodd"/>
-          </svg>
-        </button>
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
       </div>
+      <div>
+        <h1 class="page-title">Test Cases</h1>
+        <p class="page-subtitle">AI-generated test cases from approved test plans</p>
+      </div>
+    </div>
 
-      <button class="btn-secondary" (click)="refresh()">
+    <div class="header-meta">
+      <button class="header-btn" (click)="refresh()" title="Refresh">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
         </svg>
         Refresh
       </button>
-
-      <button class="btn-secondary" (click)="exportCsv()" [disabled]="!filteredTestCases().length" title="Export filtered test cases to CSV">
+      <button class="header-btn" (click)="exportCsv()" [disabled]="!filteredTestCases().length" title="Export CSV">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v7.69l2.72-2.72a.75.75 0 111.06 1.06l-4 4a.75.75 0 01-1.06 0l-4-4a.75.75 0 111.06-1.06l2.72 2.72V3.75A.75.75 0 0110 3zM3.75 15a.75.75 0 000 1.5h12.5a.75.75 0 000-1.5H3.75z" clip-rule="evenodd"/>
         </svg>
         Export CSV
         <span *ngIf="filteredTestCases().length" class="csv-count">({{ filteredTestCases().length }})</span>
       </button>
-
-      <button class="btn-generate" (click)="openGenPanel()" [class.active]="showGenPanel()" *ngIf="allTestCases().length > 0">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/>
-        </svg>
-        Generate Test Cases
-      </button>
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════
-       GENERATE PANEL (TestPlan uniquement)
-  ════════════════════════════════════════════════════════ -->
-  @if (showGenPanel()) {
-    <div class="gen-panel" [class.gen-panel--ready]="!!genTestPlanId()">
+  <!-- ══════════════════════════════════════════════
+       SETUP CARD — configure & generate
+  ══════════════════════════════════════════════ -->
+  <div class="setup-card">
+    <div class="setup-card-header">
+      <div class="setup-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <path d="M13 2L4.09 12.26 11 11l-1 9 9.91-10.26L13 11l1-9z"/>
+        </svg>
+        AI Test Case Generator
+      </div>
 
-      <!-- Header -->
-      <div class="gen-panel__header">
-        <div class="gen-panel__header-left">
-          <div class="gen-panel__icon-wrap">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M13 2L4.09 12.26 11 11l-1 9 9.91-10.26L13 11l1-9z"/>
-            </svg>
-          </div>
-          <div class="gen-panel__heading">
-            <span class="gen-panel__title">AI Test Case Generator</span>
-            <span class="gen-panel__desc">Select an approved test plan and scenario type to generate test cases</span>
-          </div>
-        </div>
-        <button class="gen-panel__close" (click)="closeGenPanel()" [disabled]="isGenerating() && !genAllDone()" title="Close">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
+      <div class="setup-status">
+        @if (!genTestPlanId() && !isGenerating()) {
+          <span class="status-badge status-badge--idle">Select an approved plan to generate</span>
+        }
+        @if (genTestPlanId() && !isGenerating() && !genAllDone()) {
+          <span class="status-badge status-badge--pending">Ready to generate</span>
+        }
+        @if (genAllDone()) {
+          <span class="status-badge status-badge--done">Generation complete</span>
+        }
+        @if (isGenerating()) {
+          <span class="status-badge status-badge--running">
+            <span class="status-dot"></span>
+            Generating…
+          </span>
+        }
+      </div>
+    </div>
+
+    <div class="setup-filters-row">
+
+      <!-- Test Plan -->
+      <div class="setup-field setup-field--project">
+        <label class="setup-label">
+          Test Plan
+          <span class="setup-required">*</span>
+          <span class="filter-badge approved">Approved</span>
+        </label>
+        <div class="setup-select-wrap">
+          <svg class="setup-select-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
           </svg>
-        </button>
-      </div>
-
-      <!-- Fields -->
-      <div class="gen-panel__filters">
-        <div class="gen-field">
-          <label class="gen-label">
-            Test Plan
-            <span class="req-star">*</span>
-            <span class="filter-badge approved">Approved</span>
-          </label>
-          <div class="gen-select-wrap">
-            <svg class="gen-select-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-            </svg>
-            <select class="gen-select" [value]="genTestPlanId()" (change)="onGenTestPlanChange($event)" [disabled]="isGenerating()" [class.placeholder-active]="!genTestPlanId()">
-              <option value="">— Select approved test plan —</option>
-              @for (plan of allTestPlans(); track plan.id) {
-                <option [value]="plan.id">{{ plan.title }}</option>
-              }
-            </select>
-          </div>
-        </div>
-
-        <div class="gen-field">
-          <label class="gen-label">Scenario Type</label>
-          <div class="scenario-types">
-            @for (type of scenarioTypeOptions; track type.value) {
-              <label class="scenario-checkbox" [class.selected]="genScenarioType() === type.value">
-                <input
-                  type="radio"
-                  name="scenarioType"
-                  [value]="type.value"
-                  [checked]="genScenarioType() === type.value"
-                  (change)="selectScenarioType(type.value)"
-                  [disabled]="isGenerating()"
-                />
-                <span>{{ type.label }}</span>
-              </label>
+          <select class="setup-select" [value]="genTestPlanId()" (change)="onGenTestPlanChange($event)" [disabled]="isGenerating()" [class.placeholder-active]="!genTestPlanId()">
+            <option value="">— Select approved test plan —</option>
+            @for (plan of allTestPlans(); track plan.id) {
+              <option [value]="plan.id">{{ plan.title }}</option>
             }
-          </div>
+          </select>
         </div>
       </div>
 
-      <!-- Action -->
-      <div class="gen-panel__action">
-        <button class="btn-gen" (click)="startGeneration()" [disabled]="!genTestPlanId() || isGenerating()">
+      <!-- Scenario Type -->
+      <div class="setup-field setup-field--scenario">
+        <label class="setup-label">Scenario Type</label>
+        <div class="scenario-types">
+          @for (type of scenarioTypeOptions; track type.value) {
+            <label class="scenario-checkbox" [class.selected]="genScenarioType() === type.value">
+              <input
+                type="radio"
+                name="scenarioType"
+                [value]="type.value"
+                [checked]="genScenarioType() === type.value"
+                (change)="selectScenarioType(type.value)"
+                [disabled]="isGenerating()"
+              />
+              <span>{{ type.label }}</span>
+            </label>
+          }
+        </div>
+      </div>
+
+      <!-- Generate CTA -->
+      <div class="setup-field setup-field--cta">
+        <label class="setup-label">&nbsp;</label>
+        <button class="btn-run-analysis" (click)="startGeneration()" [disabled]="!genTestPlanId() || isGenerating()">
           @if (isGenerating()) {
-            <span class="spinner-inline"></span>
-            Generating...
+            <span class="spinner-sm"></span>
+            Generating…
           } @else {
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M13 2L4.09 12.26 11 11l-1 9 9.91-10.26L13 11l1-9z"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+              <polygon points="5 3 19 12 5 21 5 3"/>
             </svg>
-            Generate Test Cases for this Plan
+            Generate
           }
         </button>
       </div>
 
-      <!-- Progress -->
-      @if (genJobs().length > 0) {
-        <div class="gen-progress">
-          <div class="gen-progress__header">
-            @if (genProgressTotal() > 0 && !genAllDone()) {
-              <span class="gen-progress__label">
-                {{ genProgressCurrent() }} / {{ genProgressTotal() }} user stories
-                @if (genCurrentUsKey()) { <span class="gen-progress__current-us">— {{ genCurrentUsKey() }}</span> }
+    </div>
+
+    <!-- Generation Progress -->
+    @if (genJobs().length > 0) {
+      <div class="gen-progress-wrap">
+        <div class="gen-progress-header">
+          @if (genProgressTotal() > 0 && !genAllDone()) {
+            <span class="gen-progress-label">
+              {{ genProgressCurrent() }} / {{ genProgressTotal() }} user stories
+              @if (genCurrentUsKey()) {
+                <span class="gen-progress-current-us">— {{ genCurrentUsKey() }}</span>
+              }
+            </span>
+          } @else {
+            <span class="gen-progress-label">{{ genCompletedJobs() }} / {{ genTotalJobs() }} completed</span>
+          }
+          <span class="gen-progress-pct" [class.done]="genAllDone()">{{ genProgress() }}%</span>
+        </div>
+        <div class="gen-progress-track">
+          <div class="gen-progress-fill" [style.width.%]="genProgress()" [class.done]="genAllDone()"></div>
+        </div>
+        <div class="gen-jobs">
+          @for (job of genJobs(); track job.us_id) {
+            <div class="gen-job" [class]="getJobStatusClass(job.status)">
+              <span class="gen-job__key">{{ job.issue_key }}</span>
+              <span class="gen-job__status">
+                @if (job.status === 'queued') { ⏳ Queued }
+                @else if (job.status === 'processing') { <span class="spinner-inline"></span> Processing… }
+                @else if (job.status === 'generated') { ✅ {{ job.count }} TCs generated }
+                @else if (job.status === 'failed') { ❌ Failed }
               </span>
-            } @else {
-              <span class="gen-progress__label">{{ genCompletedJobs() }} / {{ genTotalJobs() }} completed</span>
-            }
-            <span class="gen-progress__pct">{{ genProgress() }}%</span>
-          </div>
-          <div class="gen-progress__bar-track">
-            <div class="gen-progress__bar-fill" [style.width.%]="genProgress()" [class.done]="genAllDone()"></div>
-          </div>
-          <div class="gen-jobs">
-            @for (job of genJobs(); track job.us_id) {
-              <div class="gen-job" [class]="getJobStatusClass(job.status)">
-                <span class="gen-job__key">{{ job.issue_key }}</span>
-                <span class="gen-job__status">
-                  @if (job.status === 'queued') { ⏳ Queued }
-                  @else if (job.status === 'processing') { <span class="spinner-inline"></span> Processing… }
-                  @else if (job.status === 'generated') { ✅ {{ job.count }} TCs generated }
-                  @else if (job.status === 'failed') { ❌ Failed }
-                </span>
-                @if (job.error) { <span class="gen-job__error">{{ job.error }}</span> }
-              </div>
-            }
-          </div>
-          @if (genAllDone()) {
-            <div class="gen-panel__action">
-              <button class="btn-secondary" (click)="closeGenPanel()">Close & View Results</button>
+              @if (job.error) { <span class="gen-job__error">{{ job.error }}</span> }
             </div>
           }
         </div>
-      }
+        @if (genAllDone()) {
+          <div class="gen-done-actions">
+            <button class="btn-link" (click)="refresh()">View results →</button>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       STATS BAR
+  ══════════════════════════════════════════════ -->
+  @if (!loading() && allTestCases().length > 0) {
+    <div class="stats-section">
+      <div class="stats-bar">
+        <div class="stat-card stat-card--total">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+          </div>
+          <div>
+            <div class="stat-value">{{ allTestCases().length }}</div>
+            <div class="stat-label">Total TCs</div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-card--critical">
+          <span class="stat-badge">⛔</span>
+          <div>
+            <div class="stat-value">{{ statsByPriority().critical }}</div>
+            <div class="stat-label">Critical</div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-card--high">
+          <span class="stat-badge">⚠️</span>
+          <div>
+            <div class="stat-value">{{ statsByPriority().high }}</div>
+            <div class="stat-label">High</div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-card--medium">
+          <span class="stat-badge">🔶</span>
+          <div>
+            <div class="stat-value">{{ statsByPriority().medium }}</div>
+            <div class="stat-label">Medium</div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-card--low">
+          <span class="stat-badge">✅</span>
+          <div>
+            <div class="stat-value">{{ statsByPriority().low }}</div>
+            <div class="stat-label">Low</div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-card--score">
+          <div class="stat-icon stat-icon--score">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="stat-value">{{ filteredTestCases().length }}</div>
+            <div class="stat-label">Filtered</div>
+          </div>
+        </div>
+      </div>
     </div>
   }
 
-  <!-- ═══════════════════════════════════════════════════════
-       DISPLAY FILTERS BAR (TestPlan uniquement)
-  ════════════════════════════════════════════════════════ -->
-  <div class="filters-bar">
-    <div class="filters-bar__left">
-      <svg class="filters-bar__icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
-      </svg>
-      <span class="filters-bar__label">Filters</span>
-    </div>
-
-    <div class="filter-item search-item">
-      <app-search-bar placeholder="Search by code or title..." [debounce]="300" (searchChange)="onSearchChange($event)" />
-    </div>
-
-    <div class="filter-item">
-      <select class="filter-select" [value]="selectedTestPlanId()" (change)="onTestPlanChange($event)">
-        <option value="">All Approved Test Plans</option>
-        @for (plan of allTestPlans(); track plan.id) {
-          <option [value]="plan.id">{{ plan.title }}</option>
-        }
-      </select>
-    </div>
-
-    <div class="filter-item">
-      <app-filter-bar [groups]="filterGroups()" [activeFilters]="activeFilters()" (filtersChange)="onFiltersChange($event)" />
-    </div>
-
-    <span class="results-count">
-      <strong>{{ filteredTestCases().length }}</strong> test case{{ filteredTestCases().length !== 1 ? 's' : '' }}
-    </span>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════════
+  <!-- ══════════════════════════════════════════════
        BULK ACTIONS
-  ════════════════════════════════════════════════════════ -->
+  ══════════════════════════════════════════════ -->
   @if (selectedCount() > 0) {
     <div class="bulk-bar">
       <span class="bulk-count">{{ selectedCount() }} selected</span>
@@ -214,45 +243,249 @@
     </div>
   }
 
-  <!-- ═══════════════════════════════════════════════════════
-       STATES
-  ════════════════════════════════════════════════════════ -->
-  @if (loading()) {
-    <div class="loading-state"><app-spinner text="Loading test cases..." /></div>
-  }
+  <!-- ══════════════════════════════════════════════
+       SECTION CARD — TC Register
+  ══════════════════════════════════════════════ -->
+  <div class="section-card">
 
-  @if (!loading() && allTestCases().length === 0) {
-    <div class="empty-state">
-      <div class="empty-icon">📋</div>
-      <h3>No test cases yet</h3>
-      <p>Generate test cases from a Test Plan</p>
-      <button class="btn-generate" (click)="openGenPanel()">Generate Test Cases</button>
-    </div>
-  }
-
-  @if (!loading() && allTestCases().length > 0 && filteredTestCases().length === 0) {
-    <div class="no-results">
-      <h4>No test cases match your filters</h4>
-      <button class="btn-secondary" (click)="clearAllFilters()">Clear all filters</button>
-    </div>
-  }
-
-  <!-- ═══════════════════════════════════════════════════════
-       AC COVERAGE TABLE
-  ════════════════════════════════════════════════════════ -->
-  @if (showCoverageTable() && coverageRows().length > 0) {
-    <div class="coverage-section">
-      <div class="coverage-header" (click)="toggleCoverageTable()">
-        <div class="coverage-header__left">
-          <svg class="coverage-header__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h7a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
-          </svg>
-          <span class="coverage-header__title">AC Coverage by User Story &amp; Type</span>
-          <span class="coverage-header__badge">{{ coverageRows().length }} rows</span>
-        </div>
-        <svg class="coverage-header__chevron" [class.rotated]="!coverageTableVisible()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+    <div class="register-header">
+      <h2 class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
         </svg>
+        Test Case Register
+        <span class="register-count">{{ filteredTestCases().length }}</span>
+        @if (selectedPlanTitle()) {
+          <span class="register-scope">— {{ selectedPlanTitle() }}</span>
+        }
+      </h2>
+      <div class="register-header-right">
+        <app-search-bar placeholder="Search by code or title…" [debounce]="300" (searchChange)="onSearchChange($event)" />
+        <div class="view-toggle">
+          <button class="view-toggle__btn" [class.active]="viewMode() === 'cards'" (click)="setViewMode('cards')" title="Card view">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+            </svg>
+          </button>
+          <button class="view-toggle__btn" [class.active]="viewMode() === 'table'" (click)="setViewMode('table')" title="Table view">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M.99 5.24A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25l.01 9.5A2.25 2.25 0 0116.76 17H3.26A2.272 2.272 0 011 14.74l-.01-9.5zm8.26 9.52v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75v.615c0 .414.336.75.75.75h5.373a.75.75 0 00.627-.74zm1.5 0a.75.75 0 00.627.74h5.373a.75.75 0 00.75-.75v-.615a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75v.625zm6.75-3.63v-.625a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75v.625c0 .414.336.75.75.75h5.25a.75.75 0 00.75-.75zm-8.25 0v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75v.625c0 .414.336.75.75.75H8.5a.75.75 0 00.75-.75zM17.5 7.5v-.625a.75.75 0 00-.75-.75H11.5a.75.75 0 00-.75.75V7.5c0 .414.336.75.75.75h5.25a.75.75 0 00.75-.75zm-8.25 0v-.625a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75V7.5c0 .414.336.75.75.75H8.5a.75.75 0 00.75-.75z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter tabs row -->
+    <div class="filter-tabs-row">
+      <div class="filter-tabs">
+        <select class="setup-select filter-plan-select" [value]="selectedTestPlanId()" (change)="onTestPlanChange($event)">
+          <option value="">All Approved Plans</option>
+          @for (plan of allTestPlans(); track plan.id) {
+            <option [value]="plan.id">{{ plan.title }}</option>
+          }
+        </select>
+        <app-filter-bar [groups]="filterGroups()" [activeFilters]="activeFilters()" (filtersChange)="onFiltersChange($event)" />
+      </div>
+      <button class="btn-link clear-link" *ngIf="hasActiveFilters()" (click)="clearAllFilters()">Clear filters</button>
+    </div>
+
+    <!-- Loading state -->
+    @if (loading()) {
+      <div class="loading-state">
+        <app-spinner text="Loading test cases..." />
+      </div>
+    }
+
+    <!-- Empty state -->
+    @if (!loading() && allTestCases().length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+        </div>
+        <h3>No test cases yet</h3>
+        <p>Select an approved test plan above and click Generate to create your first test cases.</p>
+      </div>
+    }
+
+    <!-- No results state -->
+    @if (!loading() && allTestCases().length > 0 && filteredTestCases().length === 0) {
+      <div class="list-empty">
+        <span>🔍</span>
+        <p>No test cases match your current filters.</p>
+        <button class="btn-link" (click)="clearAllFilters()">Clear filters</button>
+      </div>
+    }
+
+    <!-- ── CARD VIEW ── -->
+    @if (!loading() && filteredTestCases().length > 0 && viewMode() === 'cards') {
+      <div class="tc-grid">
+        @for (testCase of paginatedTestCases(); track testCase.id) {
+          <div class="tc-card" [class.selected]="selectedTestCases().has(testCase.id)">
+            <div class="tc-card__accent" [class]="'accent-' + (testCase.priority ?? '')"></div>
+
+            <div class="tc-card__top">
+              <div class="tc-card__check" (click)="$event.stopPropagation()">
+                <input type="checkbox" [checked]="selectedTestCases().has(testCase.id)" (change)="toggleSelect(testCase)" />
+              </div>
+              <span class="tc-code">{{ testCase.tc_code }}</span>
+              <span class="priority-badge" [class]="getPriorityClass(testCase.priority)">{{ testCase.priority }}</span>
+              @if (testCase.test_type) {
+                <span class="test-type-badge" [class]="getTestTypeClass(testCase.test_type)">{{ testCase.test_type }}</span>
+              }
+            </div>
+
+            <h3 class="tc-card__title">{{ testCase.title }}</h3>
+
+            <div class="card-meta-tags">
+              @if (testCase.project_name) {
+                <span class="meta-tag">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
+                  </svg>
+                  {{ testCase.project_name }}
+                </span>
+              }
+              @if (testCase.test_plan_title) {
+                <span class="meta-tag">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  </svg>
+                  {{ testCase.test_plan_title }}
+                </span>
+              }
+              @if (testCase.issue_key) {
+                <span class="meta-tag">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                  </svg>
+                  {{ testCase.issue_key }}
+                </span>
+              }
+              @if (testCase.sprint) {
+                <span class="meta-tag meta-tag--sprint">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                    <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 6v4l3 3"/>
+                  </svg>
+                  {{ testCase.sprint }}
+                </span>
+              }
+              @if (testCase.epic_name) {
+                <span class="meta-tag meta-tag--epic">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                  </svg>
+                  {{ testCase.epic_name }}
+                </span>
+              }
+            </div>
+
+            <div class="card-footer">
+              <button class="btn-view-details" (click)="viewTestCase(testCase.id, $event)">View Details</button>
+              <button class="btn-delete-card" (click)="deleteTestCase(testCase.id, $event)" title="Delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+              </button>
+              <span class="card-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </span>
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (totalPages() > 1) {
+        <div class="pagination-wrap">
+          <app-pagination [totalItems]="totalFiltered()" [currentPage]="page()" [pageSize]="pageSize()" [pageSizeOptions]="[6, 12, 24]" (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
+        </div>
+      }
+    }
+
+    <!-- ── TABLE VIEW ── -->
+    @if (!loading() && filteredTestCases().length > 0 && viewMode() === 'table') {
+      <div class="tc-table-wrap">
+        <table class="tc-table">
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" [checked]="allSelected()" (change)="toggleSelectAll()" /></th>
+              <th>Code</th>
+              <th>Title</th>
+              <th>Priority</th>
+              <th>Type</th>
+              <th>Plan</th>
+              <th>Story</th>
+              <th>Sprint</th>
+              <th>Epic</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (testCase of paginatedTestCases(); track testCase.id) {
+              <tr [class.selected]="selectedTestCases().has(testCase.id)">
+                <td><input type="checkbox" [checked]="selectedTestCases().has(testCase.id)" (change)="toggleSelect(testCase)" /></td>
+                <td><span class="tc-code-inline">{{ testCase.tc_code }}</span></td>
+                <td class="col-title">{{ testCase.title }}</td>
+                <td><span class="priority-badge" [class]="getPriorityClass(testCase.priority)">{{ testCase.priority }}</span></td>
+                <td><span class="test-type-badge" [class]="getTestTypeClass(testCase.test_type)">{{ testCase.test_type }}</span></td>
+                <td>{{ testCase.test_plan_title || '—' }}</td>
+                <td>{{ testCase.issue_key || '—' }}</td>
+                <td>{{ testCase.sprint || '—' }}</td>
+                <td>{{ testCase.epic_name || '—' }}</td>
+                <td>
+                  <div class="tc-row-actions">
+                    <button class="row-action-btn row-action-view" (click)="viewTestCase(testCase.id, $event)" title="View details">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </button>
+                    <button class="row-action-btn row-action-delete" (click)="deleteTestCase(testCase.id, $event)" title="Delete">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPages() > 1) {
+        <div class="pagination-wrap">
+          <app-pagination [totalItems]="totalFiltered()" [currentPage]="page()" [pageSize]="pageSize()" [pageSizeOptions]="[10, 25, 50]" (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
+        </div>
+      }
+    }
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       AC COVERAGE TABLE
+  ══════════════════════════════════════════════ -->
+  @if (showCoverageTable() && coverageRows().length > 0) {
+    <div class="section-card">
+      <div class="section-header" (click)="toggleCoverageTable()">
+        <h2 class="section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h7a1 1 0 110 2H4a1 1 0 01-1-1z"/>
+          </svg>
+          AC Coverage by User Story &amp; Type
+          <span class="register-count">{{ coverageRows().length }} rows</span>
+        </h2>
+        <div class="section-header-right">
+          <svg class="chevron" [class.chevron--open]="coverageTableVisible()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </div>
       </div>
 
       @if (coverageTableVisible()) {
@@ -309,111 +542,6 @@
         }
       }
     </div>
-  }
-
-  <!-- ═══════════════════════════════════════════════════════
-       CARD VIEW (affichage avec correspondances automatiques)
-  ════════════════════════════════════════════════════════ -->
-  @if (!loading() && filteredTestCases().length > 0 && viewMode() === 'cards') {
-    <div class="tc-grid">
-      @for (testCase of paginatedTestCases(); track testCase.id) {
-        <div class="tc-card" [class.selected]="selectedTestCases().has(testCase.id)">
-          <div class="tc-card__accent" [class]="'accent-' + (testCase.priority ?? '')"></div>
-
-          <div class="tc-card__top">
-            <div class="tc-card__check" (click)="$event.stopPropagation()">
-              <input type="checkbox" [checked]="selectedTestCases().has(testCase.id)" (change)="toggleSelect(testCase)" />
-            </div>
-            <span class="tc-code">{{ testCase.tc_code }}</span>
-            <span class="priority-badge" [class]="getPriorityClass(testCase.priority)">{{ testCase.priority }}</span>
-            @if (testCase.test_type) { 
-  <span class="test-type-badge" [class]="getTestTypeClass(testCase.test_type)">
-    {{ testCase.test_type }}
-  </span> 
-}
-          </div>
-
-          <h3 class="tc-card__title">{{ testCase.title }}</h3>
-
-          <!-- ✅ Correspondances automatiques -->
-          <div class="tc-card__meta">
-            <div class="meta-item">📁 {{ testCase.project_name || '—' }}</div>
-            <div class="meta-item">📋 {{ testCase.test_plan_title || '—' }}</div>
-            @if (testCase.issue_key) { <div class="meta-item">📄 {{ testCase.issue_key }}</div> }
-            @if (testCase.sprint) { <div class="meta-item">🏃 {{ testCase.sprint }}</div> }
-            @if (testCase.epic_name) { <div class="meta-item">⚡ {{ testCase.epic_name }}</div> }
-          </div>
-
-          @if (testCase.tags?.length) {
-            <div class="tc-card__tags">
-              @for (tag of testCase.tags; track tag) { <span class="tag">{{ tag }}</span> }
-            </div>
-          }
-
-          <div class="tc-card__actions">
-            <button class="btn-view-details" (click)="viewTestCase(testCase.id, $event)">View Details</button>
-            <button class="btn-delete-card" (click)="deleteTestCase(testCase.id, $event)">Delete</button>
-          </div>
-        </div>
-      }
-    </div>
-
-    @if (totalPages() > 1) {
-      <div class="pagination-wrapper">
-        <app-pagination [totalItems]="totalFiltered()" [currentPage]="page()" [pageSize]="pageSize()" [pageSizeOptions]="[6, 12, 24]" (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
-      </div>
-    }
-  }
-
-  <!-- ═══════════════════════════════════════════════════════
-       TABLE VIEW (simplifiée)
-  ════════════════════════════════════════════════════════ -->
-  @if (!loading() && filteredTestCases().length > 0 && viewMode() === 'table') {
-    <div class="tc-table-wrap">
-      <table class="tc-table">
-        <thead>
-          <tr>
-            <th class="col-check"><input type="checkbox" [checked]="allSelected()" (change)="toggleSelectAll()" /></th>
-            <th>Code</th>
-            <th>Title</th>
-            <th>Priority</th>
-            <th>Project</th>
-            <th>Plan</th>
-            <th>Story</th>
-            <th>Sprint</th>
-            <th>Epic</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (testCase of paginatedTestCases(); track testCase.id) {
-            <tr [class.selected]="selectedTestCases().has(testCase.id)">
-              <td><input type="checkbox" [checked]="selectedTestCases().has(testCase.id)" (change)="toggleSelect(testCase)" /></td>
-              <td>{{ testCase.tc_code }}</td>
-              <td>{{ testCase.title }}</td>
-              <td>{{ testCase.priority }}</td>
-              <td>{{ testCase.project_name || '—' }}</td>
-              <td>{{ testCase.test_plan_title || '—' }}</td>
-              <td>{{ testCase.issue_key || '—' }}</td>
-              <td>{{ testCase.sprint || '—' }}</td>
-              <td>{{ testCase.epic_name || '—' }}</td>
-              <td>{{ getStatusLabel(testCase.is_active) }}</td>
-              <td>
-                <button (click)="viewTestCase(testCase.id, $event)">View</button>
-                <button (click)="deleteTestCase(testCase.id, $event)">🗑️</button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-
-    @if (totalPages() > 1) {
-      <div class="pagination-wrapper">
-        <app-pagination [totalItems]="totalFiltered()" [currentPage]="page()" [pageSize]="pageSize()" [pageSizeOptions]="[10, 25, 50]" (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
-      </div>
-    }
   }
 
 </div>

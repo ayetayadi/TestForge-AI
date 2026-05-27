@@ -1,333 +1,815 @@
 <mxfile host="app.diagrams.net">
-<diagram name="Page-1" id="sd-tc-generation">
-<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1450" math="0" shadow="0">
-<root>
-<mxCell id="0"/>
-<mxCell id="1" parent="0"/>
+  <diagram name="Page-1" id="sd-test-case-generation">
+    <mxGraphModel dx="2200" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="3700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
 
-<!-- System boundary -->
-<mxCell id="50" value="TestForge AI" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=14;fontStyle=1;verticalAlign=top;" vertex="1">
-  <mxGeometry x="10" y="10" width="1130" height="1410" as="geometry"/>
-</mxCell>
+        <!-- ===== PARTICIPANTS ===== -->
 
-<!-- ===== PARTICIPANTS ===== -->
+        <!-- Navigateur -->
+        <mxCell id="p_nav" value="Navigateur" parent="1"
+          style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};fillColor=#B4B6FD;strokeColor=#000000;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="80" y="90" width="100" height="3660" as="geometry" />
+        </mxCell>
+        <mxCell id="p_nav_bar" parent="p_nav"
+          style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="" vertex="1">
+          <mxGeometry x="45" y="50" width="10" height="3600" as="geometry" />
+        </mxCell>
 
-<!-- Testeur (actor) -->
-<mxCell id="10" value="Testeur" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#B4B6FD;strokeColor=#000000;fillStyle=auto;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" vertex="1">
-  <mxGeometry x="20" y="30" width="30" height="60" as="geometry"/>
-</mxCell>
+        <!-- FastAPI -->
+        <mxCell id="p_api" value="FastAPI" parent="1"
+          style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};fillColor=#B4B6FD;strokeColor=#000000;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="310" y="90" width="100" height="3660" as="geometry" />
+        </mxCell>
+        <mxCell id="p_api_bar" parent="p_api"
+          style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="" vertex="1">
+          <mxGeometry x="45" y="50" width="10" height="3600" as="geometry" />
+        </mxCell>
 
-<!-- Navigateur lifeline -->
-<mxCell id="20" value="Navigateur" parent="1" style="shape=umlLifeline;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1;fillColor=#B4B6FD;strokeColor=#000000;" vertex="1">
-  <mxGeometry x="185" y="30" width="100" height="1380" as="geometry"/>
-</mxCell>
+        <!-- PostgreSQL -->
+        <mxCell id="p_pg" value="PostgreSQL" parent="1"
+          style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};fillColor=#B4B6FD;strokeColor=#000000;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="540" y="90" width="100" height="3660" as="geometry" />
+        </mxCell>
+        <mxCell id="p_pg_bar" parent="p_pg"
+          style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="" vertex="1">
+          <mxGeometry x="45" y="50" width="10" height="3600" as="geometry" />
+        </mxCell>
 
-<!-- FastAPI lifeline -->
-<mxCell id="30" value="FastAPI" parent="1" style="shape=umlLifeline;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1;fillColor=#B4B6FD;strokeColor=#000000;" vertex="1">
-  <mxGeometry x="430" y="30" width="100" height="1380" as="geometry"/>
-</mxCell>
+        <!-- ===== SECTION 0 : CHARGEMENT INITIAL ===== -->
 
-<!-- Base de données lifeline -->
-<mxCell id="40" value="Base de données" parent="1" style="shape=umlLifeline;whiteSpace=wrap;html=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1;fillColor=#B4B6FD;strokeColor=#000000;" vertex="1">
-  <mxGeometry x="680" y="30" width="100" height="1380" as="geometry"/>
-</mxCell>
+        <mxCell id="title0" value="0. Chargement initial de la page" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=3;fontSize=14;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="132" width="320" height="24" as="geometry" />
+        </mxCell>
 
-<!-- ===== SECTION SEPARATOR ===== -->
-<mxCell id="60" parent="1" style="endArrow=none;dashed=1;endSize=8;curved=0;rounded=0;endFill=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="20" y="88" as="sourcePoint"/>
-    <mxPoint x="1120" y="88" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m1" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="1 : GET /test-plans?status=approved&amp;pageSize=100">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="135" y="170" as="sourcePoint" />
+            <mxPoint x="355" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<mxCell id="61" value="Génération des Cas de Test" parent="1" style="text;html=1;align=center;fontFamily=Times New Roman;fontColor=#000000;fontSize=14;fontStyle=1;fillColor=none;strokeColor=none" vertex="1">
-  <mxGeometry x="330" y="92" width="430" height="28" as="geometry"/>
-</mxCell>
+        <mxCell id="m2" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="2 : SELECT * FROM test_plans WHERE status='approved'">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="210" as="sourcePoint" />
+            <mxPoint x="585" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- ===== MESSAGES m1–m8 : récupération contexte ===== -->
+        <mxCell id="m3" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="3 : [TestPlan list]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="250" as="sourcePoint" />
+            <mxPoint x="365" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m1: Testeur → Navigateur -->
-<mxCell id="100" value="Cliquer «Générer les Cas de Test» (test_plan_id, scenario_type)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="50" y="140" as="sourcePoint"/>
-    <mxPoint x="235" y="140" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m4" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="4 : 200 OK { items: [TestPlan list] }">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="290" as="sourcePoint" />
+            <mxPoint x="135" y="290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m2: Navigateur → FastAPI -->
-<mxCell id="101" value="POST /test-cases/generate/{test_plan_id}?scenario_type" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="235" y="175" as="sourcePoint"/>
-    <mxPoint x="480" y="175" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m5" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="5 : GET /test-cases">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="135" y="330" as="sourcePoint" />
+            <mxPoint x="355" y="330" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m3: FastAPI → BD : SELECT TestPlan -->
-<mxCell id="102" value="SELECT TestPlan WHERE id = test_plan_id" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="480" y="210" as="sourcePoint"/>
-    <mxPoint x="730" y="210" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m6" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="6 : SELECT * FROM test_cases JOIN test_plans, user_stories ...">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="370" as="sourcePoint" />
+            <mxPoint x="585" y="370" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m4: BD → FastAPI : TestPlan [dashed] -->
-<mxCell id="103" value="TestPlan (project_id, scope_type, scope_refs)" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="730" y="245" as="sourcePoint"/>
-    <mxPoint x="480" y="245" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m7" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="7 : [TestCase list enrichi]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="410" as="sourcePoint" />
+            <mxPoint x="365" y="410" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m5: FastAPI → BD : SELECT accepted Risks -->
-<mxCell id="104" value="SELECT Risk WHERE project_id AND is_accepted = True" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="480" y="280" as="sourcePoint"/>
-    <mxPoint x="730" y="280" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m8" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="8 : 200 OK [TestCase list]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="450" as="sourcePoint" />
+            <mxPoint x="135" y="450" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m6: BD → FastAPI : accepted_risks [dashed] -->
-<mxCell id="105" value="accepted_risks" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="730" y="315" as="sourcePoint"/>
-    <mxPoint x="480" y="315" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <!-- ===== SECTION 1 : SÉLECTION + GÉNÉRATION ===== -->
 
-<!-- m7: FastAPI → BD : SELECT UserStories -->
-<mxCell id="106" value="SELECT UserStory WHERE scope_type / scope_refs AND project_id" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="480" y="350" as="sourcePoint"/>
-    <mxPoint x="730" y="350" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="title1" value="1. Sélection du plan approuvé + clic Générer" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=3;fontSize=14;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="502" width="360" height="24" as="geometry" />
+        </mxCell>
 
-<!-- m8: BD → FastAPI : us_list [dashed] -->
-<mxCell id="107" value="us_list" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="730" y="385" as="sourcePoint"/>
-    <mxPoint x="480" y="385" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <!-- 9: Nav self -->
+        <mxCell id="m9" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="9 : Sélectionne TestPlan approuvé + ScenarioType&lt;div&gt;(positive | negative | boundary), clique Générer&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="195" y="540" />
+              <mxPoint x="195" y="580" />
+            </Array>
+            <mxPoint x="135" y="540" as="sourcePoint" />
+            <mxPoint x="135" y="580" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- ===== ALT FRAME : aucun risque / aucune US ===== -->
-<mxCell id="70" value="alt" parent="1" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" vertex="1">
-  <mxGeometry x="155" y="410" width="640" height="220" as="geometry"/>
-</mxCell>
+        <!-- 10: Nav → API POST async -->
+        <mxCell id="m10" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="10 : POST /test-cases/generate/{planId}/async?scenario_type=positive">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="135" y="620" as="sourcePoint" />
+            <mxPoint x="355" y="620" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<mxCell id="71" value="[aucun risque accepté / aucune US trouvée]" parent="1" style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none" vertex="1">
-  <mxGeometry x="162" y="430" width="370" height="20" as="geometry"/>
-</mxCell>
+        <!-- 11: API → PG check plan -->
+        <mxCell id="m11" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="11 : SELECT * FROM test_plans WHERE id = planId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="660" as="sourcePoint" />
+            <mxPoint x="585" y="660" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m9: FastAPI → Navigateur : 400 ValueError [dashed] -->
-<mxCell id="108" value="400 ValueError" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="480" y="453" as="sourcePoint"/>
-    <mxPoint x="235" y="453" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <!-- 12: PG → API -->
+        <mxCell id="m12" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="12 : TestPlan (ou null)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="700" as="sourcePoint" />
+            <mxPoint x="365" y="700" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m10: Navigateur → Testeur : toast erreur [dashed] -->
-<mxCell id="109" value="toast erreur" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="235" y="488" as="sourcePoint"/>
-    <mxPoint x="50" y="488" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <!-- ALT 1 : TestPlan trouvé / non trouvé -->
+        <mxCell id="alt1" value="alt" parent="1"
+          style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="-20" y="718" width="690" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="alt1_c1" value="[TestPlan non trouvé]" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="-5" y="721" width="200" height="20" as="geometry" />
+        </mxCell>
 
-<!-- alt1 separator -->
-<mxCell id="72" parent="1" style="endArrow=none;dashed=1;endSize=8;curved=0;rounded=0;endFill=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="155" y="513" as="sourcePoint"/>
-    <mxPoint x="795" y="513" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m13" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="13 : 404 Not Found">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="758" as="sourcePoint" />
+            <mxPoint x="135" y="758" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<mxCell id="73" value="[else — risques et US trouvés]" parent="1" style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none" vertex="1">
-  <mxGeometry x="162" y="517" width="280" height="20" as="geometry"/>
-</mxCell>
+        <mxCell id="alt1_sep" edge="1" parent="1"
+          style="html=1;endArrow=none;dashed=1;endSize=8;curved=0;rounded=0;endFill=0;"
+          value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-20" y="788" as="sourcePoint" />
+            <mxPoint x="670" y="788" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="alt1_c2" value="[else — TestPlan trouvé]" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="-5" y="791" width="200" height="20" as="geometry" />
+        </mxCell>
 
-<!-- ===== LOOP FRAME : pour chaque User Story ===== -->
-<mxCell id="80" value="loop" parent="1" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" vertex="1">
-  <mxGeometry x="155" y="640" width="640" height="575" as="geometry"/>
-</mxCell>
+        <!-- 14: API self — crée job_id -->
+        <mxCell id="m14" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="14 : Crée job_id = planId-nosuite-uuid4&lt;div&gt;submit_tc_job(job) → tc_job_queue.put(job)&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="820" />
+              <mxPoint x="430" y="860" />
+            </Array>
+            <mxPoint x="365" y="820" as="sourcePoint" />
+            <mxPoint x="365" y="860" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<mxCell id="81" value="[pour chaque User Story — asyncio.gather, Semaphore(3)]" parent="1" style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none" vertex="1">
-  <mxGeometry x="200" y="652" width="400" height="20" as="geometry"/>
-</mxCell>
+        <!-- 15: API → Nav 202 -->
+        <mxCell id="m15" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="15 : 202 Accepted { job_id, test_plan_id, status: &quot;queued&quot; }">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="900" as="sourcePoint" />
+            <mxPoint x="135" y="900" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m11: FastAPI → BD : SELECT UserStoryVersion (approved) -->
-<mxCell id="110" value="SELECT UserStoryVersion (approved, version_number desc, limit 1)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="480" y="678" as="sourcePoint"/>
-    <mxPoint x="730" y="678" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <!-- ===== SECTION 2 : SSE STREAM ===== -->
 
-<!-- m12: BD → FastAPI : story_text, ac_list [dashed] -->
-<mxCell id="111" value="story_text, ac_list" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="730" y="713" as="sourcePoint"/>
-    <mxPoint x="480" y="713" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="title2" value="2. Ouverture du canal SSE" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=3;fontSize=14;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="1062" width="280" height="24" as="geometry" />
+        </mxCell>
 
-<!-- m13: FastAPI → BD : SELECT Risks pour cette US -->
-<mxCell id="112" value="SELECT Risk WHERE user_story_id AND is_accepted = True" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="480" y="748" as="sourcePoint"/>
-    <mxPoint x="730" y="748" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <!-- 16: Nav → API SSE long-poll -->
+        <mxCell id="m16" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="16 : GET /test-cases/generate/stream/{job_id}  [SSE — connexion longue durée]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="135" y="1100" as="sourcePoint" />
+            <mxPoint x="355" y="1100" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m14: BD → FastAPI : us_risks [dashed] -->
-<mxCell id="113" value="us_risks (mitigation)" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="730" y="783" as="sourcePoint"/>
-    <mxPoint x="480" y="783" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <!-- 17: API self — crée Queue -->
+        <mxCell id="m17" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="17 : Crée asyncio.Queue(maxsize=100)&lt;div&gt;connections[job_id].append(queue)&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="1128" />
+              <mxPoint x="430" y="1168" />
+            </Array>
+            <mxPoint x="365" y="1128" as="sourcePoint" />
+            <mxPoint x="365" y="1168" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m15: FastAPI self : count = ceil(nb_ACs / AC_TO_TC_RATIO) -->
-<mxCell id="114" value="count = ceil(nb_ACs / AC_TO_TC_RATIO)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="487" y="815" as="sourcePoint"/>
-    <mxPoint x="487" y="833" as="targetPoint"/>
-    <Array as="points">
-      <mxPoint x="540" y="815"/>
-      <mxPoint x="540" y="833"/>
-    </Array>
-  </mxGeometry>
-</mxCell>
+        <!-- OPT 1 : event_buffer non vide -->
+        <mxCell id="opt1" value="opt" parent="1"
+          style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="-20" y="1186" width="690" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="opt1_c1" value="[event_buffer non vide — worker déjà terminé avant ouverture SSE]" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="-5" y="1189" width="420" height="20" as="geometry" />
+        </mxCell>
 
-<!-- m16: FastAPI self : construire prompt -->
-<mxCell id="115" value="Construire prompt ISTQB §5.4 (story, ACs, risk_level, scenario_type, count)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="487" y="850" as="sourcePoint"/>
-    <mxPoint x="487" y="868" as="targetPoint"/>
-    <Array as="points">
-      <mxPoint x="540" y="850"/>
-      <mxPoint x="540" y="868"/>
-    </Array>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m18" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="18 : Flush événements bufferisés → connexion SSE fermée">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="1238" as="sourcePoint" />
+            <mxPoint x="135" y="1238" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m17: FastAPI self : Appel LLM → TestCaseBatch -->
-<mxCell id="116" value="Appel LLM → TestCaseBatch (structured output, timeout)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="487" y="885" as="sourcePoint"/>
-    <mxPoint x="487" y="903" as="targetPoint"/>
-    <Array as="points">
-      <mxPoint x="540" y="885"/>
-      <mxPoint x="540" y="903"/>
-    </Array>
-  </mxGeometry>
-</mxCell>
+        <!-- ===== SECTION 3 : WORKER ===== -->
 
-<!-- m18: FastAPI self : repair_gherkin -->
-<mxCell id="117" value="repair_gherkin (normalize + parse steps + extract postconditions)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="487" y="920" as="sourcePoint"/>
-    <mxPoint x="487" y="938" as="targetPoint"/>
-    <Array as="points">
-      <mxPoint x="540" y="920"/>
-      <mxPoint x="540" y="938"/>
-    </Array>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="title3" value="3. Worker — démarrage du traitement" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=3;fontSize=14;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="1312" width="300" height="24" as="geometry" />
+        </mxCell>
 
-<!-- m19: FastAPI self : validate_ac_coverage -->
-<mxCell id="118" value="validate_ac_coverage (≥ 80%)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="487" y="955" as="sourcePoint"/>
-    <mxPoint x="487" y="973" as="targetPoint"/>
-    <Array as="points">
-      <mxPoint x="540" y="955"/>
-      <mxPoint x="540" y="973"/>
-    </Array>
-  </mxGeometry>
-</mxCell>
+        <!-- 19: API self — worker prend le job -->
+        <mxCell id="m19" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="19 : tc_worker prend le job de tc_job_queue&lt;div&gt;set_worker_api_key(GROQ_API_KEY_{worker_id})&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="1348" />
+              <mxPoint x="430" y="1388" />
+            </Array>
+            <mxPoint x="365" y="1348" as="sourcePoint" />
+            <mxPoint x="365" y="1388" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- ===== OPT FRAME : couverture AC < 80% ===== -->
-<mxCell id="85" value="opt" parent="1" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;" vertex="1">
-  <mxGeometry x="430" y="985" width="365" height="115" as="geometry"/>
-</mxCell>
+        <!-- 20: API → Nav SSE tc_processing -->
+        <mxCell id="m20" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="20 : SSE event: tc_processing { message, test_plan_id }">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="1428" as="sourcePoint" />
+            <mxPoint x="135" y="1428" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<mxCell id="86" value="[couverture AC &lt; 80% — boucle correction, max MAX_CORRECTION_ITERATIONS]" parent="1" style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none" vertex="1">
-  <mxGeometry x="475" y="997" width="315" height="20" as="geometry"/>
-</mxCell>
+        <!-- ===== SECTION 4 : generate_test_cases_for_plan ===== -->
 
-<!-- m20: FastAPI self : Appel LLM correction -->
-<mxCell id="119" value="Appel LLM correction (CORRECTION_PROMPT, ACs non couverts)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="487" y="1022" as="sourcePoint"/>
-    <mxPoint x="487" y="1040" as="targetPoint"/>
-    <Array as="points">
-      <mxPoint x="540" y="1022"/>
-      <mxPoint x="540" y="1040"/>
-    </Array>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="title4" value="4. generate_test_cases_for_plan()" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=3;fontSize=14;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="1472" width="300" height="24" as="geometry" />
+        </mxCell>
 
-<!-- m21: FastAPI self : re-validate_ac_coverage -->
-<mxCell id="120" value="re-validate_ac_coverage" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="487" y="1057" as="sourcePoint"/>
-    <mxPoint x="487" y="1075" as="targetPoint"/>
-    <Array as="points">
-      <mxPoint x="540" y="1057"/>
-      <mxPoint x="540" y="1075"/>
-    </Array>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m21" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="21 : SELECT * FROM test_plans WHERE id = planId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="1510" as="sourcePoint" />
+            <mxPoint x="585" y="1510" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m22: FastAPI self : finalize() -->
-<mxCell id="121" value="finalize() — assign tc_codes + build_feature_gherkin" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="487" y="1115" as="sourcePoint"/>
-    <mxPoint x="487" y="1133" as="targetPoint"/>
-    <Array as="points">
-      <mxPoint x="540" y="1115"/>
-      <mxPoint x="540" y="1133"/>
-    </Array>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m22" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="22 : TestPlan (project_id, scope_refs, scope_type)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="1550" as="sourcePoint" />
+            <mxPoint x="365" y="1550" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m23: FastAPI → BD : INSERT TestCases + upsert coverage -->
-<mxCell id="122" value="INSERT TestCase[] + upsert TC coverage (session.commit)" parent="1" style="endArrow=block;startArrow=none;endFill=1;startFill=0;html=1;rounded=0;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="480" y="1155" as="sourcePoint"/>
-    <mxPoint x="730" y="1155" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m23" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="23 : SELECT * FROM risks WHERE project_id = X AND is_accepted = true">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="1590" as="sourcePoint" />
+            <mxPoint x="585" y="1590" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m24: BD → FastAPI : OK [dashed] -->
-<mxCell id="123" value="OK" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="730" y="1190" as="sourcePoint"/>
-    <mxPoint x="480" y="1190" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m24" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="24 : accepted_risks[]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="1630" as="sourcePoint" />
+            <mxPoint x="365" y="1630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- ===== APRÈS LE LOOP ===== -->
+        <!-- ALT 2 : risques acceptés / non -->
+        <mxCell id="alt2" value="alt" parent="1"
+          style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="-20" y="1648" width="690" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="alt2_c1" value="[aucun risque accepté pour ce projet]" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="-5" y="1651" width="280" height="20" as="geometry" />
+        </mxCell>
 
-<!-- m25: FastAPI → Navigateur : 200 GenerateTestCasesResponse [dashed] -->
-<mxCell id="124" value="200 GenerateTestCasesResponse (count, test_cases, feature_gherkin, coverage_hints)" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="480" y="1250" as="sourcePoint"/>
-    <mxPoint x="235" y="1250" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="m25" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="25 : SSE event: tc_failed { error: &quot;No accepted risks found&quot; }">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="1688" as="sourcePoint" />
+            <mxPoint x="135" y="1688" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
 
-<!-- m26: Navigateur → Testeur : afficher les cas de test [dashed] -->
-<mxCell id="125" value="Afficher les cas de test générés" parent="1" style="endArrow=open;startArrow=none;endFill=0;startFill=0;html=1;rounded=0;dashed=1;fontFamily=Times New Roman;fontColor=#000000;fontSize=13;fontStyle=1" edge="1">
-  <mxGeometry relative="1" as="geometry">
-    <mxPoint x="235" y="1285" as="sourcePoint"/>
-    <mxPoint x="50" y="1285" as="targetPoint"/>
-  </mxGeometry>
-</mxCell>
+        <mxCell id="alt2_sep" edge="1" parent="1"
+          style="html=1;endArrow=none;dashed=1;endSize=8;curved=0;rounded=0;endFill=0;"
+          value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-20" y="1718" as="sourcePoint" />
+            <mxPoint x="670" y="1718" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="alt2_c2" value="[else — risques acceptés trouvés]" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="-5" y="1721" width="240" height="20" as="geometry" />
+        </mxCell>
 
-</root>
-</mxGraphModel>
-</diagram>
+        <mxCell id="m26" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="26 : SELECT * FROM user_stories WHERE sprint/epic/issue_key IN scope_refs&lt;div&gt;AND project_id = X&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="1760" as="sourcePoint" />
+            <mxPoint x="585" y="1760" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m27" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="27 : us_list[] (N User Stories)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="1800" as="sourcePoint" />
+            <mxPoint x="365" y="1800" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m28" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="28 : SSE event: tc_init { total_us: N }">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="1840" as="sourcePoint" />
+            <mxPoint x="135" y="1840" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== LOOP 1 : par UserStory ===== -->
+        <mxCell id="loop1" value="loop [pour chaque UserStory — asyncio.gather + Semaphore(5)]" parent="1"
+          style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=370;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="-20" y="1988" width="690" height="1130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m29" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="29 : SELECT id FROM test_cases WHERE user_story_id=X&lt;div&gt;AND test_plan_id=planId AND test_type=scenario_type LIMIT 1&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="2038" as="sourcePoint" />
+            <mxPoint x="585" y="2038" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m30" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="30 : TC existant (ou null)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="2078" as="sourcePoint" />
+            <mxPoint x="365" y="2078" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ALT 3 : skip / generate -->
+        <mxCell id="alt3" value="alt" parent="1"
+          style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=40;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="-10" y="2096" width="670" height="1000" as="geometry" />
+        </mxCell>
+        <mxCell id="alt3_c1" value="[TCs déjà générés pour ce type dans ce plan — skip]" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="2099" width="360" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- 31: API self skip -->
+        <mxCell id="m31" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="31 : workflow_status = 'skipped' — return">
+          <mxGeometry relative="1" width="80" x="0.2" y="30" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="2128" />
+              <mxPoint x="430" y="2158" />
+            </Array>
+            <mxPoint x="365" y="2128" as="sourcePoint" />
+            <mxPoint x="365" y="2158" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="alt3_sep" edge="1" parent="1"
+          style="html=1;endArrow=none;dashed=1;endSize=8;curved=0;rounded=0;endFill=0;"
+          value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-10" y="2178" as="sourcePoint" />
+            <mxPoint x="660" y="2178" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="alt3_c2" value="[else — première génération pour ce type]" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=0;fontSize=12;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="2181" width="280" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m32" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="32 : SELECT * FROM user_story_versions WHERE user_story_id=X&lt;div&gt;AND decision_status='approved' ORDER BY version_number DESC LIMIT 1&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="2218" as="sourcePoint" />
+            <mxPoint x="585" y="2218" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m33" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="33 : UserStoryVersion approuvée (ou null)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="2258" as="sourcePoint" />
+            <mxPoint x="365" y="2258" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 34: API self — choisit story_text + ac_list -->
+        <mxCell id="m34" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="34 : [version approuvée] story = improved_story, ACs = generated_ACs&lt;div&gt;[sinon] story = us.description, ACs = us.acceptance_criteria&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="2288" />
+              <mxPoint x="430" y="2328" />
+            </Array>
+            <mxPoint x="365" y="2288" as="sourcePoint" />
+            <mxPoint x="365" y="2328" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m35" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="35 : SELECT * FROM risks WHERE user_story_id = X AND is_accepted = true">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="2368" as="sourcePoint" />
+            <mxPoint x="585" y="2368" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m36" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="36 : us_risks[]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="2408" as="sourcePoint" />
+            <mxPoint x="365" y="2408" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 37: API self — pipeline.run → LLM initial -->
+        <mxCell id="m37" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="37 : pipeline.run(story, ACs, scenario_type, risk_level, ...)&lt;div&gt;→ _call_llm() → LLM Groq → TestCaseBatch&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="2438" />
+              <mxPoint x="430" y="2488" />
+            </Array>
+            <mxPoint x="365" y="2438" as="sourcePoint" />
+            <mxPoint x="365" y="2488" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 38: API self — repair + validate coverage -->
+        <mxCell id="m38" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="38 : _repair_gherkin(raw_tcs)&lt;div&gt;validate_ac_coverage(raw_tcs, ACs) → coverage_pct&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="2518" />
+              <mxPoint x="430" y="2558" />
+            </Array>
+            <mxPoint x="365" y="2518" as="sourcePoint" />
+            <mxPoint x="365" y="2558" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- LOOP 2 : boucle de correction -->
+        <mxCell id="loop2" value="loop [while coverage_pct &lt; 80% AND iteration &lt; MAX_CORRECTION_ITERATIONS]" parent="1"
+          style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=440;height=30;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          vertex="1">
+          <mxGeometry x="0" y="2578" width="650" height="220" as="geometry" />
+        </mxCell>
+
+        <!-- 39: API self — correction LLM -->
+        <mxCell id="m39" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="39 : _call_llm_correction(story, ACs, uncovered_ACs,&lt;div&gt;existing_titles, count) → LLM Groq → extra TestCases&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="2628" />
+              <mxPoint x="430" y="2678" />
+            </Array>
+            <mxPoint x="365" y="2628" as="sourcePoint" />
+            <mxPoint x="365" y="2678" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 40: API self — extend + re-validate -->
+        <mxCell id="m40" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="40 : _repair_gherkin(extra), raw_tcs.extend(extra)&lt;div&gt;validate_ac_coverage(all_tcs, ACs)&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="2708" />
+              <mxPoint x="430" y="2748" />
+            </Array>
+            <mxPoint x="365" y="2708" as="sourcePoint" />
+            <mxPoint x="365" y="2748" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 41: API self — finalize -->
+        <mxCell id="m41" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="41 : _finalize(raw_tcs) — filtre, déduplique, trie, assigne TC codes&lt;div&gt;_build_feature_gherkin(story, finalized)&lt;/div&gt;">
+          <mxGeometry relative="1" width="80" x="0.2" y="40" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="2818" />
+              <mxPoint x="430" y="2858" />
+            </Array>
+            <mxPoint x="365" y="2818" as="sourcePoint" />
+            <mxPoint x="365" y="2858" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 42: API → PG UPSERT tc_coverage -->
+        <mxCell id="m42" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="42 : UPSERT INTO tc_coverage&lt;div&gt;(test_plan_id, user_story_id, scenario_type, coverage_pct, tc_count)&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="2898" as="sourcePoint" />
+            <mxPoint x="585" y="2898" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m43" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="43 : Confirmé">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="2938" as="sourcePoint" />
+            <mxPoint x="365" y="2938" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m44" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="44 : session.commit()">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="2978" as="sourcePoint" />
+            <mxPoint x="585" y="2978" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m45" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="45 : OK">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="3018" as="sourcePoint" />
+            <mxPoint x="365" y="3018" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 46: API → Nav SSE us_done -->
+        <mxCell id="m46" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="46 : SSE event: us_done { completed: K, total: N, issue_key }">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="3068" as="sourcePoint" />
+            <mxPoint x="135" y="3068" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== SECTION 5 : PERSISTANCE FINALE ===== -->
+
+        <mxCell id="title5" value="5. Persistance finale des cas de test" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=3;fontSize=14;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="3162" width="300" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m47" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="47 : INSERT INTO test_cases (batch)&lt;div&gt;repo.batch_create_test_cases(db, db_data)&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="3200" as="sourcePoint" />
+            <mxPoint x="585" y="3200" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m48" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="48 : created[] (N TestCase avec IDs générés)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="3240" as="sourcePoint" />
+            <mxPoint x="365" y="3240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m49" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="49 : db.commit()">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="3280" as="sourcePoint" />
+            <mxPoint x="585" y="3280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m50" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="50 : OK">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="3320" as="sourcePoint" />
+            <mxPoint x="365" y="3320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 51: API → Nav SSE tc_generated -->
+        <mxCell id="m51" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="51 : SSE event: tc_generated { count: N, test_plan_id }">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="3360" as="sourcePoint" />
+            <mxPoint x="135" y="3360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== SECTION 6 : RECHARGEMENT ===== -->
+
+        <mxCell id="title6" value="6. Rechargement de la liste et de la couverture" parent="1"
+          style="text;html=1;align=left;fontFamily=Times New Roman;fontStyle=3;fontSize=14;fillColor=none;strokeColor=none;"
+          vertex="1">
+          <mxGeometry x="5" y="3402" width="360" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m52" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="52 : GET /test-cases?test_plan_id=planId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="135" y="3440" as="sourcePoint" />
+            <mxPoint x="355" y="3440" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m53" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="53 : SELECT * FROM test_cases WHERE test_plan_id = planId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="3480" as="sourcePoint" />
+            <mxPoint x="585" y="3480" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m54" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="54 : [nouveaux TestCases]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="3520" as="sourcePoint" />
+            <mxPoint x="365" y="3520" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m55" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="55 : 200 OK [TestCase list mis à jour]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="3560" as="sourcePoint" />
+            <mxPoint x="135" y="3560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m56" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="56 : GET /test-cases/coverage/{planId}">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="135" y="3598" as="sourcePoint" />
+            <mxPoint x="355" y="3598" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m57" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="57 : SELECT * FROM tc_coverage WHERE test_plan_id = planId">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="365" y="3638" as="sourcePoint" />
+            <mxPoint x="585" y="3638" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m58" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="58 : [TcCoverageRow list]">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="3678" as="sourcePoint" />
+            <mxPoint x="365" y="3678" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="m59" edge="1" parent="1"
+          style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;curved=0;rounded=0;fontFamily=Times New Roman;fontStyle=1;fontSize=13;"
+          value="59 : 200 OK [coverage data] — tableau couverture mis à jour">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="355" y="3718" as="sourcePoint" />
+            <mxPoint x="135" y="3718" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
 </mxfile>

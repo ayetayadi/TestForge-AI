@@ -148,6 +148,10 @@ confirmDialogData = signal<{
     return Array.from(set).sort();
   });
 
+  get hasEligibleForReanalysis(): boolean {
+  const risks = this.sprintEpicFilteredRisks();
+  return risks && risks.length > 0 ? risks.some(r => r.eligible_for_reanalysis) : false;
+}
   /** Unique epics available among currently visible risks */
   viewEpics = computed((): string[] => {
     const map = this.storyMap();
@@ -243,6 +247,15 @@ summary = computed((): RiskSummary | null => {
   paginatedRisks = computed(() => {
     const start = (this.currentPage() - 1) * this.pageSize();
     return this.searchFilteredRisks().slice(start, start + this.pageSize());
+  });
+
+  /** user_story_id → number of risk records (> 1 means re-analyzed) */
+  reanalysisCountMap = computed((): Map<string, number> => {
+    const map = new Map<string, number>();
+    for (const r of this.allRisks()) {
+      map.set(r.user_story_id, (map.get(r.user_story_id) ?? 0) + 1);
+    }
+    return map;
   });
 
 matrixCells = computed((): RiskMatrixCell[][] =>
