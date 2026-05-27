@@ -347,7 +347,7 @@ $text-muted:       #94a3b8;
   min-width: 160px;
 
   &--project  { min-width: 220px; flex: 1.5; }
-  &--scenario { min-width: 340px; flex: 2; }
+  &--scenario { min-width: 200px; flex: 1.5; }
   &--cta      { min-width: 140px; flex-shrink: 0; }
 }
 
@@ -959,6 +959,60 @@ $text-muted:       #94a3b8;
   &:active {
     transform: scale(0.98);
   }
+}
+
+// ============================================
+// COVERAGE BUTTON
+// ============================================
+.btn-coverage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 36px;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  background: white;
+  color: $text-secondary;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $transition;
+  white-space: nowrap;
+
+  svg { flex-shrink: 0; }
+
+  &:hover:not(:disabled) {
+    border-color: $primary;
+    color: $primary;
+    background: rgba($primary, 0.04);
+  }
+
+  &--active {
+    border-color: $primary;
+    color: $primary;
+    background: rgba($primary, 0.07);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.coverage-btn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: $primary;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
 }
 
 // ============================================
@@ -2864,54 +2918,53 @@ $text-muted:       #94a3b8;
 }
 
 // ============================================
-// SCENARIO TYPES
+// SCENARIO TYPES - ALIGNEMENT HORIZONTAL
 // ============================================
+
 .scenario-types {
   display: flex;
+  flex-direction: row;        // ← Force l'alignement horizontal
+  align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
+  height: 38px;
+  flex-wrap: nowrap;          // Empêche le retour à la ligne
 }
 
 .scenario-checkbox {
-  display: flex;
+  display: inline-flex;       // ← inline-flex au lieu de flex
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background: white;
-  border: 1px solid $border;
-  border-radius: $radius-md;
+  padding: 0 8px;
   cursor: pointer;
-  transition: all $transition;
-  font-size: 12px;
+  font-size: 0.78rem;
   font-weight: 500;
   color: $text-secondary;
-  user-select: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  height: 32px;
+  border-radius: 20px;
   
-  input[type="checkbox"] {
+  input {
+    margin: 0;
     width: 14px;
     height: 14px;
-    accent-color: $primary;
     cursor: pointer;
+    accent-color: $primary;
+  }
+  
+  span {
+    line-height: 1;
   }
   
   &:hover {
-    border-color: $primary;
-    background: $bg-input;
+    color: $text-primary;
   }
   
   &.selected {
-    background: $primary-light;
-    border-color: $primary;
+    background: rgba($primary, 0.08);
     color: $primary;
     font-weight: 600;
-    
-    &:hover {
-      background: #e0e7ff;
-    }
-  }
-  
-  &:active {
-    transform: scale(0.98);
+    padding: 0 12px;
   }
 }
 

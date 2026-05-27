@@ -130,7 +130,7 @@
     <div class="coverage-section">
 
       <!-- Risk Coverage Card -->
-      @if (getRiskCoverage(); as riskCov) {
+      <!-- @if (getRiskCoverage(); as riskCov) {
         <div class="coverage-card coverage-card--risk">
           <div class="coverage-card-header" (click)="toggleRiskCoverage()" role="button">
             <div class="coverage-card-title">
@@ -150,7 +150,6 @@
           @if (riskCoverageOpen()) {
             <div class="coverage-card-body">
               <div class="coverage-main">
-                <!-- Donut circle -->
                 <div class="coverage-circle"
                      [style.--pct]="riskCov.risk_coverage_pct"
                      [style.--color]="getRiskCoverageColor(riskCov.risk_coverage_pct)">
@@ -160,7 +159,6 @@
                   </div>
                 </div>
 
-                <!-- Progress bar -->
                 <div class="coverage-bar-wrap">
                   <div class="coverage-bar">
                     <div class="coverage-bar-fill"
@@ -174,7 +172,6 @@
                 </div>
               </div>
 
-              <!-- Uncovered risks -->
               @if (riskCov.uncovered_risk_ids.length > 0) {
                 <div class="uncovered-section">
                   <div class="uncovered-header">
@@ -200,10 +197,10 @@
             </div>
           }
         </div>
-      }
+      } -->
 
       <!-- AC Coverage per User Story -->
-      @if (getUsAcCoverages().length > 0) {
+      <!-- @if (getUsAcCoverages().length > 0) {
         <div class="coverage-card coverage-card--ac">
           <div class="coverage-card-header" (click)="toggleAcCoverage()" role="button">
             <div class="coverage-card-title">
@@ -218,7 +215,6 @@
 
           @if (acCoverageOpen()) {
             <div class="coverage-card-body">
-              <!-- US with tests -->
               @for (us of getUsWithTests(); track us.user_story_id) {
                 <div class="us-coverage-row">
                   <div class="us-coverage-info">
@@ -249,7 +245,6 @@
                 </div>
               }
 
-              <!-- US without tests -->
               @if (getUsWithoutTests().length > 0) {
                 <div class="us-no-tests-section">
                   <div class="us-no-tests-header">
@@ -270,7 +265,7 @@
             </div>
           }
         </div>
-      }
+      } -->
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════════════ -->
@@ -397,7 +392,7 @@
                   <span class="exec-rule-chain">Critical → High → Medium → Low</span>
                 </div>
               </div>
-              @if (getBusinessFlowGroups().length > 0) {
+              <!-- @if (getBusinessFlowGroups().length > 0) {
                 <div class="exec-flow-grid">
                   @for (group of getBusinessFlowGroups(); track group.flow) {
                     <div class="exec-flow-card">
@@ -423,13 +418,13 @@
                     </div>
                   }
                 </div>
-              }
+              } -->
             </div>
           }
         </div>
 
         <!-- Section: Execution Order ─────────────────────────────────────── -->
-        @if (getAllSuitesOrder().length > 0) {
+        <!-- @if (getAllSuitesOrder().length > 0) {
           <div class="panel-section">
             <div class="panel-section-header" (click)="toggleExecOrder()" role="button">
               <div class="panel-section-title">
@@ -492,232 +487,153 @@
               </div>
             }
           </div>
-        }
+        } -->
 
       </div>
     }
 
     <!-- ══════════════════════════════════════════════════════════════════════ -->
-    <!-- TAB: TEST CASES                                                          -->
+    <!-- TAB: EXECUTION PLAN                                                       -->
     <!-- ══════════════════════════════════════════════════════════════════════ -->
     @if (activeTab() === 'cases') {
-      <div class="tab-panel">
+      <div class="tab-panel exec-plan-panel">
 
-        <!-- Execution Order Editor ─────────────────────────────────────────── -->
-        <div class="exec-order-card">
-          <div class="exec-order-card-header" (click)="tcOrderEditorOpen.set(!tcOrderEditorOpen())" role="button">
-            <div class="exec-order-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-              <span>Execution Order & Exclusions</span>
-              <span class="section-badge">{{ localTcs().length }} cases</span>
+        <!-- Plan header ─────────────────────────────────────────────────────── -->
+        <div class="exec-plan-header">
+          <div class="exec-plan-header-left">
+            <div class="exec-plan-title-row">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              <h2 class="exec-plan-title">Execution Plan</h2>
+              <span class="exec-plan-count">{{ localTcs().length }} cases</span>
               @if (getExcludedTcCount() > 0) {
                 <span class="exec-excl-badge">{{ getExcludedTcCount() }} excluded</span>
               }
             </div>
-            <div class="exec-order-card-right">
-              <span class="exec-order-hint">Drag to reorder</span>
-              <span class="section-chevron" [class.open]="tcOrderEditorOpen()">▾</span>
-            </div>
+            <p class="exec-plan-hint">
+              Cases run in this order · Drag or use ▲▼ to reorder ·
+              <strong>Exclude</strong> skips a case without deleting it
+            </p>
           </div>
-
-          @if (tcOrderEditorOpen()) {
-            <div class="exec-order-body">
-              <div class="exec-drag-list"
-                   cdkDropList
-                   [cdkDropListData]="localTcs()"
-                   (cdkDropListDropped)="dropTc($event)">
-                @for (tc of localTcs(); track tc.id; let i = $index) {
-                  <div class="exec-drag-item"
-                       [class.exec-drag-item--excluded]="tc.excluded_from_run"
-                       cdkDrag
-                       [cdkDragDisabled]="isSavingTcOrder()">
-
-                    <!-- Drag handle -->
-                    <div class="drag-handle" cdkDragHandle title="Drag to reorder">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/>
-                        <circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/>
-                        <circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/>
-                      </svg>
-                    </div>
-
-                    <!-- Position badge -->
-                    <span class="exec-pos-badge" [class.exec-pos-badge--excluded]="tc.excluded_from_run">
-                      {{ tc.excluded_from_run ? '—' : i + 1 }}
-                    </span>
-
-                    <!-- TC info -->
-                    <div class="exec-tc-info">
-                      <span class="exec-tc-code">{{ tc.tc_code }}</span>
-                      <span class="exec-tc-title">{{ tc.title }}</span>
-                      @if (tc.priority) {
-                        <span class="exec-tc-priority"
-                              [style.background]="getRiskLevelBg(tc.priority)"
-                              [style.color]="getRiskLevelColor(tc.priority)">
-                          {{ tc.priority }}
-                        </span>
-                      }
-                    </div>
-
-                    <!-- Arrow nudge buttons -->
-                    <div class="exec-arrows">
-                      <button class="arrow-btn" [disabled]="i === 0 || isSavingTcOrder()"
-                              (click)="moveTcUp(tc); $event.stopPropagation()" title="Move up">▲</button>
-                      <button class="arrow-btn" [disabled]="i === localTcs().length - 1 || isSavingTcOrder()"
-                              (click)="moveTcDown(tc); $event.stopPropagation()" title="Move down">▼</button>
-                    </div>
-
-                    <!-- Exclude toggle -->
-                    <button class="exec-excl-toggle"
-                            [class.exec-excl-toggle--excluded]="tc.excluded_from_run"
-                            [disabled]="isSavingTcOrder()"
-                            (click)="toggleExclude(tc); $event.stopPropagation()"
-                            [title]="tc.excluded_from_run ? 'Click to include in run' : 'Click to exclude from run'">
-                      @if (tc.excluded_from_run) {
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                        Excluded
-                      } @else {
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        Include
-                      }
-                    </button>
-
-                    <!-- CDK drag placeholder -->
-                    <div class="exec-drag-placeholder" *cdkDragPlaceholder></div>
-                  </div>
-                }
-              </div>
-
-              <div class="exec-order-footer">
-                <span class="exec-order-footer-hint">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  Drag rows or use ▲▼ to reorder · Excluded cases are skipped during run
-                </span>
-                <button class="btn-save-order" [disabled]="isSavingTcOrder()" (click)="saveTcOrder()">
-                  @if (isSavingTcOrder()) {
-                    <span class="spinner-xs-dark"></span> Saving…
-                  } @else {
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                    Save order
-                  }
-                </button>
-              </div>
-            </div>
-          }
+          <button class="btn-save-order" [disabled]="isSavingTcOrder()" (click)="saveTcOrder()">
+            @if (isSavingTcOrder()) {
+              <span class="spinner-xs-dark"></span> Saving…
+            } @else {
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Save Order
+            }
+          </button>
         </div>
 
-        <!-- Toolbar ─────────────────────────────────────────────────────────── -->
-        <div class="tc-toolbar">
-          <div class="tc-search-wrap">
-            <svg class="tc-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="tc-search"
-                   type="text"
-                   placeholder="Search by title or code…"
-                   [value]="tcSearch()"
-                   (input)="setTcSearch($any($event.target).value)" />
-            @if (tcSearch()) {
-              <button class="tc-search-clear" (click)="setTcSearch('')">×</button>
-            }
-          </div>
+        <!-- Execution plan list ──────────────────────────────────────────────── -->
+        <div class="exec-plan-list"
+             cdkDropList
+             [cdkDropListData]="localTcs()"
+             (cdkDropListDropped)="dropTc($event)">
 
-          <div class="tc-filter-group">
-            <select class="tc-filter-select" [value]="tcPriorityFilter()" (change)="setTcPriority($any($event.target).value)">
-              <option value="all">All Priorities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+          @for (tc of localTcs(); track tc.id; let i = $index) {
+            <div class="epr-row"
+                 [class.epr-row--excluded]="tc.excluded_from_run"
+                 [class.epr-row--expanded]="isCaseExpanded(tc.id)"
+                 cdkDrag
+                 [cdkDragDisabled]="isSavingTcOrder()">
 
-            <select class="tc-filter-select" [value]="tcTypeFilter()" (change)="setTcType($any($event.target).value)">
-              <option value="all">All Types</option>
-              @for (type of getAvailableTcTypes(); track type) {
-                <option [value]="type">{{ type }}</option>
-              }
-            </select>
+              <!-- Drag handle -->
+              <div class="drag-handle" cdkDragHandle title="Drag to reorder">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="9"  cy="5"  r="1" fill="currentColor"/><circle cx="15" cy="5"  r="1" fill="currentColor"/>
+                  <circle cx="9"  cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/>
+                  <circle cx="9"  cy="19" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/>
+                </svg>
+              </div>
 
-            <label class="tc-toggle-label">
-              <input type="checkbox" [checked]="tcShowInactive()" (change)="toggleShowInactive()" />
-              <span>Show inactive</span>
-            </label>
-          </div>
+              <!-- Position badge -->
+              <span class="exec-pos-badge" [class.exec-pos-badge--excluded]="tc.excluded_from_run">
+                {{ tc.excluded_from_run ? '—' : (i + 1) }}
+              </span>
 
-          <div class="tc-toolbar-right">
-            @if (tcSearch() || tcPriorityFilter() !== 'all' || tcTypeFilter() !== 'all') {
-              <button class="btn-clear-filters" (click)="setTcSearch(''); setTcPriority('all'); setTcType('all')">
-                Clear filters
-              </button>
-            }
-            <span class="tc-count-info">
-              @if (getFilteredTestCases().length === getTestCases().length) {
-                {{ getTestCases().length }} cases
-              } @else {
-                {{ getFilteredTestCases().length }} / {{ getTestCases().length }} cases
-              }
-            </span>
-          </div>
-        </div>
-
-        <!-- Test Case List ──────────────────────────────────────────────────── -->
-        <div class="tc-list">
-          @for (tc of getPaginatedTestCases(); track tc.id) {
-            <div class="tc-item" [class.tc-expanded]="isCaseExpanded(tc.id)" [class.tc-inactive]="!tc.is_active">
-              <div class="tc-header" (click)="toggleCase(tc.id)">
-                <div class="tc-header-left">
-                  <span class="tc-code">{{ tc.tc_code }}</span>
-                  @if (!tc.is_active) {
-                    <span class="tc-inactive-badge">Inactive</span>
-                  }
+              <!-- Main (clickable to expand) -->
+              <div class="epr-main" (click)="toggleCase(tc.id)">
+                <div class="epr-identity">
+                  <span class="exec-tc-code">{{ tc.tc_code }}</span>
+                  <span class="epr-title">{{ tc.title }}</span>
                 </div>
-
-                <span class="tc-title">{{ tc.title }}</span>
-
-                <div class="tc-header-right">
-                  @if (tc.priority) {
-                    <span class="tc-priority-chip"
-                          [style.background]="getRiskLevelBg(tc.priority)"
-                          [style.color]="getRiskLevelColor(tc.priority)">
-                      {{ tc.priority }}
+                <div class="epr-badges">
+                  @if (tc.risk_level) {
+                    <span class="exec-tc-risk-badge"
+                          [style.background]="getRiskLevelBg(tc.risk_level)"
+                          [style.color]="getRiskLevelColor(tc.risk_level)">
+                      {{ tc.risk_level }}
                     </span>
                   }
                   @if (tc.test_type) {
-                    <span class="tc-type-chip">{{ tc.test_type }}</span>
+                    <span class="epr-type-badge">{{ tc.test_type }}</span>
                   }
-                  @if (tc.risk_ids.length) {
-                    <span class="tc-risk-chip">{{ tc.risk_ids.length }}R</span>
+                  @if (tc.excluded_from_run) {
+                    <span class="epr-skip-badge">skip</span>
                   }
-                  <span class="tc-chevron" [class.tc-chevron--open]="isCaseExpanded(tc.id)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                  </span>
                 </div>
               </div>
 
+              <!-- Controls: reorder + exclude + expand -->
+              <div class="epr-controls">
+                <div class="exec-arrows">
+                  <button class="arrow-btn" [disabled]="i === 0 || isSavingTcOrder()"
+                          (click)="moveTcUp(tc); $event.stopPropagation()" title="Move up">▲</button>
+                  <button class="arrow-btn" [disabled]="i === localTcs().length - 1 || isSavingTcOrder()"
+                          (click)="moveTcDown(tc); $event.stopPropagation()" title="Move down">▼</button>
+                </div>
+
+                <button class="exec-excl-toggle"
+                        [class.exec-excl-toggle--excluded]="tc.excluded_from_run"
+                        [disabled]="isSavingTcOrder()"
+                        (click)="toggleExclude(tc); $event.stopPropagation()"
+                        [title]="tc.excluded_from_run ? 'Click to include in run' : 'Click to exclude from run'">
+                  @if (tc.excluded_from_run) {
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                    </svg>
+                    Excluded
+                  } @else {
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Include
+                  }
+                </button>
+
+                <button class="epr-expand-btn"
+                        (click)="toggleCase(tc.id); $event.stopPropagation()"
+                        [title]="isCaseExpanded(tc.id) ? 'Collapse' : 'Show details'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                       [style.transform]="isCaseExpanded(tc.id) ? 'rotate(180deg)' : 'rotate(0deg)'"
+                       style="transition: transform 0.15s ease">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Inline detail panel -->
               @if (isCaseExpanded(tc.id)) {
-                <div class="tc-detail">
-                  <!-- Meta info -->
-                  <div class="tc-meta-row">
-                    @if (tc.test_type) {
+                <div class="epr-detail">
+                  <div class="epr-detail-meta">
+                    @if (tc.risk_level) {
                       <div class="tc-meta-item">
-                        <span class="tc-meta-label">Type</span>
-                        <span class="tc-meta-val">{{ tc.test_type }}</span>
-                      </div>
-                    }
-                    @if (tc.priority) {
-                      <div class="tc-meta-item">
-                        <span class="tc-meta-label">Priority</span>
-                        <span class="tc-meta-val" [style.color]="getRiskLevelColor(tc.priority)">{{ tc.priority }}</span>
+                        <span class="tc-meta-label">Risk Level</span>
+                        <span class="tc-meta-val" [style.color]="getRiskLevelColor(tc.risk_level)">{{ tc.risk_level }}</span>
                       </div>
                     }
                     @if (tc.risk_ids.length) {
                       <div class="tc-meta-item">
                         <span class="tc-meta-label">Risks covered</span>
                         <span class="tc-meta-val">{{ tc.risk_ids.length }}</span>
-                      </div>
-                    }
-                    @if (tc.execution_order) {
-                      <div class="tc-meta-item">
-                        <span class="tc-meta-label">Exec. order</span>
-                        <span class="tc-meta-val">#{{ tc.execution_order }}</span>
                       </div>
                     }
                     @if (tc.tags.length) {
@@ -732,11 +648,12 @@
                     }
                   </div>
 
-                  <!-- Gherkin -->
                   @if (tc.gherkin_source) {
                     <div class="tc-gherkin-wrap">
                       <div class="tc-gherkin-label">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#89b4fa" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#89b4fa" stroke-width="2">
+                          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+                        </svg>
                         Gherkin Scenario
                       </div>
                       <div class="gherkin-block">
@@ -750,54 +667,49 @@
                   <div class="tc-detail-actions">
                     <button class="btn-open-tc" (click)="openTestCase(tc.id)">
                       Open Full Detail
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                      </svg>
                     </button>
                   </div>
                 </div>
               }
+
+              <div class="exec-drag-placeholder" *cdkDragPlaceholder></div>
             </div>
           }
 
-          @if (getFilteredTestCases().length === 0) {
+          @if (localTcs().length === 0) {
             <div class="tc-empty">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <p>No test cases match your filters.</p>
-              <button class="btn-clear-filters" (click)="setTcSearch(''); setTcPriority('all'); setTcType('all')">
-                Clear filters
-              </button>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+              </svg>
+              <p>No test cases in this suite.</p>
             </div>
           }
         </div>
 
-        <!-- Pagination ──────────────────────────────────────────────────────── -->
-        @if (getTcTotalPages() > 1) {
-          <div class="pagination">
-            <button class="pag-btn" [disabled]="tcPage() === 0" (click)="tcPrevPage()">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-              Previous
-            </button>
-
-            <div class="pag-pages">
-              @for (p of getPaginationPages(); let i = $index; track p) {
-                @if (isEllipsisBefore(i)) {
-                  <span class="pag-ellipsis">…</span>
-                }
-                <button class="pag-page" [class.active]="tcPage() === p" (click)="tcGoToPage(p)">
-                  {{ p + 1 }}
-                </button>
-              }
-            </div>
-
-            <span class="pag-info">
-              {{ getTcStartIndex() }}–{{ getTcEndIndex() }} of {{ getFilteredTestCases().length }}
-            </span>
-
-            <button class="pag-btn" [disabled]="tcPage() >= getTcTotalPages() - 1" (click)="tcNextPage()">
-              Next
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-        }
+        <!-- Footer ─────────────────────────────────────────────────────────── -->
+        <div class="exec-order-footer">
+          <span class="exec-order-footer-hint">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Drag rows or use ▲▼ to reorder · Excluded cases are skipped during run
+          </span>
+          <button class="btn-save-order" [disabled]="isSavingTcOrder()" (click)="saveTcOrder()">
+            @if (isSavingTcOrder()) {
+              <span class="spinner-xs-dark"></span> Saving…
+            } @else {
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Save Order
+            }
+          </button>
+        </div>
 
       </div>
     }
@@ -866,7 +778,7 @@
                   @for (tc of getMatrixTestCaseHeaders(); track tc.id) {
                     <th class="tm-th-tc">
                       <div class="tm-tc-header">
-                        <span class="tm-tc-code" [style.color]="getPriorityConfig(tc.priority)?.color">{{ tc.tc_code }}</span>
+                        <span class="tm-tc-code" [style.color]="getPriorityConfig(tc.risk_level)?.color">{{ tc.tc_code }}</span>
                         <span class="tm-tc-type">{{ tc.test_type }}</span>
                       </div>
                     </th>
@@ -959,15 +871,15 @@
             <span class="graph-algo-rule"><strong>2nd key — Risk Level</strong></span>
           </div>
 
-          @if (graph.execution_order.length > 0) {
+          @if (getGraphExecutionOrder().length > 0) {
             <div class="graph-exec-bar">
               <span class="graph-exec-title">Execution Order:</span>
-              @for (code of graph.execution_order; let i = $index; track code) {
+              @for (code of getGraphExecutionOrder(); let i = $index; track code) {
                 <span class="graph-exec-chip">
                   <span class="graph-exec-num">{{ i + 1 }}</span>
                   <span class="graph-exec-code">{{ code }}</span>
                 </span>
-                @if (i < graph.execution_order.length - 1) {
+                @if (i < getGraphExecutionOrder().length - 1) {
                   <span class="graph-exec-arrow">→</span>
                 }
               }

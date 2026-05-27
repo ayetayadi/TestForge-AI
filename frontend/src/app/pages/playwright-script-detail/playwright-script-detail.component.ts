@@ -265,7 +265,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
         this.issueKey.set(tc.issue_key || '');
         this.testCaseCode.set(tc.tc_code || '');
         this.tcTitle.set(tc.title || '');
-        this.tcPriorityRaw.set(tc.priority || '');
+        this.tcPriorityRaw.set(tc.risk_level || '');
         this.tcSteps.set(Array.isArray(tc.steps) ? tc.steps : []);
         this.tcExpectedResults.set(Array.isArray(tc.expected_results) ? tc.expected_results : []);
       },

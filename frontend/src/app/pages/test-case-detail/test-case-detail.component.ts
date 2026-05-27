@@ -44,7 +44,7 @@ export class TestCaseDetailComponent implements OnInit {
     this.editForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
       description: [''],
-      priority: ['medium'],
+      risk_level: ['medium'],
       preconditions: [[]],
       postconditions: [[]],
       steps: [[]],
@@ -90,7 +90,7 @@ initForm(): void {
     this.editForm.patchValue({
       title: this.testCase.title,
       description: this.testCase.description || '',
-      priority: this.testCase.priority || 'medium',
+      risk_level: this.testCase.risk_level || 'medium',
       preconditions: this.toJsonString(this.testCase.preconditions),
       postconditions: this.toJsonString(this.testCase.postconditions),
       steps: this.toJsonString(this.testCase.steps),

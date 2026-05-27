@@ -58,7 +58,7 @@ async def get_all_test_cases(
     project_ids: Optional[List[str]] = None,
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
-    priority: Optional[List[str]] = None,
+    risk_level: Optional[List[str]] = None,
     has_script: Optional[bool] = None,
     order_by: str = "tc_code",
     order_direction: str = "asc",
@@ -102,10 +102,10 @@ async def get_all_test_cases(
     else:
         query = query.where(TestCase.is_active == True)
     
-    if priority:
-        query = query.where(TestCase.priority.in_([p.lower() for p in priority]))
+    if risk_level:
+        query = query.where(TestCase.risk_level.in_([p.lower() for p in risk_level]))
 
-    
+
     # Ordering
     order_mapping = {
         "tc_code": TestCase.tc_code,
@@ -133,7 +133,7 @@ async def count_all_test_cases(
     project_id: Optional[str] = None,
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
-    priority: Optional[List[str]] = None,
+    risk_level: Optional[List[str]] = None,
 ) -> int:
     """Compte le nombre total de test cases avec filtres."""
     
@@ -163,8 +163,8 @@ async def count_all_test_cases(
         elif 'archived' in status and 'active' not in status:
             query = query.where(TestCase.is_active == False)
     
-    if priority:
-        query = query.where(TestCase.priority.in_([p.lower() for p in priority]))
+    if risk_level:
+        query = query.where(TestCase.risk_level.in_([p.lower() for p in risk_level]))
 
     
     result = await db.execute(query)
