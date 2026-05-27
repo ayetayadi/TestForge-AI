@@ -48,6 +48,7 @@ class DashboardStatsResponse(BaseModel):
     test_cases_this_week: int
     gherkin_coverage: float
     quality_score: float
+    scored_stories_count: int   # stories that have been through AI refinement
     projects_count: int
     has_data: bool
     test_type_coverage: List[CoverageItem]
@@ -115,18 +116,23 @@ async def get_dashboard_stats(
             user_stories_count=0, user_stories_this_week=0,
             test_cases_count=0, test_cases_this_week=0,
             gherkin_coverage=0.0, quality_score=0.0,
-            projects_count=0, has_data=False,
+            scored_stories_count=0, projects_count=0, has_data=False,
             test_type_coverage=[], priority_distribution=[],
             recent_activities=[],
         )
 
     # ── 2. User story stats ────────────────────────────────────────────────────
     us_agg = await db.execute(
-        select(func.count(UserStory.id), func.avg(UserStory.current_score))
+        select(
+            func.count(UserStory.id),
+            func.avg(UserStory.current_score),
+            func.count(UserStory.current_score),  # counts non-NULL rows only
+        )
         .where(UserStory.project_id.in_(project_ids))
     )
-    us_total, avg_score_raw = us_agg.fetchone()
+    us_total, avg_score_raw, scored_count = us_agg.fetchone()
     us_total = us_total or 0
+    scored_count = int(scored_count or 0)
     avg_score_raw = float(avg_score_raw or 0)
     quality_score = round(avg_score_raw * 100 if avg_score_raw <= 1.0 else avg_score_raw, 1)
 
@@ -285,6 +291,7 @@ async def get_dashboard_stats(
         test_cases_this_week=tc_this_week,
         gherkin_coverage=gherkin_coverage,
         quality_score=quality_score,
+        scored_stories_count=scored_count,
         projects_count=len(project_ids),
         has_data=True,
         test_type_coverage=test_type_coverage,

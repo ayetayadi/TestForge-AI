@@ -138,13 +138,21 @@ async def save_script(
     
     db.add(script_version)
     await db.flush()
-    
+
+    if is_active:
+        await db.execute(
+            update(TestCase)
+            .where(TestCase.id == test_case_id)
+            .values(active_playwright_script_id=script_version.id)
+        )
+        await db.flush()
+
     logger.info(
         f"Script saved: test_case={test_case_id}, "
         f"version={next_version}, source={source.value}, "
         f"placeholders={placeholder_count}"
     )
-    
+
     return script_version
 
 
@@ -194,6 +202,84 @@ async def update_script_validation(
         )
     )
     await db.flush()
+
+
+async def delete_script_version(
+    db: AsyncSession,
+    script_version_id: str,
+) -> dict:
+    """
+    Delete a PlaywrightScriptVersion.
+
+    If the deleted version was active, the most recent remaining version is
+    promoted as active and TestCase.active_playwright_script_id is updated.
+    Returns a dict with test_case_id and the new active_script_id (or None).
+    """
+    script = await get_script_version(db, script_version_id)
+    if not script:
+        return {"deleted": False, "reason": "not_found"}
+
+    test_case_id = script.test_case_id
+    was_active = script.is_active
+
+    await db.delete(script)
+    await db.flush()
+
+    new_active_id = None
+    if was_active:
+        # Promote the most recent remaining version
+        result = await db.execute(
+            select(PlaywrightScriptVersion)
+            .where(PlaywrightScriptVersion.test_case_id == test_case_id)
+            .order_by(desc(PlaywrightScriptVersion.version_number))
+            .limit(1)
+        )
+        next_version = result.scalar_one_or_none()
+        if next_version:
+            next_version.is_active = True
+            new_active_id = str(next_version.id)
+
+        # Sync TestCase.active_playwright_script_id
+        await db.execute(
+            update(TestCase)
+            .where(TestCase.id == test_case_id)
+            .values(active_playwright_script_id=new_active_id)
+        )
+        await db.flush()
+
+    return {
+        "deleted": True,
+        "test_case_id": test_case_id,
+        "was_active": was_active,
+        "new_active_script_id": new_active_id,
+    }
+
+
+async def delete_all_scripts_for_test_case(
+    db: AsyncSession,
+    test_case_id: str,
+) -> dict:
+    """Delete all PlaywrightScriptVersion rows for a test case and clear the FK on TestCase."""
+    result = await db.execute(
+        select(PlaywrightScriptVersion)
+        .where(PlaywrightScriptVersion.test_case_id == test_case_id)
+    )
+    versions = result.scalars().all()
+    if not versions:
+        return {"deleted": False, "reason": "no_scripts"}
+
+    for v in versions:
+        await db.delete(v)
+    await db.flush()
+
+    await db.execute(
+        update(TestCase)
+        .where(TestCase.id == test_case_id)
+        .values(active_playwright_script_id=None)
+    )
+    await db.flush()
+
+    return {"deleted": True, "count": len(versions), "test_case_id": test_case_id}
 
 
 # ============================================================

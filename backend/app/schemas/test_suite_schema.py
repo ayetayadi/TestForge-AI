@@ -24,8 +24,9 @@ class EmbeddedTestCaseSchema(BaseModel):
     expected_results: List[str] = Field(default_factory=list)
     risk_ids: List[str] = Field(default_factory=list)
     execution_order: Optional[int] = None
+    excluded_from_run: bool = False
     user_story_id: Optional[str] = None
-    test_suite_id: Optional[str] = None  # ✅ Ajouté
+    test_suite_id: Optional[str] = None
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None  # ✅ Ajouté
@@ -301,3 +302,18 @@ class UpdateTestSuiteRequest(BaseModel):
     priority: Optional[str] = None
     status: Optional[str] = None
     execution_order: Optional[int] = None
+
+
+class SuiteOrderEntry(BaseModel):
+    id: str
+    execution_order: int
+
+
+class ReorderSuitesRequest(BaseModel):
+    suites: List[SuiteOrderEntry]
+
+
+class TcExecutionUpdateRequest(BaseModel):
+    execution_order: Optional[int] = None
+    excluded_from_run: Optional[bool] = None
+    test_suite_id: Optional[str] = None

@@ -977,6 +977,349 @@ $gray:   #9ca3af;
 }
 
 // ══════════════════════════════════════════════════════════════
+// EXECUTION ORDER CARD (TC tab)
+// ══════════════════════════════════════════════════════════════
+
+.exec-order-card {
+  background: $bg-card;
+  border: $border;
+  border-radius: $radius;
+  border-top: 3px solid $primary;
+  overflow: hidden;
+  box-shadow: $shadow-sm;
+}
+
+.exec-order-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  background: #fafafa;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: $border;
+  transition: background $transition;
+
+  &:hover { background: #f3f4f6; }
+}
+
+.exec-order-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: $text-primary;
+}
+
+.exec-order-card-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.exec-order-hint {
+  font-size: 11px;
+  color: $text-muted;
+  font-style: italic;
+}
+
+.exec-excl-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 100px;
+  border: 1px solid #fecaca;
+}
+
+.exec-order-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+// ── Drag-and-drop list ────────────────────────────────────────
+
+.exec-drag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exec-drag-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: $border;
+  border-radius: 8px;
+  border-left: 3px solid #e5e7eb;
+  cursor: default;
+  transition: border-color $transition, box-shadow $transition, background $transition;
+
+  &:hover {
+    border-left-color: $primary;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  &--excluded {
+    background: #fafafa;
+    border-style: dashed;
+    border-left-color: #e5e7eb;
+    opacity: 0.75;
+  }
+
+  &--current {
+    background: #eef2ff;
+    border-left-color: $primary;
+    border-color: #c7d2fe;
+  }
+}
+
+// CDK drag states
+.cdk-drag-preview {
+  background: #fff;
+  border: 1px solid #c7d2fe;
+  border-left: 3px solid $primary;
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0.95;
+}
+
+.cdk-drag-animating {
+  transition: transform 220ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.exec-drag-placeholder {
+  background: #eef2ff;
+  border: 2px dashed #c7d2fe;
+  border-radius: 8px;
+  height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.exec-drag-list.cdk-drop-list-dragging .exec-drag-item:not(.cdk-drag-placeholder) {
+  transition: transform 220ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+// ── Drag handle ───────────────────────────────────────────────
+
+.drag-handle {
+  color: $text-muted;
+  cursor: grab;
+  padding: 4px 2px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  transition: color $transition, background $transition;
+
+  &:hover { color: $primary; background: #eef2ff; }
+  &:active { cursor: grabbing; }
+}
+
+// ── Position badge ────────────────────────────────────────────
+
+.exec-pos-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: $primary;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+
+  &--excluded {
+    background: #d1d5db;
+    color: #9ca3af;
+  }
+}
+
+// ── TC info ───────────────────────────────────────────────────
+
+.exec-tc-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.exec-tc-code {
+  font-size: 11px;
+  font-weight: 700;
+  color: $primary;
+  font-family: monospace;
+  background: #eef2ff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.exec-tc-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: $text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exec-tc-priority {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 100px;
+  text-transform: capitalize;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+// ── Arrow nudge buttons ───────────────────────────────────────
+
+.exec-arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.arrow-btn {
+  width: 26px;
+  height: 21px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition;
+  padding: 0;
+
+  &:hover:not(:disabled) { background: #eef2ff; border-color: $primary; color: $primary; }
+  &:disabled { opacity: 0.3; cursor: not-allowed; }
+}
+
+// ── Exclude toggle ────────────────────────────────────────────
+
+.exec-excl-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 100px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: $text-secondary;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all $transition;
+
+  svg { stroke: currentColor; flex-shrink: 0; }
+
+  &:hover:not(:disabled) {
+    border-color: $red;
+    color: $red;
+    background: #fef2f2;
+  }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  &--excluded {
+    border-color: #ef4444;
+    background: #fee2e2;
+    color: #dc2626;
+
+    &:hover:not(:disabled) {
+      background: #fecaca;
+      border-color: #dc2626;
+    }
+  }
+}
+
+// ── Footer ────────────────────────────────────────────────────
+
+.exec-order-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  flex-wrap: wrap;
+}
+
+.exec-order-footer-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: $text-muted;
+  font-style: italic;
+}
+
+.btn-save-order {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border-radius: $radius-sm;
+  border: 1px solid $primary;
+  background: $primary;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background $transition, opacity $transition;
+
+  &:hover:not(:disabled) { background: #4f46e5; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+.order-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 8px;
+}
+
+.spinner-xs-dark {
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+// legacy hint — kept for suite section reuse
+.tc-excluded-hint { font-size: 11px; color: $red; font-weight: 600; }
+
+// ══════════════════════════════════════════════════════════════
 // TEST CASES — TOOLBAR
 // ══════════════════════════════════════════════════════════════
 
@@ -2039,6 +2382,14 @@ $gray:   #9ca3af;
 // ══════════════════════════════════════════════════════════════
 // SUITE PLAYWRIGHT RUN — Button
 // ══════════════════════════════════════════════════════════════
+
+.tsd-header-actions .btn-testomat {
+  background: #f5f3ff;
+  border-color: #8b5cf6;
+  color: #5a2ee5;
+  &:hover:not(:disabled) { background: #ede9fe; }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
 
 .tsd-header-actions .btn-playwright {
   background: #ede9fe;

@@ -198,6 +198,16 @@ async def get_test_case_by_code(db: AsyncSession, tc_code: str) -> Optional[Test
     return result.scalar_one_or_none()
 
 
+async def get_test_cases_by_ids(db: AsyncSession, ids: List[str]) -> List[TestCase]:
+    """Fetch multiple test cases by their IDs."""
+    if not ids:
+        return []
+    result = await db.execute(
+        select(TestCase).where(TestCase.id.in_(ids))
+    )
+    return list(result.scalars().all())
+
+
 async def get_test_cases_by_test_suite_id(db: AsyncSession, test_suite_id: str) -> List[TestCase]:
     """Récupère tous les test cases d'une suite."""
     result = await db.execute(

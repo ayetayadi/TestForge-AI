@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from app.models.user_story import UserStory
+from app.models.tc_coverage import TcCoverage
 from app.repositories.user_story_repository import (
     get_all_user_stories,
     get_user_stories_by_project_id,
@@ -196,10 +197,18 @@ async def import_project_stories(
                     story.labels = mapped.get("labels") or []
                     story.components = mapped.get("components") or []
                     story.fix_version = mapped.get("fix_version")
-                    
+
+                    # Sync TcCoverage dénormalisé (ISTQB §1.4 — cohérence RTM)
+                    new_title = mapped.get("title") or story.title
+                    await db.execute(
+                        update(TcCoverage)
+                        .where(TcCoverage.user_story_id == story.id)
+                        .values(issue_key=key, user_story_title=new_title)
+                    )
+
                     print(f"[IMPORT] ✅ Mise à jour de {key}")
                     print(f"   Description: {story.description[:50] if story.description else 'None'}...")
-                    
+
                     updated += 1
                 else:
                     skipped += 1

@@ -1,0 +1,242 @@
+.tmt-page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+.tmt-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.tmt-logo-wrap svg {
+  width: 48px;
+  height: 48px;
+}
+
+.tmt-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--mat-sys-on-surface, #1e1e2e);
+}
+
+.tmt-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+// ── Status card ──────────────────────────────────────────────────────────────
+
+.tmt-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  transition: border-color .2s;
+
+  &--connected {
+    border-color: #10b981;
+    background: #f0fdf4;
+  }
+}
+
+.tmt-card-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tmt-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d1d5db;
+  flex-shrink: 0;
+
+  &--on {
+    background: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, .2);
+  }
+}
+
+.tmt-status-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #111827;
+}
+
+.tmt-key-preview,
+.tmt-connected-at {
+  display: block;
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.tmt-spinner-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+// ── Buttons ──────────────────────────────────────────────────────────────────
+
+.btn-disconnect {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1.5px solid #ef4444;
+  color: #ef4444;
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s;
+
+  svg { width: 16px; height: 16px; }
+
+  &:hover { background: #fef2f2; }
+}
+
+.btn-connect {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #5a2ee5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+
+  &:hover:not(:disabled) { background: #4a22cc; }
+  &:disabled { opacity: .55; cursor: not-allowed; }
+}
+
+// ── Form card ────────────────────────────────────────────────────────────────
+
+.tmt-form-card {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 28px 28px 24px;
+  margin-bottom: 24px;
+}
+
+.tmt-form-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: #111827;
+}
+
+.tmt-form-desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0 0 22px;
+  line-height: 1.5;
+}
+
+.tmt-field {
+  margin-bottom: 20px;
+}
+
+.tmt-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.tmt-input-wrap {
+  position: relative;
+}
+
+.tmt-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 44px 10px 14px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color .15s;
+
+  &:focus { border-color: #5a2ee5; }
+}
+
+.tmt-eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 0;
+
+  svg { width: 18px; height: 18px; display: block; }
+  &:hover { color: #374151; }
+}
+
+// ── Info box ─────────────────────────────────────────────────────────────────
+
+.tmt-info-box {
+  display: flex;
+  gap: 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-size: 0.875rem;
+  color: #1e40af;
+  line-height: 1.5;
+
+  strong { display: block; margin-bottom: 4px; }
+
+  p { margin: 0; color: #2563eb; }
+}
+
+.tmt-info-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+// ── Spinner ──────────────────────────────────────────────────────────────────
+
+.tmt-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+.tmt-spinner-row .tmt-spinner {
+  border-color: rgba(107,114,128,.3);
+  border-top-color: #6b7280;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }

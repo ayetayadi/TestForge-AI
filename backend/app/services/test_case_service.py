@@ -119,10 +119,6 @@ async def create_test_case(db: AsyncSession, data: Dict[str, Any]) -> TestCase:
             raise ValueError("TestSuite not found")
     
     test_case = await repo.create_test_case(db, data)
-
-    from app.services import testomat_service
-    await testomat_service.push_test_case(test_case)
-
     return test_case
 
 

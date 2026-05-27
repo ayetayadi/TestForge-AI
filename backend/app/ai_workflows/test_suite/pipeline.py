@@ -324,11 +324,14 @@ class TestSuitePipeline:
         strategy: str = "test_type",
         accepted_risk_ids: List[str] = None,
         progress_callback: Optional[Callable] = None,
+        tc_classifications: Optional[Dict[str, Any]] = None,
+        flow_order: Optional[Dict[str, int]] = None,
     ) -> Dict[str, Any]:
         """
         Organise les TCs en suites par type de scénario: positive → negative → boundary.
+        Si tc_classifications et flow_order sont fournis (depuis le LLM),
+        l'exécution des suites est ordonnée par flux métier plutôt que par test_type.
         """
-        strategy = "test_type"
         accepted_risk_ids = accepted_risk_ids or []
         
         logger.info(
@@ -406,9 +409,19 @@ class TestSuitePipeline:
                     suite_type=name_info.suite_type if name_info else None,
                     priority=name_info.priority if name_info else None,
                 )
+                # Compute dominant business flow for this suite from LLM classifications
+                if tc_classifications:
+                    flow_counts: Dict[str, int] = {}
+                    for tc in tcs:
+                        clf = tc_classifications.get(tc.get("tc_code", ""))
+                        if clf:
+                            f = clf.get("business_flow", "other")
+                            flow_counts[f] = flow_counts.get(f, 0) + 1
+                    if flow_counts:
+                        record["_dominant_flow"] = max(flow_counts, key=flow_counts.get)
                 raw_suites.append(record)
 
-            ordered_suites = assign_suite_order(raw_suites)
+            ordered_suites = assign_suite_order(raw_suites, flow_order=flow_order)
 
             await self._emit(progress_callback, "phase", {
                 "phase": "done",

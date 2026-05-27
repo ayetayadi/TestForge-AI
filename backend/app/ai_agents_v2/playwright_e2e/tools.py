@@ -36,7 +36,14 @@ ALLOWED_TOOLS = {
     "browser_select_option",
     "browser_tabs",
     "browser_close",
-    "browser_take_screenshot"
+    "browser_take_screenshot",
+    "browser_handle_dialog",
+    # Real-world UI interactions
+    "browser_scroll",
+    "browser_hover",
+    "browser_file_upload",
+    # JS evaluation (used for storageState save/restore)
+    "browser_evaluate",
 }
 
 _MAX_SSE_RETRIES = 1          # 1 seule tentative SSE — inutile de retenter si le serveur est down

@@ -10,7 +10,7 @@ from langfuse import observe
 from langfuse import get_client as get_langfuse_client
 
 from app.core.observability import fire_evaluation, get_trace_callback
-from app.llm.llm_control import create_llm
+from app.llm.llm_control import create_llm, create_llm_for_model
 from .tools import PlaywrightMCPClient
 from .prompts import (
     MAPPING_SYSTEM, MAPPING_USER,
@@ -23,12 +23,28 @@ logger = logging.getLogger(__name__)
 
 # Keyword filter for DOM compression — keeps only lines the LLM needs
 _DOM_KEYWORDS = (
+    # Core interactive elements
     "button", "input", "label", "link", "heading",
     "aria", "role", "select", "textarea", "checkbox", "radio",
     "placeholder", "name=", "value=", "textbox",
-    "alert", "status",  # dynamic feedback elements (error messages, toasts)
+    # Dynamic feedback elements (error messages, toasts)
+    "alert", "status",
+    # Custom ARIA roles found in component libraries
+    "combobox", "listbox", "option", "menuitem", "menubar",
+    "tab", "tablist", "tabpanel",
+    "tree", "treeitem", "grid", "row", "cell", "columnheader",
+    "dialog", "alertdialog", "tooltip", "modal",
+    "switch", "slider", "spinbutton", "searchbox", "progressbar",
+    "banner", "main", "form", "navigation",
+    # File upload areas
+    "upload", "file", "img", "figure",
+    # State attributes (disabled fields, selected options, expanded menus)
+    "disabled", "checked", "selected", "expanded", "pressed",
+    "required", "readonly", "invalid", "busy",
+    # Common data-* attributes used as locators
+    "data-testid", "data-cy", "data-id", "data-value",
 )
-_DOM_MAX_LINES = 150
+_DOM_MAX_LINES = 400
 
 
 def _compress_dom(content: str) -> str:
@@ -45,6 +61,22 @@ def _compress_dom(content: str) -> str:
         kept = kept[:_DOM_MAX_LINES]
         kept.append(f"... [{len(lines) - _DOM_MAX_LINES} more lines filtered]")
     return "\n".join(kept)
+
+
+def _looks_like_login_page(snapshot: str) -> bool:
+    """
+    Return True if the DOM snapshot suggests the browser is on a login/auth page.
+    Heuristic: has a password field + email/username field but no dashboard-level
+    navigation that would indicate an authenticated session.
+    """
+    s = snapshot.lower()
+    has_password = "password" in s
+    has_email = any(kw in s for kw in ("email", "username", "sign in", "log in", "signin"))
+    has_authenticated_nav = any(kw in s for kw in (
+        "dashboard", "logout", "sign out", "signout", "profile", "sidebar",
+        "navigation", "navbar", "menu", "home", "projects",
+    ))
+    return has_password and has_email and not has_authenticated_nav
 
 
 class PlaywrightReActAgent:
@@ -73,7 +105,18 @@ class PlaywrightReActAgent:
         headless: Optional[bool] = None,
         browser: Optional[str] = None,
         on_step=None,
+        page_snapshots: Optional[Dict[str, str]] = None,
+        model_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """
+        Execute script_v1 against the live application.
+
+        page_snapshots: pre-captured { page_label: compressed_dom } from the service
+        pre-flight step. When provided, the landing-page snapshot is injected as the
+        initial DOM cache so the first browser_snapshot call is skipped, saving one
+        round-trip. Scripts generated with multi-page snapshots will also have fewer
+        (or zero) placeholders, making the whole resolution phase faster.
+        """
         start = time.time()
         actual_headless = headless if headless is not None else True
         actual_browser = browser if browser is not None else "chromium"
@@ -111,15 +154,21 @@ class PlaywrightReActAgent:
                 time.time() - start, locator_mapping={},
             )
 
-        logger.info(f"Executing {len(actions)} actions with {len(placeholders)} placeholders to resolve")
+        logger.info(
+            f"Executing {len(actions)} actions with {len(placeholders)} placeholder(s) to resolve"
+            + (f" | pre-cached pages: {list(page_snapshots.keys())}" if page_snapshots else "")
+        )
 
         accumulated_mapping: Dict[str, str] = {}
         steps_passed = 0
         steps_failed = 0
         step_details: List[Dict[str, Any]] = []
         screenshot_b64: Optional[str] = None
-        current_snapshot_text: Optional[str] = None
-        llm = create_llm(temperature=LLM_TEMPERATURE, model=LLM_MODEL, max_tokens=LLM_MAX_TOKENS)
+        # Pre-load landing DOM cache from pre-flight snapshots — skips first browser_snapshot call
+        initial_snapshot = (page_snapshots or {}).get("landing")
+        current_snapshot_text: Optional[str] = initial_snapshot
+        effective_model = model_id or LLM_MODEL
+        llm = create_llm_for_model(effective_model, LLM_TEMPERATURE, LLM_MAX_TOKENS)
 
         async with PlaywrightMCPClient(headless=actual_headless, browser=actual_browser) as mcp:
             tools = {t.name: t for t in mcp.tools}
@@ -180,8 +229,7 @@ class PlaywrightReActAgent:
                             if ph_desc not in accumulated_mapping:
                                 # Snapshot current page once (cache until navigation/failure)
                                 if current_snapshot_text is None:
-                                    raw = str(await tools["browser_snapshot"].ainvoke({}))
-                                    current_snapshot_text = self._extract_snapshot_text(raw)
+                                    current_snapshot_text = await self._safe_snapshot(tools)
 
                                 dom = _compress_dom(current_snapshot_text)
 
@@ -211,8 +259,8 @@ class PlaywrightReActAgent:
                             tools, action, snapshot_text=current_snapshot_text
                         )
 
-                        # Click may trigger navigation or dynamic DOM update →
-                        # wait for DOM to stabilise and cache the result
+                        # Click may trigger navigation, a dialog, or dynamic DOM update →
+                        # always re-stabilise (also handles any post-click alerts via _safe_snapshot)
                         if atype == "click":
                             current_snapshot_text = await self._wait_for_dom_stable(
                                 tools, max_wait=6.0, check_interval=0.5, stable_checks=2
@@ -222,6 +270,8 @@ class PlaywrightReActAgent:
 
                 except Exception as first_err:
                     logger.warning(f"Step {i + 1} failed ({first_err}) — self-correcting")
+                    # Invalidate snapshot cache — the page state is unknown after a failure
+                    current_snapshot_text = None
                     sc_desc: Optional[str] = None  # initialise so Tier 3 can access it
                     try:
                         current_snapshot_text = await self._wait_for_dom_stable(
@@ -402,8 +452,7 @@ class PlaywrightReActAgent:
 
         while elapsed < max_wait:
             await asyncio.sleep(check_interval)
-            raw = str(await tools["browser_snapshot"].ainvoke({}))
-            current = self._extract_snapshot_text(raw)
+            current = await self._safe_snapshot(tools)
 
             if current == prev:
                 consecutive += 1
@@ -459,6 +508,63 @@ class PlaywrightReActAgent:
             snapshot_text = snapshot_text.replace('\\n', '\n')
 
         return snapshot_text
+
+    # ── Safe snapshot (auto-dismisses blocking dialogs) ─────────────────────────
+
+    _MODAL_ERROR_MARKER = "does not handle the modal state"
+
+    async def _safe_snapshot(self, tools: dict) -> str:
+        """
+        Take a DOM snapshot, transparently handling any blocking modal/dialog.
+
+        The MCP server can signal a blocking dialog either as error text in the
+        response body OR by raising an exception from ainvoke — both forms are
+        caught and handled identically so the caller always gets a usable snapshot.
+
+        Returns the snapshot text ready for `_extract_snapshot_text`-consumers.
+        Always returns a string — empty string on total failure.
+        """
+        if "browser_snapshot" not in tools:
+            return ""
+
+        # Catch both error-text responses AND ainvoke exceptions
+        try:
+            raw = str(await tools["browser_snapshot"].ainvoke({}))
+        except Exception as e:
+            raw = str(e)
+            logger.debug(f"browser_snapshot raised (likely modal): {e}")
+
+        if self._MODAL_ERROR_MARKER not in raw:
+            return self._extract_snapshot_text(raw)
+
+        # ── Modal is blocking the snapshot ───────────────────────────────────
+        logger.warning("Modal/dialog detected — auto-dismissing before retry")
+
+        # "alert" has only one button (OK = accept); confirm/prompt should be
+        # dismissed (Cancel) so we never execute a destructive action by accident.
+        raw_lower = raw.lower()
+        # alerts only have OK (accept=True); confirm/prompt use cancel (accept=False)
+        accept_dialog = '"alert"' in raw_lower or '"beforeunload"' in raw_lower
+
+        if "browser_handle_dialog" in tools:
+            try:
+                await tools["browser_handle_dialog"].ainvoke({"accept": accept_dialog})
+                # Give the page time to process the dismissal and re-render
+                await asyncio.sleep(1.0)
+                try:
+                    raw2 = str(await tools["browser_snapshot"].ainvoke({}))
+                except Exception as e2:
+                    raw2 = str(e2)
+                if self._MODAL_ERROR_MARKER not in raw2:
+                    logger.info(f"Dialog {'accepted' if accept_dialog else 'dismissed'} — snapshot succeeded")
+                    return self._extract_snapshot_text(raw2)
+                logger.warning("Second snapshot still blocked by a modal — returning raw")
+                return self._extract_snapshot_text(raw2)
+            except Exception as e:
+                logger.warning(f"Dialog dismiss failed: {e}")
+
+        # Last resort: return whatever we have (might be error text)
+        return self._extract_snapshot_text(raw)
 
     # ── Phase 4: execution (used when script has no placeholders) ────────────────
 
@@ -601,12 +707,24 @@ class PlaywrightReActAgent:
         app_url: str = APP_BASE_URL,
         test_case_id: Optional[str] = None,
         on_step=None,
+        page_snapshots: Optional[Dict[str, str]] = None,
+        suite_continuation: bool = False,
+        model_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Execute a script using an already-open MCP tools dict.
         Used by run_suite_smart for the shared-browser-session optimisation —
         the caller opens PlaywrightMCPClient once for the whole suite and passes
         the tools dict here so we never pay the browser launch cost per TC.
+
+        page_snapshots: pre-captured multi-page DOM from the pre-flight step.
+        The landing snapshot is pre-loaded as the initial DOM cache.
+
+        suite_continuation: True for TC index > 0 in a suite run. Enables smart
+        session-preservation logic — skips the initial root navigate when the
+        browser is already on an authenticated page, preventing TC N's
+        page.goto(app_url) from bouncing through a login-page redirect and
+        accidentally filling login fields with the test case's own data.
         """
         start = time.time()
 
@@ -646,8 +764,10 @@ class PlaywrightReActAgent:
         steps_passed = steps_failed = 0
         step_details: List[Dict[str, Any]] = []
         screenshot_b64: Optional[str] = None
-        current_snapshot_text: Optional[str] = None
-        llm = create_llm(temperature=LLM_TEMPERATURE, model=LLM_MODEL, max_tokens=LLM_MAX_TOKENS)
+        # Pre-load landing snapshot from pre-flight data — avoids one browser_snapshot call
+        current_snapshot_text: Optional[str] = (page_snapshots or {}).get("landing")
+        effective_model = model_id or LLM_MODEL
+        llm = create_llm_for_model(effective_model, LLM_TEMPERATURE, LLM_MAX_TOKENS)
 
         for i, action in enumerate(actions):
             label = self._action_label(i + 1, action)
@@ -658,7 +778,28 @@ class PlaywrightReActAgent:
                 atype = action["type"]
 
                 if atype == "navigate":
-                    await tools["browser_navigate"].ainvoke({"url": action["url"]})
+                    target_url = action["url"]
+
+                    # Suite continuation: if this is the first action and it targets the
+                    # root app URL, check whether we're already on an authenticated page.
+                    # If yes, skip — avoids the pattern where page.goto(app_url) triggers
+                    # a login-redirect and the next fill() hits the login form instead of
+                    # the intended form in the test case.
+                    if suite_continuation and i == 0:
+                        snap = await self._safe_snapshot(tools)
+                        current_snapshot_text = snap
+                        norm_target = target_url.rstrip("/")
+                        norm_base = app_url.rstrip("/")
+                        is_root_nav = (norm_target == norm_base or norm_target == norm_base + "/")
+                        if is_root_nav and not _looks_like_login_page(snap):
+                            logger.info(
+                                "Suite continuation: skipping redundant root navigate "
+                                f"to {target_url} — already on an authenticated page"
+                            )
+                            success = True
+                            continue
+
+                    await tools["browser_navigate"].ainvoke({"url": target_url})
                     current_snapshot_text = await self._wait_for_dom_stable(
                         tools, max_wait=10.0, check_interval=0.6, stable_checks=2
                     )
@@ -693,8 +834,7 @@ class PlaywrightReActAgent:
                         ph_desc = ph_match.group(1)
                         if ph_desc not in accumulated_mapping:
                             if current_snapshot_text is None:
-                                raw = str(await tools["browser_snapshot"].ainvoke({}))
-                                current_snapshot_text = self._extract_snapshot_text(raw)
+                                current_snapshot_text = await self._safe_snapshot(tools)
                             dom = _compress_dom(current_snapshot_text)
                             batch = [ph_desc]
                             for future_action in actions[i + 1:]:
@@ -722,6 +862,7 @@ class PlaywrightReActAgent:
 
             except Exception as first_err:
                 logger.warning(f"Step {i + 1} failed ({first_err}) — self-correcting")
+                current_snapshot_text = None  # invalidate stale cache after failure
                 sc_desc: Optional[str] = None
                 try:
                     current_snapshot_text = await self._wait_for_dom_stable(
@@ -872,6 +1013,16 @@ class PlaywrightReActAgent:
             await asyncio.sleep(1.0)
             return
 
+        if atype == "scroll":
+            if "browser_scroll" in tools:
+                await tools["browser_scroll"].ainvoke({
+                    "direction": action.get("direction", "down"),
+                    "amount": action.get("amount", 300),
+                })
+            else:
+                await asyncio.sleep(0.3)
+            return
+
         # Actions that need an element ref
         locator_expr = action.get("locator", "")
 
@@ -893,8 +1044,7 @@ class PlaywrightReActAgent:
                 # assert_visible: wait briefly for dynamic elements (toasts, error messages)
                 if atype == "assert_visible" and "browser_snapshot" in tools:
                     await asyncio.sleep(1.5)
-                    fr = str(await tools["browser_snapshot"].ainvoke({}))
-                    fs = self._extract_snapshot_text(fr)
+                    fs = await self._safe_snapshot(tools)
                     ref = (
                         self._find_ref_in_snapshot(fs, locator_expr)
                         or self._find_ref_by_visible_text(fs, locator_expr)
@@ -907,8 +1057,7 @@ class PlaywrightReActAgent:
                     try:
                         if "browser_snapshot" not in tools:
                             raise RuntimeError("browser_snapshot not available") from first_error
-                        fresh_raw = str(await tools["browser_snapshot"].ainvoke({}))
-                        fresh_snapshot = self._extract_snapshot_text(fresh_raw)
+                        fresh_snapshot = await self._safe_snapshot(tools)
                         ref = self._find_ref_by_visible_text(fresh_snapshot, locator_expr)
                         if not ref:
                             raise RuntimeError(
@@ -950,29 +1099,99 @@ class PlaywrightReActAgent:
             logger.info(f"✅ Assert visible: {locator_expr[:60]}")
 
         elif atype == "assert_url":
-            # Vérifie que l'URL contient le texte attendu
             if "browser_snapshot" in tools:
-                snap = str(await tools["browser_snapshot"].ainvoke({}))
+                snap = await self._safe_snapshot(tools)
                 expected = action.get("url", "")
                 if expected not in snap:
                     raise RuntimeError(f"URL mismatch: expected '{expected}' not found in page")
             logger.info(f"✅ Assert URL: {action.get('url', '')[:60]}")
 
+        elif atype == "hover":
+            if "browser_hover" not in tools:
+                logger.warning("browser_hover not available — skipping hover step")
+                return
+            await tools["browser_hover"].ainvoke(
+                self._elem_params(tools["browser_hover"], ref, locator_expr)
+            )
+            await asyncio.sleep(0.3)
+
+        elif atype == "upload":
+            if "browser_file_upload" not in tools:
+                raise RuntimeError("browser_file_upload not available")
+            await tools["browser_file_upload"].ainvoke({
+                **self._elem_params(tools["browser_file_upload"], ref, locator_expr),
+                "paths": action.get("files", []),
+            })
+            await asyncio.sleep(0.5)
+
+
+    async def _scroll_until_visible(
+        self,
+        tools: dict,
+        locator_expr: str,
+        max_scrolls: int = 5,
+        scroll_amount: int = 500,
+    ) -> tuple:
+        """
+        Scroll down in increments until the target element appears in the snapshot.
+
+        Handles: virtual/infinite scroll lists, lazy-loaded sections, sticky-nav-obscured
+        elements, and anything rendered below the initial viewport.
+
+        Returns (ref, snapshot_text) if found, (None, None) if not found after max_scrolls.
+        """
+        if "browser_scroll" not in tools or "browser_snapshot" not in tools:
+            return None, None
+
+        logger.info(
+            f"scroll_until_visible: element not in viewport, "
+            f"scrolling up to {max_scrolls}x for '{locator_expr[:60]}'"
+        )
+
+        for attempt in range(1, max_scrolls + 1):
+            await tools["browser_scroll"].ainvoke(
+                {"direction": "down", "amount": scroll_amount}
+            )
+            await asyncio.sleep(0.5)
+
+            snapshot = await self._safe_snapshot(tools)
+            ref = self._find_ref_in_snapshot(snapshot, locator_expr)
+            if ref:
+                logger.info(
+                    f"scroll_until_visible: found '{locator_expr[:50]}' "
+                    f"after {attempt} scroll(s)"
+                )
+                return ref, snapshot
+
+        logger.info(
+            f"scroll_until_visible: element still not found after {max_scrolls} scrolls"
+        )
+        return None, None
 
     async def _resolve_ref(
         self, tools: dict, locator_expr: str, snapshot_text: Optional[str] = None
     ):
         """
         Find the MCP aria ref for a locator expression.
-        Uses snapshot_text if provided (avoids extra browser call); otherwise re-snapshots.
+
+        Resolution order:
+          1. Search the provided (cached) snapshot — zero extra browser calls
+          2. If not found and browser_scroll is available, scroll down up to 5×
+             and re-snapshot after each scroll (handles below-fold elements)
+          3. Raise RuntimeError so the caller can fall back to LLM self-correction
         """
         if snapshot_text is None:
             if "browser_snapshot" not in tools:
                 raise RuntimeError("browser_snapshot not available")
-            raw = str(await tools["browser_snapshot"].ainvoke({}))
-            snapshot_text = self._extract_snapshot_text(raw)
+            snapshot_text = await self._safe_snapshot(tools)
 
         ref = self._find_ref_in_snapshot(snapshot_text, locator_expr)
+
+        # Element not in current viewport — try scrolling before giving up
+        if not ref:
+            ref, scrolled_snapshot = await self._scroll_until_visible(tools, locator_expr)
+            if ref:
+                return ref, locator_expr
 
         if not ref:
             compressed = _compress_dom(snapshot_text)
@@ -983,6 +1202,7 @@ class PlaywrightReActAgent:
             raise RuntimeError(
                 f"Element not found in snapshot for locator: {locator_expr[:80]}"
             )
+
         logger.info(f"🔍 RESOLVE_REF: locator='{locator_expr[:60]}' → ref='{ref}'")
         return ref, locator_expr
 
@@ -1193,20 +1413,43 @@ class PlaywrightReActAgent:
     def _parse_ts_actions(self, script: str, app_url: str) -> List[Dict[str, Any]]:
         """
         Parse TypeScript Playwright script lines into a flat list of MCP-executable actions.
-        Handles: goto, waitForTimeout, click, fill, type, press, selectOption, expect.toBeVisible.
+
+        Two-pass approach:
+          Pass 1 — collect variable bindings:  const btn = page.getByLabel('Email')
+          Pass 2 — parse action lines, resolving variable references inline.
+
+        Chain modifiers (.nth(), .first(), .last(), .filter()) are stripped from
+        locator expressions before matching; the snapshot search already returns
+        the best available match without needing an exact index.
         """
         actions: List[Dict[str, Any]] = []
 
+        # ── Pass 1: collect variable → locator bindings ─────────────────────
+        var_map: Dict[str, str] = {}
+        for line in script.splitlines():
+            m = re.match(
+                r'\s*(?:const|let|var)\s+(\w+)\s*=\s*(page\.[^;]+?)[\s;]*$',
+                line,
+            )
+            if m:
+                expr = m.group(2).strip().rstrip(';').strip()
+                # Only store pure locator expressions (no action calls)
+                if not re.search(r'\.(click|fill|type|press|hover|selectOption)\s*\(', expr):
+                    var_map[m.group(1)] = expr
+
+        # ── Pass 2: parse action lines ───────────────────────────────────────
         for line in script.splitlines():
             stripped = line.strip()
             if not stripped or stripped.startswith("//") or stripped.startswith("import"):
                 continue
-            # Skip test() wrapper lines and closing braces
             if re.match(r"^(test|describe)\s*\(", stripped) or stripped in ("});", "}):", "{"):
                 continue
 
+            # Resolve variable references before any pattern matching
+            resolved = self._resolve_vars(stripped, var_map)
+
             # page.goto(url)
-            m = re.search(r"page\.goto\(['\"]([^'\"]+)['\"]\)", stripped)
+            m = re.search(r"page\.goto\(['\"]([^'\"]+)['\"]\)", resolved)
             if m:
                 url = m.group(1)
                 if url.startswith("/"):
@@ -1215,71 +1458,73 @@ class PlaywrightReActAgent:
                 continue
 
             # page.waitForTimeout(ms)
-            m = re.search(r"page\.waitForTimeout\((\d+)\)", stripped)
+            m = re.search(r"page\.waitForTimeout\((\d+)\)", resolved)
             if m:
                 actions.append({"type": "wait", "ms": int(m.group(1))})
                 continue
 
             # .click()
-            if ".click()" in stripped and "page." in stripped:
-                locator = self._locator_before(stripped, ".click()")
+            if ".click()" in resolved and "page." in resolved:
+                locator = self._locator_before(resolved, ".click()")
                 if locator:
                     actions.append({"type": "click", "locator": locator})
                     continue
 
             # .fill('value')  or  .fill("value")
-            m = re.search(r"\.fill\(['\"]([^'\"]*)['\"]", stripped)
-            if m and "page." in stripped:
-                locator = self._locator_before(stripped, ".fill(")
+            m = re.search(r"\.fill\(['\"]([^'\"]*)['\"]", resolved)
+            if m and "page." in resolved:
+                locator = self._locator_before(resolved, ".fill(")
                 if locator:
                     actions.append({"type": "fill", "locator": locator, "value": m.group(1)})
                     continue
 
             # .type('value')
-            m = re.search(r"\.type\(['\"]([^'\"]*)['\"]", stripped)
-            if m and "page." in stripped:
-                locator = self._locator_before(stripped, ".type(")
+            m = re.search(r"\.type\(['\"]([^'\"]*)['\"]", resolved)
+            if m and "page." in resolved:
+                locator = self._locator_before(resolved, ".type(")
                 if locator:
                     actions.append({"type": "type", "locator": locator, "value": m.group(1)})
                     continue
 
             # .press('key')
-            m = re.search(r"\.press\(['\"]([^'\"]*)['\"]", stripped)
-            if m and "page." in stripped:
+            m = re.search(r"\.press\(['\"]([^'\"]*)['\"]", resolved)
+            if m and "page." in resolved:
                 actions.append({"type": "press", "key": m.group(1)})
                 continue
 
             # .selectOption('value')
-            m = re.search(r"\.selectOption\(['\"]([^'\"]*)['\"]", stripped)
-            if m and "page." in stripped:
-                locator = self._locator_before(stripped, ".selectOption(")
+            m = re.search(r"\.selectOption\(['\"]([^'\"]*)['\"]", resolved)
+            if m and "page." in resolved:
+                locator = self._locator_before(resolved, ".selectOption(")
                 if locator:
                     actions.append({"type": "select_option", "locator": locator, "value": m.group(1)})
                     continue
 
-            # expect(...).toBeVisible() — locator must be a Playwright expression
-            m = re.search(r"expect\((.+)\)\.toBeVisible\(\)", stripped)
+            # expect(...).toBeVisible()
+            m = re.search(r"expect\((.+)\)\.toBeVisible\(\)", resolved)
             if m:
                 locator_expr = m.group(1).strip()
-                # Accept if it contains a Playwright locator method or starts with page.
                 if "page." in locator_expr or re.search(r"getBy\w+|\.locator\(", locator_expr):
                     actions.append({"type": "assert_visible", "locator": locator_expr})
                     continue
 
-            # waitForSelector → transforme en assert_visible
-            m = re.search(r"waitForSelector\(\"\[TESTFORGEAI:\s*([^\]]+)\]\"", stripped)
+            # waitForSelector → assert_visible
+            m = re.search(r"waitForSelector\(\"\[TESTFORGEAI:\s*([^\]]+)\]\"", resolved)
             if m:
                 actions.append({"type": "assert_visible", "locator": f"page.locator(\"[TESTFORGEAI: {m.group(1)}]\")"})
                 continue
-            
-            # toContain('...') → transforme en assert_url
-            m = re.search(r"toContain\(['\"]([^'\"]+)['\"]\)", stripped)
+
+            # toContain('...') → assert_url
+            m = re.search(r"toContain\(['\"]([^'\"]+)['\"]\)", resolved)
             if m:
                 actions.append({"type": "assert_url", "url": m.group(1)})
                 continue
 
-            # expect(...).toContainText / toHaveText — treat as assert_visible
-            m = re.search(r"expect\((.+?)\)\.(toContainText|toHaveText|toBeEnabled|toBeChecked)\(", stripped)
+            # expect(...).toContainText / toHaveText / toBeEnabled / toBeChecked / toHaveValue / toHaveCount
+            m = re.search(
+                r"expect\((.+?)\)\.(toContainText|toHaveText|toBeEnabled|toBeChecked|toHaveValue|toHaveCount)\(",
+                resolved,
+            )
             if m:
                 locator_expr = m.group(1).strip()
                 if "page." in locator_expr or re.search(r"getBy\w+|\.locator\(", locator_expr):
@@ -1287,25 +1532,78 @@ class PlaywrightReActAgent:
                     continue
 
             # expect(page).toHaveURL('...')
-            m = re.search(r"expect\(page\)\.toHaveURL\(['\"]([^'\"]+)['\"]\)", stripped)
+            m = re.search(r"expect\(page\)\.toHaveURL\(['\"]([^'\"]+)['\"]\)", resolved)
             if m:
                 actions.append({"type": "assert_url", "url": m.group(1)})
                 continue
 
+            # .hover()
+            if ".hover()" in resolved and "page." in resolved:
+                locator = self._locator_before(resolved, ".hover()")
+                if locator:
+                    actions.append({"type": "hover", "locator": locator})
+                    continue
+
+            # .scrollIntoViewIfNeeded()
+            if ".scrollIntoViewIfNeeded()" in resolved:
+                actions.append({"type": "scroll", "direction": "down", "amount": 300})
+                continue
+
+            # page.mouse.wheel(deltaX, deltaY)
+            m = re.search(r"mouse\.wheel\(\s*[\d.]+\s*,\s*([-\d.]+)\s*\)", resolved)
+            if m:
+                delta_y = float(m.group(1))
+                actions.append({
+                    "type": "scroll",
+                    "direction": "down" if delta_y >= 0 else "up",
+                    "amount": int(abs(delta_y)),
+                })
+                continue
+
+            # .setInputFiles('path') or .setInputFiles(['path1', 'path2'])
+            m = re.search(r"\.setInputFiles\((.+)\)", resolved)
+            if m and "page." in resolved:
+                locator = self._locator_before(resolved, ".setInputFiles(")
+                if locator:
+                    files = re.findall(r"['\"]([^'\"]+)['\"]", m.group(1).strip())
+                    actions.append({"type": "upload", "locator": locator, "files": files})
+                    continue
+
         return actions
+
+    @staticmethod
+    def _resolve_vars(line: str, var_map: Dict[str, str]) -> str:
+        """
+        Inline-substitute variable references with their locator expressions.
+
+        Example:
+            var_map = {"emailInput": "page.getByLabel('Email')"}
+            "await emailInput.fill('test@example.com')"
+            → "await page.getByLabel('Email').fill('test@example.com')"
+        """
+        for var, expr in var_map.items():
+            # varName.action(  →  (expr).action(  — keeps chained calls intact
+            line = re.sub(r'\b' + re.escape(var) + r'\.', f'({expr}).', line)
+        return line
 
     def _locator_before(self, line: str, action_token: str) -> Optional[str]:
         """Extract the Playwright locator expression that precedes an action token."""
         idx = line.find(action_token)
         if idx < 0:
             return None
-        # Slice from 'page.' to the action token
         part = line[:idx].strip()
         # Remove leading 'await '
         part = re.sub(r"^await\s+", "", part).strip()
-        # Must start with page. to be a valid locator
-        if not part.startswith("page."):
+        # Unwrap outer parens added by _resolve_vars: (page.getByLabel('x')) → page.getByLabel('x')
+        if part.startswith("(") and part.endswith(")"):
+            part = part[1:-1].strip()
+        # Must contain a page. locator chain
+        if "page." not in part:
             return None
+        # Strip trailing index/filter modifiers — snapshot search picks the best match
+        # e.g.  page.getByRole('listitem').nth(2)  →  page.getByRole('listitem')
+        #        page.getByLabel('Email').first()   →  page.getByLabel('Email')
+        part = re.sub(r'\.(nth\(\d+\)|first\(\)|last\(\)|filter\(\{[^}]*\}\))$', '', part).strip()
         return part
 
     # ── Snapshot ref resolution ──────────────────────────────────────────────────
@@ -1485,7 +1783,16 @@ class PlaywrightReActAgent:
                 if label:
                     return label.lower() in ll or label_n in ll
                 if text:
-                    return text.lower() in ll or text_n in ll
+                    if text.lower() in ll or text_n in ll:
+                        return True
+                    # Partial match for dynamic content: strip currency/percent symbols
+                    # so "$999.99" matches a line containing "999.99", and "5% off" matches "5%"
+                    core = re.sub(r'[$€£¥%,\s]', '', text).lower()
+                    if core and len(core) > 2 and core in ll:
+                        return True
+                    # Prefix match: "Out of Stock" → try each significant word
+                    words = [w for w in text.lower().split() if len(w) > 3]
+                    return bool(words) and all(w in ll for w in words)
                 if testid:
                     return testid.lower() in ll
                 if placeholder:
@@ -1574,12 +1881,15 @@ class PlaywrightReActAgent:
     def _apply_mapping(self, script: str, mapping: dict) -> str:
         """
         Replace every page.locator("[PLACEHOLDER: desc]") with the real locator.
+        Handles both single-quoted and double-quoted variants — TypeScript scripts
+        commonly use single quotes, but some generators emit double quotes.
         Pure Python — no LLM involved.
         """
         result = script
         for description, locator in mapping.items():
-            old = f'page.locator("[{PLACEHOLDER_PREFIX}: {description}]")'
-            result = result.replace(old, locator)
+            for q in ('"', "'"):
+                old = f'page.locator({q}[{PLACEHOLDER_PREFIX}: {description}]{q})'
+                result = result.replace(old, locator)
         return result
 
     def _action_label(self, idx: int, action: dict) -> str:

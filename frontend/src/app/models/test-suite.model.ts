@@ -36,6 +36,7 @@ export interface EmbeddedTestCase {
   expected_results: string[];
   risk_ids: string[];
   execution_order?: number | null;
+  excluded_from_run: boolean;
   user_story_id?: string | null;
   test_suite_id?: string | null;
   is_active: boolean;
@@ -323,6 +324,16 @@ export interface AssignTestCaseRequest {
 
 export interface UnassignTestCaseRequest {
   test_case_id: string;
+}
+
+export interface ReorderSuitesRequest {
+  suites: { id: string; execution_order: number }[];
+}
+
+export interface TcExecutionUpdateRequest {
+  execution_order?: number | null;
+  excluded_from_run?: boolean;
+  test_suite_id?: string | null;
 }
 
 // ============================================================

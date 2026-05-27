@@ -14,6 +14,7 @@ from app.models.enums import TestPlanStatus
 if TYPE_CHECKING:
     from app.models.jira_project import JiraProject
     from app.models.test_suite import TestSuite
+    from app.models.tc_coverage import TcCoverage
 
 
 class TestPlan(Base):
@@ -126,6 +127,12 @@ class TestPlan(Base):
     test_cases: Mapped[List["TestCase"]] = relationship(
         "TestCase", back_populates="test_plan", foreign_keys="TestCase.test_plan_id",
         cascade="all, delete-orphan"
+    )
+
+    tc_coverages: Mapped[List["TcCoverage"]] = relationship(
+        "TcCoverage",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
 
     # ==============================

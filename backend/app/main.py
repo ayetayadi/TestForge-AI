@@ -48,6 +48,7 @@ from app.api.risks import router as risk_router
 from app.api.test_plans import router as test_plans_router
 from app.api.test_suites import router as test_suites_router
 from app.api.chatbot import router as chatbot_router
+from app.api.testomat import router as testomat_router
 from app.core.database import Base, engine
 from app.streaming.sse_manager import set_main_loop
 from app.core.model_manager import preload_embedding_model
@@ -151,6 +152,9 @@ async def lifespan(app: FastAPI):
         logger.info("[LANGFUSE] Tracing enabled")
     else:
         logger.info("[LANGFUSE] Keys not set — tracing disabled")
+
+    from app.core.observability import init_deepeval
+    init_deepeval()
 
     if settings.HF_TOKEN:
         os.environ["HF_TOKEN"] = settings.HF_TOKEN
@@ -256,6 +260,7 @@ app.include_router(risk_router)
 app.include_router(test_plans_router)
 app.include_router(test_suites_router)
 app.include_router(chatbot_router)
+app.include_router(testomat_router)
 
 
 # =========================

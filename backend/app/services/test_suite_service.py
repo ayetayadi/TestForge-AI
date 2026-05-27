@@ -253,6 +253,7 @@ class TestSuiteService:
         
         # LLM détermine l'ordre des flux
         flow_order = None
+        llm_tc_classifications = None
         try:
             flow_order_data = await pipeline._determine_business_flow_order(
                 test_cases=tc_dicts,
@@ -294,12 +295,14 @@ class TestSuiteService:
             logger.warning(f"[SUITE GEN] LLM flow order failed: {e}")
             flow_order = _BUSINESS_FLOW_RANK
         
-        # 4. Run AI pipeline (naming + grouping)
+        # 4. Run AI pipeline (naming + grouping + business-flow-aware ordering)
         result = await pipeline.run(
             test_cases=tc_dicts,
             test_plan_id=test_plan_id,
             project_name=project_name or plan.title or "Project",
             strategy=strategy,
+            tc_classifications=llm_tc_classifications if flow_order else None,
+            flow_order=flow_order if flow_order else None,
         )
         
         if result.get("workflow_status") == "error":

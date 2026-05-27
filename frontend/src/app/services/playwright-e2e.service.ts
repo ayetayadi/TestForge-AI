@@ -140,6 +140,15 @@ export interface SuiteSmartRunRequest {
   browser?: string;
   headless?: boolean;
   stop_on_failure?: boolean;
+  model_id?: string;
+}
+
+export interface AvailableModel {
+  id: string;
+  label: string;
+  provider: string;
+  description: string;
+  is_default: boolean;
 }
 
 export interface SuiteSSEEvent {
@@ -397,6 +406,27 @@ export class PlaywrightE2EService {
       catchError(this.handleError)
     );
   }
+
+  deleteScript(scriptVersionId: string): Observable<{
+    deleted: boolean;
+    test_case_id: string;
+    was_active: boolean;
+    new_active_script_id: string | null;
+  }> {
+    return this.http.delete<any>(
+      `${this.apiUrl}/script/${scriptVersionId}`
+    ).pipe(catchError(this.handleError));
+  }
+
+  deleteAllScripts(testCaseId: string): Observable<{
+    deleted: boolean;
+    count: number;
+    test_case_id: string;
+  }> {
+    return this.http.delete<any>(
+      `${this.apiUrl}/test-case/${testCaseId}/scripts`
+    ).pipe(catchError(this.handleError));
+  }
   
   /**
    * Récupère les infos de script simplifiées pour un test case
@@ -514,6 +544,16 @@ export class PlaywrightE2EService {
     ).pipe(
       catchError(this.handleError)
     );
+  }
+
+  /**
+   * Returns the list of LLM models available for script generation and execution.
+   * GET /playwright/models
+   */
+  getAvailableModels(): Observable<{ models: AvailableModel[] }> {
+    return this.http.get<{ models: AvailableModel[] }>(
+      `${this.apiUrl}/models`
+    ).pipe(catchError(this.handleError));
   }
 
   /**

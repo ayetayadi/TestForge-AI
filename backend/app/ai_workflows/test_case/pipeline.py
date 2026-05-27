@@ -13,6 +13,8 @@ import logging
 import math
 from typing import Any, Callable, Dict, List, Literal, Optional
 
+from langfuse import observe
+from langfuse import get_client as get_langfuse_client
 from langsmith import traceable
 from pydantic import BaseModel, Field
 
@@ -134,6 +136,7 @@ class TestCasePipeline:
         except Exception:
             pass
 
+    @observe(name="test_case_pipeline")
     @traceable(name="test_case_pipeline")
     async def run(
         self,
@@ -290,6 +293,29 @@ class TestCasePipeline:
             })
 
             self._log_summary(issue_key, level, scenario_type, finalized, ac_coverage)
+
+            # Fire DeepEval quality score in background (non-blocking)
+            if finalized:
+                from app.core.observability import fire_evaluation, is_deepeval_configured
+                if is_deepeval_configured():
+                    eval_input = f"User Story: {story}\n\nAcceptance Criteria:\n" + "\n".join(
+                        f"- {ac}" for ac in acceptance_criteria
+                    )
+                    eval_output = feature_gherkin or "\n\n".join(
+                        tc.get("gherkin_scenario", "") for tc in finalized
+                    )
+                    trace_id = None
+                    try:
+                        lf = get_langfuse_client()
+                        trace_id = lf.get_current_trace_id()
+                        lf.update_current_span(
+                            input={"story": story, "ac_count": len(acceptance_criteria)},
+                            output={"tc_count": tcs_generated, "coverage": ac_coverage.get("coverage_pct", 0)},
+                            metadata={"scenario_type": scenario_type, "issue_key": issue_key},
+                        )
+                    except Exception:
+                        pass
+                    asyncio.create_task(fire_evaluation("test_case_quality", eval_input, eval_output, trace_id))
 
             return {
                 "test_cases": finalized,

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.playwright_script_version import PlaywrightScriptVersion
     from app.models.test_result import TestResult
     from app.models.test_step_result import TestStepResult
+    from app.models.test_case import TestCase
 
 
 class TestRun(Base):
@@ -26,11 +27,18 @@ class TestRun(Base):
     )
 
     # Quelle version du script a été utilisée pour ce run
-    # TestCase est accessible via : run.script_version.test_case
     script_version_id: Mapped[Optional[str]] = mapped_column(
         String(36),
         ForeignKey("playwright_script_versions.id", ondelete="CASCADE"),
         nullable=True
+    )
+
+    # Lien direct vers le TestCase (ISTQB §5.3 — traçabilité résultat→cas de test)
+    test_case_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("test_cases.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
     )
 
     # ==============================
@@ -91,6 +99,12 @@ class TestRun(Base):
         "PlaywrightScriptVersion", back_populates="test_runs"
     )
 
+    test_case: Mapped[Optional["TestCase"]] = relationship(
+        "TestCase",
+        foreign_keys="[TestRun.test_case_id]",
+        passive_deletes=True
+    )
+
     result: Mapped[Optional["TestResult"]] = relationship(
         "TestResult", back_populates="test_run", uselist=False, cascade="all, delete-orphan"
     )
@@ -110,4 +124,5 @@ class TestRun(Base):
         Index("idx_test_run_status", "status"),
         Index("idx_test_run_started_at", "started_at"),
         Index("idx_test_run_script_version_id", "script_version_id"),
+        Index("idx_test_run_test_case_id", "test_case_id"),
     )

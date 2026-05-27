@@ -9,7 +9,8 @@ from app.core.database import Base
 from app.ai_workflows.test_case.config import MIN_AC_COVERAGE
 
 if TYPE_CHECKING:
-    pass
+    from app.models.test_case import TestCase
+    from app.models.tc_coverage import TcCoverage
 
 
 class UserStory(Base):
@@ -100,14 +101,31 @@ class UserStory(Base):
     risks = relationship(
         "Risk",
         back_populates="user_story",
-        foreign_keys="Risk.user_story_id"
+        foreign_keys="Risk.user_story_id",
+        passive_deletes=True
     )
 
     # Défauts détectés sur cette User Story
     defects = relationship(
         "Defect",
         back_populates="user_story",
-        foreign_keys="Defect.user_story_id"
+        foreign_keys="Defect.user_story_id",
+        passive_deletes=True
+    )
+
+    # Cas de test couvrant cette User Story (traçabilité RTM §1.4)
+    test_cases: Mapped[List["TestCase"]] = relationship(
+        "TestCase",
+        foreign_keys="TestCase.user_story_id",
+        passive_deletes=True
+    )
+
+    # Métriques de couverture AC par (test_plan, scenario_type)
+    tc_coverages: Mapped[List["TcCoverage"]] = relationship(
+        "TcCoverage",
+        foreign_keys="TcCoverage.user_story_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
 
     # =========================

@@ -1,9 +1,10 @@
 """Test Suites API — list and detail with traceability matrix, dependency graph, prioritization."""
 
 import logging
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
@@ -17,6 +18,8 @@ from app.schemas.test_suite_schema import (
     AssignTestCaseRequest,
     UnassignTestCaseRequest,
     UpdateTestSuiteRequest,
+    ReorderSuitesRequest,
+    TcExecutionUpdateRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -251,6 +254,70 @@ async def delete_test_suite(
 
 
 # ============================================================
+# REORDER SUITES (batch)
+# ============================================================
+
+@router.patch(
+    "/reorder",
+    status_code=200,
+    summary="Reorder suites within a plan",
+    description="Batch-update execution_order for multiple suites at once.",
+)
+async def reorder_suites(
+    request: ReorderSuitesRequest,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    from app.repositories.test_suite_repository import TestSuiteRepository
+    repo = TestSuiteRepository(db)
+    updated = []
+    for entry in request.suites:
+        suite = await repo.get_by_id(entry.id)
+        if suite:
+            suite.execution_order = entry.execution_order
+            updated.append(entry.id)
+    await db.commit()
+    return {"updated": len(updated), "suite_ids": updated}
+
+
+# ============================================================
+# UPDATE TC EXECUTION (order / exclude / move suite)
+# ============================================================
+
+@router.patch(
+    "/tc/{tc_id}/execution",
+    status_code=200,
+    summary="Update a test case execution settings",
+    description="Change execution_order, excluded_from_run flag, or move to another suite.",
+)
+async def update_tc_execution(
+    tc_id: str,
+    request: TcExecutionUpdateRequest,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    from sqlalchemy import select
+    from app.models.test_case import TestCase
+    result = await db.execute(select(TestCase).where(TestCase.id == tc_id))
+    tc = result.scalar_one_or_none()
+    if not tc:
+        raise HTTPException(status_code=404, detail=f"Test case '{tc_id}' not found")
+    if request.execution_order is not None:
+        tc.execution_order = request.execution_order
+    if request.excluded_from_run is not None:
+        tc.excluded_from_run = request.excluded_from_run
+    if request.test_suite_id is not None:
+        tc.test_suite_id = request.test_suite_id if request.test_suite_id != "" else None
+    await db.commit()
+    return {
+        "id": tc_id,
+        "execution_order": tc.execution_order,
+        "excluded_from_run": tc.excluded_from_run,
+        "test_suite_id": tc.test_suite_id,
+    }
+
+
+# ============================================================
 # GET TRACEABILITY MATRIX FOR PLAN
 # ============================================================
 
@@ -292,5 +359,63 @@ async def get_dependency_graph(
     # Build graph
     service = TestSuiteService(db)
     graph = service._build_dependency_graph(test_cases, dependencies)
-    
+
     return graph.model_dump()
+
+
+# ============================================================
+# EXPORT SUITE EXECUTION REPORT AS PDF
+# ============================================================
+
+class SuiteReportEntry(BaseModel):
+    run_id: Optional[str] = None
+    tc_code: str
+    title: str
+    status: str
+
+
+class SuiteReportRequest(BaseModel):
+    suite_name: str
+    summary: Optional[Dict[str, Any]] = None
+    entries: List[SuiteReportEntry]
+
+
+@router.post(
+    "/{suite_id}/export/report/pdf",
+    summary="Export suite execution report as PDF",
+    responses={200: {"content": {"application/pdf": {}}, "description": "PDF report download"}},
+)
+async def export_suite_report_pdf(
+    suite_id: str,
+    body: SuiteReportRequest,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Response:
+    from app.services.playwright_service import get_test_run_details
+    from app.services.test_plan_export_service import SuiteReportExportService
+
+    run_details: Dict[str, Any] = {}
+    for entry in body.entries:
+        if entry.run_id:
+            run_details[entry.run_id] = await get_test_run_details(db, entry.run_id)
+
+    try:
+        exporter = SuiteReportExportService()
+        pdf_bytes = exporter.export_pdf(
+            suite_name=body.suite_name,
+            summary=body.summary,
+            entries=[e.model_dump() for e in body.entries],
+            run_details=run_details,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"[API] Suite report PDF failed for {suite_id}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="PDF generation failed.")
+
+    filename = f"suite_report_{suite_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
