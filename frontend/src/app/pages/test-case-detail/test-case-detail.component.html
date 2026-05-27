@@ -195,12 +195,6 @@
             <span class="tc-code-inline">{{ testCase.tc_code }}</span>
           </div>
           <div class="tc-meta-item">
-            <span class="tc-meta-key">Priority</span>
-            <span class="priority-badge" [class]="getPriorityClass(testCase.priority)">
-              {{ testCase.priority || 'medium' }}
-            </span>
-          </div>
-          <div class="tc-meta-item">
             <span class="tc-meta-key">Test Type</span>
             <span class="test-type-badge" [class]="getTestTypeClass(testCase.test_type)">
               {{ testCase.test_type || 'Not specified' }}

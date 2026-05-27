@@ -24,6 +24,35 @@ from app.ai_workflows.test_case.test_case_builder import build_tc_code
 logger = logging.getLogger(__name__)
 
 
+async def _fake_ticker(
+    progress_callback: Callable,
+    total_us: int,
+    start: int,
+    max_fake: int,
+    interval: float,
+    stop_event: asyncio.Event,
+) -> None:
+    """Emits artificial us_done events while an LLM batch call is in progress.
+    Increments completed count every `interval` seconds, up to max_fake.
+    Stops as soon as stop_event is set (batch finished)."""
+    count = start
+    while count < max_fake:
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+            return  # batch finished early — stop ticking
+        except asyncio.TimeoutError:
+            count = min(count + 1, max_fake)
+            try:
+                await progress_callback("us_done", {
+                    "completed": count,
+                    "total": total_us,
+                    "issue_key": "generating...",
+                    "count": 0,
+                })
+            except Exception:
+                pass  # don't crash the ticker on SSE errors
+
+
 # ============================================================
 # CRUD OPERATIONS
 # ============================================================
@@ -213,97 +242,72 @@ async def generate_test_cases_for_plan(
     effective_scenario_type = scenario_type or "positive"
 
     # ============================================================
-    # Helper: generate TCs for a single US (owns its own DB session)
-    # Semaphore caps concurrent LLM calls to avoid Groq rate limits.
+    # PHASE A: Load per-US data from DB (all in parallel, no LLM)
     # ============================================================
     from app.core.database import async_session_maker
-    _sem = asyncio.Semaphore(5)
+    from app.ai_workflows.test_case.config import BATCH_MAX_STORIES
 
-    async def _generate_for_single_us(us: UserStory) -> Dict[str, Any]:
-        async with _sem:
-            async with async_session_maker() as session:
-                # Skip US that already have TCs of this type in this plan
-                existing_check = await session.execute(
-                    select(TestCase.id).where(
-                        TestCase.user_story_id == us.id,
-                        TestCase.test_plan_id == test_plan_id,
-                        TestCase.test_type == effective_scenario_type,
-                    ).limit(1)
-                )
-                if existing_check.scalar_one_or_none():
-                    logger.info(
-                        f"[TC_GEN] Skipping {us.issue_key} — already has "
-                        f"'{effective_scenario_type}' TCs in this plan"
-                    )
-                    return {"workflow_status": "skipped", "test_cases": [], "issue_key": us.issue_key}
+    async def _load_us_data(us: UserStory) -> Optional[Dict[str, Any]]:
+        """Load story text, ACs and risks for one US. Returns None if it should be skipped."""
+        async with async_session_maker() as session:
+            existing_check = await session.execute(
+                select(TestCase.id).where(
+                    TestCase.user_story_id == us.id,
+                    TestCase.test_plan_id == test_plan_id,
+                    TestCase.test_type == effective_scenario_type,
+                ).limit(1)
+            )
+            if existing_check.scalar_one_or_none():
+                return None
 
-                approved_result = await session.execute(
-                    select(UserStoryVersion)
-                    .where(UserStoryVersion.user_story_id == us.id, UserStoryVersion.decision_status == StoryDecision.APPROVED)
-                    .order_by(UserStoryVersion.version_number.desc()).limit(1)
-                )
-                approved = approved_result.scalar_one_or_none()
+            approved_result = await session.execute(
+                select(UserStoryVersion)
+                .where(UserStoryVersion.user_story_id == us.id, UserStoryVersion.decision_status == StoryDecision.APPROVED)
+                .order_by(UserStoryVersion.version_number.desc()).limit(1)
+            )
+            approved = approved_result.scalar_one_or_none()
 
-                if approved and approved.improved_story:
-                    story_text = approved.improved_story
-                    ac_list = approved.generated_acceptance_criteria or []
-                else:
-                    story_text = us.description or us.title or ""
-                    ac_list = us.acceptance_criteria or []
+            if approved and approved.improved_story:
+                story_text = approved.improved_story
+                ac_list = approved.generated_acceptance_criteria or []
+            else:
+                story_text = us.description or us.title or ""
+                ac_list = us.acceptance_criteria or []
 
-                logger.info(f"[TC_GEN] Generating '{effective_scenario_type}' TCs for {us.issue_key} ({len(ac_list)} ACs)...")
+            risks_result = await session.execute(
+                select(Risk).where(Risk.user_story_id == us.id, Risk.is_accepted == True)
+            )
+            us_risks = risks_result.scalars().all()
+            risk_mitigation = " | ".join([r.mitigation for r in us_risks if r.mitigation]) or "N/A"
 
-                pipeline = get_pipeline()
+            return {
+                "user_story_id": us.id,
+                "issue_key": us.issue_key,
+                "user_story_title": us.title,
+                "story": story_text,
+                "acceptance_criteria": [str(ac).strip() for ac in ac_list if ac and str(ac).strip()],
+                "risk_mitigation": risk_mitigation,
+            }
 
-                risks_result = await session.execute(
-                    select(Risk).where(
-                        Risk.user_story_id == us.id,
-                        Risk.is_accepted == True,
-                    )
-                )
-                us_risks = risks_result.scalars().all()
+    load_outcomes = await asyncio.gather(
+        *[_load_us_data(us) for us in us_list],
+        return_exceptions=True,
+    )
 
-                risk_mitigation = " | ".join([r.mitigation for r in us_risks if r.mitigation]) or "N/A"
-                result = await pipeline.run(
-                    story=story_text,
-                    acceptance_criteria=[str(ac).strip() for ac in ac_list if ac and str(ac).strip()],
-                    risk_level=effective_risk_level,
-                    risk_score=effective_risk_score,
-                    risk_description=risk_description or _build_risk_description(risk_ids),
-                    risk_mitigation=risk_mitigation,
-                    risk_ids=risk_ids,
-                    user_story_id=us.id,
-                    issue_key=us.issue_key,
-                    tc_start_index=1,
-                    progress_callback=progress_callback,
-                    scenario_type=effective_scenario_type,
-                )
-                # Only persist coverage when generation succeeded
-                if result.get("workflow_status") != "error":
-                    ac_cov = result.get("ac_coverage", {})
-                    await _upsert_tc_coverage(
-                        db=session,
-                        test_plan_id=test_plan_id,
-                        user_story_id=us.id,
-                        issue_key=us.issue_key,
-                        user_story_title=us.title,
-                        scenario_type=effective_scenario_type,
-                        ac_coverage=ac_cov,
-                        tc_count=len(result.get("test_cases", [])),
-                    )
-                    await session.commit()
-                else:
-                    logger.error(
-                        f"[TC_GEN] Skipping coverage upsert for {us.issue_key} "
-                        f"— pipeline error: {result.get('error')}"
-                    )
+    to_generate: List[Dict[str, Any]] = []
+    failed_user_stories: List[Dict[str, Any]] = []
+    skipped_count = 0
 
-                return result
-
-    # ============================================================
-    # LANCER TOUTES LES GÉNÉRATIONS EN PARALLÈLE
-    # ============================================================
-    total_us = len(us_list)
+    for i, outcome in enumerate(load_outcomes):
+        us = us_list[i]
+        if isinstance(outcome, Exception):
+            logger.error(f"[TC_GEN] Failed to load data for {us.issue_key}: {outcome}")
+            failed_user_stories.append({"issue_key": us.issue_key, "error": str(outcome)})
+        elif outcome is None:
+            logger.info(f"[TC_GEN] Skipping {us.issue_key} — already has '{effective_scenario_type}' TCs")
+            skipped_count += 1
+        else:
+            to_generate.append(outcome)
 
     # Starting TC code index: continue after existing TCs of this type in this plan
     existing_tc_count_result = await db.execute(
@@ -314,66 +318,135 @@ async def generate_test_cases_for_plan(
     )
     existing_tc_count = existing_tc_count_result.scalar() or 0
 
+    if not to_generate:
+        return {
+            "test_cases": [], "count": 0,
+            "test_plan_id": test_plan_id, "test_suite_id": test_suite_id,
+            "workflow_status": "partial" if failed_user_stories else "success",
+            "feature_gherkin": "", "coverage": {}, "coverage_hints": [],
+            "failed_user_stories": failed_user_stories,
+            "failed_count": len(failed_user_stories),
+            "skipped_count": skipped_count,
+        }
+
     if progress_callback:
-        await progress_callback("tc_init", {"total_us": total_us, "message": f"Starting generation for {total_us} user stories..."})
+        await progress_callback("tc_init", {
+            "total_us": len(to_generate),
+            "message": f"Generating {effective_scenario_type} test cases for {len(to_generate)} user stories...",
+        })
 
-    completed_us_count = 0
+    # ============================================================
+    # PHASE B: Sequential mini-batch LLM generation + immediate progress
+    # Each batch is awaited before the next starts.
+    # A fake ticker emits intermediate us_done events during each LLM call
+    # so the UI never stalls at 0%. Real us_done + coverage upsert fire
+    # immediately after each batch result is available.
+    # ============================================================
+    pipeline = get_pipeline()
+    batches = [to_generate[i:i + BATCH_MAX_STORIES] for i in range(0, len(to_generate), BATCH_MAX_STORIES)]
+    logger.info(f"[TC_GEN] {len(to_generate)} USs → {len(batches)} batch(es) of max {BATCH_MAX_STORIES}")
 
-    async def _generate_with_progress(us: UserStory) -> Dict[str, Any]:
-        nonlocal completed_us_count
-        result = await _generate_for_single_us(us)
-        completed_us_count += 1
+    to_generate_by_id = {d["user_story_id"]: d for d in to_generate}
+    results: List[Dict[str, Any]] = []
+    completed_us = 0
+
+    for batch_idx, batch in enumerate(batches):
         if progress_callback:
-            await progress_callback("us_done", {
-                "completed": completed_us_count,
-                "total": total_us,
-                "issue_key": us.issue_key,
-                "count": len(result.get("test_cases", [])) if not isinstance(result, Exception) else 0,
+            await progress_callback("batch_progress", {
+                "batch": batch_idx + 1,
+                "total_batches": len(batches),
+                "completed_us": completed_us,
+                "total_us": len(to_generate),
+                "message": (
+                    f"Generating {effective_scenario_type} test cases "
+                    f"(batch {batch_idx + 1}/{len(batches)})..."
+                ),
             })
-        return result
 
-    results = await asyncio.gather(
-        *[_generate_with_progress(us) for us in us_list],
-        return_exceptions=True,
-    )
+        # Fake ticker: show activity during the LLM call (every 8 s).
+        # It advances completed_us by 1 per tick up to (batch_end - 1) so the
+        # last real us_done always moves the bar forward.
+        stop_event = asyncio.Event()
+        max_fake = completed_us + max(0, len(batch) - 1)
+        ticker_task = asyncio.create_task(
+            _fake_ticker(progress_callback, len(to_generate), completed_us, max_fake, 8.0, stop_event)
+            if progress_callback else asyncio.sleep(0)
+        )
+
+        try:
+            batch_result = await pipeline.run_batch(
+                stories_data=batch,
+                scenario_type=effective_scenario_type,
+                risk_level=effective_risk_level,
+                risk_score=effective_risk_score,
+                risk_description=risk_description or _build_risk_description(risk_ids),
+                risk_ids=risk_ids,
+                progress_callback=progress_callback,
+            )
+        except Exception as exc:
+            logger.error(f"[TC_GEN] Batch {batch_idx} failed: {exc}")
+            for story_data in batch:
+                failed_user_stories.append({"issue_key": story_data["issue_key"], "error": str(exc)})
+            batch_result = []
+        finally:
+            stop_event.set()
+            ticker_task.cancel()
+            try:
+                await ticker_task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+        # Immediately persist coverage and emit real us_done for each story.
+        for result in batch_result:
+            if result.get("workflow_status") == "error":
+                failed_user_stories.append({
+                    "issue_key": result.get("issue_key"),
+                    "error": result.get("error", "unknown"),
+                })
+                continue
+
+            us_id = result.get("user_story_id")
+            story_data = to_generate_by_id.get(us_id, {})
+            async with async_session_maker() as session:
+                await _upsert_tc_coverage(
+                    db=session,
+                    test_plan_id=test_plan_id,
+                    user_story_id=us_id,
+                    issue_key=story_data.get("issue_key"),
+                    user_story_title=story_data.get("user_story_title"),
+                    scenario_type=effective_scenario_type,
+                    ac_coverage=result.get("ac_coverage", {}),
+                    tc_count=len(result.get("test_cases", [])),
+                )
+                await session.commit()
+
+            results.append(result)
+            completed_us += 1
+            if progress_callback:
+                await progress_callback("us_done", {
+                    "completed": completed_us,
+                    "total": len(to_generate),
+                    "issue_key": result.get("issue_key"),
+                    "count": len(result.get("test_cases", [])),
+                })
     
     # ============================================================
     # ASSEMBLER LES RÉSULTATS
     # ============================================================
     all_tcs = []
-    failed_user_stories = []
-    skipped_count = 0
     tc_index = existing_tc_count + 1
 
-    for i, result in enumerate(results):
-        us = us_list[i]
-
-        if isinstance(result, Exception):
-            logger.error(f"[TC_GEN] Failed for {us.issue_key}: {result}", exc_info=True)
-            failed_user_stories.append({"issue_key": us.issue_key, "error": str(result)})
-            continue
-
-        if result.get("workflow_status") == "skipped":
-            skipped_count += 1
-            continue
-
-        if result.get("workflow_status") == "error":
-            logger.error(f"[TC_GEN] Failed for {us.issue_key}: {result.get('error')}")
-            failed_user_stories.append({"issue_key": us.issue_key, "error": result.get("error", "unknown")})
-            continue
-
+    for result in results:
         us_tcs = result.get("test_cases", [])
-
         for tc in us_tcs:
             tc["tc_code"] = build_tc_code(tc_index)
             tc_index += 1
-
         all_tcs.extend(us_tcs)
-        logger.info(f"[TC_GEN] {us.issue_key}: generated {len(us_tcs)} TCs")
+        logger.info(f"[TC_GEN] {result.get('issue_key')}: {len(us_tcs)} TCs")
 
     logger.info(
         f"[TC_GEN] Summary: {len(all_tcs)} new TCs, "
-        f"{skipped_count} US skipped (already covered), "
+        f"{skipped_count} US skipped, "
         f"{len(failed_user_stories)} failed"
     )
 
@@ -390,8 +463,13 @@ async def generate_test_cases_for_plan(
         }
 
     db_data = [_pipeline_tc_to_db(tc, test_plan_id, test_suite_id) for tc in all_tcs]
+    for tc in all_tcs:
+        logger.info(
+            f"[TC_GEN] {tc.get('tc_code')} | title={tc.get('title', '')[:40]} "
+            f"| estimated_duration={tc.get('estimated_duration')} min"
+        )
     created = await repo.batch_create_test_cases(db, db_data)
-    
+
     logger.info(f"[TC_GEN] Persisted {len(created)}/{len(all_tcs)} TCs for plan={test_plan.title}")
     
     return {
@@ -568,6 +646,7 @@ async def format_for_frontend(test_case: TestCase, db: AsyncSession) -> Dict[str
         "test_data": test_case.test_data,
         "expected_results": test_case.expected_results,
         "locators": test_case.locators,
+        "estimated_duration": test_case.estimated_duration,
         "is_active": test_case.is_active,
         "created_at": test_case.created_at.isoformat() if test_case.created_at else None,
         "updated_at": test_case.updated_at.isoformat() if test_case.updated_at else None,

@@ -9,7 +9,10 @@ load_dotenv()
 LLM_TEMPERATURE = 0.4
 LLM_MODEL = "llama-3.3-70b-versatile"
 LLM_MAX_TOKENS = 3500
-LLM_TIMEOUT_SECONDS = 240      # Gherkin + steps + test_data = verbose
+LLM_TIMEOUT_SECONDS = 90       # per-story call (initial generation or correction pass)
+BATCH_LLM_MAX_TOKENS = 8000    # batch call covering multiple user stories at once
+BATCH_LLM_TIMEOUT_SECONDS = 180
+BATCH_MAX_STORIES = 3          # max user stories per single batch LLM call
 
 # ============================================================
 # MINIMUM ACCEPTANCE CRITERIA COVERAGE
