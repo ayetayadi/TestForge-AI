@@ -113,6 +113,11 @@ class TestCase(Base):
     # Durée estimée d'exécution en minutes (estimée par le LLM à la génération)
     estimated_duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Exclut ce TC de l'exécution de la suite sans le supprimer (ISTQB §5.3 — skip)
+    excluded_from_run: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     _covered_ac_indices: Mapped[Optional[List[int]]] = mapped_column(
         JSONB, nullable=True, default=lambda: []
     )
