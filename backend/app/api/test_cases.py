@@ -58,7 +58,7 @@ async def get_all_test_cases(
     project_id: Optional[str] = Query(None, description="Filter by project ID"),
     search: Optional[str] = Query(None, description="Search in title or code"),
     status: Optional[List[str]] = Query(None, description="Filter by status (active/archived)"),
-    priority: Optional[List[str]] = Query(None, description="Filter by priority"),
+    risk_level: Optional[List[str]] = Query(None, description="Filter by risk level"),
     order_by: str = Query("created_at", description="Sort field"),
     order_direction: str = Query("desc", description="Sort direction"),
     limit: int = Query(100, le=1000),
@@ -75,7 +75,7 @@ async def get_all_test_cases(
             project_ids=project_ids,
             search=search,
             status=status,
-            priority=priority,
+            risk_level=risk_level,
             order_by=order_by,
             order_direction=order_direction,
             limit=limit,
@@ -205,6 +205,7 @@ async def update_test_case(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.delete("/{test_case_id}", status_code=status.HTTP_204_NO_CONTENT)

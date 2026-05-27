@@ -15,7 +15,7 @@ class EmbeddedTestCaseSchema(BaseModel):
     title: str
     description: Optional[str] = None
     test_type: Optional[str] = None
-    priority: Optional[str] = None
+    risk_level: Optional[str] = None
     preconditions: List[str] = Field(default_factory=list)
     postconditions: List[str] = Field(default_factory=list)
     steps: List[Dict[str, Any]] = Field(default_factory=list)

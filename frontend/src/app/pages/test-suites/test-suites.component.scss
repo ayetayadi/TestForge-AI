@@ -34,41 +34,47 @@ $transition: 0.15s ease;
 
 .page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 24px;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  border-radius: $radius;
+  padding: 20px 24px;
+  color: #fff;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 
   .header-left {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 14px;
 
     .page-icon {
       width: 44px;
       height: 44px;
       border-radius: $radius;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      background: rgba(255, 255, 255, 0.15);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
+      color: #fbbf24;
       flex-shrink: 0;
-      box-shadow: 0 4px 12px rgba(99,102,241,0.3);
     }
 
     h1 {
       margin: 0 0 4px;
-      font-size: 1.5rem;
+      font-size: 1.25rem;
       font-weight: 700;
-      color: $text-primary;
+      color: #fff;
+      letter-spacing: -0.01em;
       line-height: 1.2;
     }
 
     .header-subtitle {
       margin: 0;
-      font-size: 0.85rem;
-      color: $text-secondary;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.7);
     }
   }
 
@@ -85,31 +91,31 @@ $transition: 0.15s ease;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 6px 14px;
   border-radius: $radius-sm;
-  border: 1px solid #fca5a5;
-  background: #fff;
-  color: #dc2626;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: background $transition, border-color $transition;
-  &:hover { background: #fee2e2; }
+  &:hover { background: rgba(239, 68, 68, 0.4); border-color: rgba(255,255,255,0.5); }
 }
 
 .delete-all-confirm {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fef2f2;
-  border: 1px solid #fca5a5;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: $radius-sm;
   padding: 6px 12px;
 
   span {
     font-size: 13px;
     font-weight: 500;
-    color: #dc2626;
+    color: #fff;
     white-space: nowrap;
   }
 }
@@ -131,37 +137,37 @@ $transition: 0.15s ease;
 .btn-cancel-sm {
   padding: 5px 10px;
   border-radius: $radius-sm;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: $text-secondary;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
   font-size: 12px;
   cursor: pointer;
-  &:hover { background: #f3f4f6; }
+  &:hover { background: rgba(255, 255, 255, 0.22); }
 }
 
 // ── View toggle ──────────────────────────────────────────────
 
 .view-toggle {
   display: flex;
-  border: $border;
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: $radius-sm;
   overflow: hidden;
-  background: $bg-card;
+  background: rgba(255, 255, 255, 0.1);
 
   button {
     padding: 8px 12px;
     border: none;
     background: transparent;
     cursor: pointer;
-    color: $text-secondary;
+    color: rgba(255, 255, 255, 0.8);
     display: flex;
     align-items: center;
     transition: background $transition, color $transition;
 
-    &:hover { background: #f3f4f6; }
+    &:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
 
     &.active {
-      background: $primary;
+      background: rgba(255, 255, 255, 0.25);
       color: #fff;
     }
   }

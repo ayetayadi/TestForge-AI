@@ -71,7 +71,7 @@ export interface FullExecutionReport {
     tc_code: string;
     title: string;
     description: string | null;
-    priority: string | null;
+    risk_level: string | null;
     test_type: string | null;
     steps: any[];
     expected_results: string[];
@@ -183,7 +183,7 @@ export interface TestRunListItem {
     id: string;
     tc_code: string;
     title: string;
-    priority: string | null;
+    risk_level: string | null;
     test_type: string | null;
     user_story_id: string | null;
     script_version_id: string;
@@ -581,10 +581,10 @@ export class PlaywrightE2EService {
    * Crée un ticket Jira à partir d'un defect
    * POST /playwright/defect/{defect_id}/create-jira
    */
-  createJiraIssue(defectId: string, projectKey: string, priority: string = 'High'): Observable<{ key: string; id: string }> {
+  createJiraIssue(defectId: string, projectKey: string, risk_level: string = 'High'): Observable<{ key: string; id: string }> {
     return this.http.post<{ key: string; id: string }>(
       `${this.apiUrl}/defect/${defectId}/create-jira`,
-      { defect_id: defectId, project_key: projectKey, priority }
+      { defect_id: defectId, project_key: projectKey, risk_level }
     ).pipe(catchError(this.handleError));
   }
 

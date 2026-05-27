@@ -26,7 +26,7 @@ export interface EmbeddedTestCase {
   title: string;
   description?: string | null;
   test_type?: string | null;
-  priority?: Priority | null;
+  risk_level?: Priority | null;
   tags: string[];
   preconditions: string[];
   postconditions: string[];

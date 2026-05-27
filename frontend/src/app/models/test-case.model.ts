@@ -111,7 +111,7 @@ export interface TestCase {
   tc_code: string;
   title: string;
   description: string | null;
-  priority: string | null;
+  risk_level: string | null;
   test_type: string | null;
   
   // Suite & Plan
@@ -158,7 +158,7 @@ export interface TestCaseUI {
   title: string;
   description: string | null;
   status: TestCaseStatus;
-  priority: Priority;
+  risk_level: Priority;
   tags: string[] | null;
   hasScript: boolean;
   activeScriptId?: string;
@@ -197,7 +197,7 @@ export interface TestCaseFormData {
   test_suite_id?: string | null;
   description?: string | null;
   test_type?: string | null;
-  priority?: string | null;
+  risk_level?: string | null;
   gherkin_source?: string | null;
   test_data?: Record<string, any> | null;
   expected_results?: string[];
@@ -215,7 +215,7 @@ export interface PaginatedQueryParams {
   page_size?: number;
   search?: string;
   status?: TestCaseStatus[];
-  priority?: Priority[];
+  risk_level?: Priority[];
   tags?: string[];
   test_suite_id?: string;
   test_plan_id?: string;
@@ -240,17 +240,11 @@ export function toTestCaseUI(testCase: TestCase, extra?: Partial<TestCaseUI>): T
     'low': Priority.LOW
   };
   
-  const priorityFromField = testCase.priority 
-    ? priorityMap[testCase.priority.toLowerCase()] 
+  const riskLevelFromField = testCase.risk_level
+    ? priorityMap[testCase.risk_level.toLowerCase()]
     : null;
-  
-  const priorityTag = testCase.tags?.find(t => 
-    ['critical', 'high', 'medium', 'low'].includes(t.toLowerCase())
-  );
-  
-  const priority = priorityFromField || 
-    (priorityTag ? priorityMap[priorityTag.toLowerCase()] : null) || 
-    Priority.MEDIUM;
+
+  const risk_level = riskLevelFromField || Priority.MEDIUM;
   
   // Extrait preview du scénario Gherkin
   let scenarioPreview: string | null = null;
@@ -274,7 +268,7 @@ export function toTestCaseUI(testCase: TestCase, extra?: Partial<TestCaseUI>): T
     title: testCase.title,
     description: scenarioPreview || testCase.description,
     status: testCase.is_active ? TestCaseStatus.ACTIVE : TestCaseStatus.ARCHIVED,
-    priority: priority,
+    risk_level: risk_level,
     tags: testCase.tags,
     hasScript: false,
     createdAt: testCase.created_at,

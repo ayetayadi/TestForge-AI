@@ -50,7 +50,10 @@
           <span class="status-badge status-badge--idle">Select an approved plan to generate</span>
         }
         @if (genTestPlanId() && !isGenerating() && !genAllDone()) {
-          <span class="status-badge status-badge--pending">Ready to generate</span>
+          <span class="status-badge status-badge--pending">
+            Ready ·
+            <span class="test-type-badge" [class]="getTestTypeClass(genScenarioType())">{{ genScenarioType() }}</span>
+          </span>
         }
         @if (genAllDone()) {
           <span class="status-badge status-badge--done">Generation complete</span>
@@ -58,7 +61,9 @@
         @if (isGenerating()) {
           <span class="status-badge status-badge--running">
             <span class="status-dot"></span>
-            Generating…
+            Generating
+            <span class="test-type-badge" [class]="getTestTypeClass(genScenarioType())">{{ genScenarioType() }}</span>
+            …
           </span>
         }
       </div>
@@ -77,7 +82,7 @@
           <svg class="setup-select-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
           </svg>
-          <select class="setup-select" [value]="genTestPlanId()" (change)="onGenTestPlanChange($event)" [disabled]="isGenerating()" [class.placeholder-active]="!genTestPlanId()">
+          <select class="setup-select" [value]="genTestPlanId()" (change)="onGenTestPlanChange($any($event.target).value)" [disabled]="isGenerating()" [class.placeholder-active]="!genTestPlanId()">
             <option value="">— Select approved test plan —</option>
             @for (plan of allTestPlans(); track plan.id) {
               <option [value]="plan.id">{{ plan.title }}</option>
@@ -89,20 +94,15 @@
       <!-- Scenario Type -->
       <div class="setup-field setup-field--scenario">
         <label class="setup-label">Scenario Type</label>
-        <div class="scenario-types">
-          @for (type of scenarioTypeOptions; track type.value) {
-            <label class="scenario-checkbox" [class.selected]="genScenarioType() === type.value">
-              <input
-                type="radio"
-                name="scenarioType"
-                [value]="type.value"
-                [checked]="genScenarioType() === type.value"
-                (change)="selectScenarioType(type.value)"
-                [disabled]="isGenerating()"
-              />
-              <span>{{ type.label }}</span>
-            </label>
-          }
+        <div class="setup-select-wrap">
+          <svg class="setup-select-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          <select class="setup-select" [value]="genScenarioType()" (change)="selectScenarioType($any($event.target).value)" [disabled]="isGenerating()">
+            @for (type of scenarioTypeOptions; track type.value) {
+              <option [value]="type.value">{{ type.label }}</option>
+            }
+          </select>
         </div>
       </div>
 
@@ -261,6 +261,23 @@
       </h2>
       <div class="register-header-right">
         <app-search-bar placeholder="Search by code or title…" [debounce]="300" (searchChange)="onSearchChange($event)" />
+        @if (selectedTestPlanId() && filteredTestCases().length > 0) {
+          <button
+            class="btn-coverage"
+            [class.btn-coverage--active]="coverageSectionOpen()"
+            [disabled]="filteredCoverageRows().length === 0"
+            (click)="toggleCoverageSection()"
+            [title]="filteredCoverageRows().length === 0 ? 'No coverage data for ' + genScenarioType() + ' scenarios' : 'Toggle AC Coverage table'"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h7a1 1 0 110 2H4a1 1 0 01-1-1z"/>
+            </svg>
+            Coverage
+            @if (filteredCoverageRows().length > 0) {
+              <span class="coverage-btn-badge">{{ filteredCoverageRows().length }}</span>
+            }
+          </button>
+        }
         <div class="view-toggle">
           <button class="view-toggle__btn" [class.active]="viewMode() === 'cards'" (click)="setViewMode('cards')" title="Card view">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -324,14 +341,14 @@
       <div class="tc-grid">
         @for (testCase of paginatedTestCases(); track testCase.id) {
           <div class="tc-card" [class.selected]="selectedTestCases().has(testCase.id)">
-            <div class="tc-card__accent" [class]="'accent-' + (testCase.priority ?? '')"></div>
+            <div class="tc-card__accent" [class]="'accent-' + (testCase.risk_level ?? '')"></div>
 
             <div class="tc-card__top">
               <div class="tc-card__check" (click)="$event.stopPropagation()">
                 <input type="checkbox" [checked]="selectedTestCases().has(testCase.id)" (change)="toggleSelect(testCase)" />
               </div>
               <span class="tc-code">{{ testCase.tc_code }}</span>
-              <span class="priority-badge" [class]="getPriorityClass(testCase.priority)">{{ testCase.priority }}</span>
+              <span class="priority-badge" [class]="getPriorityClass(testCase.risk_level)">{{ testCase.risk_level }}</span>
               @if (testCase.test_type) {
                 <span class="test-type-badge" [class]="getTestTypeClass(testCase.test_type)">{{ testCase.test_type }}</span>
               }
@@ -420,7 +437,7 @@
                 <td><input type="checkbox" [checked]="selectedTestCases().has(testCase.id)" (change)="toggleSelect(testCase)" /></td>
                 <td><span class="tc-code-inline">{{ testCase.tc_code }}</span></td>
                 <td class="col-title">{{ testCase.title }}</td>
-                <td><span class="priority-badge" [class]="getPriorityClass(testCase.priority)">{{ testCase.priority }}</span></td>
+                <td><span class="priority-badge" [class]="getPriorityClass(testCase.risk_level)">{{ testCase.risk_level }}</span></td>
                 <td><span class="test-type-badge" [class]="getTestTypeClass(testCase.test_type)">{{ testCase.test_type }}</span></td>
                 <td>{{ testCase.test_plan_title || '—' }}</td>
                 <td>{{ testCase.issue_key || '—' }}</td>
@@ -460,15 +477,15 @@
   <!-- ══════════════════════════════════════════════
        AC COVERAGE TABLE
   ══════════════════════════════════════════════ -->
-  @if (showCoverageTable() && coverageRows().length > 0) {
+  @if (showCoverageTable() && coverageSectionOpen() && filteredCoverageRows().length > 0) {
     <div class="section-card">
       <div class="section-header" (click)="toggleCoverageTable()">
         <h2 class="section-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
             <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h7a1 1 0 110 2H4a1 1 0 01-1-1z"/>
           </svg>
-          AC Coverage by User Story &amp; Type
-          <span class="register-count">{{ coverageRows().length }} rows</span>
+          AC Coverage — {{ genScenarioType() | titlecase }} scenarios
+          <span class="register-count">{{ filteredCoverageRows().length }} rows</span>
         </h2>
         <div class="section-header-right">
           <svg class="chevron" [class.chevron--open]="coverageTableVisible()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">

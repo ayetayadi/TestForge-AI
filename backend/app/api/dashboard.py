@@ -226,18 +226,18 @@ async def get_dashboard_stats(
 
     # ── 5. Priority distribution ───────────────────────────────────────────────
     prio_r = await db.execute(
-        select(TestCase.priority, func.count(TestCase.id).label("cnt"))
+        select(TestCase.risk_level, func.count(TestCase.id).label("cnt"))
         .join(TestSuite, TestCase.test_suite_id == TestSuite.id)      
         .join(TestPlan, TestSuite.test_plan_id == TestPlan.id)        
         .where(TestPlan.project_id.in_(project_ids), TestCase.is_active == True)
-        .group_by(TestCase.priority)
+        .group_by(TestCase.risk_level)
         .order_by(func.count(TestCase.id).desc())
     )
     priority_distribution = [
         PriorityItem(
-            label=_PRIO_META.get(row.priority or "", ("Other", "gray"))[0],
+            label=_PRIO_META.get(row.risk_level or "", ("Other", "gray"))[0],
             value=row.cnt,
-            color_class=_PRIO_META.get(row.priority or "", ("Other", "gray"))[1],
+            color_class=_PRIO_META.get(row.risk_level or "", ("Other", "gray"))[1],
         )
         for row in prio_r.fetchall()
     ]

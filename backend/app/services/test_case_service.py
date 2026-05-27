@@ -65,7 +65,7 @@ async def get_all_test_cases(
     project_ids=None,
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
-    priority: Optional[List[str]] = None,
+    risk_level: Optional[List[str]] = None,
     order_by: str = "created_at",
     order_direction: str = "desc",
     limit: int = 100,
@@ -81,7 +81,7 @@ async def get_all_test_cases(
         project_ids=project_ids,
         search=search,
         status=status,
-        priority=priority,
+        risk_level=risk_level,
         order_by=order_by,
         order_direction=order_direction,
         limit=limit,
@@ -103,7 +103,7 @@ async def count_all_test_cases(
     project_id: Optional[str] = None,
     search: Optional[str] = None,
     status: Optional[List[str]] = None,
-    priority: Optional[List[str]] = None,
+    risk_level: Optional[List[str]] = None,
 ) -> int:
     """Compte le nombre total de test cases avec filtres."""
     return await repo.count_all_test_cases(
@@ -113,7 +113,7 @@ async def count_all_test_cases(
         project_id=project_id,
         search=search,
         status=status,
-        priority=priority,
+        risk_level=risk_level,
     )
 
 
@@ -159,6 +159,66 @@ async def update_test_case(db: AsyncSession, test_case_id: str, data: Dict[str, 
 async def delete_test_case(db: AsyncSession, test_case_id: str) -> bool:
     """Supprime (soft delete) un test case."""
     return await repo.delete_test_case(db, test_case_id)
+
+
+async def sync_risk_levels_from_us(
+    db: AsyncSession,
+    project_id: Optional[str] = None,
+    test_plan_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Update risk_level on every TestCase based on the highest accepted risk
+    of its associated UserStory.
+    Scope: all TCs if no filter, or filtered by project / test_plan.
+    """
+    levels = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+
+    # Load TCs that have a user_story_id
+    tc_query = select(TestCase).where(TestCase.user_story_id.isnot(None))
+    if project_id:
+        tc_query = tc_query.where(TestCase.project_id == project_id)
+    if test_plan_id:
+        tc_query = tc_query.where(TestCase.test_plan_id == test_plan_id)
+
+    result = await db.execute(tc_query)
+    test_cases = result.scalars().all()
+
+    if not test_cases:
+        return {"updated": 0, "message": "No test cases found"}
+
+    # Gather all unique user_story_ids
+    us_ids = list({tc.user_story_id for tc in test_cases})
+
+    # Load accepted risks for those US
+    risks_result = await db.execute(
+        select(Risk).where(
+            Risk.user_story_id.in_(us_ids),
+            Risk.is_accepted == True,
+            Risk.level.isnot(None),
+        )
+    )
+    risks = risks_result.scalars().all()
+
+    # Build map: user_story_id → highest risk level
+    us_risk_map: Dict[str, str] = {}
+    for r in risks:
+        current = us_risk_map.get(r.user_story_id)
+        if current is None or levels.get(r.level, 2) > levels.get(current, 2):
+            us_risk_map[r.user_story_id] = r.level
+
+    # Apply
+    updated = 0
+    for tc in test_cases:
+        new_level = us_risk_map.get(tc.user_story_id)
+        if new_level and tc.risk_level != new_level:
+            tc.risk_level = new_level
+            updated += 1
+
+    if updated:
+        await db.commit()
+
+    logger.info(f"[SYNC RISK] Updated {updated}/{len(test_cases)} test cases")
+    return {"updated": updated, "total": len(test_cases)}
 
 
 # ============================================================
@@ -274,11 +334,28 @@ async def generate_test_cases_for_plan(
                 story_text = us.description or us.title or ""
                 ac_list = us.acceptance_criteria or []
 
-            risks_result = await session.execute(
+            # Use accepted risks first; fall back to pending (is_accepted=None) if none accepted
+            accepted_risks_result = await session.execute(
                 select(Risk).where(Risk.user_story_id == us.id, Risk.is_accepted == True)
             )
-            us_risks = risks_result.scalars().all()
+            us_risks = accepted_risks_result.scalars().all()
+
+            if not us_risks:
+                pending_risks_result = await session.execute(
+                    select(Risk).where(Risk.user_story_id == us.id, Risk.is_accepted.isnot(False))
+                )
+                us_risks = pending_risks_result.scalars().all()
+
             risk_mitigation = " | ".join([r.mitigation for r in us_risks if r.mitigation]) or "N/A"
+
+            # Compute per-story risk_level: highest risk level for this US.
+            # Return None when no risks exist so run_batch() falls back to the global
+            # effective_risk_level instead of hardcoding "medium".
+            levels = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+            if us_risks:
+                us_risk_level = max(us_risks, key=lambda r: levels.get(r.level or "medium", 2)).level or "medium"
+            else:
+                us_risk_level = None
 
             return {
                 "user_story_id": us.id,
@@ -287,6 +364,7 @@ async def generate_test_cases_for_plan(
                 "story": story_text,
                 "acceptance_criteria": [str(ac).strip() for ac in ac_list if ac and str(ac).strip()],
                 "risk_mitigation": risk_mitigation,
+                "risk_level": us_risk_level,
             }
 
     load_outcomes = await asyncio.gather(
@@ -452,6 +530,9 @@ async def generate_test_cases_for_plan(
 
     # 6. Persist new TCs only (existing TCs are preserved)
     if not all_tcs:
+        # Still sync risk_level for existing TCs in this plan
+        sync_result = await sync_risk_levels_from_us(db, test_plan_id=test_plan_id)
+        logger.info(f"[TC_GEN] Risk sync (no new TCs): {sync_result['updated']}/{sync_result['total']} updated")
         return {
             "test_cases": [], "count": 0,
             "test_plan_id": test_plan_id, "test_suite_id": test_suite_id,
@@ -471,7 +552,12 @@ async def generate_test_cases_for_plan(
     created = await repo.batch_create_test_cases(db, db_data)
 
     logger.info(f"[TC_GEN] Persisted {len(created)}/{len(all_tcs)} TCs for plan={test_plan.title}")
-    
+
+    # Sync risk_level for ALL TCs in this plan (new + previously skipped)
+    # so every TC reflects its US's actual risk level.
+    sync_result = await sync_risk_levels_from_us(db, test_plan_id=test_plan_id)
+    logger.info(f"[TC_GEN] Risk sync: {sync_result['updated']}/{sync_result['total']} TCs updated")
+
     return {
         "test_cases": [_db_tc_to_response(tc) for tc in created],
         "count": len(created),
@@ -544,11 +630,22 @@ async def format_for_frontend(test_case: TestCase, db: AsyncSession) -> Dict[str
         risks_result = await db.execute(
             select(Risk).where(
                 Risk.user_story_id == us.id,
-                Risk.is_accepted == True
+                Risk.is_accepted.isnot(False)
             ).order_by(Risk.level.desc())
         )
         us_risks = risks_result.scalars().all()
-        
+
+        # Compute effective risk_level from accepted risks only.
+        # Falls back to pending (is_accepted=None) risks, then to stored TC value.
+        _levels = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+        accepted_risks = [r for r in us_risks if r.is_accepted is True]
+        if accepted_risks:
+            computed_risk = max(accepted_risks, key=lambda r: _levels.get(r.level or "medium", 2)).level or "medium"
+        elif us_risks:
+            computed_risk = max(us_risks, key=lambda r: _levels.get(r.level or "medium", 2)).level or "medium"
+        else:
+            computed_risk = test_case.risk_level or "medium"
+
         for risk in us_risks:
             risks_info.append({
                 "id": risk.id,
@@ -621,7 +718,7 @@ async def format_for_frontend(test_case: TestCase, db: AsyncSession) -> Dict[str
         "title": test_case.title,
         "description": test_case.description,
         "test_type": test_case.test_type,
-        "priority": test_case.priority,
+        "risk_level": computed_risk if us else (test_case.risk_level or "medium"),
         "test_suite_id": test_case.test_suite_id,
         "test_suite_title": suite_info.get("test_suite_title"),
         "test_plan_id": plan_info.get("test_plan_id", test_case.test_plan_id),
@@ -739,7 +836,7 @@ def _pipeline_tc_to_db(tc: Dict[str, Any], test_plan_id: str, test_suite_id: Opt
         "title":           tc.get("title", ""),
         "description":     tc.get("description"),
         "test_type":       tc.get("test_type", "positive"),
-        "priority":        tc.get("priority", "medium"),
+        "risk_level":      tc.get("risk_level", "medium"),
         "preconditions":   tc.get("preconditions", []),
         "postconditions":  tc.get("postconditions", []),
         "gherkin_source":  tc.get("gherkin_source", ""),
@@ -764,7 +861,7 @@ def _db_tc_to_response(tc) -> Dict[str, Any]:
         "tc_code":         tc.tc_code,
         "title":           tc.title,
         "test_type":       tc.test_type,
-        "priority":        tc.priority,
+        "risk_level":      tc.risk_level,
         "preconditions":   tc.preconditions or [],
         "postconditions":  tc.postconditions or [],
         "gherkin_source":  tc.gherkin_source,

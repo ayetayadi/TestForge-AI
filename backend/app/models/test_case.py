@@ -61,8 +61,8 @@ class TestCase(Base):
     # Type du scénario : positive | negative | edge_case
     test_type: Mapped[Optional[str]] = mapped_column(String(20))
 
-    # Priorité explicite : critical | high | medium | low
-    priority: Mapped[Optional[str]] = mapped_column(String(20))
+    # Niveau de risque métier : critical | high | medium | low (hérité du risque de la User Story)
+    risk_level: Mapped[Optional[str]] = mapped_column(String(20))
 
     # Conditions requises avant l'exécution
     preconditions: Mapped[List[str]] = mapped_column(

@@ -58,7 +58,9 @@ class StepOutput(BaseModel):
 
 class TestCaseOutput(BaseModel):
     title: str = Field(description="Short imperative sentence, max 100 chars")
-    test_type: str = Field(description="positive | negative | boundary")
+    test_type: Literal["positive", "negative", "boundary"] = Field(
+        description="Must match the requested scenario type exactly"
+    )
     outcome_type: Literal["success", "error"] = Field(
         description=(
             "'success' if the test expects a successful outcome (positive test), "
@@ -83,6 +85,29 @@ class TestCaseOutput(BaseModel):
 
 class TestCaseBatch(BaseModel):
     test_cases: List[TestCaseOutput]
+
+
+def _make_typed_batch(scenario_type: str) -> type:
+    """Build a Pydantic batch schema where test_type and outcome_type are
+    constrained to the requested scenario_type — the LLM cannot return any other value."""
+    if scenario_type == "positive":
+        tt = Literal["positive"]
+        ot = Literal["success"]
+    elif scenario_type == "negative":
+        tt = Literal["negative"]
+        ot = Literal["error"]
+    else:  # boundary
+        tt = Literal["boundary"]
+        ot = Literal["success", "error"]
+
+    from pydantic import create_model as _cm
+    TypedTC = _cm(
+        f"TypedTC_{scenario_type}",
+        __base__=TestCaseOutput,
+        test_type=(tt, scenario_type),
+        outcome_type=(ot, ...),
+    )
+    return _cm(f"TypedBatch_{scenario_type}", test_cases=(List[TypedTC], ...))
 
 
 class UserStoryBatchItem(BaseModel):
@@ -116,10 +141,21 @@ def _has_boundary_signals(tc: dict) -> bool:
 
 _ERROR_RESULT_PATTERNS = ("error message", "is not created", "is not updated", "no session token")
 
+_NEGATIVE_TITLE_SIGNALS = frozenset({
+    "reject", "invalid", "error", "fail", "refuse", "deny", "wrong",
+    "missing", "empty", "no client", "no user", "without client",
+    "forbidden", "unauthorized", "incorrect", "not allowed", "cannot",
+    "should not", "must not", "does not",
+})
+
 
 def _has_negative_signals(tc: dict) -> bool:
     # Primary: outcome_type declared by the LLM
     if tc.get("outcome_type", "success") == "error":
+        return True
+    # Check title for negative keywords
+    title_lower = tc.get("title", "").lower()
+    if any(signal in title_lower for signal in _NEGATIVE_TITLE_SIGNALS):
         return True
     # Backup: catch cases where LLM set outcome_type="success" but expected_results betray the truth
     results_lower = " ".join(tc.get("expected_results", [])).lower()
@@ -135,10 +171,10 @@ class TestCasePipeline:
 
     def __init__(self, temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL):
         logger.info("[TEST CASE] Initializing pipeline...")
-        llm = create_llm(temperature=temperature, model=model, max_tokens=LLM_MAX_TOKENS)
-        self._llm = llm.with_structured_output(TestCaseBatch, method="json_mode")
-        batch_llm = create_llm(temperature=temperature, model=model, max_tokens=BATCH_LLM_MAX_TOKENS)
-        self._batch_llm = batch_llm.with_structured_output(AllStoriesBatch, method="json_mode")
+        self._base_llm = create_llm(temperature=temperature, model=model, max_tokens=LLM_MAX_TOKENS)
+        self._llm = self._base_llm.with_structured_output(TestCaseBatch, method="json_mode")
+        self._base_batch_llm = create_llm(temperature=temperature, model=model, max_tokens=BATCH_LLM_MAX_TOKENS)
+        self._batch_llm = self._base_batch_llm.with_structured_output(AllStoriesBatch, method="json_mode")
         logger.info("[TEST CASE] Ready")
 
     async def _emit(self, callback: Optional[Callable], event_type: str, data: dict) -> None:
@@ -291,7 +327,7 @@ class TestCasePipeline:
                 "message": "Assigning TC codes and building feature Gherkin...",
             })
 
-            finalized = self._finalize(raw_tcs, user_story_id, tc_start_index, scenario_type)
+            finalized = self._finalize(raw_tcs, user_story_id, tc_start_index, scenario_type, risk_level)
             tcs_generated = len(finalized)
             feature_gherkin = self._build_feature_gherkin(story, finalized)
 
@@ -466,6 +502,7 @@ class TestCasePipeline:
                 raw_tcs = self._repair_gherkin(raw_tcs)
 
             ac_coverage = validate_ac_coverage(raw_tcs, acceptance_criteria)
+            story_risk_level = story_data.get("risk_level") or risk_level
 
             if not ac_coverage["is_sufficient"]:
                 uncovered = ac_coverage["uncovered"]
@@ -479,7 +516,7 @@ class TestCasePipeline:
                     extra_batch: TestCaseBatch = await asyncio.wait_for(
                         self._call_llm_correction(
                             story_data["story"], acceptance_criteria, uncovered,
-                            existing_titles, risk_level,
+                            existing_titles, story_risk_level,
                             story_data.get("risk_mitigation", "N/A"),
                             risk_description, risk_ids, scenario_type, correction_count,
                         ),
@@ -496,14 +533,14 @@ class TestCasePipeline:
                     )
 
             finalized = self._finalize(
-                raw_tcs, story_data.get("user_story_id"), 1, scenario_type
+                raw_tcs, story_data.get("user_story_id"), 1, scenario_type, story_risk_level
             )
             feature_gherkin = self._build_feature_gherkin(story_data["story"], finalized)
 
             results.append({
                 "test_cases": finalized,
                 "count": len(finalized),
-                "risk_level": risk_level,
+                "risk_level": story_risk_level,
                 "scenario_type": scenario_type,
                 "ac_coverage": ac_coverage,
                 "coverage_hints": suggest_hints(ac_coverage["uncovered"]),
@@ -534,7 +571,7 @@ class TestCasePipeline:
             self.run(
                 story=s["story"],
                 acceptance_criteria=s.get("acceptance_criteria", []),
-                risk_level=risk_level,
+                risk_level=s.get("risk_level") or risk_level,
                 risk_score=risk_score,
                 risk_description=risk_description,
                 risk_ids=risk_ids,
@@ -554,7 +591,7 @@ class TestCasePipeline:
                     f"[TC BATCH FALLBACK] Failed for {stories_data[i].get('issue_key')}: {outcome}"
                 )
                 results.append({
-                    "test_cases": [], "count": 0, "risk_level": risk_level,
+                    "test_cases": [], "count": 0, "risk_level": stories_data[i].get("risk_level") or risk_level,
                     "scenario_type": scenario_type,
                     "ac_coverage": {"is_sufficient": False, "coverage_pct": 0.0,
                                     "covered_count": 0, "total_count": 0,
@@ -618,7 +655,8 @@ class TestCasePipeline:
             risk_ids_list=risk_ids_list,
             scenario_type=scenario_type,
         )
-        return await self._llm.ainvoke(prompt)
+        typed_llm = self._base_llm.with_structured_output(_make_typed_batch(scenario_type), method="json_mode")
+        return await typed_llm.ainvoke(prompt)
 
     async def _call_llm_correction(
         self,
@@ -656,7 +694,8 @@ class TestCasePipeline:
             scenario_type=scenario_type,
             count=count,
         )
-        return await self._llm.ainvoke(prompt)
+        typed_llm = self._base_llm.with_structured_output(_make_typed_batch(scenario_type), method="json_mode")
+        return await typed_llm.ainvoke(prompt)
 
     # ============================================================
     # HELPERS
@@ -707,6 +746,7 @@ class TestCasePipeline:
         user_story_id: Optional[str],
         start_index: int,
         scenario_type: str = "positive",
+        risk_level: str = "medium",
     ) -> List[Dict[str, Any]]:
         # Filter 1: keep only TCs matching the requested type field
         type_filtered = [
@@ -716,9 +756,9 @@ class TestCasePipeline:
         if not type_filtered:
             logger.warning(
                 f"[TEST CASE] No TCs matched type '{scenario_type}' "
-                f"(got: {[tc.get('test_type') for tc in test_cases]}). Keeping all."
+                f"(got: {[tc.get('test_type') for tc in test_cases]}). Returning empty."
             )
-            type_filtered = test_cases
+            return []
 
         # Filter 2: reject boundary-content TCs when positive or negative was requested
         # (LLM sometimes sets test_type=positive but generates min/max/long/empty scenarios)
@@ -766,12 +806,6 @@ class TestCasePipeline:
             ),
         )
 
-        # Ensure the TC with the most covered ACs is marked critical (main happy path)
-        if scenario_type == "positive" and sorted_tcs:
-            main_tc = sorted_tcs[0]
-            if main_tc.get("priority", "medium") in ("low", "medium"):
-                main_tc["priority"] = "critical"
-
         finalized = []
         for order, tc in enumerate(sorted_tcs, start=1):
             steps = [
@@ -789,7 +823,7 @@ class TestCasePipeline:
                 "title": tc.get("title", ""),
                 "test_type": tc.get("test_type", "positive"),
                 "outcome_type": tc.get("outcome_type", "success"),
-                "priority": tc.get("priority", "medium"),
+                "risk_level": risk_level,
                 "preconditions": tc.get("preconditions", []),
                 "postconditions": tc.get("postconditions", []),
                 "gherkin_source": tc.get("gherkin_scenario", ""),

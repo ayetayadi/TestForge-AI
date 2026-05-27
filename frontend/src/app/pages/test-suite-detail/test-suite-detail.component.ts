@@ -174,7 +174,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
 
   readonly tabs: { id: DetailTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
-    { id: 'cases', label: 'Test Cases' },
+    { id: 'cases', label: 'Execution Plan' },
     { id: 'traceability', label: 'Traceability Matrix' },
     { id: 'graph', label: 'Dependency Graph' },
   ];
@@ -630,7 +630,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
       (tc.tc_code ?? '').toLowerCase().includes(q)
     );
     const prio = this.tcPriorityFilter();
-    if (prio !== 'all') cases = cases.filter(tc => tc.priority === prio);
+    if (prio !== 'all') cases = cases.filter(tc => tc.risk_level === prio);
     const type = this.tcTypeFilter();
     if (type !== 'all') cases = cases.filter(tc => tc.test_type === type);
     return cases;
@@ -921,7 +921,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
       const flow = this._detectFlowForTc(tc);
       if (!groupMap[flow]) groupMap[flow] = { count: 0, by_risk: {} };
       groupMap[flow].count++;
-      const risk = tc.priority ?? 'low';
+      const risk = tc.risk_level ?? 'low';
       groupMap[flow].by_risk[risk] = (groupMap[flow].by_risk[risk] ?? 0) + 1;
     }
     return this._FLOW_ORDER
@@ -1058,8 +1058,14 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   }
 
   getExecutionPosition(code: string): number {
-    const order = this.suite()?.dependency_graph?.execution_order ?? [];
+    const order = this.localTcs().map(tc => tc.tc_code);
     return order.indexOf(code) + 1;
+  }
+
+  getGraphExecutionOrder(): string[] {
+    return this.localTcs()
+      .filter(tc => !tc.excluded_from_run)
+      .map(tc => tc.tc_code);
   }
 
   // ── Traceability helpers ──────────────────────────────────────
@@ -1232,8 +1238,8 @@ buildGraphLayout(): GraphLayoutData | null {
   const posNodes: GraphNodeLayout[] = [];
   const bands: LayerBand[] = [];
 
-  // 🔥 Utiliser l'execution_order du backend
-  const execOrder = graph.execution_order || [];
+  // Utiliser localTcs() comme source de vérité — c'est l'ordre sauvegardé par le testeur
+  const execOrder = this.localTcs().map(tc => tc.tc_code);
 
   // ── 3. Assigner les positions ──
   activeLanes.forEach((flow, li) => {

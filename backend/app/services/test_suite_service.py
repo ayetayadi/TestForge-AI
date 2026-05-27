@@ -102,6 +102,74 @@ _BUSINESS_FLOW_RANK: Dict[str, int] = {
     "other": 8,
 }
 
+# ── Critère 2 : chaîne de dépendances entre entités métier ──────────────────
+# Auth(1) → Client(2) → Catégorie(3) → Projet(4) → Tâche(5) → Commentaire(6)
+_ENTITY_RANK: Dict[str, int] = {
+    "auth":     1,
+    "client":   2,
+    "category": 3,
+    "project":  4,
+    "task":     5,
+    "comment":  6,
+    "other":   99,
+}
+
+_ENTITY_KEYWORDS: Dict[str, List[str]] = {
+    "auth": [
+        "auth", "login", "logout", "connexion", "déconnexion", "compte",
+        "account", "register", "inscription", "password", "mot de passe",
+        "session", "token", "jwt", "sign in", "sign out", "sign up",
+    ],
+    "client":   ["client", "customer"],
+    "category": ["category", "catégorie", "categorie"],
+    "project":  ["project", "projet"],
+    "task":     ["task", "tâche", "tache"],
+    "comment":  ["comment", "commentaire"],
+}
+
+# ── Critère 1 : ordre des actions CRUD ──────────────────────────────────────
+# Create(1) → Update(2) → Cancel(3) → Delete(4). Jamais l'inverse.
+_ACTION_RANK: Dict[str, int] = {
+    "create": 1,
+    "update": 2,
+    "cancel": 3,
+    "delete": 4,
+}
+
+_ACTION_KEYWORDS: Dict[str, List[str]] = {
+    "create": [
+        "créer", "create", "ajouter", "add", "nouveau", "new",
+        "register", "inscription", "enregistrer", "ajout", "création",
+        "sign up", "s'inscrire", "créer un",
+    ],
+    "update": [
+        "modifier", "update", "edit", "mettre à jour", "changer",
+        "modification", "mise à jour", "renommer",
+    ],
+    "cancel": [
+        "annuler", "cancel", "désactiver", "disable", "suspendre", "archiver",
+    ],
+    "delete": [
+        "supprimer", "delete", "remove", "effacer", "suppression",
+    ],
+}
+
+# ── Critère 3 : Auth encadre tout ───────────────────────────────────────────
+# Création de compte → position 1, Connexion → position 2, Déconnexion → dernière
+_ACCOUNT_CREATE_KEYWORDS: List[str] = [
+    "create account", "créer compte", "créer un compte", "register",
+    "inscription", "sign up", "s'inscrire", "enregistrement",
+]
+
+_LOGIN_KEYWORDS: List[str] = [
+    "login", "connexion", "sign in", "authenticate", "se connecter",
+    "identifiants valides", "mot de passe correct",
+]
+
+_LOGOUT_KEYWORDS: List[str] = [
+    "logout", "déconnexion", "sign out", "logoff", "se déconnecter", "déconnecter",
+]
+
 
 class TestSuiteService:
     def __init__(self, db: AsyncSession):
@@ -210,7 +278,7 @@ class TestSuiteService:
                 "tc_code": tc.tc_code,
                 "title": tc.title,
                 "test_type": tc.test_type or "positive",
-                "priority": tc.priority or "medium",
+                "risk_level": tc.risk_level or "medium",
                 "user_story_id": tc.user_story_id,
             })
         
@@ -445,13 +513,9 @@ class TestSuiteService:
             f"classifications={len(_tc_classifications)} TCs"
         )
 
-        def _sort_key(tc: TestCase) -> Tuple[int, int]:
+        def _sort_key(tc: TestCase) -> Tuple[int, int, int]:
             clf = _tc_classifications.get(tc.tc_code, {})
-            flow = clf.get("business_flow") or self._keyword_flow(tc.title or "")
-            risk_level = clf.get("risk_level") or tc.priority or "medium"
-            flow_rank = _flow_order.get(flow, 99)
-            risk_wt = _RISK_WEIGHT.get(risk_level, _PRIORITY_WEIGHT.get(tc.priority or "medium", 300))
-            return (flow_rank, -risk_wt)
+            return self._compute_order_key(tc, clf, _flow_order)
 
         # Créer les dépendances DANS CHAQUE suite séparément
         for suite_data in suites_data:
@@ -469,6 +533,11 @@ class TestSuiteService:
                 continue
 
             sorted_suite_tcs = sorted(suite_tcs, key=_sort_key)
+
+            # Mettre à jour execution_order selon l'ordre flux métier + risk level
+            for i, tc in enumerate(sorted_suite_tcs, start=1):
+                tc.execution_order = i
+
             suite_title = suite_data.get("title", "?")
             logger.info(
                 f"[DEP] Suite '{suite_title}': "
@@ -477,8 +546,8 @@ class TestSuiteService:
             for i, tc in enumerate(sorted_suite_tcs):
                 clf = _tc_classifications.get(tc.tc_code, {})
                 flow = clf.get("business_flow") or self._keyword_flow(tc.title or "")
-                risk = clf.get("risk_level") or tc.priority or "medium"
-                logger.info(f"  {i + 1}. {tc.tc_code} | flow={flow} | risk={risk}")
+                risk_level = clf.get("risk_level") or tc.risk_level or "medium"
+                logger.info(f"  {i + 1}. {tc.tc_code} | flow={flow} | risk={risk_level}")
 
             for i in range(1, len(sorted_suite_tcs)):
                 prev, curr = sorted_suite_tcs[i - 1], sorted_suite_tcs[i]
@@ -681,6 +750,57 @@ class TestSuiteService:
         )
 
 
+    def _compute_order_key(
+        self,
+        tc: "TestCase",
+        clf: Dict[str, Any],
+        flow_order: Dict[str, int],
+    ) -> Tuple[int, int, int]:
+        """
+        Clé de tri en 3 critères :
+          1. Entity rank  — chaîne de dépendances métier
+                           (Auth=1 → Client=2 → Catégorie=3 → Projet=4 → Tâche=5 → Commentaire=6)
+          2. Action rank  — ordre CRUD : Create=1 → Update=2 → Cancel=3 → Delete=4
+          3. Risk weight  — tiebreaker : critical en premier
+
+        Règles spéciales (Critère 3) :
+          - Création de compte → (1, 0, 0)    — toujours premier
+          - Connexion (login)  → (1, 1, 0)    — toujours deuxième
+          - Déconnexion        → (9999, 9999, 0) — toujours dernier
+        """
+        title = (tc.title or "").lower()
+
+        # Critère 3 : Auth encadre tout
+        if any(kw in title for kw in _LOGOUT_KEYWORDS):
+            return (9999, 9999, 0)
+        if any(kw in title for kw in _ACCOUNT_CREATE_KEYWORDS):
+            return (1, 0, 0)
+        if any(kw in title for kw in _LOGIN_KEYWORDS):
+            return (1, 1, 0)
+
+        # Critère 2 : entité métier (keywords sur le titre en priorité, LLM en fallback)
+        entity_rank = None
+        for entity, keywords in _ENTITY_KEYWORDS.items():
+            if any(kw in title for kw in keywords):
+                entity_rank = _ENTITY_RANK[entity]
+                break
+        if entity_rank is None:
+            flow = clf.get("business_flow") or self._keyword_flow(tc.title or "")
+            entity_rank = flow_order.get(flow, 99)
+
+        # Critère 1 : type d'action (Create → Update → Cancel → Delete)
+        action_rank = 5  # non classifié
+        for action, keywords in _ACTION_KEYWORDS.items():
+            if any(kw in title for kw in keywords):
+                action_rank = _ACTION_RANK[action]
+                break
+
+        # Tiebreaker : risk level (critical en premier)
+        risk_level = clf.get("risk_level") or tc.risk_level or "medium"
+        risk_wt = _RISK_WEIGHT.get(risk_level, 300)
+
+        return (entity_rank, action_rank, -risk_wt)
+
     def _keyword_flow(self, text: str) -> str:
         """Détection du flux métier par mots-clés dans le titre (fallback pur)."""
         t = text.lower()
@@ -726,20 +846,9 @@ class TestSuiteService:
                     tc_classifications = plan.tc_classifications
         
         # ── Fonction de tri ──
-        def _sort_key(tc: TestCase) -> Tuple[int, int]:
-            # Classification LLM ou fallback
-            if tc.tc_code in tc_classifications:
-                llm = tc_classifications[tc.tc_code]
-                flow = llm.get("business_flow", "other")
-                risk_level = llm.get("risk_level", tc.priority or "medium")
-            else:
-                flow = self._get_business_flow(tc)
-                risk_level = tc.priority or "medium"
-            
-            flow_rank = flow_order.get(flow, 99)  # ← flow_order est défini
-            risk_wt = _RISK_WEIGHT.get(risk_level, 0) or _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
-            
-            return (flow_rank, -risk_wt)
+        def _sort_key(tc: TestCase) -> Tuple[int, int, int]:
+            clf = tc_classifications.get(tc.tc_code, {})
+            return self._compute_order_key(tc, clf, flow_order)
         
         return sorted(cases, key=_sort_key)
 
@@ -759,7 +868,7 @@ class TestSuiteService:
                 if risk.user_story_id == tc.user_story_id and risk.level:
                     return _RISK_WEIGHT.get(risk.level, 0)
         
-        return _PRIORITY_WEIGHT.get(tc.priority or "medium", 300)
+        return _RISK_WEIGHT.get(tc.risk_level or "medium", 300)
 
     def _build_traceability_matrix(
             self,
@@ -874,23 +983,19 @@ class TestSuiteService:
         
         nodes = []
         for tc in tc_map.values():   # tc_map déduplique par id
-            # 🔥 Utiliser la classification LLM si disponible
             if tc.tc_code in tc_classifications:
-                llm = tc_classifications[tc.tc_code]
-                flow = llm.get("business_flow", "other")
-                risk = llm.get("risk_level", tc.priority or "medium")
+                flow = tc_classifications[tc.tc_code].get("business_flow", "other")
             else:
                 flow = self._get_business_flow(tc)
-                risk = tc.priority or "medium"
-            
+            risk = tc.risk_level or "medium"
             flow_rank = flow_order.get(flow, 99)
-            risk_wt = _RISK_WEIGHT.get(risk, _PRIORITY_WEIGHT.get(tc.priority or "medium", 300))
-            
+            risk_wt = _RISK_WEIGHT.get(risk, 300)
+
             nodes.append(DependencyNode(
                 id=tc.id,
                 tc_code=tc.tc_code,
                 title=tc.title,
-                priority=risk,  # ← Risk level du LLM
+                priority=risk,
                 test_type=tc.test_type,
                 execution_order=tc.execution_order,
                 test_suite_id=tc.test_suite_id,
@@ -949,7 +1054,7 @@ class TestSuiteService:
         cases = suite.test_cases or []
         active = [c for c in cases if c.is_active]
     
-        by_priority: Dict[str, int] = dict(Counter(c.priority for c in active if c.priority))
+        by_priority: Dict[str, int] = dict(Counter(c.risk_level for c in active if c.risk_level))
         by_type: Dict[str, int] = dict(Counter(c.test_type for c in active if c.test_type))
         has_gherkin = sum(1 for c in active if c.gherkin_source)
         has_steps = sum(1 for c in active if c.steps)
@@ -1075,7 +1180,7 @@ class TestSuiteService:
             description=tc.description,
             test_type=tc.test_type,
             risk_ids=risk_ids,
-            priority=tc.priority,
+            risk_level=tc.risk_level,
             preconditions=tc.preconditions or [],
             postconditions=tc.postconditions or [],
             steps=tc.steps or [],

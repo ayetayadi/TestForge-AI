@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, TitleCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { FilterBarComponent, FilterGroup, ActiveFilters } from '../../components/filter-bar/filter-bar.component';
@@ -35,7 +35,7 @@ interface TestCaseDisplay {
   epic_key: string | null;
   epic_name: string | null;
   tags: string[] | null;
-  priority: string | null;
+  risk_level: string | null;
   test_type: string | null;
   execution_order: number | null;
   is_active: boolean;
@@ -53,7 +53,7 @@ export interface GenJob {
 @Component({
   selector: 'app-test-cases',
   standalone: true,
-  imports: [CommonModule, FilterBarComponent, PaginationComponent, SearchBarComponent, SpinnerComponent, ConfirmDialogComponent],
+  imports: [CommonModule, TitleCasePipe, FilterBarComponent, PaginationComponent, SearchBarComponent, SpinnerComponent, ConfirmDialogComponent],
   templateUrl: './test-cases.component.html',
   styleUrl: './test-cases.component.scss',
 })
@@ -104,7 +104,7 @@ confirmDialogData = signal<{
   searchQuery = signal('');
   selectedTestPlanId = signal('');  // ✅ Filtre principal
   selectedStatus = signal('all');
-  selectedPriorities = signal<string[]>([]);
+  selectedRiskLevels = signal<string[]>([]);
   selectedTestTypes = signal<string[]>([]);
   selectedTags = signal<string[]>([]);
   activeFilters = signal<ActiveFilters>({});
@@ -123,22 +123,29 @@ confirmDialogData = signal<{
   coveragePlanId = signal('');
   showCoverageTable = signal(false);
   coverageTableVisible = signal(true);
+  coverageSectionOpen = signal(false);
   coveragePage = signal(1);
   coveragePageSize = signal(5);
 
+  filteredCoverageRows = computed(() => {
+    const type = this.genScenarioType();
+    return this.coverageRows().filter(r => r.scenario_type === type);
+  });
+
   paginatedCoverageRows = computed(() =>
-    this.coverageRows().slice((this.coveragePage() - 1) * this.coveragePageSize(), this.coveragePage() * this.coveragePageSize())
+    this.filteredCoverageRows().slice((this.coveragePage() - 1) * this.coveragePageSize(), this.coveragePage() * this.coveragePageSize())
   );
-  totalCoveragePages = computed(() => Math.ceil(this.coverageRows().length / this.coveragePageSize()));
-  totalCoverageItems = computed(() => this.coverageRows().length);
+  totalCoveragePages = computed(() => Math.ceil(this.filteredCoverageRows().length / this.coveragePageSize()));
+  totalCoverageItems = computed(() => this.filteredCoverageRows().length);
 
   toggleCoverageTable(): void { this.coverageTableVisible.update(v => !v); }
+  toggleCoverageSection(): void { this.coverageSectionOpen.update(v => !v); }
 
   loadCoverage(testPlanId: string): void {
-    if (!testPlanId) { this.coverageRows.set([]); this.showCoverageTable.set(false); return; }
+    if (!testPlanId) { this.coverageRows.set([]); this.showCoverageTable.set(false); this.coverageSectionOpen.set(false); return; }
     this.coveragePlanId.set(testPlanId);
     this.testCaseService.getCoverageForPlan(testPlanId).subscribe({
-      next: rows => { this.coverageRows.set(rows); this.showCoverageTable.set(true); this.coveragePage.set(1); },
+      next: rows => { this.coverageRows.set(rows); this.showCoverageTable.set(true); this.coverageSectionOpen.set(false); this.coveragePage.set(1); },
       error: err => this.toastService.error('Failed to load coverage', err.message),
     });
   }
@@ -171,7 +178,7 @@ confirmDialogData = signal<{
     if (q) items = items.filter(tc => tc.tc_code.toLowerCase().includes(q) || tc.title.toLowerCase().includes(q) || (tc.issue_key ?? '').toLowerCase().includes(q));
     if (this.selectedTestPlanId()) items = items.filter(tc => tc.test_plan_id === this.selectedTestPlanId());
     if (this.selectedStatus() !== 'all') items = items.filter(tc => tc.is_active === (this.selectedStatus() === 'active'));
-    if (this.selectedPriorities().length) items = items.filter(tc => this.selectedPriorities().includes((tc.priority || 'medium').toLowerCase()));
+    if (this.selectedRiskLevels().length) items = items.filter(tc => this.selectedRiskLevels().includes((tc.risk_level || 'medium').toLowerCase()));
     if (this.selectedTestTypes().length) items = items.filter(tc => this.selectedTestTypes().includes((tc.test_type || '').toLowerCase()));
     if (this.selectedTags().length) items = items.filter(tc => this.selectedTags().every(tag => (tc.tags ?? []).includes(tag)));
     return items;
@@ -186,10 +193,10 @@ confirmDialogData = signal<{
   statsByPriority = computed(() => {
     const items = this.allTestCases();
     return {
-      critical: items.filter(tc => tc.priority === 'critical').length,
-      high: items.filter(tc => tc.priority === 'high').length,
-      medium: items.filter(tc => tc.priority === 'medium').length,
-      low: items.filter(tc => tc.priority === 'low').length,
+      critical: items.filter(tc => tc.risk_level === 'critical').length,
+      high: items.filter(tc => tc.risk_level === 'high').length,
+      medium: items.filter(tc => tc.risk_level === 'medium').length,
+      low: items.filter(tc => tc.risk_level === 'low').length,
     };
   });
 
@@ -198,7 +205,6 @@ confirmDialogData = signal<{
   );
 
   hasActiveFilters = computed(() =>
-    this.selectedPriorities().length > 0 ||
     this.selectedTestTypes().length > 0 ||
     this.selectedTags().length > 0 ||
     this.selectedStatus() !== 'all'
@@ -226,11 +232,11 @@ confirmDialogData = signal<{
         { value: 'active', label: 'Active', count: items.filter(tc => tc.is_active).length },
         { value: 'archived', label: 'Archived', count: items.filter(tc => !tc.is_active).length },
       ]},
-      { key: 'priority', label: 'Priority', multiple: true, options: [
-        { value: 'critical', label: 'Critical', count: items.filter(tc => tc.priority === 'critical').length },
-        { value: 'high', label: 'High', count: items.filter(tc => tc.priority === 'high').length },
-        { value: 'medium', label: 'Medium', count: items.filter(tc => tc.priority === 'medium').length },
-        { value: 'low', label: 'Low', count: items.filter(tc => tc.priority === 'low').length },
+      { key: 'risk_level', label: 'Risk Level', multiple: true, options: [
+        { value: 'critical', label: 'Critical', count: items.filter(tc => tc.risk_level === 'critical').length },
+        { value: 'high', label: 'High', count: items.filter(tc => tc.risk_level === 'high').length },
+        { value: 'medium', label: 'Medium', count: items.filter(tc => tc.risk_level === 'medium').length },
+        { value: 'low', label: 'Low', count: items.filter(tc => tc.risk_level === 'low').length },
       ]},
       { key: 'test_type', label: 'Test Type', multiple: true, options: [
         { value: 'positive', label: 'Positive', count: items.filter(tc => tc.test_type === 'positive').length },
@@ -258,7 +264,7 @@ confirmDialogData = signal<{
     if (this.selectedTestPlanId()) filters.test_plan_id = this.selectedTestPlanId();
     if (this.searchQuery()) filters.search = this.searchQuery();
     if (this.selectedStatus() !== 'all') filters.status = [this.selectedStatus() as TestCaseStatus];
-    if (this.selectedPriorities().length) filters.priority = this.selectedPriorities() as Priority[];
+    if (this.selectedRiskLevels().length) filters.risk_level = this.selectedRiskLevels() as Priority[];
 
     this.testCaseService.getTestCases(filters).subscribe({
       next: (response: any[]) => {
@@ -271,7 +277,7 @@ confirmDialogData = signal<{
           user_story_id: tc.user_story_id ?? null, issue_key: tc.issue_key ?? null,
           user_story_title: tc.user_story_title ?? null, sprint: tc.sprint ?? null,
           epic_key: tc.epic_key ?? null, epic_name: tc.epic_name ?? null,
-          tags: tc.tags ?? null, priority: (tc.priority || 'medium').toLowerCase(),
+          tags: tc.tags ?? null, risk_level: (tc.risk_level || 'medium').toLowerCase(),
           test_type: tc.test_type ?? null, execution_order: tc.execution_order ?? null,
           is_active: tc.is_active,
         })));
@@ -287,8 +293,8 @@ confirmDialogData = signal<{
   onTestPlanChange(event: Event): void { const id = (event.target as HTMLSelectElement).value; this.selectedTestPlanId.set(id); this.page.set(1); this.loadTestCases(); this.loadCoverage(id); }
   onStatusChange(event: Event): void { this.selectedStatus.set((event.target as HTMLSelectElement).value); this.page.set(1); }
   onSearchChange(query: string): void { this.searchQuery.set(query); this.page.set(1); }
-  onFiltersChange(filters: ActiveFilters): void { this.activeFilters.set(filters); this.selectedStatus.set(filters['status']?.length ? filters['status'][0] : 'all'); this.selectedPriorities.set(filters['priority'] ?? []); this.selectedTestTypes.set(filters['test_type'] ?? []); this.selectedTags.set(filters['tags'] ?? []); this.page.set(1); }
-  clearAllFilters(): void { this.searchQuery.set(''); this.selectedTestPlanId.set(''); this.selectedStatus.set('all'); this.selectedPriorities.set([]); this.selectedTestTypes.set([]); this.selectedTags.set([]); this.activeFilters.set({}); this.page.set(1); this.loadTestCases(); }
+  onFiltersChange(filters: ActiveFilters): void { this.activeFilters.set(filters); this.selectedStatus.set(filters['status']?.length ? filters['status'][0] : 'all'); this.selectedRiskLevels.set(filters['risk_level'] ?? []); this.selectedTestTypes.set(filters['test_type'] ?? []); this.selectedTags.set(filters['tags'] ?? []); this.page.set(1); }
+  clearAllFilters(): void { this.searchQuery.set(''); this.selectedTestPlanId.set(''); this.selectedStatus.set('all'); this.selectedRiskLevels.set([]); this.selectedTestTypes.set([]); this.selectedTags.set([]); this.activeFilters.set({}); this.page.set(1); this.loadTestCases(); }
   refresh(): void { this.loadTestCases(); }
 
   // =====================================================================
@@ -296,18 +302,18 @@ confirmDialogData = signal<{
   // =====================================================================
   openGenPanel(): void { this.showGenPanel.set(true); this.genJobs.set([]); this.isGenerating.set(false); this.genProgressTotal.set(0); this.genProgressCurrent.set(0); this.genCurrentUsKey.set(''); }
   closeGenPanel(): void { if (this.isGenerating() && !this.genAllDone()) return; this.showGenPanel.set(false); this.genTestPlanId.set(''); this.genJobs.set([]); this.isGenerating.set(false); this.genProgressTotal.set(0); this.genProgressCurrent.set(0); this.genCurrentUsKey.set(''); }
-  onGenTestPlanChange(event: Event): void { this.genTestPlanId.set((event.target as HTMLSelectElement).value); }
+  onGenTestPlanChange(value: string): void { this.genTestPlanId.set(value); }
 
   genScenarioType = signal<'positive' | 'negative' | 'boundary'>('positive');
 
   readonly scenarioTypeOptions: { value: 'positive' | 'negative' | 'boundary'; label: string }[] = [
-    { value: 'positive', label: '✅ Positive (happy path)' },
-    { value: 'negative', label: '❌ Negative (error path)' },
-    { value: 'boundary', label: '🔲 Boundary (limits)' },
+    { value: 'positive', label: 'Positive (happy path)' },
+    { value: 'negative', label: 'Negative (error path)' },
+    { value: 'boundary', label: 'Boundary (limits)' },
   ];
 
-  selectScenarioType(type: 'positive' | 'negative' | 'boundary'): void {
-    this.genScenarioType.set(type);
+  selectScenarioType(type: string): void {
+    this.genScenarioType.set(type as 'positive' | 'negative' | 'boundary');
   }
 
   startGeneration(): void {
@@ -429,7 +435,7 @@ deleteTestCase(id: string, e: Event): void {
     const rows = items.map(tc => [
       esc(tc.tc_code),
       esc(tc.title),
-      esc(tc.priority ?? ''),
+      esc(tc.risk_level ?? ''),
       esc(tc.test_type ?? ''),
       esc(tc.is_active ? 'active' : 'archived'),
       esc((tc.tags ?? []).join('; ')),
@@ -455,7 +461,7 @@ deleteTestCase(id: string, e: Event): void {
 
   onPageChange(p: number): void { this.page.set(p); }
   onPageSizeChange(s: number): void { this.pageSize.set(s); this.page.set(1); }
-  getPriorityClass(p: string | null): string { return { critical: 'priority-critical', high: 'priority-high', medium: 'priority-medium', low: 'priority-low' }[p || 'medium'] ?? 'priority-medium'; }
+  getPriorityClass(p: string | null): string { return ({ critical: 'priority-critical', high: 'priority-high', medium: 'priority-medium', low: 'priority-low' } as Record<string, string>)[p || 'medium'] ?? 'priority-medium'; }
   getStatusLabel(a: boolean): string { return a ? 'Active' : 'Archived'; }
   setViewMode(m: 'cards' | 'table'): void { this.viewMode.set(m); }
   getJobStatusClass(s: GenJobStatus): string { return { queued: 'job-queued', processing: 'job-processing', generated: 'job-generated', failed: 'job-failed' }[s]; }

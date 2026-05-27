@@ -59,8 +59,9 @@ class TestCaseResponse(BaseModel):
     title: str
     description: Optional[str] = None
     test_type: Optional[str] = None
-    priority: Optional[str] = None
-    
+    risk_level: Optional[str] = None
+    tags: Optional[List[str]] = None
+
     # Suite & Plan
     test_suite_id: Optional[str] = None     
     test_suite_title: Optional[str] = None
