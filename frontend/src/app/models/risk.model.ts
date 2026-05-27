@@ -72,6 +72,7 @@ export interface Risk {
   is_ai_generated: boolean;              // true = LLM, false = manual
   is_accepted: boolean | null;           // null=pending, true=accepted, false=rejected
   accepted_at?: string | null;           // When accepted/rejected
+  eligible_for_reanalysis?: boolean | null; // true = story changed since last analysis
   corrected_by?: string | null;          // Who corrected it
   corrected_at?: string | null;          // When corrected
   correction_comment?: string | null;    // Reason for correction

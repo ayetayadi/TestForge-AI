@@ -37,7 +37,7 @@ export class CreateUserComponent implements OnInit {
     email: new FormControl('', [Validators.required, Validators.email]),
     username: new FormControl('', [Validators.required, Validators.minLength(3)]),
     is_admin: new FormControl(false),
-    is_active: new FormControl(false),
+    is_active: new FormControl(true),
   });
 
   showConfirmDialog = signal(false);

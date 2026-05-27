@@ -1,8 +1,30 @@
-TEST_CASE_GENERATION_PROMPT = """You are an ISTQB-certified test analyst.
+TEST_CASE_GENERATION_PROMPT = """You are an ISTQB-certified test analyst working inside a test management platform.
 
-Generate structured test cases for the user story below. Each test case must include
-ALL required fields: preconditions, postconditions, steps, test data, expected results,
-and a Gherkin BDD scenario block.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXT — READ THIS CAREFULLY BEFORE GENERATING ANYTHING:
+
+A human tester has opened this user story in the platform and selected a scenario type
+using a radio button: positive, negative, or boundary values.
+Your job is to generate test cases EXCLUSIVELY for that selected type.
+
+These test cases will be:
+  1. Stored in the test management database linked to this user story
+  2. Executed by testers to validate the software against the acceptance criteria
+  3. Used to measure AC coverage — every acceptance criterion must be covered by at least one TC
+  4. Reused across test cycles — duplicates waste tester time and inflate coverage numbers
+
+Because the tester explicitly chose ONE type, mixing types is a critical error:
+  - A tester who selected "positive" does NOT want to execute negative or boundary tests
+  - A tester who selected "negative" does NOT want to see happy-path tests
+  - Each type will be generated in a separate dedicated session
+
+WHAT EACH TYPE MEANS FOR EXECUTION:
+  • positive  → The tester will run the happy path with VALID inputs and verify SUCCESS.
+                Every step uses correct data. The system responds normally. No errors expected.
+  • negative  → The tester will intentionally provide INVALID or forbidden inputs and verify
+                that the system REJECTS them with the correct error message.
+  • boundary  → The tester will probe the LIMITS of accepted values (max length, min length,
+                0, -1, empty, null, special characters) to verify edge-case behavior.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 USER STORY:
@@ -19,14 +41,45 @@ ACCEPTED RISK IDs LINKED TO THIS USER STORY:
 {risk_ids_list}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-TEST TYPE REQUESTED: {scenario_type}
-  • positive   → happy path, valid input, expected successful outcome
-  • negative   → invalid input, error path, rejected operations
-  • boundary   → limit values (max/min length, 0, -1, empty, null, special chars)
+SELECTED SCENARIO TYPE: {scenario_type}
 
-Generate exactly {count} test case(s) of type "{scenario_type}".
-Deduce concrete scenarios from the acceptance criteria above — even for negative and
-boundary types, derive them from what the positive ACs imply (invalid/limit counterparts).
+The tester selected: "{scenario_type}"
+Generate test cases of type "{scenario_type}" ONLY.
+
+STEP 1 — ANALYZE AND GROUP:
+  Read ALL acceptance criteria above as a whole.
+  Group ACs that share the same execution flow (same steps, same preconditions).
+  Two ACs belong to the same group when a single test run verifies both simultaneously.
+
+  GROUPING RULES — memorize these before generating:
+
+  RULE A — SAME FORM, MULTIPLE FIELDS:
+    ACs that each describe one field of the SAME form are ONE group.
+    You fill ALL fields in a single test run → one TC covers all field ACs at once.
+    ✅ CORRECT: "user can enter name" + "user can enter email" + "user can enter phone"
+               → ONE TC "Create client with valid name, email and phone"
+               → test_data: {{"name": "John Doe", "email": "john@example.com", "phone": "123-456-7890"}}
+               → covered_ac_indices: [0, 1, 2]
+    ❌ WRONG: TC-1 tests name only, TC-2 tests email only, TC-3 tests phone only
+              (identical steps — navigate → fill one field → submit — only field differs)
+
+  RULE B — SAME ACTION, MULTIPLE OUTCOMES:
+    ACs describing what happens AFTER the same action are ONE group.
+    Example: "project is created" + "project has default status 'Planification'" + "project appears in list"
+    → ONE TC covers all three post-conditions.
+    → covered_ac_indices: [0, 1, 2]
+
+  RULE C — GENUINELY DISTINCT FLOWS:
+    Only generate separate TCs when the STEPS are fundamentally different.
+    Example: "create project" vs "delete project" → different navigation, different action → TWO TCs.
+
+STEP 2 — GENERATE ONE TC PER GROUP:
+  Generate exactly ONE test case per distinct group — no more, no less.
+  List ALL AC indices of the group in covered_ac_indices.
+  Never create two TCs with identical steps that only differ in the final assertion.
+  Never create two TCs that differ only in which form field is filled — merge them into one.
+  Every AC must appear in at least one covered_ac_indices across all generated TCs.
+  For negative/boundary types, derive the groups from the positive ACs (invalid/limit counterparts).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FIELD DEFINITIONS — fill EVERY field for EVERY test case:
@@ -37,6 +90,14 @@ title
 
 test_type
   Must be exactly: {scenario_type}
+
+outcome_type
+  Declare whether this test expects a SUCCESS or an ERROR outcome.
+  Must be exactly one of: success | error
+  Rules:
+    • positive test → ALWAYS "success"  (valid inputs, system responds normally)
+    • negative test → ALWAYS "error"    (invalid inputs, system rejects with error message)
+    • boundary test → "success" if the limit value is accepted, "error" if it is rejected
 
 priority
   One of: critical | high | medium | low
@@ -140,6 +201,14 @@ covered_risk_ids
     - ["RISK-1", "RISK-3"]  # covers two risks
     - ["RISK-2"]             # covers one risk
     - []                     # no risk applies to this test case
+
+estimated_duration
+  Estimated execution time in minutes (integer).
+  Base it on the number of steps and complexity:
+    - 1–3 steps  → 2–5 min
+    - 4–6 steps  → 5–10 min
+    - 7+ steps   → 10–20 min
+  Example: 5
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CRITICAL JSON FORMATTING RULES:
 - The ENTIRE output must be valid JSON that can be parsed by a JSON parser
@@ -164,20 +233,58 @@ RULES:
   • Keep strings under 80 characters MAXIMUM.
 - No two test cases may test the exact same behavior — each must target a distinct scenario
 - If similar tests exist, use DIFFERENT data or test DIFFERENT aspects
+- Generate the MINIMUM number of TCs needed to cover ALL ACs — one TC per distinct execution flow
 - Steps must be atomic (one user action per step)
 - All field values must be in English
 - All test_data values must be LITERAL strings, not code expressions
-- Generate exactly {count} test case(s)
 - Output ONLY the JSON object — no markdown code blocks, no extra text before or after
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STRICT CONSTRAINTS — ANY VIOLATION MAKES THE OUTPUT INVALID:
+1. TYPE EXCLUSIVITY: Every single test case MUST have test_type = "{scenario_type}".
+   It is FORBIDDEN to output a test case with test_type != "{scenario_type}".
+   If you are tempted to add a {{'positive' if '{scenario_type}' != 'positive' else 'negative'}} test "for context", DO NOT — output only {scenario_type} cases.
+2. POSITIVE TYPE CONTENT RULE (applies when scenario_type = "positive"):
+   A positive test MUST use VALID inputs that produce a SUCCESSFUL outcome.
+   It is STRICTLY FORBIDDEN to generate a test case that:
+     • Uses invalid, malformed, or empty inputs (e.g., email='invalid', password='')
+     • Expects an error message, rejection, or failure as the outcome
+     • Has a title containing words like: reject, invalid, error, fail, refuse, deny, wrong, missing,
+         empty, no client, no user, without client
+   These are NEGATIVE tests — do NOT include them in a positive batch.
+3. NO DUPLICATE TITLES: Every test case must have a unique title.
+   If two scenarios test similar behavior, either merge them or give them clearly distinct titles targeting different conditions.
+4. NO DUPLICATE SCENARIOS: No two test cases may execute the same steps on the same data.
+   Each test case must target a DISTINCT behavior, condition, or data combination.
+5. ATOMICITY: Each test case must test ONE feature or one flow. Do NOT combine
+   registration + login in a single test case — that is two separate test cases.
+6. SELF-CHECK before outputting: scan your generated test_cases array and confirm:
+   - All test_type values are "{scenario_type}" ✓
+   - All outcome_type values are "success" (for positive type) ✓
+   - All inputs are VALID and outcomes are SUCCESSFUL (for positive type) ✓
+   - All titles are unique ✓
+   - No two scenarios are semantically identical ✓
+   - Each test case tests exactly ONE feature or flow ✓
+   - No two TCs execute the same steps — if they do, merge them into one ✓
+   - No two TCs differ only in which form field is filled — if so, merge into one TC that fills ALL fields ✓
+   - Every AC index appears in at least one covered_ac_indices ✓
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
 
-CORRECTION_PROMPT = """You are an ISTQB-certified test analyst.
-
-Some acceptance criteria are NOT yet covered by the existing test cases.
-Generate ADDITIONAL {count} {scenario_type} test case(s) that cover the uncovered ACs below.
+CORRECTION_PROMPT = """You are an ISTQB-certified test analyst working inside a test management platform.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXT:
+A tester selected scenario type "{scenario_type}" via a radio button in the platform.
+A first generation pass produced test cases that do NOT yet cover all acceptance criteria.
+You must generate ADDITIONAL test cases — of type "{scenario_type}" ONLY — to close the gap.
+
+These additional TCs will be stored alongside the existing ones. Duplicating an existing TC
+wastes tester time and inflates coverage numbers. Every new TC must cover at least one
+acceptance criterion NOT already covered, and must test a scenario not already present.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 USER STORY:
 {story}
 
@@ -187,6 +294,9 @@ ALL ACCEPTANCE CRITERIA:
 UNCOVERED ACs — you MUST cover ALL of these:
 {uncovered_acs}
 
+ALREADY GENERATED TEST CASES — do NOT duplicate any of these (different title AND different scenario):
+{existing_titles}
+
 RISK LEVEL: {risk_level}
 ACCEPTED RISK IDs LINKED TO THIS USER STORY:
 {risk_ids_list}
@@ -195,13 +305,45 @@ ACCEPTED RISK IDs LINKED TO THIS USER STORY:
 TEST TYPE: {scenario_type}
 Generate exactly {count} additional test case(s) of type "{scenario_type}".
 Each test case MUST cover at least one of the UNCOVERED ACs listed above.
+Each test case MUST test a scenario NOT already covered by the existing test cases listed above.
 
-Use the same field definitions and JSON formatting rules as before:
-- title, test_type, priority, preconditions, postconditions, gherkin_scenario,
-  steps, test_data, expected_results, covered_ac_indices, reasoning, covered_risk_ids
-- test_type must be exactly: {scenario_type}
-- covered_ac_indices must reference the indices of the UNCOVERED ACs above
-  (use the same 0-based indexing as the full AC list)
-- CRITICAL JSON FORMATTING: single quotes inside strings, double quotes only as JSON delimiters
-- Output ONLY the JSON object — no markdown, no extra text
+Fill EVERY field for EVERY test case:
+
+title             Short imperative sentence (max 100 chars).
+test_type         Must be exactly: {scenario_type}
+outcome_type      "success" if the test expects a successful outcome, "error" if it expects a rejection or error message.
+                  positive test → always "success" | negative test → always "error"
+priority          critical | high | medium | low
+preconditions     List of strings — system state required BEFORE the test.
+postconditions    List of strings — verifiable system state AFTER the test.
+gherkin_scenario  Full Gherkin BDD block — MANDATORY FORMAT:
+  • Each keyword (Scenario, Given, When, Then, And, But) on its OWN line
+  • Two-space indent before each step keyword
+  • Use concrete values from test_data — NEVER placeholders like <email>
+  • Use single quotes ' for values, NEVER double quotes inside the Gherkin text
+  CORRECT EXAMPLE:
+    Scenario: Reject login with empty email
+      Given the user is on the login page
+      When the user enters email '' and password 'SecurePass123!'
+      And the user clicks the 'Login' button
+      Then an error message 'Email is required' is displayed
+      And no session token is created
+  FORBIDDEN: writing the entire scenario on a single line.
+steps             Structured list mirroring the Gherkin scenario (order, action, expected).
+test_data         JSON object with concrete values. Double quotes for JSON, single for inner values.
+expected_results  List of final assertions — use single quotes ' for values.
+covered_ac_indices  0-based indices of ACs this TC covers (from the UNCOVERED ACs above).
+reasoning         One sentence explaining what this TC verifies.
+covered_risk_ids  List of risk IDs from the accepted risks section, or [].
+estimated_duration  Estimated execution time in minutes (integer). 1–3 steps → 2–5, 4–6 steps → 5–10, 7+ → 10–20.
+
+CRITICAL JSON FORMATTING: single quotes inside strings, double quotes only as JSON delimiters.
+Output ONLY the JSON object — no markdown, no extra text.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STRICT CONSTRAINTS:
+1. Every test case MUST have test_type = "{scenario_type}" — no exceptions.
+2. Each new test case must have a title distinct from all previously generated test cases.
+3. No two new test cases may test the same condition or use identical steps + data.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """

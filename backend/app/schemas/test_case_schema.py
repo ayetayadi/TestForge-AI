@@ -91,6 +91,12 @@ class TestCaseResponse(BaseModel):
     expected_results: List[str] = Field(default_factory=list)
     locators: Optional[List[Dict[str, Any]]] = None
     execution_order: Optional[int] = None
+    estimated_duration: Optional[int] = None
+    excluded_from_run: bool = False
+    # Couverture des critères d'acceptation (ISTQB §1.4 — traçabilité RTM)
+    covered_ac_indices: List[int] = Field(default_factory=list)
+    ac_coverage_reasoning: Optional[str] = None
+    active_playwright_script_id: Optional[str] = None
     excluded_from_run: bool = False
     # Couverture des critères d'acceptation (ISTQB §1.4 — traçabilité RTM)
     covered_ac_indices: List[int] = Field(default_factory=list)
@@ -117,7 +123,7 @@ class TestCaseCreate(BaseModel):
     priority: Optional[str] = None
     user_story_id: Optional[str] = None
     test_plan_id: Optional[str] = None
-    test_suite_id: Optional[str] = None 
+    test_suite_id: Optional[str] = None
     preconditions: List[str] = Field(default_factory=list)
     postconditions: List[str] = Field(default_factory=list)
     steps: List[Dict[str, Any]] = Field(default_factory=list)
@@ -126,6 +132,7 @@ class TestCaseCreate(BaseModel):
     expected_results: List[str] = Field(default_factory=list)
     locators: Optional[List[Dict[str, Any]]] = None
     execution_order: Optional[int] = None
+    estimated_duration: Optional[int] = None
 
 
 class TestCaseUpdate(BaseModel):
@@ -134,9 +141,9 @@ class TestCaseUpdate(BaseModel):
     description: Optional[str] = None
     test_type: Optional[str] = None
     priority: Optional[str] = None
-    user_story_id: Optional[str] = None 
+    user_story_id: Optional[str] = None
     test_plan_id: Optional[str] = None
-    test_suite_id: Optional[str] = None 
+    test_suite_id: Optional[str] = None
     preconditions: Optional[List[str]] = None
     postconditions: Optional[List[str]] = None
     steps: Optional[List[Dict[str, Any]]] = None
@@ -145,6 +152,8 @@ class TestCaseUpdate(BaseModel):
     expected_results: Optional[List[str]] = None
     locators: Optional[List[Dict[str, Any]]] = None
     execution_order: Optional[int] = None
+    estimated_duration: Optional[int] = None
+    excluded_from_run: Optional[bool] = None
     excluded_from_run: Optional[bool] = None
     is_active: Optional[bool] = None
 
@@ -228,9 +237,10 @@ class GeneratedTestCaseResponse(BaseModel):
     steps: List[Dict[str, Any]] = Field(default_factory=list)
     test_data: Dict[str, Any] = Field(default_factory=dict)
     expected_results: List[str] = Field(default_factory=list)
-    test_plan_id: Optional[str] = None        
-    test_suite_id: Optional[str] = None     
+    test_plan_id: Optional[str] = None
+    test_suite_id: Optional[str] = None
     execution_order: Optional[int] = None
+    estimated_duration: Optional[int] = None
     is_active: bool = True
     created_at: Optional[str] = None
 

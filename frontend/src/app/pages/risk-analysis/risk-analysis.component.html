@@ -114,7 +114,7 @@
         </div>
       </div>
 
-      <!-- Limit (appears after project selected) -->
+      <!-- Limit (appears after project selected)
       <div class="setup-field setup-field--limit" *ngIf="selectedProjectId()">
         <label class="setup-label">Stories limit</label>
         <div class="setup-select-wrap">
@@ -132,18 +132,20 @@
             <option value="all">All stories</option>
           </select>
         </div>
-      </div>
+      </div> -->
 
-      <!-- Force reanalyze checkbox -->
-      <div class="setup-field setup-field--check" *ngIf="selectedProjectId()">
-        <label class="setup-label">&nbsp;</label>
-        <label class="check-wrap">
-          <input type="checkbox"
-            [ngModel]="analysisFilters().force_reanalyze"
-            (ngModelChange)="updateFilter('force_reanalyze', $event)">
-          <span class="check-text">Force reanalyze</span>
-        </label>
-      </div>
+      <!-- Force reanalyze checkbox — only when at least one story in the selection has changed since its last analysis -->
+<div class="setup-field setup-field--check"
+  *ngIf="selectedProjectId() && hasEligibleForReanalysis"
+  title="Some stories have been modified in Jira or have a new approved version since their last analysis">
+  <label class="setup-label">&nbsp;</label>
+  <label class="check-wrap">
+    <input type="checkbox"
+      [ngModel]="analysisFilters().force_reanalyze"
+      (ngModelChange)="updateFilter('force_reanalyze', $event)">
+    <span class="check-text">Force reanalyze</span>
+  </label>
+</div>
 
       <!-- RUN CTA — always last -->
       <div class="setup-field setup-field--cta">
@@ -422,7 +424,14 @@
         (keydown.enter)="openRisk(risk)">
 
         <div class="card-top">
-          <span class="level-badge badge-{{ risk.level }}">{{ risk.level | uppercase }}</span>
+          <div class="card-top-left">
+            <span class="level-badge badge-{{ risk.level }}">{{ risk.level | uppercase }}</span>
+            <span class="reanalysis-badge"
+              *ngIf="(reanalysisCountMap().get(risk.user_story_id) ?? 0) > 1"
+              title="This story has been re-analyzed {{ reanalysisCountMap().get(risk.user_story_id) }} times">
+              Re-analyzed ×{{ reanalysisCountMap().get(risk.user_story_id) }}
+            </span>
+          </div>
           <div class="card-top-right">
             <span class="score-big score-{{ risk.level }}">{{ formatScore(risk.risk_score) }}</span>
             <span class="ai-icon" *ngIf="risk.is_ai_generated" title="AI generated">🤖</span>

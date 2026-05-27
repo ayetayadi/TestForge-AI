@@ -1020,6 +1020,24 @@ $low-bd:      #a7f3d0;
   justify-content: space-between;
 }
 
+.card-top-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.reanalysis-badge {
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
 .card-top-right {
   display: flex;
   align-items: center;

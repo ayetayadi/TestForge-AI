@@ -23,6 +23,7 @@ MODEL_PATH     = "app/ai_workflows/risk_analysis/ml/results/risk_nb_embed.txt"
 MODEL_PATH_GNB = "app/ai_workflows/risk_analysis/ml/results/risk_gnb_embed.txt"
 MODEL_PATH_GBM = "app/ai_workflows/risk_analysis/ml/results/risk_gbm_embed.txt"
 MODEL_PATH_KNN = "app/ai_workflows/risk_analysis/ml/results/risk_knn_embed.txt"
+MODEL_PATH_DT  = "app/ai_workflows/risk_analysis/ml/results/risk_dt_embed.txt"
 
 # Singleton : l'encodeur est chargé une seule fois par processus
 _encoder = None
@@ -295,4 +296,64 @@ class KNNEmbedModel:
         self.model_I = data["model_I"]
         self.is_trained = True
         logger.info(f"Modèle KNN chargé : {path}")
+        return True
+
+
+# ── Decision Tree ──────────────────────────────────────────────────────────────
+
+
+class DecisionTreeEmbedModel:
+    """
+    DecisionTreeClassifier entraîné sur des embeddings SentenceTransformer.
+    max_depth, min_samples_split, min_samples_leaf et criterion tunés via GridSearchCV.
+    Prédit P (1-5) et I (1-5) indépendamment.
+    """
+
+    def __init__(self, embed_model_name: str = EMBED_MODEL_NAME):
+        self.embed_model_name = embed_model_name
+        self.model_P = None
+        self.model_I = None
+        self.is_trained = False
+
+    def encode(self, texts: list) -> np.ndarray:
+        return _encode(texts, self.embed_model_name)
+
+    def predict(self, text: str) -> MLPrediction:
+        X = self.encode([text])
+
+        p_class = int(self.model_P.predict(X)[0])
+        p_proba = float(np.max(self.model_P.predict_proba(X)[0]))
+
+        i_class = int(self.model_I.predict(X)[0])
+        i_proba = float(np.max(self.model_I.predict_proba(X)[0]))
+
+        confidence = round((p_proba + i_proba) / 2, 3)
+        source = "dt_embed" if confidence >= ML_CONFIDENCE_THRESHOLD else "dt_embed_low_conf"
+
+        return MLPrediction(
+            probability=p_class,
+            impact=i_class,
+            confidence=confidence,
+            source=source,
+        )
+
+    def save(self, path: str = MODEL_PATH_DT):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        joblib.dump({
+            "embed_model_name": self.embed_model_name,
+            "model_P": self.model_P,
+            "model_I": self.model_I,
+        }, path)
+        logger.info(f"Modèle DT sauvegardé : {path}")
+
+    def load(self, path: str = MODEL_PATH_DT) -> bool:
+        if not os.path.exists(path):
+            logger.warning(f"Modèle DT introuvable : {path}")
+            return False
+        data = joblib.load(path)
+        self.embed_model_name = data["embed_model_name"]
+        self.model_P = data["model_P"]
+        self.model_I = data["model_I"]
+        self.is_trained = True
+        logger.info(f"Modèle DT chargé : {path}")
         return True

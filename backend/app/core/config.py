@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     # =========================
     # EMBEDDINGS
     # =========================
-    EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_MODEL: str = "paraphrase-multilingual-MiniLM-L12-v2"
     EMBEDDING_DIM: int = 384
 
     # =========================

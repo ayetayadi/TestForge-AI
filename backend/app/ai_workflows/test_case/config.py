@@ -8,7 +8,7 @@ load_dotenv()
 # ============================================================
 LLM_TEMPERATURE = 0.4
 LLM_MODEL = "llama-3.3-70b-versatile"
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS_TEST_CASE", "6000"))
+LLM_MAX_TOKENS = 3500
 LLM_TIMEOUT_SECONDS = 240      # Gherkin + steps + test_data = verbose
 
 # ============================================================
@@ -26,7 +26,7 @@ AC_TO_TC_RATIO = 2.5
 # CORRECTION LOOP
 # Max iterations when coverage < 80%
 # ============================================================
-MAX_CORRECTION_ITERATIONS = 2
+MAX_CORRECTION_ITERATIONS = 1
 
 # ============================================================
 # GHERKIN VALIDATION

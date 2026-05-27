@@ -168,8 +168,14 @@ async def analyze_project_risks(
 
     # Handle reanalysis logic
     already_analyzed = 0
+    not_eligible = 0
+
+    from app.repositories.risk_repository import RiskRepository
+    from app.repositories.user_story_version_repository import get_approved_version_for_risk
+
+    risk_repo = RiskRepository(db)
+
     if not request.force_reanalyze:
-        risk_repo = RiskRepository(db)
         stories_to_analyze = []
         for story in stories:
             existing = await risk_repo.get_by_user_story(story.id)
@@ -181,15 +187,43 @@ async def analyze_project_risks(
         if not stories_to_analyze:
             return {
                 "submitted": 0,
-                "message": "All matching stories already analyzed. Use force_reanalyze=true.",
+                "message": "All matching stories already analyzed. Use force_reanalyze=true to re-analyze modified stories.",
                 "already_analyzed": already_analyzed,
             }
-        # Apply limit after filtering so we don't skip unanalyzed stories
         if request.limit:
             stories_to_analyze = stories_to_analyze[:request.limit]
         stories = stories_to_analyze
-    elif request.limit:
-        stories = list(stories)[:request.limit]
+    else:
+        # force_reanalyze: only allow stories modified since their last analysis
+        stories_to_analyze = []
+        for story in stories:
+            existing = await risk_repo.get_by_user_story(story.id)
+            if not existing:
+                # Never analyzed → always include
+                stories_to_analyze.append(story)
+                continue
+            last_risk = max(existing, key=lambda r: r.created_at)
+            # Condition A: story re-synced from Jira after last analysis
+            jira_ts = story.jira_updated_at or story.updated_at
+            cond_a = jira_ts is not None and jira_ts > last_risk.created_at
+            # Condition B: new approved refinement version after last analysis
+            approved = await get_approved_version_for_risk(db, story.id)
+            cond_b = approved is not None and approved.started_at > last_risk.created_at
+            if cond_a or cond_b:
+                stories_to_analyze.append(story)
+            else:
+                not_eligible += 1
+
+        if not stories_to_analyze:
+            return {
+                "submitted": 0,
+                "message": "No eligible stories for re-analysis. Stories must be modified in Jira or have a new approved refinement version since their last analysis.",
+                "already_analyzed": already_analyzed,
+                "not_eligible": not_eligible,
+            }
+        if request.limit:
+            stories_to_analyze = stories_to_analyze[:request.limit]
+        stories = stories_to_analyze
     
     # Submit jobs to worker
     job_ids = []
