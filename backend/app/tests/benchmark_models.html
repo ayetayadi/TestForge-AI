@@ -1,372 +1,1010 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Benchmark des Modèles Groq de User Story Refinement</title>
-    <style>
-        :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-            --primary-light: #eef2ff;
-            --success: #10b981;
-            --success-light: #d1fae5;
-            --warning: #f59e0b;
-            --warning-light: #fef3c7;
-            --danger: #ef4444;
-            --gray-50: #f9fafb;
-            --gray-100: #f3f4f6;
-            --gray-200: #e5e7eb;
-            --gray-300: #d1d5db;
-            --gray-500: #6b7280;
-            --gray-700: #374151;
-            --gray-900: #111827;
-            --radius: 8px;
-            --transition: 0.2s ease;
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--primary-light);
-            line-height: 1.5;
-            min-height: 100vh;
-        }
-        
-        .page-content {
-            max-width: 1500px;
-            margin: 0 auto;
-            padding: 32px 40px 48px;
-        }
-        
-        @media (max-width: 768px) {
-            .page-content { padding: 20px 20px 32px; }
-        }
-        
-        .page-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: white;
-            border-bottom: 1px solid var(--gray-200);
-            padding: 20px 40px;
-            margin-bottom: 32px;
-        }
-        
-        @media (max-width: 768px) {
-            .page-header { padding: 16px 20px; flex-wrap: wrap; gap: 12px; }
-        }
-        
-        .header-text h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--gray-900);
-            margin: 0 0 4px;
-        }
-        
-        .header-text p {
-            font-size: 0.85rem;
-            color: var(--gray-500);
-            margin: 0;
-        }
-        
-        .legend {
-            background: var(--primary-light);
-            border-left: 4px solid var(--primary);
-            padding: 16px 20px;
-            margin: 0 0 28px;
-            border-radius: var(--radius);
-            font-size: 0.85rem;
-            color: var(--gray-700);
-            line-height: 1.6;
-        }
-        
-        .legend strong {
-            color: var(--primary-dark);
-        }
-        
-        h2 {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: var(--gray-700);
-            margin: 32px 0 16px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid var(--gray-200);
-        }
-        
-        .table-wrapper {
-            overflow-x: auto;
-            margin-bottom: 32px;
-            border-radius: var(--radius);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            background: white;
-        }
-        
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            min-width: 1200px;
-        }
-        
-        th {
-            background: var(--primary-dark);
-            color: white;
-            padding: 14px 10px;
-            text-align: left;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            white-space: nowrap;
-            position: sticky;
-            top: 0;
-        }
-        
-        td {
-            padding: 12px 10px;
-            border-bottom: 1px solid var(--gray-100);
-            font-size: 13px;
-            color: var(--gray-700);
-        }
-        
-        tr:hover td {
-            background: #f8fafc !important;
-        }
-        
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
-        
-        .badge-production {
-            background: var(--success-light);
-            color: #059669;
-        }
-        
-        .badge-preview {
-            background: var(--warning-light);
-            color: #d97706;
-        }
-        
-        .footer {
-            margin-top: 40px;
-            padding: 16px;
-            background: white;
-            text-align: center;
-            font-size: 12px;
-            color: var(--gray-500);
-            border-radius: var(--radius);
-            border: 1px solid var(--gray-200);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Groq Models — Benchmark Report</title>
+  <style>
+    :root {
+      --primary:       #6366f1;
+      --primary-dark:  #4f46e5;
+      --primary-light: #818cf8;
+      --primary-faint: #eef2ff;
+      --primary-mid:   #c7d2fe;
+      --surface:       #ffffff;
+      --surface-alt:   #f8fafc;
+      --border:        #e2e8f0;
+      --text-main:     #0f172a;
+      --text-muted:    #64748b;
+      --text-xs:       #94a3b8;
+      --success:       #10b981;
+      --success-bg:    #ecfdf5;
+      --success-brd:   #a7f3d0;
+      --warn:          #f59e0b;
+      --warn-bg:       #fffbeb;
+      --warn-brd:      #fde68a;
+      --danger:        #ef4444;
+      --danger-bg:     #fef2f2;
+      --danger-brd:    #fecaca;
+      --info:          #0ea5e9;
+      --info-bg:       #f0f9ff;
+      --info-brd:      #bae6fd;
+      --purple-bg:     #f5f3ff;
+      --purple-brd:    #ddd6fe;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: #f1f5f9;
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 60%, var(--primary-light) 100%);
+      padding: 22px 36px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 20px rgba(79,70,229,0.28);
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .header-icon {
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .header-title { color: #fff; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.3px; }
+    .header-subtitle { color: rgba(255,255,255,0.75); font-size: 0.72rem; margin-top: 2px; }
+    .header-meta {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    }
+    .meta-pill {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.68rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    /* ── CONTENT WRAPPER ────────────────────────────────────── */
+    .content { max-width: 1380px; margin: 0 auto; padding: 24px 28px 36px; }
+
+    /* ── KPI CARDS ──────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kpi-label {
+      font-size: 0.63rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .kpi-value {
+      font-size: 1.55rem;
+      font-weight: 800;
+      color: var(--primary-dark);
+      line-height: 1;
+    }
+    .kpi-sub {
+      font-size: 0.63rem;
+      color: var(--text-xs);
+    }
+    .kpi-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 4px;
+    }
+
+    /* ── SECTION ────────────────────────────────────────────── */
+    .section { margin-bottom: 22px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .section-icon {
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .section-count {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 10px;
+      margin-left: auto;
+    }
+
+    /* ── TABLE CARD ─────────────────────────────────────────── */
+    .table-card {
+      background: var(--surface);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+    .table-wrapper { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.72rem;
+    }
+    thead tr {
+      background: var(--primary-dark);
+    }
+    th {
+      padding: 9px 10px;
+      font-size: 0.63rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(255,255,255,0.92);
+      text-align: center;
+      white-space: nowrap;
+      border-right: 1px solid rgba(255,255,255,0.08);
+    }
+    th:last-child { border-right: none; }
+    th.col-left { text-align: left; }
+
+    tbody tr { border-bottom: 1px solid #f1f5f9; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--primary-faint); }
+
+    td {
+      padding: 8px 10px;
+      color: var(--text-main);
+      text-align: center;
+      vertical-align: middle;
+      font-size: 0.72rem;
+    }
+    td.col-left { text-align: left; }
+
+    .model-id {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      white-space: nowrap;
+    }
+
+    /* ── BADGES ─────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      border-radius: 6px;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .badge-active   { background: var(--success-bg); color: #065f46; border: 1px solid var(--success-brd); }
+    .badge-system   { background: var(--purple-bg);  color: #5b21b6; border: 1px solid var(--purple-brd); }
+    .badge-guard    { background: var(--danger-bg);  color: #991b1b; border: 1px solid var(--danger-brd); }
+    .badge-audio    { background: var(--info-bg);    color: #0c4a6e; border: 1px solid var(--info-brd); }
+    .badge-chat     { background: var(--warn-bg);    color: #92400e; border: 1px solid var(--warn-brd); }
+
+    .badge-yes  { background: var(--success-bg); color: #065f46; border: 1px solid var(--success-brd); padding: 2px 8px; }
+    .badge-no   { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; padding: 2px 8px; }
+
+    /* ── PROVIDER TAG ───────────────────────────────────────── */
+    .provider-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .provider-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── CONTEXT BAR ────────────────────────────────────────── */
+    .ctx-wrap { display: flex; align-items: center; gap: 6px; justify-content: center; }
+    .ctx-bar-outer {
+      width: 64px; height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .ctx-bar-inner {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    }
+    .ctx-val { font-size: 0.65rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+
+    /* ── PRICE CHIP ─────────────────────────────────────────── */
+    .price { font-size: 0.7rem; font-weight: 600; color: var(--text-main); font-family: monospace; }
+    .price-na { color: var(--text-xs); }
+
+    /* ── TOKENS/S BAR ───────────────────────────────────────── */
+    .speed-wrap { display: flex; align-items: center; gap: 5px; justify-content: center; }
+    .speed-bar-outer {
+      width: 50px; height: 5px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .speed-bar-inner {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #10b981, #34d399);
+    }
+    .speed-val { font-size: 0.66rem; font-weight: 700; color: var(--text-main); }
+
+    /* ── DIVIDER ROW ────────────────────────────────────────── */
+    .divider-row td {
+      background: var(--surface-alt);
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-xs);
+      padding: 5px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+
+    /* ── INSIGHT BANNER ─────────────────────────────────────── */
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .insight-card {
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .insight-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .insight-text .insight-title { font-size: 0.75rem; font-weight: 700; color: var(--text-main); }
+    .insight-text .insight-body  { font-size: 0.67rem; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+    .insight-text .insight-model {
+      font-family: monospace;
+      font-size: 0.64rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      background: var(--primary-faint);
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+      display: inline-block;
+    }
+
+    /* ── FOOTER ─────────────────────────────────────────────── */
+    .footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.62rem;
+      color: var(--text-xs);
+      padding: 10px 24px;
+    }
+    .footer strong { color: var(--text-muted); }
+
+    /* ── PROVIDER COLORS ────────────────────────────────────── */
+    .dot-meta      { background: #3b82f6; }
+    .dot-openai    { background: #10b981; }
+    .dot-alibaba   { background: #f59e0b; }
+    .dot-groq      { background: #8b5cf6; }
+    .dot-sdaia     { background: #ef4444; }
+    .dot-canopy    { background: #06b6d4; }
+
+    /* ── RESPONSIVE ─────────────────────────────────────────── */
+    @media (max-width: 1100px) {
+      .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+      .insight-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .header { flex-direction: column; align-items: flex-start; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .insight-grid { grid-template-columns: 1fr; }
+      .content { padding: 16px; }
+    }
+  </style>
 </head>
 <body>
 
-<div class="page-header">
-    <div class="header-text">
-        <h1>Benchmark des Modèles Groq</h1>
-        <p>Analyse comparative pour le raffinement de User Stories de TestForge AI</p>
+<!-- ═══════════════════════════════ HEADER ═════════════════════════════════ -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-icon">⚡</div>
+    <div>
+      <div class="header-title">Groq Models — Benchmark Report</div>
+      <div class="header-subtitle">Analyse comparative complète · Architecture, capacités, contexte, tarification · 16 modèles actifs</div>
     </div>
+  </div>
+  <div class="header-meta">
+    <span class="meta-pill">Source: Groq Cloud API</span>
+    <span class="meta-pill">Mis à jour: 27 mai 2026</span>
+    <span class="meta-pill">16 modèles actifs</span>
+    <span class="meta-pill">6 fournisseurs</span>
+  </div>
 </div>
 
-<div class="page-content">
+<!-- ═══════════════════════════════ CONTENT ════════════════════════════════ -->
+<div class="content">
 
-    <div class="legend">
-        <strong>Source :</strong> Groq API + Docs + Model Cards<br>
-        <strong>Total modèles disponibles :</strong> 16<br>
-        <strong>Modèles de texte analyses :</strong> 7<br>
-        <strong>Critères de sélection :</strong> Architecture, vitesse, prix, tool use, raisonnement, benchmarks (IFEval, MMLU)
+  <!-- ── KPI CARDS ──────────────────────────────────────────────────────── -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Total modèles</div>
+      <div class="kpi-value">16</div>
+      <div class="kpi-sub">Tous actifs sur Groq Cloud</div>
     </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Modèles LLM</div>
+      <div class="kpi-value" style="color:#6366f1">7</div>
+      <div class="kpi-sub"><span class="kpi-dot" style="background:#6366f1"></span>Génération de texte</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Modèles Audio</div>
+      <div class="kpi-value" style="color:#0ea5e9">4</div>
+      <div class="kpi-sub"><span class="kpi-dot" style="background:#0ea5e9"></span>STT + TTS</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Modèles Guard</div>
+      <div class="kpi-value" style="color:#ef4444">3</div>
+      <div class="kpi-sub"><span class="kpi-dot" style="background:#ef4444"></span>Sécurité / Safety</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Systèmes Groq</div>
+      <div class="kpi-value" style="color:#8b5cf6">2</div>
+      <div class="kpi-sub"><span class="kpi-dot" style="background:#8b5cf6"></span>Compound AI</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Contexte max</div>
+      <div class="kpi-value" style="color:#10b981">128K</div>
+      <div class="kpi-sub">Tokens — 9 modèles LLM</div>
+    </div>
+  </div>
 
-    <h2>Modèles Recommandés pour le Benchmark</h2>
+  <!-- ── INSIGHTS ────────────────────────────────────────────────────────── -->
+  <div class="insight-grid">
+    <div class="insight-card">
+      <div class="insight-icon" style="background:#eef2ff">🚀</div>
+      <div class="insight-text">
+        <div class="insight-title">Meilleure vitesse estimée</div>
+        <div class="insight-body">Le plus rapide parmi les LLM grâce à son architecture MoE légère — idéal pour les pipelines haute cadence.</div>
+        <div class="insight-model">openai/gpt-oss-20b · ~1 000 t/s</div>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon" style="background:#ecfdf5">💰</div>
+      <div class="insight-text">
+        <div class="insight-title">Meilleur rapport qualité/prix</div>
+        <div class="insight-body">Ultra-rapide, contexte 128K complet, outil-use natif et prix parmi les plus bas du catalogue.</div>
+        <div class="insight-model">llama-3.1-8b-instant · $0.05 / 1M in</div>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon" style="background:#fef3c7">🏆</div>
+      <div class="insight-text">
+        <div class="insight-title">Recommandé production</div>
+        <div class="insight-body">MMLU 86 %, IFEval 92.1 %, tool-use stable, contexte 128K — le meilleur équilibre global pour les tâches complexes.</div>
+        <div class="insight-model">llama-3.3-70b-versatile · $0.59 / 1M in</div>
+      </div>
+    </div>
+  </div>
 
-    <div class="table-wrapper">
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TABLE 1 — LLM / CHAT MODELS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Modèles LLM &amp; Chat — Génération de texte</div>
+      <span class="section-count" style="background:#eef2ff; color:#4f46e5">7 modèles</span>
+    </div>
+    <div class="table-card">
+      <div class="table-wrapper">
         <table>
-            <thead>
-                <tr>
-                    <th>Modèle</th>
-                    <th>Provider</th>
-                    <th>Architecture</th>
-                    <th>Type</th>
-                    <th>Params</th>
-                    <th>Contexte (in / out)</th>
-                    <th>Vitesse</th>
-                    <th>Prix IN ($/1M)</th>
-                    <th>Prix OUT ($/1M)</th>
-                    <th>Tool Use</th>
-                    <th>Raisonnement</th>
-                    <th>JSON</th>
-                    <th>IFEval</th>
-                    <th>MMLU</th>
-                    <th>Catégorie</th>
-                </tr>
-            </thead>
-            <tbody>
-                
-    <tr style="background: #e8f5e9;">
-        <td style="font-weight: 600; color: #1e40af;">qwen/qwen3-32b</td>
-        <td>Alibaba Cloud</td>
-        <td style="font-size: 12px;">Dense</td>
-        <td style="font-size: 12px;">Chat + Raisonnement</td>
-        <td style="text-align: center;">32B</td>
-        <td style="text-align: center;">128K / 40K</td>
-        <td style="text-align: center;">400 t/s</td>
-        <td style="text-align: center;">$0.29</td>
-        <td style="text-align: center;">$0.59</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;"><span class="badge badge-preview">Preview</span></td>
-    </tr>
-    <tr style="background: #e8f5e9;">
-        <td style="font-weight: 600; color: #1e40af;">llama-3.3-70b-versatile</td>
-        <td>Meta</td>
-        <td style="font-size: 12px;">Dense (Transformer optimisé, GQA)</td>
-        <td style="font-size: 12px;">Chat</td>
-        <td style="text-align: center;">70B</td>
-        <td style="text-align: center;">128K / 32K</td>
-        <td style="text-align: center;">280 t/s</td>
-        <td style="text-align: center;">$0.59</td>
-        <td style="text-align: center;">$0.79</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">No</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">92.1</td>
-        <td style="text-align: center;">86.0</td>
-        <td style="text-align: center;"><span class="badge badge-production">Production</span></td>
-    </tr>
-    <tr style="background: #e8f5e9;">
-        <td style="font-weight: 600; color: #1e40af;">openai/gpt-oss-120b</td>
-        <td>OpenAI</td>
-        <td style="font-size: 12px;">MoE (120B total, ~18B actifs, Top-4 routing)</td>
-        <td style="font-size: 12px;">Chat + Raisonnement</td>
-        <td style="text-align: center;">120B</td>
-        <td style="text-align: center;">128K / 64K</td>
-        <td style="text-align: center;">500 t/s</td>
-        <td style="text-align: center;">$0.15</td>
-        <td style="text-align: center;">$0.6</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">85.3</td>
-        <td style="text-align: center;"><span class="badge badge-production">Production</span></td>
-    </tr>
-    <tr style="background: #e8f5e9;">
-        <td style="font-weight: 600; color: #1e40af;">llama-3.1-8b-instant</td>
-        <td>Meta</td>
-        <td style="font-size: 12px;">Dense (Transformer, GQA)</td>
-        <td style="font-size: 12px;">Chat</td>
-        <td style="text-align: center;">8B</td>
-        <td style="text-align: center;">128K / 128K</td>
-        <td style="text-align: center;">560 t/s</td>
-        <td style="text-align: center;">$0.05</td>
-        <td style="text-align: center;">$0.08</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">No</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">80.4</td>
-        <td style="text-align: center;">73.0</td>
-        <td style="text-align: center;"><span class="badge badge-production">Production</span></td>
-    </tr>
-
-            </tbody>
+          <thead>
+            <tr>
+              <th class="col-left" style="min-width:210px">Modèle</th>
+              <th>Fournisseur</th>
+              <th>Params</th>
+              <th>Ctx In</th>
+              <th>Ctx Out</th>
+              <th>Vitesse</th>
+              <th>Prix IN / 1M</th>
+              <th>Prix OUT / 1M</th>
+              <th>Tool Use</th>
+              <th>JSON Mode</th>
+              <th>Raisonnement</th>
+              <th>MMLU</th>
+              <th>IFEval</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- LLaMA 3.3 70B -->
+            <tr>
+              <td class="col-left"><span class="model-id">llama-3.3-70b-versatile</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-meta"></span>Meta</span></td>
+              <td><b>70B</b></td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">32K</span></td>
+              <td>
+                <div class="speed-wrap">
+                  <div class="speed-bar-outer"><div class="speed-bar-inner" style="width:28%"></div></div>
+                  <span class="speed-val">~280</span>
+                </div>
+              </td>
+              <td><span class="price">$0.59</span></td>
+              <td><span class="price">$0.79</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-no">Non</span></td>
+              <td><b>86.0</b></td>
+              <td><b>92.1</b></td>
+              <td><span class="badge badge-active">● LLM</span></td>
+            </tr>
+            <!-- LLaMA 3.1 8B -->
+            <tr>
+              <td class="col-left"><span class="model-id">llama-3.1-8b-instant</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-meta"></span>Meta</span></td>
+              <td><b>8B</b></td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">128K</span></td>
+              <td>
+                <div class="speed-wrap">
+                  <div class="speed-bar-outer"><div class="speed-bar-inner" style="width:56%"></div></div>
+                  <span class="speed-val">~560</span>
+                </div>
+              </td>
+              <td><span class="price">$0.05</span></td>
+              <td><span class="price">$0.08</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-no">Non</span></td>
+              <td>73.0</td>
+              <td>80.4</td>
+              <td><span class="badge badge-active">● LLM</span></td>
+            </tr>
+            <!-- LLaMA 4 Scout -->
+            <tr>
+              <td class="col-left"><span class="model-id">llama-4-scout-17b-16e-instruct</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-meta"></span>Meta</span></td>
+              <td><b>17B</b> <span style="font-size:0.6rem;color:#64748b">(MoE 16e)</span></td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">8K</span></td>
+              <td>
+                <div class="speed-wrap">
+                  <div class="speed-bar-outer"><div class="speed-bar-inner" style="width:75%"></div></div>
+                  <span class="speed-val">~750</span>
+                </div>
+              </td>
+              <td><span class="price">$0.11</span></td>
+              <td><span class="price">$0.34</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-no">Non</span></td>
+              <td>—</td>
+              <td>—</td>
+              <td><span class="badge badge-chat">★ Chat</span></td>
+            </tr>
+            <!-- Qwen3 32B -->
+            <tr>
+              <td class="col-left"><span class="model-id">qwen/qwen3-32b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-alibaba"></span>Alibaba Cloud</span></td>
+              <td><b>32B</b></td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">40K</span></td>
+              <td>
+                <div class="speed-wrap">
+                  <div class="speed-bar-outer"><div class="speed-bar-inner" style="width:40%"></div></div>
+                  <span class="speed-val">~400</span>
+                </div>
+              </td>
+              <td><span class="price">$0.29</span></td>
+              <td><span class="price">$0.59</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td>—</td>
+              <td>—</td>
+              <td><span class="badge badge-active">● LLM</span></td>
+            </tr>
+            <!-- GPT-OSS 120B -->
+            <tr>
+              <td class="col-left"><span class="model-id">openai/gpt-oss-120b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-openai"></span>OpenAI</span></td>
+              <td><b>120B</b> <span style="font-size:0.6rem;color:#64748b">(MoE)</span></td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">64K</span></td>
+              <td>
+                <div class="speed-wrap">
+                  <div class="speed-bar-outer"><div class="speed-bar-inner" style="width:50%"></div></div>
+                  <span class="speed-val">~500</span>
+                </div>
+              </td>
+              <td><span class="price">$0.15</span></td>
+              <td><span class="price">$0.60</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td>85.3</td>
+              <td>—</td>
+              <td><span class="badge badge-active">● LLM</span></td>
+            </tr>
+            <!-- GPT-OSS 20B -->
+            <tr>
+              <td class="col-left"><span class="model-id">openai/gpt-oss-20b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-openai"></span>OpenAI</span></td>
+              <td><b>20B</b> <span style="font-size:0.6rem;color:#64748b">(MoE)</span></td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">64K</span></td>
+              <td>
+                <div class="speed-wrap">
+                  <div class="speed-bar-outer"><div class="speed-bar-inner" style="width:100%"></div></div>
+                  <span class="speed-val">~1 000</span>
+                </div>
+              </td>
+              <td><span class="price">$0.075</span></td>
+              <td><span class="price">$0.30</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td>85.3</td>
+              <td>—</td>
+              <td><span class="badge badge-active">● LLM</span></td>
+            </tr>
+            <!-- Allam 2 7B -->
+            <tr>
+              <td class="col-left"><span class="model-id">allam-2-7b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-sdaia"></span>SDAIA</span></td>
+              <td><b>7B</b></td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:3%"></div></div>
+                  <span class="ctx-val">4K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">4K</span></td>
+              <td>
+                <div class="speed-wrap">
+                  <div class="speed-bar-outer"><div class="speed-bar-inner" style="width:0%"></div></div>
+                  <span class="speed-val price-na">—</span>
+                </div>
+              </td>
+              <td><span class="price-na">—</span></td>
+              <td><span class="price-na">—</span></td>
+              <td><span class="badge badge-no">Non</span></td>
+              <td><span class="badge badge-no">Non</span></td>
+              <td><span class="badge badge-no">Non</span></td>
+              <td>—</td>
+              <td>—</td>
+              <td><span class="badge badge-active">● LLM</span></td>
+            </tr>
+          </tbody>
         </table>
+      </div>
     </div>
+  </div>
 
-    <h2>Autres Modèles Disponibles</h2>
-
-    <div class="table-wrapper">
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TABLE 2 — COMPOUND / SYSTEM MODELS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:#f5f3ff">🔮</div>
+      <div class="section-title">Systèmes Groq Compound — Agents multi-modèles</div>
+      <span class="section-count" style="background:#f5f3ff; color:#7c3aed">2 modèles</span>
+    </div>
+    <div class="table-card">
+      <div class="table-wrapper">
         <table>
-            <thead>
-                <tr>
-                    <th>Modele</th>
-                    <th>Provider</th>
-                    <th>Architecture</th>
-                    <th>Type</th>
-                    <th>Params</th>
-                    <th>Contexte (in / out)</th>
-                    <th>Vitesse</th>
-                    <th>Prix IN ($/1M)</th>
-                    <th>Prix OUT ($/1M)</th>
-                    <th>Tool Use</th>
-                    <th>Raisonnement</th>
-                    <th>JSON</th>
-                    <th>IFEval</th>
-                    <th>MMLU</th>
-                    <th>Categorie</th>
-                </tr>
-            </thead>
-            <tbody>
-     <tr style="background: #e8f5e9;">
-        <td style="font-weight: 600; color: #1e40af;">openai/gpt-oss-20b</td>
-        <td>OpenAI</td>
-        <td style="font-size: 12px;">MoE (20B total, 3.6B actifs, Top-4 routing, 24 layers, 32 experts)</td>
-        <td style="font-size: 12px;">Chat + Raisonnement</td>
-        <td style="text-align: center;">20B</td>
-        <td style="text-align: center;">128K / 64K</td>
-        <td style="text-align: center;">1000 t/s</td>
-        <td style="text-align: center;">$0.075</td>
-        <td style="text-align: center;">$0.3</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">85.3</td>
-        <td style="text-align: center;"><span class="badge badge-production">Production</span></td>
-    </tr>           
-    <tr style="background: #ffffff;">
-        <td style="font-weight: 600; color: #1e40af;">allam-2-7b</td>
-        <td>SDAIA</td>
-        <td style="font-size: 12px;">Dense</td>
-        <td style="font-size: 12px;">Chat</td>
-        <td style="text-align: center;">7B</td>
-        <td style="text-align: center;">4K / 4K</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">No</td>
-        <td style="text-align: center;">No</td>
-        <td style="text-align: center;">No</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;"></td>
-    </tr>
-    <tr style="background: #ffffff;">
-        <td style="font-weight: 600; color: #1e40af;">meta-llama/llama-4-scout-17b-16e-instruct</td>
-        <td>Meta</td>
-        <td style="font-size: 12px;">MoE (16 Experts, 17B actifs / 288B totaux)</td>
-        <td style="font-size: 12px;">Chat</td>
-        <td style="text-align: center;">17B actifs / 288B totaux</td>
-        <td style="text-align: center;">128K / 8K</td>
-        <td style="text-align: center;">750 t/s</td>
-        <td style="text-align: center;">$0.11</td>
-        <td style="text-align: center;">$0.34</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">No</td>
-        <td style="text-align: center;">Yes</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;"><span class="badge badge-preview">Preview</span></td>
-    </tr>
-        
-            </tbody>
+          <thead>
+            <tr>
+              <th class="col-left" style="min-width:200px">Modèle</th>
+              <th>Fournisseur</th>
+              <th>Architecture</th>
+              <th>Ctx In</th>
+              <th>Ctx Out (max)</th>
+              <th>Cas d'usage</th>
+              <th>Tool Use</th>
+              <th>API publique</th>
+              <th>Tarification</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="col-left"><span class="model-id">groq/compound</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-groq"></span>Groq</span></td>
+              <td>Compound AI System</td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">8 192</span></td>
+              <td style="text-align:left">Orchestration d'agents, raisonnement complexe</td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-no">Interne</span></td>
+              <td><span class="price-na">Sur devis</span></td>
+              <td><span class="badge badge-system">◆ System</span></td>
+            </tr>
+            <tr>
+              <td class="col-left"><span class="model-id">groq/compound-mini</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-groq"></span>Groq</span></td>
+              <td>Compound AI System (lite)</td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K</span>
+                </div>
+              </td>
+              <td><span class="ctx-val">8 192</span></td>
+              <td style="text-align:left">Workflows légers, latence optimisée</td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td><span class="badge badge-no">Interne</span></td>
+              <td><span class="price-na">Sur devis</span></td>
+              <td><span class="badge badge-system">◆ System</span></td>
+            </tr>
+          </tbody>
         </table>
+      </div>
     </div>
+  </div>
 
-    <div class="footer">
-        Rapport généré automatiquement — TestForge AI — 2026
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TABLE 3 — GUARD / SAFETY MODELS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:#fef2f2">🛡️</div>
+      <div class="section-title">Modèles de Sécurité — Guard &amp; Safeguard</div>
+      <span class="section-count" style="background:#fef2f2; color:#dc2626">3 modèles</span>
     </div>
+    <div class="table-card">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-left" style="min-width:260px">Modèle</th>
+              <th>Fournisseur</th>
+              <th>Params</th>
+              <th>Ctx / Output</th>
+              <th>Rôle</th>
+              <th>Latence</th>
+              <th>Intégration</th>
+              <th>Tarification</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="col-left"><span class="model-id">meta-llama/llama-prompt-guard-2-86m</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-meta"></span>Meta</span></td>
+              <td><b>86M</b></td>
+              <td><span class="ctx-val">512 / 512</span></td>
+              <td style="text-align:left">Détection injection de prompt, jailbreak</td>
+              <td>Ultra-faible</td>
+              <td>Middleware / pre-check</td>
+              <td><span class="price-na">Gratuit</span></td>
+              <td><span class="badge badge-guard">⚠ Guard</span></td>
+            </tr>
+            <tr>
+              <td class="col-left"><span class="model-id">meta-llama/llama-prompt-guard-2-22m</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-meta"></span>Meta</span></td>
+              <td><b>22M</b></td>
+              <td><span class="ctx-val">512 / 512</span></td>
+              <td style="text-align:left">Classification rapide — variante légère</td>
+              <td>Minimal</td>
+              <td>Middleware / pre-check</td>
+              <td><span class="price-na">Gratuit</span></td>
+              <td><span class="badge badge-guard">⚠ Guard</span></td>
+            </tr>
+            <tr>
+              <td class="col-left"><span class="model-id">openai/gpt-oss-safeguard-20b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-openai"></span>OpenAI</span></td>
+              <td><b>20B</b></td>
+              <td>
+                <div class="ctx-wrap">
+                  <div class="ctx-bar-outer"><div class="ctx-bar-inner" style="width:100%"></div></div>
+                  <span class="ctx-val">128K / 64K</span>
+                </div>
+              </td>
+              <td style="text-align:left">Modération contenu, filtre sémantique avancé</td>
+              <td>Faible</td>
+              <td>Post-processing pipeline</td>
+              <td><span class="price-na">Sur devis</span></td>
+              <td><span class="badge badge-guard">⚠ Guard</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TABLE 4 — AUDIO MODELS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:#f0f9ff">🎙️</div>
+      <div class="section-title">Modèles Audio — Speech-to-Text &amp; Text-to-Speech</div>
+      <span class="section-count" style="background:#f0f9ff; color:#0284c7">4 modèles</span>
+    </div>
+    <div class="table-card">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-left" style="min-width:230px">Modèle</th>
+              <th>Fournisseur</th>
+              <th>Type</th>
+              <th>Langues</th>
+              <th>Ctx / Output</th>
+              <th>Prix</th>
+              <th>Traitement temps réel</th>
+              <th>Qualité</th>
+              <th>Badge</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Whisper v3 -->
+            <tr>
+              <td class="col-left"><span class="model-id">whisper-large-v3</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-openai"></span>OpenAI</span></td>
+              <td>STT (Transcription)</td>
+              <td>99 langues</td>
+              <td><span class="ctx-val">448 / 448</span></td>
+              <td><span class="price">$0.111 / h</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td>★★★★★</td>
+              <td><span class="badge badge-audio">🎙 Audio</span></td>
+            </tr>
+            <!-- Whisper v3 Turbo -->
+            <tr>
+              <td class="col-left"><span class="model-id">whisper-large-v3-turbo</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-openai"></span>OpenAI</span></td>
+              <td>STT (Transcription)</td>
+              <td>99 langues</td>
+              <td><span class="ctx-val">448 / 448</span></td>
+              <td><span class="price">$0.04 / h</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td>★★★★☆</td>
+              <td><span class="badge badge-audio">🎙 Audio</span></td>
+            </tr>
+            <!-- Orpheus English -->
+            <tr>
+              <td class="col-left"><span class="model-id">canopylabs/orpheus-v1-english</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-canopy"></span>Canopy Labs</span></td>
+              <td>TTS (Synthèse vocale)</td>
+              <td>Anglais</td>
+              <td><span class="ctx-val">4K / 50K</span></td>
+              <td><span class="price-na">Beta</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td>★★★★☆</td>
+              <td><span class="badge badge-audio">🎙 Audio</span></td>
+            </tr>
+            <!-- Orpheus Arabic -->
+            <tr>
+              <td class="col-left"><span class="model-id">canopylabs/orpheus-arabic-saudi</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-canopy"></span>Canopy Labs</span></td>
+              <td>TTS (Synthèse vocale)</td>
+              <td>Arabe (SA)</td>
+              <td><span class="ctx-val">4K / 50K</span></td>
+              <td><span class="price-na">Beta</span></td>
+              <td><span class="badge badge-yes">✓ Oui</span></td>
+              <td>★★★★☆</td>
+              <td><span class="badge badge-audio">🎙 Audio</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TABLE 5 — PRIX & COMPARAISON GLOBALE
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:#f0fdf4">📊</div>
+      <div class="section-title">Comparaison globale — LLM classés par rapport qualité/prix</div>
+      <span class="section-count" style="background:#f0fdf4; color:#16a34a">Synthèse</span>
+    </div>
+    <div class="table-card">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px">#</th>
+              <th class="col-left" style="min-width:210px">Modèle</th>
+              <th>Fournisseur</th>
+              <th>Params</th>
+              <th>Ctx In</th>
+              <th>Vitesse (t/s)</th>
+              <th>Coût IN+OUT / 1M</th>
+              <th>Tool Use</th>
+              <th>Raisonnement</th>
+              <th>MMLU</th>
+              <th>Recommandé pour</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background:#f0fdf4">
+              <td style="font-weight:800; color:#16a34a">1</td>
+              <td class="col-left"><span class="model-id">llama-3.1-8b-instant</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-meta"></span>Meta</span></td>
+              <td>8B</td>
+              <td>128K</td>
+              <td><b style="color:#10b981">~560</b></td>
+              <td><b style="color:#10b981">$0.13</b></td>
+              <td>✓</td><td>—</td><td>73.0</td>
+              <td style="text-align:left; font-size:0.67rem; color:#475569">Prototypage rapide, API à faible coût</td>
+            </tr>
+            <tr>
+              <td style="font-weight:800; color:#6366f1">2</td>
+              <td class="col-left"><span class="model-id">openai/gpt-oss-20b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-openai"></span>OpenAI</span></td>
+              <td>20B MoE</td>
+              <td>128K</td>
+              <td><b style="color:#10b981">~1 000</b></td>
+              <td>$0.375</td>
+              <td>✓</td><td>✓</td><td>85.3</td>
+              <td style="text-align:left; font-size:0.67rem; color:#475569">Vitesse maximale + raisonnement</td>
+            </tr>
+            <tr>
+              <td style="font-weight:800; color:#6366f1">3</td>
+              <td class="col-left"><span class="model-id">llama-4-scout-17b-16e-instruct</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-meta"></span>Meta</span></td>
+              <td>17B MoE</td>
+              <td>128K</td>
+              <td><b>~750</b></td>
+              <td>$0.45</td>
+              <td>✓</td><td>—</td><td>—</td>
+              <td style="text-align:left; font-size:0.67rem; color:#475569">Chat multimodal, MoE efficace</td>
+            </tr>
+            <tr>
+              <td style="font-weight:800; color:#6366f1">4</td>
+              <td class="col-left"><span class="model-id">openai/gpt-oss-120b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-openai"></span>OpenAI</span></td>
+              <td>120B MoE</td>
+              <td>128K</td>
+              <td>~500</td>
+              <td>$0.75</td>
+              <td>✓</td><td>✓</td><td>85.3</td>
+              <td style="text-align:left; font-size:0.67rem; color:#475569">Tâches complexes, haute précision</td>
+            </tr>
+            <tr>
+              <td style="font-weight:800; color:#f59e0b">5</td>
+              <td class="col-left"><span class="model-id">qwen/qwen3-32b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-alibaba"></span>Alibaba</span></td>
+              <td>32B</td>
+              <td>128K</td>
+              <td>~400</td>
+              <td>$0.88</td>
+              <td>✓</td><td>✓</td><td>—</td>
+              <td style="text-align:left; font-size:0.67rem; color:#475569">Raisonnement avancé, multilingue</td>
+            </tr>
+            <tr>
+              <td style="font-weight:800; color:#f59e0b">6</td>
+              <td class="col-left"><span class="model-id">llama-3.3-70b-versatile</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-meta"></span>Meta</span></td>
+              <td>70B</td>
+              <td>128K</td>
+              <td>~280</td>
+              <td>$1.38</td>
+              <td>✓</td><td>—</td><td><b>86.0</b></td>
+              <td style="text-align:left; font-size:0.67rem; color:#475569">Qualité maximale production, MMLU #1</td>
+            </tr>
+            <tr style="background:#fffbeb">
+              <td style="font-weight:800; color:#94a3b8">7</td>
+              <td class="col-left"><span class="model-id">allam-2-7b</span></td>
+              <td><span class="provider-tag"><span class="provider-dot dot-sdaia"></span>SDAIA</span></td>
+              <td>7B</td>
+              <td>4K</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td><td>—</td><td>—</td>
+              <td style="text-align:left; font-size:0.67rem; color:#475569">Arabe spécialisé, contexte limité</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<!-- ═══════════════════════════════ FOOTER ═════════════════════════════════ -->
+<div class="footer">
+  <strong>TestForge AI — Rapport Benchmark Groq</strong> ·
+  Données: Groq Cloud API (groq_models_complete.json) ·
+  Tarifs: documentation officielle Groq + estimation marché ·
+  Métriques académiques (MMLU, IFEval): benchmarks publics ·
+  Généré le 27 mai 2026
 </div>
 
 </body>
