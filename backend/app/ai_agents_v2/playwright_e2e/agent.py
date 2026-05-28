@@ -603,16 +603,23 @@ class PlaywrightReActAgent:
             tools = {t.name: t for t in mcp.tools}
             logger.info(f"Phase 4 — available tools: {list(tools.keys())}")
 
+            current_snapshot_text: Optional[str] = None  # shared cache
+
             for i, action in enumerate(actions):
                 label = self._action_label(i + 1, action)
+                atype = action["type"]
                 try:
-                    await self._execute_single_action(tools, action)
+                    await self._execute_single_action(tools, action, snapshot_text=current_snapshot_text)
                     steps_passed += 1
                     detail = {"step": label, "status": "passed"}
                     step_details.append(detail)
                     logger.info(f"✅ {label}")
                     if on_step:
                         await on_step(label, "passed")
+                    if atype in ("navigate", "click"):
+                        current_snapshot_text = await self._wait_for_dom_stable(
+                            tools, max_wait=6.0, check_interval=0.5, stable_checks=2
+                        )
                 except Exception as e:
                     steps_failed += 1
                     detail = {"step": label, "status": "failed", "error": str(e)}
@@ -620,6 +627,7 @@ class PlaywrightReActAgent:
                     logger.warning(f"❌ {label}: {e}")
                     if on_step:
                         await on_step(label, "failed", error=str(e))
+                    current_snapshot_text = None  # invalidate after failure
                     # Continue executing remaining steps even if one fails
 
             # Take final screenshot regardless of results
@@ -673,22 +681,30 @@ class PlaywrightReActAgent:
         steps_passed = steps_failed = 0
         step_details: List[Dict[str, Any]] = []
         screenshot_b64: Optional[str] = None
+        current_snapshot_text: Optional[str] = None  # shared cache — avoids one snapshot per action
 
         for i, action in enumerate(actions):
             label = self._action_label(i + 1, action)
+            atype = action["type"]
             try:
-                await self._execute_single_action(tools, action)
+                await self._execute_single_action(tools, action, snapshot_text=current_snapshot_text)
                 steps_passed += 1
                 step_details.append({"step": label, "status": "passed"})
                 logger.info(f"✅ {label}")
                 if on_step:
                     await on_step(label, "passed")
+                # Navigate or click can change page state — refresh snapshot cache
+                if atype in ("navigate", "click"):
+                    current_snapshot_text = await self._wait_for_dom_stable(
+                        tools, max_wait=6.0, check_interval=0.5, stable_checks=2
+                    )
             except Exception as e:
                 steps_failed += 1
                 step_details.append({"step": label, "status": "failed", "error": str(e)})
                 logger.warning(f"❌ {label}: {e}")
                 if on_step:
                     await on_step(label, "failed", error=str(e))
+                current_snapshot_text = None  # invalidate stale cache after failure
 
         if "browser_take_screenshot" in tools:
             try:

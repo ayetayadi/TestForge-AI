@@ -642,7 +642,7 @@ async def get_all_test_runs_with_context(
                         "id": test_case.id,
                         "tc_code": test_case.tc_code,
                         "title": test_case.title,
-                        "priority": test_case.priority,
+                        "risk_level": test_case.risk_level,
                         "test_type": test_case.test_type,
                         "user_story_id": test_case.user_story_id,
                         "script_version_id": script_version.id,
