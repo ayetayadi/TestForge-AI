@@ -384,9 +384,9 @@
                         <span class="tc-info-value">{{ fullReport()!.test_case!.title }}</span>
                       </div>
                       <div class="tc-info-item">
-                        <span class="tc-info-label">Priority</span>
-                        <span class="tc-info-value tc-priority" [class]="'priority-' + (fullReport()!.test_case!.priority || 'medium')">
-                          {{ (fullReport()!.test_case!.priority || 'N/A') | uppercase }}
+                        <span class="tc-info-label">Risk Level</span>
+                        <span class="tc-info-value tc-risk_level" [class]="'risk_level-' + (fullReport()!.test_case!.risk_level || 'medium')">
+                          {{ (fullReport()!.test_case!.risk_level || 'N/A') | uppercase }}
                         </span>
                       </div>
                       <div class="tc-info-item">

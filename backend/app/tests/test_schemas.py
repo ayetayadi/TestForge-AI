@@ -84,7 +84,7 @@ def test_test_run_response_serializes():
     """TestRunResponse serializes correctly with minimal fields."""
     run = TestRunResponse(
         id="run-1",
-        base_url="http://localhost:3000",
+        base_url="http://localhost:3010",
         browser="chromium",
         viewport="1920x1080",
         timeout_ms=30000,
@@ -111,7 +111,7 @@ def test_test_run_with_result():
     run = TestRunResponse(
         id="run-1",
         test_case_id="tc-1",
-        base_url="http://localhost:3000",
+        base_url="http://localhost:3010",
         browser="chromium",
         viewport="1920x1080",
         timeout_ms=30000,

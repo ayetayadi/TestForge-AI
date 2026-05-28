@@ -184,6 +184,7 @@ export interface TestRunListItem {
     tc_code: string;
     title: string;
     risk_level: string | null;
+    priority: string | null;
     test_type: string | null;
     user_story_id: string | null;
     script_version_id: string;

@@ -251,7 +251,7 @@ async def generate_script_v1(
     test_cases = [{
         "title": test_case.title,
         "description": test_case.description,
-        "priority": test_case.priority,
+        "risk_level": test_case.risk_level,
         "preconditions": test_case.preconditions,
         "postconditions": test_case.postconditions,
         "steps": test_case.steps,
