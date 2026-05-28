@@ -4,11 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subscription, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 
-import {
-  PlaywrightE2EService, SuiteSSEEvent, SuiteScriptStatus, AvailableModel,
-} from '../../services/playwright-e2e.service';
+import { PlaywrightE2EService } from '../../services/playwright-e2e.service';
 import { TestCaseService } from '../../services/test-case.service';
 import { TestSuiteService } from '../../services/test-suite.service';
 import { ProjectsService } from '../../services/projects.service';
@@ -32,28 +29,6 @@ interface TestCaseScriptRow {
   placeholderCount: number;
   lastRunStatus: string | null;
   isGenerating: boolean;
-  isRunning: boolean;
-}
-
-// ── Row inside the suite-run modal ────────────────────────────────────────────
-interface ModalTcRow {
-  id: string;
-  tc_code: string;
-  title: string;
-  execution_order: number | null;
-  excluded: boolean;
-  has_script: boolean;
-  placeholder_count: number;
-  source?: string;
-}
-
-// ── Live execution log entry ──────────────────────────────────────────────────
-interface SuiteLogEntry {
-  tc_id: string;
-  tc_code: string;
-  title: string;
-  status: 'pending' | 'running' | 'passed' | 'failed' | 'skipped';
-  run_id?: string;
 }
 
 @Component({
@@ -63,7 +38,6 @@ interface SuiteLogEntry {
     CommonModule,
     FormsModule,
     RouterLink,
-    DragDropModule,
     SpinnerComponent,
     SearchBarComponent,
     FilterBarComponent,
@@ -93,66 +67,19 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
   executionSteps   = signal<ExecutionStep[]>([]);
 
   // ── Filters ───────────────────────────────────────────────────────────────────
-  searchQuery        = signal('');
-  selectedProjectId  = signal<string>('');
+  searchQuery         = signal('');
+  selectedProjectId   = signal<string>('');
   selectedSuiteFilter = signal<string>('');
-  activeFilters      = signal<ActiveFilters>({});
+  activeFilters       = signal<ActiveFilters>({});
 
   // ── Pagination ────────────────────────────────────────────────────────────────
   page     = signal(1);
   pageSize = signal(6);
 
-  // ── Suites list (for filter + modal) ─────────────────────────────────────────
+  // ── Suites list (for filter) ─────────────────────────────────────────────────
   suites = signal<TestSuiteListItem[]>([]);
 
-  // ── Suite Run Modal ───────────────────────────────────────────────────────────
-  showRunModal        = signal(false);
-  runModalStep        = signal<1 | 2>(1);
-  runModalSuiteId     = signal<string>('');
-  runModalAppUrl      = signal('');
-  runModalBrowser     = signal<'chromium' | 'firefox' | 'webkit'>('chromium');
-  runModalHeadless    = signal(true);
-  runModalStopOnFail  = signal(false);
-  runModalModel       = signal('llama-3.3-70b-versatile');
-  runModalTcs         = signal<ModalTcRow[]>([]);
-  isLoadingModalTcs   = signal(false);
-  isSavingOrder       = signal(false);
-  availableModels     = signal<AvailableModel[]>([]);
-
-  runModalSuiteName = computed(() =>
-    this.suites().find(s => s.id === this.runModalSuiteId())?.title ?? ''
-  );
-
-  runModalModelDescription = computed(() =>
-    this.availableModels().find(m => m.id === this.runModalModel())?.description ?? ''
-  );
-
-  modalErrors = computed<string[]>(() => {
-    const errors: string[] = [];
-    const tcs = this.runModalTcs().filter(t => !t.excluded);
-    if (tcs.length === 0) errors.push('At least one test case must be included.');
-    if (!this.runModalAppUrl().trim()) errors.push('App URL is required.');
-    return errors;
-  });
-
-  // ── Live Execution Panel ──────────────────────────────────────────────────────
-  isSuiteRunning    = signal(false);
-  showSuitePanel    = signal(false);
-  suiteLogEntries   = signal<SuiteLogEntry[]>([]);
-  suiteRunSummary   = signal<{ total: number; passed: number; failed: number; skipped: number; duration: number } | null>(null);
-  suiteRunningName  = signal('');
-  isDownloadingReport = signal(false);
-
-  // ── Email Dialog (suite report) ───────────────────────────────────────────────
-  showEmailDialog = signal(false);
-  emailTo         = signal('');
-  isSendingEmail  = signal(false);
-
-  private stepsSub:     Subscription | null = null;
-  private executingSub: Subscription | null = null;
-  private suiteSub:     Subscription | null = null;
-
-  readonly browsers: ('chromium' | 'firefox' | 'webkit')[] = ['chromium', 'firefox', 'webkit'];
+  private stepsSub: Subscription | null = null;
 
   // ── Computed: filtered + paginated rows ──────────────────────────────────────
   filteredRows = computed(() => {
@@ -211,7 +138,7 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
     return items;
   });
 
-  paginatedRows  = computed(() => {
+  paginatedRows = computed(() => {
     const start = (this.page() - 1) * this.pageSize();
     return this.filteredRows().slice(start, start + this.pageSize());
   });
@@ -220,7 +147,6 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
   totalPages    = computed(() => Math.ceil(this.totalFiltered() / this.pageSize()));
   totalScripts  = computed(() => this.rows().filter(r => r.hasScript).length);
   totalRows     = computed(() => this.rows().length);
-  hasFailedRuns = computed(() => this.suiteLogEntries().some(e => e.status === 'failed' && e.run_id));
 
   filterGroups = computed<FilterGroup[]>(() => {
     const items = this.rows();
@@ -253,7 +179,6 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
     this.loadProjects();
     this.loadSuites();
     this.loadData();
-    this.loadAvailableModels();
 
     this.stepsSub = this.playwrightService.executionSteps$.subscribe(steps => {
       this.executionSteps.set(steps);
@@ -262,8 +187,6 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stepsSub?.unsubscribe();
-    this.executingSub?.unsubscribe();
-    this.suiteSub?.unsubscribe();
     this.playwrightService.stopStreaming();
   }
 
@@ -278,17 +201,6 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
   private loadSuites(): void {
     this.testSuiteService.getAll({ status: 'active' }).subscribe({
       next: (res) => this.suites.set(res.items),
-      error: () => {},
-    });
-  }
-
-  private loadAvailableModels(): void {
-    this.playwrightService.getAvailableModels().subscribe({
-      next: (res) => {
-        this.availableModels.set(res.models);
-        const def = res.models.find(m => m.is_default);
-        if (def) this.runModalModel.set(def.id);
-      },
       error: () => {},
     });
   }
@@ -313,7 +225,6 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
       placeholderCount: 0,
       lastRunStatus: null,
       isGenerating: false,
-      isRunning: false,
     }));
     this.rows.set(rows);
     this.isLoading.set(false);
@@ -359,9 +270,10 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
 
   private loadLastRun(testCaseId: string): void {
     this.playwrightService.getLastRun(testCaseId).subscribe({
-      next: (run) => {
-        if (run.result?.status) {
-          this.updateRow(testCaseId, { lastRunStatus: run.result!.status ?? null });
+      next: (run: any) => {
+        const status = run?.tc_result?.status ?? null;
+        if (status) {
+          this.updateRow(testCaseId, { lastRunStatus: status });
         }
       },
       error: () => {},
@@ -463,254 +375,6 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
     this.pendingDeleteId.set(null);
   }
 
-  // ── Suite Run Modal ───────────────────────────────────────────────────────────
-  openRunModal(): void {
-    this.runModalStep.set(1);
-    this.runModalSuiteId.set('');
-    this.runModalAppUrl.set('');
-    this.runModalBrowser.set('chromium');
-    this.runModalHeadless.set(true);
-    this.runModalStopOnFail.set(false);
-    this.runModalTcs.set([]);
-    this.showRunModal.set(true);
-  }
-
-  closeRunModal(): void {
-    this.showRunModal.set(false);
-    this.runModalStep.set(1);
-  }
-
-  proceedToStep2(): void {
-    const suiteId = this.runModalSuiteId();
-    if (!suiteId) { this.toastService.error('Please select a test suite'); return; }
-    if (!this.runModalAppUrl().trim()) { this.toastService.error('App URL is required'); return; }
-
-    this.isLoadingModalTcs.set(true);
-
-    forkJoin({
-      suite: this.testSuiteService.getById(suiteId),
-      scripts: this.playwrightService.getSuiteScriptsStatus(suiteId).pipe(
-        catchError(() => of({ suite_id: suiteId, test_cases: [] as SuiteScriptStatus[], total: 0 }))
-      ),
-    }).subscribe({
-      next: ({ suite, scripts }) => {
-        const scriptMap = new Map(scripts.test_cases.map(s => [s.tc_id, s]));
-
-        const tcs: ModalTcRow[] = suite.test_cases
-          .filter(tc => tc.is_active)
-          .sort((a, b) => (a.execution_order ?? 999) - (b.execution_order ?? 999))
-          .map((tc, idx) => {
-            const scriptInfo = scriptMap.get(tc.id);
-            return {
-              id: tc.id,
-              tc_code: tc.tc_code,
-              title: tc.title,
-              execution_order: tc.execution_order ?? (idx + 1),
-              excluded: tc.excluded_from_run,
-              has_script: scriptInfo?.has_script ?? false,
-              placeholder_count: scriptInfo?.placeholder_count ?? 0,
-              source: scriptInfo?.source,
-            };
-          });
-
-        this.runModalTcs.set(tcs);
-        this.isLoadingModalTcs.set(false);
-        this.runModalStep.set(2);
-      },
-      error: () => {
-        this.isLoadingModalTcs.set(false);
-        this.toastService.error('Failed to load suite test cases');
-      },
-    });
-  }
-
-  backToStep1(): void { this.runModalStep.set(1); }
-
-  dropTcInModal(event: CdkDragDrop<ModalTcRow[]>): void {
-    const list = [...this.runModalTcs()];
-    moveItemInArray(list, event.previousIndex, event.currentIndex);
-    this.runModalTcs.set(list);
-  }
-
-  toggleTcExcluded(tc: ModalTcRow): void {
-    this.runModalTcs.update(list =>
-      list.map(t => t.id === tc.id ? { ...t, excluded: !t.excluded } : t)
-    );
-  }
-
-  startSuiteRun(): void {
-    if (this.modalErrors().length > 0) return;
-
-    const suiteId = this.runModalSuiteId();
-    const suiteName = this.runModalSuiteName();
-
-    // Save execution order + excluded state for each TC
-    this.isSavingOrder.set(true);
-    const updates = this.runModalTcs().map((tc, idx) =>
-      this.testSuiteService.updateTcExecution(tc.id, {
-        execution_order: idx + 1,
-        excluded_from_run: tc.excluded,
-      }).pipe(catchError(() => of(null)))
-    );
-
-    forkJoin(updates).subscribe({
-      next: () => {
-        this.isSavingOrder.set(false);
-        this.showRunModal.set(false);
-        this.suiteRunningName.set(suiteName);
-        this.isSuiteRunning.set(true);
-        this.showSuitePanel.set(true);
-        this.suiteLogEntries.set([]);
-        this.suiteRunSummary.set(null);
-
-        this.suiteSub?.unsubscribe();
-        this.suiteSub = this.playwrightService.connectSuiteStream(suiteId).subscribe({
-          next: (event) => this._handleSuiteEvent(event),
-          error: () => {
-            this.isSuiteRunning.set(false);
-            this.toastService.error('Execution stream disconnected');
-          },
-          complete: () => this.isSuiteRunning.set(false),
-        });
-
-        this.playwrightService.executeSuiteSmart(suiteId, {
-          app_url: this.runModalAppUrl(),
-          browser: this.runModalBrowser(),
-          headless: this.runModalHeadless(),
-          stop_on_failure: this.runModalStopOnFail(),
-          model_id: this.runModalModel(),
-        }).subscribe({
-          error: () => {
-            this.isSuiteRunning.set(false);
-            this.toastService.error('Failed to start suite execution');
-          },
-        });
-      },
-      error: () => {
-        this.isSavingOrder.set(false);
-        this.toastService.error('Failed to save execution order');
-      },
-    });
-  }
-
-  private _handleSuiteEvent(event: SuiteSSEEvent): void {
-    const tcs = this.runModalTcs();
-    switch (event.type) {
-      case 'suite_started': {
-        const tcIds: string[] = event.data['test_case_ids'] || [];
-        this.suiteLogEntries.set(tcIds.map(id => {
-          const tc = tcs.find(t => t.id === id);
-          return { tc_id: id, tc_code: tc?.tc_code ?? '?', title: tc?.title ?? id, status: 'pending' };
-        }));
-        break;
-      }
-      case 'tc_started': {
-        const id = event.data['tc_id'];
-        this.suiteLogEntries.update(entries =>
-          entries.map(e => e.tc_id === id ? { ...e, status: 'running' } : e)
-        );
-        break;
-      }
-      case 'tc_completed': {
-        const id     = event.data['tc_id'];
-        const status = (event.data['status'] ?? 'failed') as SuiteLogEntry['status'];
-        const runId  = event.data['run_id'];
-        this.suiteLogEntries.update(entries =>
-          entries.map(e => e.tc_id === id ? { ...e, status, run_id: runId } : e)
-        );
-        if (status === 'passed') {
-          this.toastService.success(`${event.data['tc_code'] ?? id} — passed`);
-        } else if (status === 'failed') {
-          this.toastService.error(`${event.data['tc_code'] ?? id} — failed`);
-        }
-        break;
-      }
-      case 'completed': {
-        this.isSuiteRunning.set(false);
-        this.suiteRunSummary.set({
-          total:    event.data['total']    ?? 0,
-          passed:   event.data['passed']   ?? 0,
-          failed:   event.data['failed']   ?? 0,
-          skipped:  event.data['skipped']  ?? 0,
-          duration: event.data['duration'] ?? 0,
-        });
-        this.loadData();
-        break;
-      }
-    }
-  }
-
-  closeSuitePanel(): void {
-    this.showSuitePanel.set(false);
-    this.suiteLogEntries.set([]);
-    this.suiteRunSummary.set(null);
-  }
-
-  downloadReport(): void {
-    const entries = this.suiteLogEntries();
-    const summary = this.suiteRunSummary();
-    const suiteId = this.runModalSuiteId();
-    const suiteName = this.suiteRunningName();
-
-    if (!suiteId || !entries.some(e => !!e.run_id)) {
-      this.toastService.error('No run data available to export');
-      return;
-    }
-
-    this.isDownloadingReport.set(true);
-    const safeTitle = suiteName.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-    const dateStr   = new Date().toISOString().slice(0, 10);
-
-    this.testSuiteService.exportSuiteReport(suiteId, {
-      suite_name: suiteName,
-      summary: summary ?? null,
-      entries: entries.map(e => ({ run_id: e.run_id, tc_code: e.tc_code, title: e.title, status: e.status })),
-    }).subscribe({
-      next: (blob) => {
-        this.testSuiteService.downloadBlob(blob, `report-${safeTitle}-${dateStr}.pdf`);
-        this.isDownloadingReport.set(false);
-      },
-      error: () => {
-        this.toastService.error('Failed to generate PDF report');
-        this.isDownloadingReport.set(false);
-      },
-    });
-  }
-
-  // ── Email dialog for a single failed TC run ───────────────────────────────────
-  openEmailDialog(): void {
-    this.emailTo.set('');
-    this.showEmailDialog.set(true);
-  }
-
-  closeEmailDialog(): void { this.showEmailDialog.set(false); }
-
-  sendFailedReports(): void {
-    const failedEntries = this.suiteLogEntries().filter(e => e.status === 'failed' && e.run_id);
-    if (failedEntries.length === 0) { this.toastService.error('No failed test runs to report'); return; }
-
-    const raw = this.emailTo().trim();
-    const recipients = raw.split(/[,;\n]+/).map(r => r.trim()).filter(r => r.includes('@'));
-    if (!recipients.length) { this.toastService.error('Enter at least one valid email'); return; }
-
-    this.isSendingEmail.set(true);
-    const sends = failedEntries.map(e =>
-      this.playwrightService.sendReportEmail(e.run_id!, recipients).pipe(catchError(() => of(null)))
-    );
-
-    forkJoin(sends).subscribe({
-      next: () => {
-        this.isSendingEmail.set(false);
-        this.showEmailDialog.set(false);
-        this.toastService.success(`Failed TC reports sent to ${recipients.join(', ')}`);
-      },
-      error: () => {
-        this.isSendingEmail.set(false);
-        this.toastService.error('Failed to send emails');
-      },
-    });
-  }
-
   // ── UI helpers ────────────────────────────────────────────────────────────────
   getStepIcon(type: string): string {
     switch (type) {
@@ -737,54 +401,5 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
       case 'error':  return 'accent-error';
       default: return 'accent-none';
     }
-  }
-
-  getEntryStatusClass(status: SuiteLogEntry['status']): string {
-    switch (status) {
-      case 'passed':  return 'entry-passed';
-      case 'failed':  return 'entry-failed';
-      case 'running': return 'entry-running';
-      case 'skipped': return 'entry-skipped';
-      default: return 'entry-pending';
-    }
-  }
-
-  getEntryStatusIcon(status: SuiteLogEntry['status']): string {
-    switch (status) {
-      case 'passed':  return '✓';
-      case 'failed':  return '✗';
-      case 'running': return '▶';
-      case 'skipped': return '⊘';
-      default: return '○';
-    }
-  }
-
-  formatDuration(seconds: number): string {
-    if (seconds < 60) return `${seconds.toFixed(1)}s`;
-    const m = Math.floor(seconds / 60);
-    const s = Math.round(seconds % 60);
-    return `${m}m ${s}s`;
-  }
-
-  getScriptBadgeLabel(tc: ModalTcRow): string {
-    if (!tc.has_script) return 'No script — auto-generate';
-    if (tc.source === 'v2_corrected') return 'v2 Corrected';
-    if (tc.placeholder_count > 0) return `v1 Draft · ${tc.placeholder_count} placeholder${tc.placeholder_count !== 1 ? 's' : ''}`;
-    return 'v1 Draft';
-  }
-
-  getScriptBadgeClass(tc: ModalTcRow): string {
-    if (!tc.has_script) return 'badge-autogen';
-    if (tc.source === 'v2_corrected') return 'badge-v2';
-    if (tc.placeholder_count > 0) return 'badge-v1-ph';
-    return 'badge-v1';
-  }
-
-  includedTcCount(): number {
-    return this.runModalTcs().filter(t => !t.excluded).length;
-  }
-
-  noScriptCount(): number {
-    return this.runModalTcs().filter(t => !t.excluded && !t.has_script).length;
   }
 }

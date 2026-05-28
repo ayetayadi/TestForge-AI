@@ -59,9 +59,9 @@ export const navItems: NavItem[] = [
     userOnly: true,
   },
   {
-    displayName: 'Execution Tests',
+    displayName: 'Test Execution',
     iconName: 'solar:chart-2-line-duotone',
-    route: '/execution-dashboard',
+    route: '/test-execution',
     userOnly: true,
   },
 

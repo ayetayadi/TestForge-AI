@@ -463,7 +463,7 @@ class SuiteReportExportService:
 
         # ── Per-TC sections ──────────────────────────────────────
         for entry in entries:
-            run_id = entry.get("run_id")
+            run_id = entry.get("tc_result_id") or entry.get("run_id")
             tc_code = entry.get("tc_code", "?")
             title = entry.get("title", "")
             status = entry.get("status", "unknown")
@@ -484,17 +484,17 @@ class SuiteReportExportService:
 
             detail = run_details.get(run_id) if run_id else None
             if detail and not detail.get("error"):
-                run_info = detail.get("test_run", {})
-                result_info = detail.get("result") or {}
+                execution_info = detail.get("execution", {}) or {}
+                tc_result_info = detail.get("tc_result", {}) or {}
                 steps = detail.get("steps", [])
 
                 meta_rows = [["Status", status.upper()]]
-                if run_info.get("browser"):
-                    meta_rows.append(["Browser", run_info["browser"]])
-                if run_info.get("duration") is not None:
-                    meta_rows.append(["Duration", f"{run_info['duration']:.1f}s"])
-                if result_info.get("justification"):
-                    meta_rows.append(["Result", result_info["justification"][:120]])
+                if execution_info.get("browser"):
+                    meta_rows.append(["Browser", execution_info["browser"]])
+                if tc_result_info.get("duration") is not None:
+                    meta_rows.append(["Duration", f"{tc_result_info['duration']:.1f}s"])
+                if tc_result_info.get("justification"):
+                    meta_rows.append(["Result", tc_result_info["justification"][:120]])
 
                 meta_table = Table(meta_rows, colWidths=[30 * mm, 140 * mm], hAlign="LEFT")
                 meta_table.setStyle(TableStyle([

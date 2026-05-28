@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Optional
 from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, Integer, String, Text, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -10,7 +10,6 @@ from app.models.enums import ScriptValidationStatus, ScriptSource
 
 if TYPE_CHECKING:
     from app.models.test_case import TestCase
-    from app.models.test_run import TestRun
 
 
 class PlaywrightScriptVersion(Base):
@@ -78,10 +77,6 @@ class PlaywrightScriptVersion(Base):
         back_populates="script_versions",
         primaryjoin="PlaywrightScriptVersion.test_case_id == TestCase.id",
         foreign_keys="[PlaywrightScriptVersion.test_case_id]",
-    )
-
-    test_runs: Mapped[List["TestRun"]] = relationship(
-        "TestRun", back_populates="script_version", passive_deletes=True
     )
 
     # ==============================

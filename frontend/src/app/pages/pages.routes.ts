@@ -94,11 +94,16 @@ export const PagesRoutes: Routes = [
     data: { title: 'Script Detail' },
   },
   {
-    path: 'execution-dashboard',
+    path: 'test-execution',
     loadComponent: () =>
-      import('./execution-dashboard/execution-dashboard.component').then(m => m.ExecutionDashboardComponent),
+      import('./test-execution/test-execution.component').then(m => m.TestExecutionComponent),
     canActivate: [authGuard],
-    data: { title: 'Execution Dashboard' },
+    data: { title: 'Test Execution' },
+  },
+  {
+    path: 'execution-dashboard',
+    redirectTo: 'test-execution',
+    pathMatch: 'full',
   },
   {
     path: 'risk-analysis',

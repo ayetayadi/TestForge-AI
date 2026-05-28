@@ -7,7 +7,7 @@ import pytest
 from datetime import datetime
 from app.schemas.test_case_schema import TestCaseResponse
 from app.schemas.tc_coverage_schema import TcCoverageResponse, TcCoverageSummary
-from app.schemas.test_run_schema import TestRunResponse, TestResultResponse
+from app.schemas.test_execution_schema import TestCaseResultDetail, TestExecutionBasic
 
 
 # ─── TestCaseResponse ────────────────────────────────────────────────────────
@@ -73,54 +73,42 @@ def test_tc_coverage_summary_defaults():
     assert s.overall_pct == 0.0
 
 
-# ─── TestRunResponse ─────────────────────────────────────────────────────────
+# ─── TestExecution / TestCaseResult schemas ──────────────────────────────────
 
-def test_test_run_response_has_test_case_id():
-    """TestRunResponse must expose test_case_id for direct traceability (ISTQB §5.3)."""
-    assert "test_case_id" in TestRunResponse.model_fields
-
-
-def test_test_run_response_serializes():
-    """TestRunResponse serializes correctly with minimal fields."""
-    run = TestRunResponse(
-        id="run-1",
-        base_url="http://localhost:3010",
-        browser="chromium",
-        viewport="1920x1080",
-        timeout_ms=30000,
-        headless=True,
-        record_video=False,
-        capture_screenshots_on_failure=True,
-        status="completed",
-        started_at=datetime.now(),
-    )
-    assert run.test_case_id is None
-    assert run.result is None
-    assert run.steps == []
+def test_tc_result_detail_has_traceability_fields():
+    """TestCaseResultDetail must expose test_case_id for traceability (ISTQB §5.3)."""
+    assert "test_case_id" in TestCaseResultDetail.model_fields
+    assert "execution_order" in TestCaseResultDetail.model_fields
+    assert "steps" in TestCaseResultDetail.model_fields
 
 
-def test_test_run_with_result():
-    """TestRunResponse correctly nests TestResultResponse."""
-    result = TestResultResponse(
-        id="res-1",
-        status="passed",
-        justification="All assertions passed",
-        duration=2.3,
-        step_count=5,
-    )
-    run = TestRunResponse(
-        id="run-1",
+def test_tc_result_detail_serializes():
+    """TestCaseResultDetail serializes with minimal fields."""
+    r = TestCaseResultDetail(
+        id="tcr-1",
         test_case_id="tc-1",
-        base_url="http://localhost:3010",
+        execution_order=1,
+        status="passed",
+    )
+    assert r.status == "passed"
+    assert r.steps == []
+    assert r.screenshot_b64 is None
+
+
+def test_test_execution_basic_serializes():
+    """TestExecutionBasic exposes suite-level counters."""
+    ex = TestExecutionBasic(
+        id="ex-1",
+        suite_id="suite-1",
+        app_url="http://localhost:3010",
         browser="chromium",
-        viewport="1920x1080",
-        timeout_ms=30000,
         headless=True,
-        record_video=False,
-        capture_screenshots_on_failure=True,
         status="completed",
         started_at=datetime.now(),
-        result=result,
+        total_count=3,
+        passed_count=2,
+        failed_count=1,
     )
-    assert run.result.status == "passed"
-    assert run.test_case_id == "tc-1"
+    assert ex.total_count == 3
+    assert ex.passed_count == 2
+    assert ex.failed_count == 1

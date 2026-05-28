@@ -293,9 +293,9 @@
                       <div>
                         <div class="banner-title">Execution Report — {{ getReportStatusLabel() }}</div>
                         <div class="banner-sub">
-                          {{ fullReport()!.test_case?.tc_code }} · {{ fullReport()!.test_run.browser }} ·
-                          {{ formatDuration(fullReport()!.test_run.duration) }} ·
-                          {{ fullReport()!.test_run.started_at | date:'dd/MM/yyyy HH:mm' }}
+                          {{ fullReport()!.test_case?.tc_code }} · {{ fullReport()!.execution?.browser }} ·
+                          {{ formatDuration(fullReport()!.tc_result.duration) }} ·
+                          {{ fullReport()!.tc_result.started_at | date:'dd/MM/yyyy HH:mm' }}
                         </div>
                       </div>
                     </div>
@@ -367,7 +367,7 @@
                       <div class="stat-label">Errors</div>
                     </div>
                     <div class="stat-card stat-card--info">
-                      <div class="stat-value">{{ formatDuration(fullReport()!.test_run.duration) }}</div>
+                      <div class="stat-value">{{ formatDuration(fullReport()!.tc_result.duration) }}</div>
                       <div class="stat-label">Duration</div>
                     </div>
                   </div>
@@ -391,7 +391,7 @@
                       </div>
                       <div class="tc-info-item">
                         <span class="tc-info-label">URL</span>
-                        <span class="tc-info-value tc-url">{{ fullReport()!.test_run.base_url }}</span>
+                        <span class="tc-info-value tc-url">{{ fullReport()!.execution?.app_url }}</span>
                       </div>
                     </div>
                   }
@@ -410,7 +410,7 @@
                   }
 
                   <!-- Screenshot (if available) -->
-                  @if (fullReport()!.result?.screenshot_b64) {
+                  @if (fullReport()!.tc_result.screenshot_b64) {
                     <div class="screenshot-section">
                       <div class="section-header">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -418,7 +418,7 @@
                         </svg>
                         Screenshot at failure
                       </div>
-                      <img [src]="'data:image/png;base64,' + fullReport()!.result!.screenshot_b64"
+                      <img [src]="'data:image/png;base64,' + fullReport()!.tc_result.screenshot_b64"
                            alt="Screenshot at failure" class="failure-screenshot" />
                     </div>
                   }
@@ -576,10 +576,10 @@
                   }
 
                   <!-- Result justification -->
-                  @if (fullReport()!.result?.justification) {
+                  @if (fullReport()!.tc_result.justification) {
                     <div class="justification-box">
                       <strong>AI Result Justification:</strong>
-                      <p>{{ fullReport()!.result!.justification }}</p>
+                      <p>{{ fullReport()!.tc_result.justification }}</p>
                     </div>
                   }
 
@@ -654,7 +654,7 @@
         <div class="dialog-tc-summary">
           <span class="tc-code-sm">{{ fullReport()?.test_case?.tc_code }}</span>
           <span class="tc-status" [class]="'tc-status--' + reportStatus()">{{ getReportStatusLabel() }}</span>
-          <span class="tc-dur">{{ formatDuration(fullReport()?.test_run?.duration ?? null) }}</span>
+          <span class="tc-dur">{{ formatDuration(fullReport()?.tc_result?.duration ?? null) }}</span>
         </div>
 
         <p class="dialog-hint">The email will include: test result, AI reasoning, step details, defect info, and recommendations.</p>

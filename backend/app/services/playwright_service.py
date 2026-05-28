@@ -12,28 +12,26 @@ from app.ai_agents_v2.playwright_e2e.agent import PlaywrightReActAgent, _compres
 from app.ai_agents_v2.playwright_e2e.tools import PlaywrightMCPClient
 from app.models.enums import (
     ScriptSource, ScriptValidationStatus,
-    TestRunStatus, TestResultStatus, StepType, StepStatus
+    TestExecutionStatus, TestCaseResultStatus,
 )
 
 logger = logging.getLogger(__name__)
 
-# Initialisation des agents (globale)
+# Agent instances (global)
 _script_generator = get_script_generator()
 _react_agent = PlaywrightReActAgent()
 _agent_instance = PlaywrightReActAgent()
 
 # ============================================================
-# PRE-FLIGHT HELPERS — multi-page snapshot capture
+# PRE-FLIGHT HELPERS — multi-page snapshot capture (unchanged)
 # ============================================================
 
-# Accessibility-tree element types considered navigational
 _NAV_ELEMENT_PATTERNS = [
     _re.compile(r'link\s+"([^"]{2,40})"\s+\[ref=(e\d+)\]', _re.IGNORECASE),
     _re.compile(r'menuitem\s+"([^"]{2,40})"\s+\[ref=(e\d+)\]', _re.IGNORECASE),
     _re.compile(r'tab\s+"([^"]{2,40})"\s+\[ref=(e\d+)\]', _re.IGNORECASE),
 ]
 
-# Words that should never be treated as page keywords
 _STOP_WORDS = frozenset({
     "the", "and", "that", "this", "with", "for", "from", "click", "then",
     "when", "given", "have", "should", "user", "button", "form", "field",
@@ -45,10 +43,6 @@ def _extract_nav_keywords(
     steps: Optional[list] = None,
     gherkin_source: Optional[str] = None,
 ) -> frozenset:
-    """
-    Derive navigation-target page names from test case steps / Gherkin text.
-    Returns a frozenset of lowercase keywords (e.g. {'dashboard', 'users'}).
-    """
     raw_text = ""
     if gherkin_source:
         raw_text += gherkin_source.lower() + "\n"
@@ -64,8 +58,6 @@ def _extract_nav_keywords(
         return frozenset()
 
     keywords: set = set()
-
-    # Pattern 1 — explicit navigation verbs followed by a destination
     nav_verb_re = _re.compile(
         r'(?:navigate|go|click|open|access|visit|go\s+to)\s+'
         r'(?:to\s+)?(?:the\s+)?([a-z][a-z\s]{2,24}?)(?:\s+(?:page|screen|section|tab|menu|panel))?'
@@ -77,7 +69,6 @@ def _extract_nav_keywords(
         if 2 < len(kw) < 30 and kw not in _STOP_WORDS:
             keywords.add(kw)
 
-    # Pattern 2 — "on/from the X page/section" references
     page_ref_re = _re.compile(
         r'(?:on|from|in)\s+(?:the\s+)?([a-z][a-z\s]{2,20}?)\s+'
         r'(?:page|screen|section|tab|dashboard)',
@@ -88,7 +79,6 @@ def _extract_nav_keywords(
         if 2 < len(kw) < 30 and kw not in _STOP_WORDS:
             keywords.add(kw)
 
-    # Pattern 3 — well-known SPA page names appearing anywhere in the text
     well_known = {
         "dashboard", "login", "register", "signup", "sign up",
         "settings", "profile", "users", "admin", "home",
@@ -103,10 +93,6 @@ def _extract_nav_keywords(
 
 
 def _parse_nav_links(snapshot_text: str) -> List[tuple]:
-    """
-    Extract clickable navigation elements from a raw accessibility-tree snapshot.
-    Returns [(display_text, ref_id), ...] — duplicates removed, URLs excluded.
-    """
     links: List[tuple] = []
     seen: set = set()
     for pattern in _NAV_ELEMENT_PATTERNS:
@@ -116,7 +102,6 @@ def _parse_nav_links(snapshot_text: str) -> List[tuple]:
             text_lower = text.lower()
             if text_lower in seen:
                 continue
-            # Skip entries that look like URL fragments
             if any(skip in text_lower for skip in ("http", "www", "://", ".com", ".org")):
                 continue
             seen.add(text_lower)
@@ -130,18 +115,6 @@ async def _take_multipage_snapshot(
     gherkin_source: Optional[str] = None,
     max_extra_pages: int = 2,
 ) -> Dict[str, str]:
-    """
-    Pre-flight multi-page DOM capture.
-
-    Opens ONE browser session and captures:
-      - The landing page DOM (always)
-      - Up to `max_extra_pages` additional pages identified from test steps
-
-    Navigation to sub-pages is done by clicking matching links found in the
-    landing accessibility tree — no URL guessing.
-
-    Returns { page_label: compressed_snapshot } or {} on total failure.
-    """
     try:
         nav_keywords = _extract_nav_keywords(steps, gherkin_source)
         logger.info(f"Pre-flight: app_url={app_url}, keywords={nav_keywords or 'none'}")
@@ -153,7 +126,6 @@ async def _take_multipage_snapshot(
                 logger.warning("Pre-flight: required MCP tools not available — skipping")
                 return {}
 
-            # ── Landing page ──────────────────────────────────────────────────
             await tools["browser_navigate"].ainvoke({"url": app_url})
             await asyncio.sleep(2.0)
             raw = str(await tools["browser_snapshot"].ainvoke({}))
@@ -164,7 +136,6 @@ async def _take_multipage_snapshot(
             if not nav_keywords or max_extra_pages <= 0 or "browser_click" not in tools:
                 return snapshots
 
-            # ── Additional pages via nav-link clicks ──────────────────────────
             nav_links = _parse_nav_links(landing_text)
             logger.info(f"Pre-flight: {len(nav_links)} nav links found in landing DOM")
 
@@ -175,7 +146,6 @@ async def _take_multipage_snapshot(
                 if extra_count >= max_extra_pages:
                     break
                 link_lower = link_text.lower().strip()
-                # Match link against any extracted keyword
                 if not any(kw in link_lower or link_lower in kw for kw in nav_keywords):
                     continue
                 if link_lower in visited:
@@ -183,19 +153,14 @@ async def _take_multipage_snapshot(
 
                 visited.add(link_lower)
                 try:
-                    await tools["browser_click"].ainvoke(
-                        {"element": link_text, "ref": link_ref}
-                    )
+                    await tools["browser_click"].ainvoke({"element": link_text, "ref": link_ref})
                     await asyncio.sleep(1.5)
                     raw2 = str(await tools["browser_snapshot"].ainvoke({}))
                     page_text = _agent_instance._extract_snapshot_text(raw2)
                     label = link_lower.replace(" ", "_")
                     snapshots[label] = _compress_dom(page_text)
                     extra_count += 1
-                    logger.info(
-                        f"Pre-flight: captured '{label}' ({len(snapshots[label])} chars)"
-                    )
-                    # Return to landing for next iteration
+                    logger.info(f"Pre-flight: captured '{label}' ({len(snapshots[label])} chars)")
                     await tools["browser_navigate"].ainvoke({"url": app_url})
                     await asyncio.sleep(1.0)
                 except Exception as click_err:
@@ -206,10 +171,7 @@ async def _take_multipage_snapshot(
                     except Exception:
                         pass
 
-        logger.info(
-            f"Pre-flight complete: {len(snapshots)} snapshot(s) captured — "
-            f"{list(snapshots.keys())}"
-        )
+        logger.info(f"Pre-flight complete: {len(snapshots)} snapshot(s) captured — {list(snapshots.keys())}")
         return snapshots
 
     except Exception as e:
@@ -218,7 +180,117 @@ async def _take_multipage_snapshot(
 
 
 # ============================================================
-# SCRIPT VERSIONS
+# STEP EXTRACTION HELPERS (for TestCaseResult.steps JSON)
+# ============================================================
+
+def _extract_text_from_content(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        texts = []
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    texts.append(item.get("text", ""))
+                elif "text" in item:
+                    texts.append(str(item["text"]))
+            else:
+                texts.append(str(item))
+        return "\n".join(t for t in texts if t.strip())
+    return str(content)
+
+
+def _build_steps_json(exec_result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Build the JSON steps list stored in TestCaseResult.steps.
+    Each item: { order, type, tool_name, content, status, error }
+    """
+    raw_messages = exec_result.get("raw_messages", [])
+    if raw_messages:
+        return _steps_from_messages(raw_messages)
+
+    step_details = exec_result.get("step_details", [])
+    if step_details:
+        return _steps_from_details(step_details)
+
+    return []
+
+
+def _steps_from_messages(messages: list) -> List[Dict[str, Any]]:
+    """Convert LangGraph messages to step dicts."""
+    steps: List[Dict[str, Any]] = []
+    order = 0
+    for msg in messages:
+        msg_type = type(msg).__name__
+
+        if msg_type == "AIMessage":
+            content = msg.content if isinstance(msg.content, str) else ""
+            if content.strip():
+                steps.append({
+                    "order":   order,
+                    "type":    "think",
+                    "content": content[:2000],
+                    "tool_name": None,
+                    "status":  "success",
+                })
+                order += 1
+
+            tool_calls = getattr(msg, "tool_calls", None) or []
+            for tc in tool_calls:
+                args = tc.get("args", {})
+                args_parts = [f"{k}={str(v)[:80]!r}" for k, v in args.items()]
+                content_str = f"{tc.get('name', 'unknown')}({', '.join(args_parts)})"
+                steps.append({
+                    "order":   order,
+                    "type":    "act",
+                    "content": content_str[:2000],
+                    "tool_name": tc.get("name"),
+                    "status":  "success",
+                })
+                order += 1
+
+        elif msg_type == "ToolMessage":
+            text_content = _extract_text_from_content(msg.content)
+            error_keywords = ("### error", "timeouterror", "exception", "unable to", "tool error (recoverable)")
+            is_error = any(kw in text_content.lower() for kw in error_keywords)
+            steps.append({
+                "order":   order,
+                "type":    "observe",
+                "content": text_content[:2000],
+                "tool_name": getattr(msg, "name", None),
+                "status":  "failed" if is_error else "success",
+            })
+            order += 1
+
+    return steps
+
+
+def _steps_from_details(step_details: list) -> List[Dict[str, Any]]:
+    """Convert Phase 4 step_details into step dicts."""
+    steps: List[Dict[str, Any]] = []
+    for i, detail in enumerate(step_details):
+        is_failed = detail.get("status") == "failed"
+        content = detail.get("step", "")
+        if detail.get("error"):
+            content = f"{content}\nError: {detail['error']}"
+        steps.append({
+            "order":   i,
+            "type":    "act",
+            "content": content[:2000],
+            "tool_name": None,
+            "status":  "failed" if is_failed else "success",
+            "error":   detail.get("error"),
+        })
+    return steps
+
+
+def _extract_steps(messages: list) -> list:
+    """Compat alias for testomat_service."""
+    return _steps_from_messages(messages)
+
+
+# ============================================================
+# SCRIPT GENERATION (no run persistence)
 # ============================================================
 
 async def generate_script_v1(
@@ -230,15 +302,6 @@ async def generate_script_v1(
     page_snapshots: Optional[Dict[str, str]] = None,
     model_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Generate a v1 Playwright script from a TestCase in the DB.
-
-    Snapshot resolution priority:
-      1. page_snapshots (pre-captured multi-page dict) — best quality, fewest placeholders
-      2. dom_snapshot (legacy single-page str) — merged into page_snapshots["landing"]
-      3. app_url provided but no snapshots → trigger pre-flight multi-page capture
-      4. Nothing → blind generation (all placeholders)
-    """
     logger.info(f"Generating Script v1 for test_case {test_case_id} (app_url={app_url})")
     await _push_event(test_case_id, "generation_started", {"test_case_id": test_case_id})
 
@@ -261,11 +324,9 @@ async def generate_script_v1(
         "locators": test_case.locators,
     }]
 
-    # Normalise legacy single snapshot
     if dom_snapshot and not page_snapshots:
         page_snapshots = {"landing": dom_snapshot}
 
-    # Pre-flight: capture multi-page snapshots when we have a URL but no snapshots yet
     if page_snapshots is None and app_url:
         page_snapshots = await _take_multipage_snapshot(
             app_url,
@@ -306,6 +367,19 @@ async def generate_script_v1(
     return gen_result
 
 
+# ============================================================
+# EXECUTION — single TC (wraps in a TestExecution of 1 TC)
+# ============================================================
+
+def _map_exec_status_to_tc_result_status(exec_status: str, steps_failed: int) -> TestCaseResultStatus:
+    """Translate agent exec_result.execution_status into TestCaseResultStatus."""
+    if exec_status in ("passed", "completed") and steps_failed == 0:
+        return TestCaseResultStatus.PASSED
+    if exec_status == "error":
+        return TestCaseResultStatus.ERROR
+    return TestCaseResultStatus.FAILED
+
+
 async def execute_script(
     db: AsyncSession,
     test_case_id: str,
@@ -316,40 +390,57 @@ async def execute_script(
     save_to_db: bool = True,
     page_snapshots: Optional[Dict[str, str]] = None,
     model_id: Optional[str] = None,
+    triggered_by: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Exécute un script avec le ReAct Agent.
+    Execute one TC. Creates a TestExecution wrapping a single TestCaseResult.
     """
     logger.info(f"Executing script for test_case {test_case_id}")
-    
+
     if script_version_id:
         script_version = await repo.get_script_version(db, script_version_id)
     else:
         script_version = await repo.get_active_script(db, test_case_id)
-    
+
     if not script_version:
-        return {
-            "status": "error",
-            "error": f"No script found for test_case {test_case_id}"
-        }
-    
-    test_run = None
-    if save_to_db:
-        test_run = await repo.create_test_run(
+        return {"status": "error", "error": f"No script found for test_case {test_case_id}"}
+
+    test_case = await repo.get_test_case(db, test_case_id)
+    if not test_case:
+        return {"status": "error", "error": f"TestCase {test_case_id} not found"}
+
+    suite_id = test_case.test_suite_id
+
+    # Create the wrapping TestExecution + single TestCaseResult
+    execution = None
+    tc_result = None
+    if save_to_db and suite_id:
+        execution = await repo.create_test_execution(
             db,
-            script_version_id=script_version.id,
-            base_url=app_url or settings.TEST_APPLICATION_URL,
+            suite_id=suite_id,
+            app_url=app_url or settings.TEST_APPLICATION_URL,
             browser=browser,
-            headless=headless
+            headless=headless,
+            stop_on_failure=False,
+            model_id=model_id,
+            triggered_by=triggered_by,
+            total_count=1,
+        )
+        tc_result = await repo.create_tc_result(
+            db,
+            execution_id=execution.id,
+            test_case_id=test_case_id,
+            execution_order=1,
+            script_version_id=script_version.id,
         )
         await repo.commit(db)
-    
+
     await _push_event(test_case_id, "execution_started", {
-        "test_case_id": test_case_id,
-        "test_run_id": test_run.id if test_run else None,
+        "test_case_id":  test_case_id,
+        "execution_id":  execution.id if execution else None,
+        "tc_result_id":  tc_result.id if tc_result else None,
     })
 
-    # Publish the "banner" step so the terminal shows something immediately
     await _push_event(test_case_id, "agent_step", {
         "step_type": "think",
         "tool": "system",
@@ -388,18 +479,13 @@ async def execute_script(
             model_id=model_id,
         )
 
-        if save_to_db and test_run:
-            await _save_execution_results(
-                db,
-                test_run_id=test_run.id,
-                script_version=script_version,
-                exec_result=exec_result
-            )
+        if save_to_db and tc_result and execution:
+            await _persist_tc_result(db, tc_result.id, execution.id, script_version, exec_result)
 
-        # Report to Testomat.io (best-effort, never blocks the main flow)
-        from app.models.test_case import TestCase
+        # Testomat reporting (best-effort)
+        from app.models.test_case import TestCase as _TC
         from app.services import testomat_service
-        tc = await db.get(TestCase, script_version.test_case_id)
+        tc = await db.get(_TC, script_version.test_case_id)
         if tc:
             testomat_status = (
                 "passed"
@@ -412,23 +498,25 @@ async def execute_script(
                 status=testomat_status,
                 browser=browser,
                 duration=exec_result.get("duration"),
-                steps=_extract_steps(exec_result.get("raw_messages", [])),
+                steps=_steps_from_messages(exec_result.get("raw_messages", [])),
                 error_message=exec_result.get("error"),
             )
 
-        exec_result["test_run_id"] = test_run.id if test_run else None
+        exec_result["execution_id"]     = execution.id if execution else None
+        exec_result["tc_result_id"]     = tc_result.id if tc_result else None
         exec_result["script_version_id"] = script_version.id
 
         await _push_event(test_case_id, "completed", {
-            "test_run_id": exec_result["test_run_id"],
-            "execution_status": exec_result.get("execution_status"),
-            "steps_passed": exec_result.get("steps_passed", 0),
-            "steps_failed": exec_result.get("steps_failed", 0),
+            "execution_id":          exec_result["execution_id"],
+            "tc_result_id":          exec_result["tc_result_id"],
+            "execution_status":      exec_result.get("execution_status"),
+            "steps_passed":          exec_result.get("steps_passed", 0),
+            "steps_failed":          exec_result.get("steps_failed", 0),
             "remaining_placeholders": exec_result.get("remaining_placeholders", 0),
-            "script_version_id": exec_result["script_version_id"],
-            "script_v2": exec_result.get("script_v2"),
-            "duration": exec_result.get("duration", 0),
-            "step_details": exec_result.get("step_details", []),
+            "script_version_id":     exec_result["script_version_id"],
+            "script_v2":             exec_result.get("script_v2"),
+            "duration":              exec_result.get("duration", 0),
+            "step_details":          exec_result.get("step_details", []),
         })
 
         return exec_result
@@ -436,129 +524,52 @@ async def execute_script(
     except Exception as e:
         logger.error(f"Execution failed: {e}", exc_info=True)
 
-        if save_to_db and test_run:
-            await repo.update_test_run(
+        if save_to_db and execution:
+            await repo.update_test_execution(
                 db,
-                test_run_id=test_run.id,
-                status=TestRunStatus.FAILED
+                execution_id=execution.id,
+                status=TestExecutionStatus.ABORTED,
+                completed_at=datetime.utcnow(),
+                failed_count=1,
             )
+            if tc_result:
+                await repo.update_tc_result(
+                    db,
+                    tc_result_id=tc_result.id,
+                    status=TestCaseResultStatus.ERROR,
+                    error_message=str(e),
+                    completed_at=datetime.utcnow(),
+                )
             await repo.commit(db)
 
         await _push_event(test_case_id, "failed", {
             "error": str(e),
-            "test_run_id": test_run.id if test_run else None,
+            "execution_id": execution.id if execution else None,
+            "tc_result_id": tc_result.id if tc_result else None,
         })
 
         return {
             "status": "error",
-            "error": str(e),
-            "test_run_id": test_run.id if test_run else None
+            "error":  str(e),
+            "execution_id":  execution.id if execution else None,
+            "tc_result_id":  tc_result.id if tc_result else None,
         }
 
 
-def _extract_text_from_content(content) -> str:
-    """Extract plain text from LangChain message content (str or list-of-dicts)."""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        texts = []
-        for item in content:
-            if isinstance(item, dict):
-                if item.get("type") == "text":
-                    texts.append(item.get("text", ""))
-                elif "text" in item:
-                    texts.append(str(item["text"]))
-            else:
-                texts.append(str(item))
-        return "\n".join(t for t in texts if t.strip())
-    return str(content)
-
-
-def _extract_steps(messages: list) -> list:
-    """Parse LangGraph messages into step dicts."""
-    steps = []
-    order = 0
-    for msg in messages:
-        msg_type = type(msg).__name__
-
-        if msg_type == "AIMessage":
-            content = msg.content if isinstance(msg.content, str) else ""
-            if content.strip():
-                steps.append({
-                    "step_order": order,
-                    "step_type": StepType.THINK,
-                    "content": content[:2000],
-                    "status": StepStatus.SUCCESS,
-                })
-                order += 1
-
-            tool_calls = getattr(msg, "tool_calls", None) or []
-            for tc in tool_calls:
-                args = tc.get("args", {})
-                args_parts = [f"{k}={str(v)[:80]!r}" for k, v in args.items()]
-                content_str = f"{tc.get('name', 'unknown')}({', '.join(args_parts)})"
-                steps.append({
-                    "step_order": order,
-                    "step_type": StepType.ACT,
-                    "content": content_str[:2000],
-                    "tool_name": tc.get("name"),
-                    "status": StepStatus.SUCCESS,
-                })
-                order += 1
-
-        elif msg_type == "ToolMessage":
-            text_content = _extract_text_from_content(msg.content)
-            error_keywords = ("### error", "timeouterror", "exception", "unable to", "tool error (recoverable)")
-            is_error = any(kw in text_content.lower() for kw in error_keywords)
-            steps.append({
-                "step_order": order,
-                "step_type": StepType.OBSERVE,
-                "content": text_content[:2000],
-                "tool_name": getattr(msg, "name", None),
-                "status": StepStatus.FAILED if is_error else StepStatus.SUCCESS,
-            })
-            order += 1
-
-    return steps
-
-
-def _extract_steps_from_details(step_details: list) -> list:
-    """Convert Phase 4 step_details into DB-compatible step records."""
-    steps = []
-    for i, detail in enumerate(step_details):
-        is_failed = detail.get("status") == "failed"
-        content = detail.get("step", "")
-        if detail.get("error"):
-            content = f"{content}\nError: {detail['error']}"
-        steps.append({
-            "step_order": i,
-            "step_type": StepType.ACT,
-            "content": content[:2000],
-            "status": StepStatus.FAILED if is_failed else StepStatus.SUCCESS,
-        })
-    return steps
-
-
-async def _save_execution_results(
+async def _persist_tc_result(
     db: AsyncSession,
-    test_run_id: str,
+    tc_result_id: str,
+    execution_id: str,
     script_version: Any,
-    exec_result: Dict[str, Any]
+    exec_result: Dict[str, Any],
 ) -> None:
-    """Sauvegarde les résultats d'exécution en base."""
-    
-    final_status = (
-        TestRunStatus.COMPLETED 
-        if exec_result.get("execution_status") in ["passed", "completed"]
-        else TestRunStatus.FAILED
-    )
-    await repo.update_test_run(
-        db,
-        test_run_id=test_run_id,
-        status=final_status,
-        duration=exec_result.get("duration")
-    )
-    
+    """Persist agent results into TestCaseResult + script_v2 logic + auto-defect."""
+    steps_json = _build_steps_json(exec_result)
+    steps_passed = int(exec_result.get("steps_passed", 0))
+    steps_failed = int(exec_result.get("steps_failed", 0))
+    duration     = exec_result.get("duration")
+
+    # If the agent corrected the script, save v2 and pin it active
     script_v2_record = None
     if exec_result.get("script_v2"):
         script_v2_record = await repo.save_script(
@@ -567,11 +578,10 @@ async def _save_execution_results(
             script_content=exec_result["script_v2"],
             source=ScriptSource.V2_CORRECTED,
             placeholder_count=exec_result.get("remaining_placeholders", 0),
-            is_active=True
+            is_active=True,
         )
         await repo.commit(db)
 
-        # Pin active script + persist discovered locators on the TestCase
         locator_mapping = exec_result.get("locator_mapping", {})
         await repo.update_test_case_after_execution(
             db,
@@ -580,31 +590,12 @@ async def _save_execution_results(
             locator_mapping=locator_mapping,
         )
         await repo.commit(db)
-    
-    raw_messages = exec_result.get("raw_messages", [])
-    if raw_messages:
-        steps = _extract_steps(raw_messages)
-        if steps:
-            await repo.add_steps_batch(db, test_run_id, steps)
-    else:
-        step_details = exec_result.get("step_details", [])
-        if step_details:
-            steps = _extract_steps_from_details(step_details)
-            if steps:
-                await repo.add_steps_batch(db, test_run_id, steps)
 
-    execution_status = exec_result.get("execution_status", "")
-    steps_failed = exec_result.get("steps_failed", 0)
-    steps_passed = exec_result.get("steps_passed", 0)
-    # "completed" with no failures → PASSED
-    # "partial" or any step failure → FAILED (assertions missing or failing)
-    # "error" (agent couldn't run at all) → ERROR
-    if execution_status in ("passed", "completed") and steps_failed == 0:
-        test_result_status = TestResultStatus.PASSED
-    elif execution_status == "error":
-        test_result_status = TestResultStatus.ERROR
-    else:
-        test_result_status = TestResultStatus.FAILED
+    # Compute final TC result status
+    tc_status = _map_exec_status_to_tc_result_status(
+        exec_result.get("execution_status", "error"),
+        steps_failed,
+    )
 
     remaining = exec_result.get("remaining_placeholders", 0)
     total_ph = script_version.placeholder_count or 0
@@ -613,23 +604,47 @@ async def _save_execution_results(
         f"Placeholders: {resolved_ph}/{total_ph} resolved. "
         f"Steps: {steps_passed} passed, {steps_failed} failed."
     )
-    await repo.save_test_result(
+
+    await repo.update_tc_result(
         db,
-        test_run_id=test_run_id,
-        status=test_result_status,
+        tc_result_id=tc_result_id,
+        status=tc_status,
+        steps=steps_json,
+        steps_passed=steps_passed,
+        steps_failed=steps_failed,
         justification=justification,
-        step_count=steps_passed + steps_failed,
+        error_message=exec_result.get("error"),
         screenshot_b64=exec_result.get("screenshot"),
+        duration=duration,
+        completed_at=datetime.utcnow(),
+        script_version_id=(script_v2_record.id if script_v2_record else script_version.id),
     )
-    
+
+    # Update parent execution counters (single-TC mode)
+    counter_updates: Dict[str, int] = {
+        "passed_count":  1 if tc_status == TestCaseResultStatus.PASSED  else 0,
+        "failed_count":  1 if tc_status == TestCaseResultStatus.FAILED  else 0,
+        "error_count":   1 if tc_status == TestCaseResultStatus.ERROR   else 0,
+        "skipped_count": 1 if tc_status == TestCaseResultStatus.SKIPPED else 0,
+    }
+    await repo.update_test_execution(
+        db,
+        execution_id=execution_id,
+        status=TestExecutionStatus.COMPLETED,
+        completed_at=datetime.utcnow(),
+        duration=duration,
+        **counter_updates,
+    )
     await repo.commit(db)
 
-    # ── Auto-create defect if execution failed ────────────────────────────────
-    if final_status == TestRunStatus.FAILED:
+    # Auto-defect on failure
+    if tc_status in (TestCaseResultStatus.FAILED, TestCaseResultStatus.ERROR):
         try:
             from app.services.execution_report_service import create_defect_from_execution
-            tc_id = script_version.test_case_id
-            await create_defect_from_execution(db, test_run_id=test_run_id, test_case_id=tc_id)
+            await create_defect_from_execution(
+                db, tc_result_id=tc_result_id,
+                test_case_id=script_version.test_case_id,
+            )
             await repo.commit(db)
         except Exception as e:
             logger.warning(f"Auto-defect creation failed (non-blocking): {e}")
@@ -643,14 +658,8 @@ async def run_full_workflow(
     headless: bool = True,
     model_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Full workflow: pre-flight snapshot → generation → execution.
-    Snapshots are captured once and reused at both phases to avoid duplicate
-    browser launches and redundant LLM DOM-resolution calls at runtime.
-    """
     logger.info(f"Starting full workflow for test_case {test_case_id}")
 
-    # Pre-flight: capture multi-page snapshots once for reuse across both phases
     page_snapshots: Dict[str, str] = {}
     if app_url:
         test_case = await repo.get_test_case(db, test_case_id)
@@ -688,45 +697,45 @@ async def run_full_workflow(
         page_snapshots=page_snapshots or None,
         model_id=model_id,
     )
-    
+
     total_steps = exec_result.get("steps_passed", 0) + exec_result.get("steps_failed", 0)
     success_rate = (
         (exec_result["steps_passed"] / total_steps * 100)
         if total_steps > 0 else 0
     )
-    
+
     return {
         "workflow_status": "completed" if exec_result.get("execution_status") != "error" else "execution_failed",
         "generation": {
             "status": gen_result["status"],
             "placeholder_count": gen_result["placeholder_count"],
-            "script_version_id": gen_result.get("script_version_id")
+            "script_version_id": gen_result.get("script_version_id"),
         },
         "execution": {
             "status": exec_result.get("execution_status"),
             "steps_passed": exec_result.get("steps_passed", 0),
             "steps_failed": exec_result.get("steps_failed", 0),
             "remaining_placeholders": exec_result.get("remaining_placeholders", 0),
-            "test_run_id": exec_result.get("test_run_id"),
-            "script_version_id": exec_result.get("script_version_id")
+            "execution_id": exec_result.get("execution_id"),
+            "tc_result_id": exec_result.get("tc_result_id"),
+            "script_version_id": exec_result.get("script_version_id"),
         },
         "summary": {
             "total_steps": total_steps,
             "passed_steps": exec_result.get("steps_passed", 0),
             "failed_steps": exec_result.get("steps_failed", 0),
-            "success_rate": round(success_rate, 2)
-        }
+            "success_rate": round(success_rate, 2),
+        },
     }
 
 
-async def get_test_case_scripts(
-    db: AsyncSession,
-    test_case_id: str
-) -> Dict[str, Any]:
-    """Récupère tous les scripts d'un test case."""
+# ============================================================
+# READ-SIDE HELPERS
+# ============================================================
+
+async def get_test_case_scripts(db: AsyncSession, test_case_id: str) -> Dict[str, Any]:
     scripts = await repo.get_all_scripts(db, test_case_id)
     active_script = await repo.get_active_script(db, test_case_id)
-    
     return {
         "test_case_id": test_case_id,
         "active_script_id": active_script.id if active_script else None,
@@ -738,167 +747,51 @@ async def get_test_case_scripts(
                 "is_active": s.is_active,
                 "placeholder_count": s.placeholder_count,
                 "validation_status": s.validation_status.value,
-                "created_at": s.created_at.isoformat()
+                "created_at": s.created_at.isoformat(),
             }
             for s in scripts
-        ]
+        ],
     }
 
 
-async def get_test_run_details(
-    db: AsyncSession,
-    test_run_id: str
-) -> Dict[str, Any]:
-    """Récupère les détails complets d'un test run."""
-    test_run = await repo.get_test_run(db, test_run_id)
-    if not test_run:
-        return {"error": f"TestRun {test_run_id} not found"}
-    
-    steps = await repo.get_steps(db, test_run_id)
-    test_result = await repo.get_test_result(db, test_run_id)
-    
+async def get_tc_result_details(db: AsyncSession, tc_result_id: str) -> Dict[str, Any]:
+    """Détails complets d'un TestCaseResult (pour la page View Details)."""
+    tc_result = await repo.get_tc_result(db, tc_result_id)
+    if not tc_result:
+        return {"error": f"TestCaseResult {tc_result_id} not found"}
+
+    execution = await repo.get_test_execution(db, tc_result.execution_id)
+
     return {
-        "test_run": {
-            "id": test_run.id,
-            "status": test_run.status.value,
-            "browser": test_run.browser,
-            "headless": test_run.headless,
-            "started_at": test_run.started_at.isoformat(),
-            "completed_at": test_run.completed_at.isoformat() if test_run.completed_at else None,
-            "duration": test_run.duration
+        "tc_result": {
+            "id":             tc_result.id,
+            "execution_id":   tc_result.execution_id,
+            "test_case_id":   tc_result.test_case_id,
+            "execution_order": tc_result.execution_order,
+            "status":         tc_result.status.value,
+            "steps":          tc_result.steps or [],
+            "steps_passed":   tc_result.steps_passed,
+            "steps_failed":   tc_result.steps_failed,
+            "justification":  tc_result.justification,
+            "error_message":  tc_result.error_message,
+            "screenshot_b64": tc_result.screenshot_b64,
+            "duration":       tc_result.duration,
+            "started_at":     tc_result.started_at.isoformat() if tc_result.started_at else None,
+            "completed_at":   tc_result.completed_at.isoformat() if tc_result.completed_at else None,
         },
-        "result": {
-            "status": test_result.status.value if test_result else None,
-            "justification": test_result.justification if test_result else None,
-            "error_message": test_result.error_message if test_result else None
-        } if test_result else None,
-        "steps": [
-            {
-                "order": s.step_order,
-                "type": s.step_type.value,
-                "content": s.content,
-                "tool_name": s.tool_name,
-                "status": s.status.value,
-                "duration": s.duration
-            }
-            for s in steps
-        ]
+        "execution": {
+            "id":         execution.id,
+            "browser":    execution.browser,
+            "app_url":    execution.app_url,
+            "headless":   execution.headless,
+            "started_at": execution.started_at.isoformat() if execution.started_at else None,
+        } if execution else None,
     }
 
-async def run_suite(
-    db: AsyncSession,
-    test_case_ids: List[str],
-    app_url: Optional[str] = None,
-    browser: str = "chromium",
-    headless: bool = True,
-    stop_on_failure: bool = False,
-) -> Dict[str, Any]:
-    """
-    Execute multiple test cases sequentially, respecting execution order.
-    Each TC pushes events to its own SSE channel.
-    Returns a summary of all runs.
-    """
-    logger.info(f"Starting suite run: {len(test_case_ids)} test cases, stop_on_failure={stop_on_failure}")
 
-    results = []
-    passed = 0
-    failed = 0
-    skipped = 0
-
-    for idx, tc_id in enumerate(test_case_ids):
-        logger.info(f"Suite run: executing TC {idx + 1}/{len(test_case_ids)} — {tc_id}")
-
-        await _push_event(tc_id, "suite_step", {
-            "index": idx + 1,
-            "total": len(test_case_ids),
-            "test_case_id": tc_id,
-            "message": f"Running test {idx + 1}/{len(test_case_ids)}",
-        })
-
-        try:
-            exec_result = await execute_script(
-                db,
-                test_case_id=tc_id,
-                app_url=app_url,
-                browser=browser,
-                headless=headless,
-                save_to_db=True,
-            )
-
-            raw_exec_status = exec_result.get("execution_status", "error")
-            steps_failed_count = exec_result.get("steps_failed", 0)
-            if raw_exec_status in ("passed", "completed") and steps_failed_count == 0:
-                status = "passed"
-            elif raw_exec_status == "error":
-                status = "error"
-            else:
-                status = "failed"
-
-            results.append({
-                "test_case_id": tc_id,
-                "status": status,
-                "test_run_id": exec_result.get("test_run_id"),
-                "duration": exec_result.get("duration", 0),
-                "error": exec_result.get("error"),
-            })
-
-            if status == "passed":
-                passed += 1
-            else:
-                failed += 1
-                if stop_on_failure:
-                    logger.info(f"Suite run: stopping after failure on TC {tc_id}")
-                    # Mark remaining as skipped
-                    for remaining_id in test_case_ids[idx + 1:]:
-                        skipped += 1
-                        results.append({
-                            "test_case_id": remaining_id,
-                            "status": "skipped",
-                            "test_run_id": None,
-                            "duration": 0,
-                            "error": "Skipped due to previous failure",
-                        })
-                    break
-
-        except Exception as e:
-            logger.error(f"Suite run: TC {tc_id} failed with exception: {e}")
-            failed += 1
-            results.append({
-                "test_case_id": tc_id,
-                "status": "error",
-                "test_run_id": None,
-                "duration": 0,
-                "error": str(e),
-            })
-            if stop_on_failure:
-                for remaining_id in test_case_ids[idx + 1:]:
-                    skipped += 1
-                    results.append({
-                        "test_case_id": remaining_id,
-                        "status": "skipped",
-                        "test_run_id": None,
-                        "duration": 0,
-                        "error": "Skipped due to previous failure",
-                    })
-                break
-
-    total = len(test_case_ids)
-    suite_status = "passed" if failed == 0 and skipped == 0 else ("partial" if passed > 0 else "failed")
-
-    logger.info(
-        f"Suite run completed: {passed} passed, {failed} failed, {skipped} skipped / {total} total"
-    )
-
-    return {
-        "suite_status": suite_status,
-        "total": total,
-        "passed": passed,
-        "failed": failed,
-        "skipped": skipped,
-        "success_rate": round((passed / total * 100) if total > 0 else 0, 1),
-        "results": results,
-    }
-
+# ============================================================
+# SUITE EXECUTION — TWO-PHASE (creates TestExecution + per-TC results)
+# ============================================================
 
 async def run_suite_smart(
     db: AsyncSession,
@@ -908,19 +801,15 @@ async def run_suite_smart(
     headless: bool = True,
     stop_on_failure: bool = False,
     model_id: Optional[str] = None,
+    triggered_by: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Two-phase optimised suite execution.
 
-    Phase 1 — Parallel script generation:
-        For every TC without an active script, take ONE DOM snapshot then run
-        all generators concurrently (semaphore=3, each in its own DB session).
+    Phase 1 — parallel script generation (sem=3) for TCs missing scripts.
+    Phase 2 — single shared browser session executes each TC sequentially.
 
-    Phase 2 — Single shared browser session:
-        Open PlaywrightMCPClient once for the whole suite; execute each TC
-        sequentially via run_with_tools() (no per-TC browser launch).
-        Browser state is reset between TCs with a navigate() to app_url.
-        Each TC is guarded by a 180 s timeout.
+    Persists everything in ONE TestExecution + N TestCaseResult rows.
     """
     from sqlalchemy import select as _select
     from app.models.test_case import TestCase as _TC
@@ -929,10 +818,14 @@ async def run_suite_smart(
 
     channel = f"suite_{suite_id}"
 
-    # ── Load suite metadata ───────────────────────────────────────────────────
+    # ── Load suite + TCs ────────────────────────────────────────────────────
     tc_rows = (await db.execute(
         _select(_TC)
-        .where(_TC.test_suite_id == suite_id, _TC.is_active == True)
+        .where(
+            _TC.test_suite_id == suite_id,
+            _TC.is_active == True,
+            _TC.excluded_from_run == False,
+        )
         .order_by(_TC.execution_order.asc().nullslast(), _TC.tc_code.asc())
     )).scalars().all()
 
@@ -949,16 +842,43 @@ async def run_suite_smart(
 
     logger.info(f"Suite smart run: '{suite_title}' — {len(tc_rows)} TCs, app_url={app_url}")
 
+    # ── Create wrapping TestExecution ───────────────────────────────────────
+    execution = await repo.create_test_execution(
+        db,
+        suite_id=suite_id,
+        app_url=app_url or settings.TEST_APPLICATION_URL,
+        browser=browser,
+        headless=headless,
+        stop_on_failure=stop_on_failure,
+        model_id=model_id,
+        triggered_by=triggered_by,
+        total_count=len(tc_rows),
+    )
+
+    # Pre-create TestCaseResult rows so the UI can show "pending"
+    tc_result_by_id: Dict[str, Any] = {}
+    for idx, tc in enumerate(tc_rows):
+        tcr = await repo.create_tc_result(
+            db,
+            execution_id=execution.id,
+            test_case_id=tc.id,
+            execution_order=idx + 1,
+            script_version_id=None,
+        )
+        tc_result_by_id[tc.id] = tcr
+    await repo.commit(db)
+
     await _push_event(channel, "suite_started", {
-        "suite_id": suite_id,
-        "suite_title": suite_title,
-        "test_case_ids": [tc.id for tc in tc_rows],
-        "total": len(tc_rows),
-        "app_url": app_url,
+        "suite_id":       suite_id,
+        "suite_title":    suite_title,
+        "execution_id":   execution.id,
+        "test_case_ids":  [tc.id for tc in tc_rows],
+        "total":          len(tc_rows),
+        "app_url":        app_url,
     })
 
-    # ── Phase 1 — Parallel script generation ─────────────────────────────────
-    shared_snapshots: Dict[str, str] = {}  # initialised here so Phase 2 always sees it
+    # ── Phase 1 — parallel generation ───────────────────────────────────────
+    shared_snapshots: Dict[str, str] = {}
     tcs_needing_scripts: List[Any] = []
     for tc in tc_rows:
         if not await repo.get_active_script(db, tc.id):
@@ -972,8 +892,6 @@ async def run_suite_smart(
             "message": f"Generating {len(tcs_needing_scripts)} missing scripts in parallel…",
         })
 
-        # One multi-page snapshot set shared across all generators
-        # Aggregate steps from all TCs needing scripts to maximise page coverage
         if app_url:
             all_steps: list = []
             all_gherkin_parts: list = []
@@ -1017,19 +935,19 @@ async def run_suite_smart(
         await asyncio.gather(*[_gen_one(tc) for tc in tcs_needing_scripts], return_exceptions=True)
         logger.info("Phase 1 done")
 
-    # ── Phase 2 — Single shared browser session ───────────────────────────────
+    # ── Phase 2 — single shared browser session ─────────────────────────────
     results: List[Dict[str, Any]] = []
-    passed = failed = skipped = 0
+    passed = failed = skipped = error_count = 0
+    started = datetime.utcnow()
 
     def _is_auth_tc(title: str, script_content: str) -> bool:
-        """Heuristic: true when a TC performs a login/sign-in action."""
         kws = ("login", "sign in", "signin", "log in", "authenticate", "auth")
         if any(kw in title.lower() for kw in kws):
             return True
-        sc = script_content.lower()
+        sc = (script_content or "").lower()
         return "password" in sc and ".fill(" in sc
 
-    _saved_local_storage: Optional[str] = None  # JSON string of localStorage after auth TC
+    _saved_local_storage: Optional[str] = None
 
     async def _save_local_storage(tools: dict) -> Optional[str]:
         if "browser_evaluate" not in tools:
@@ -1050,7 +968,6 @@ async def run_suite_smart(
         if "browser_evaluate" not in tools or not saved:
             return
         try:
-            # Use a self-invoking function to safely iterate and set entries
             inject = (
                 "(function(d){"
                 "try{var o=JSON.parse(d);"
@@ -1066,7 +983,6 @@ async def run_suite_smart(
     async with PlaywrightMCPClient(headless=headless, browser=browser) as mcp:
         tools = {t.name: t for t in mcp.tools}
 
-        # Navigate to app_url once to warm up the browser
         if app_url and "browser_navigate" in tools:
             try:
                 await tools["browser_navigate"].ainvoke({"url": app_url})
@@ -1076,6 +992,7 @@ async def run_suite_smart(
 
         for idx, tc in enumerate(tc_rows):
             tc_id = tc.id
+            tcr   = tc_result_by_id[tc_id]
 
             await _push_event(channel, "tc_started", {
                 "index": idx + 1,
@@ -1083,54 +1000,60 @@ async def run_suite_smart(
                 "tc_id": tc_id,
                 "tc_code": tc.tc_code,
                 "title": tc.title,
+                "tc_result_id": tcr.id,
             })
 
-            # Re-query script (Phase 1 may have just created it)
             active_script = await repo.get_active_script(db, tc_id)
             if not active_script:
                 logger.warning(f"Suite P2: no script for {tc.tc_code} — marking error")
                 failed += 1
-                tc_result = {
+                error_count += 1
+                err_msg = "No script available (generation failed)"
+                await repo.update_tc_result(
+                    db,
+                    tc_result_id=tcr.id,
+                    status=TestCaseResultStatus.ERROR,
+                    error_message=err_msg,
+                    completed_at=datetime.utcnow(),
+                )
+                await repo.commit(db)
+
+                tc_result_payload = {
                     "tc_id": tc_id, "tc_code": tc.tc_code, "title": tc.title,
-                    "status": "error", "run_id": None,
+                    "status": "error", "tc_result_id": tcr.id,
                     "steps_passed": 0, "steps_failed": 0, "duration": 0,
-                    "error": "No script available (generation failed)",
+                    "error": err_msg,
                 }
-                results.append(tc_result)
-                await _push_event(channel, "tc_completed", tc_result)
+                results.append(tc_result_payload)
+                await _push_event(channel, "tc_completed", tc_result_payload)
+
                 if stop_on_failure:
                     for rem_tc in tc_rows[idx + 1:]:
                         skipped += 1
+                        rem_tcr = tc_result_by_id[rem_tc.id]
+                        await repo.update_tc_result(
+                            db,
+                            tc_result_id=rem_tcr.id,
+                            status=TestCaseResultStatus.SKIPPED,
+                            error_message="Skipped — previous TC failed",
+                            completed_at=datetime.utcnow(),
+                        )
                         results.append({
                             "tc_id": rem_tc.id, "tc_code": rem_tc.tc_code,
                             "title": rem_tc.title, "status": "skipped",
-                            "run_id": None, "steps_passed": 0, "steps_failed": 0,
+                            "tc_result_id": rem_tcr.id,
+                            "steps_passed": 0, "steps_failed": 0,
                             "duration": 0, "error": "Skipped — previous TC failed",
                         })
+                    await repo.commit(db)
                     break
                 continue
 
-            # Between TCs: do NOT navigate back to app_url.
-            # The browser keeps whatever authenticated state TC (idx-1) left.
-            # run_with_tools(suite_continuation=True) will skip the TC script's own
-            # root navigate if the browser is already on an authenticated page,
-            # preventing the "page.goto(app_url) → login redirect → wrong form filled"
-            # failure pattern. A short pause lets any pending animations settle.
+            # Inter-TC: don't navigate to app_url; restore localStorage for non-auth TCs
             if idx > 0:
                 await asyncio.sleep(0.5)
-                # Restore localStorage (JWT/tokens) for non-auth TCs that rely on a prior login
-                if _saved_local_storage and not _is_auth_tc(tc.title, active_script.script_content if active_script else ""):
+                if _saved_local_storage and not _is_auth_tc(tc.title, active_script.script_content):
                     await _restore_local_storage(tools, _saved_local_storage)
-
-            # Create TestRun record before execution
-            test_run = await repo.create_test_run(
-                db,
-                script_version_id=active_script.id,
-                base_url=app_url or settings.TEST_APPLICATION_URL,
-                browser=browser,
-                headless=headless,
-            )
-            await repo.commit(db)
 
             async def _on_step(label: str, status: str, error: str = None, _tc_id=tc_id):
                 await _push_event(_tc_id, "agent_step", {
@@ -1176,12 +1099,11 @@ async def run_suite_smart(
                 }
 
             try:
-                await _save_execution_results(db, test_run.id, active_script, exec_result)
+                await _persist_tc_result(db, tcr.id, execution.id, active_script, exec_result)
             except Exception as save_e:
                 logger.error(f"Failed to save results for {tc.tc_code}: {save_e}")
 
-            # After a successful auth TC, capture localStorage so subsequent TCs
-            # that rely on stored tokens (JWT in localStorage) can restore it.
+            # Capture localStorage for downstream TCs
             if exec_result.get("execution_status") in ("passed", "completed"):
                 if _is_auth_tc(tc.title, active_script.script_content):
                     captured = await _save_local_storage(tools)
@@ -1190,86 +1112,111 @@ async def run_suite_smart(
 
             raw_exec_status = exec_result.get("execution_status", "error")
             steps_failed_count = exec_result.get("steps_failed", 0)
-            # Translate to the same status the DB stores (same logic as _save_exec_result_to_db)
             if raw_exec_status in ("passed", "completed") and steps_failed_count == 0:
                 status = "passed"
+                passed += 1
             elif raw_exec_status == "error":
                 status = "error"
+                error_count += 1
+                failed += 1
             else:
                 status = "failed"
-
-            tc_result = {
-                "tc_id": tc_id, "tc_code": tc.tc_code, "title": tc.title,
-                "status": status,
-                "run_id": test_run.id,
-                "steps_passed": exec_result.get("steps_passed", 0),
-                "steps_failed": exec_result.get("steps_failed", 0),
-                "duration": round(exec_result.get("duration", 0) or 0, 1),
-                "error": exec_result.get("error"),
-            }
-            results.append(tc_result)
-
-            if status == "passed":
-                passed += 1
-            else:
                 failed += 1
 
-            await _push_event(channel, "tc_completed", tc_result)
+            tc_result_payload = {
+                "tc_id":         tc_id, "tc_code": tc.tc_code, "title": tc.title,
+                "status":        status,
+                "tc_result_id":  tcr.id,
+                "steps_passed":  exec_result.get("steps_passed", 0),
+                "steps_failed":  exec_result.get("steps_failed", 0),
+                "duration":      round(exec_result.get("duration", 0) or 0, 1),
+                "error":         exec_result.get("error"),
+            }
+            results.append(tc_result_payload)
+            await _push_event(channel, "tc_completed", tc_result_payload)
 
             if failed > 0 and stop_on_failure:
                 for rem_tc in tc_rows[idx + 1:]:
                     skipped += 1
-                    skipped_result = {
+                    rem_tcr = tc_result_by_id[rem_tc.id]
+                    await repo.update_tc_result(
+                        db,
+                        tc_result_id=rem_tcr.id,
+                        status=TestCaseResultStatus.SKIPPED,
+                        error_message="Skipped — previous TC failed",
+                        completed_at=datetime.utcnow(),
+                    )
+                    skip_payload = {
                         "tc_id": rem_tc.id, "tc_code": rem_tc.tc_code,
                         "title": rem_tc.title, "status": "skipped",
-                        "run_id": None, "steps_passed": 0, "steps_failed": 0,
+                        "tc_result_id": rem_tcr.id,
+                        "steps_passed": 0, "steps_failed": 0,
                         "duration": 0, "error": "Skipped — previous TC failed",
                     }
-                    results.append(skipped_result)
-                    await _push_event(channel, "tc_completed", skipped_result)
+                    results.append(skip_payload)
+                    await _push_event(channel, "tc_completed", skip_payload)
+                await repo.commit(db)
                 break
 
-    # ── Final summary ─────────────────────────────────────────────────────────
+    # ── Finalize execution ──────────────────────────────────────────────────
     total = len(tc_rows)
     suite_status = "passed" if failed == 0 and skipped == 0 else ("partial" if passed > 0 else "failed")
     success_rate = round((passed / total * 100) if total > 0 else 0, 1)
-    total_duration = round(sum(r.get("duration", 0) or 0 for r in results), 1)
+    total_duration = round((datetime.utcnow() - started).total_seconds(), 1)
+
+    await repo.update_test_execution(
+        db,
+        execution_id=execution.id,
+        status=TestExecutionStatus.COMPLETED,
+        completed_at=datetime.utcnow(),
+        duration=total_duration,
+        passed_count=passed,
+        failed_count=failed - error_count,
+        error_count=error_count,
+        skipped_count=skipped,
+    )
+    await repo.commit(db)
 
     logger.info(f"Suite smart done: {passed} passed, {failed} failed, {skipped} skipped / {total}")
 
     await _push_event(channel, "completed", {
-        "suite_id": suite_id,
-        "suite_status": suite_status,
-        "total": total,
-        "passed": passed,
-        "failed": failed,
-        "skipped": skipped,
-        "success_rate": success_rate,
-        "duration": total_duration,
-        "results": results,
+        "suite_id":      suite_id,
+        "execution_id":  execution.id,
+        "suite_status":  suite_status,
+        "total":         total,
+        "passed":        passed,
+        "failed":        failed,
+        "skipped":       skipped,
+        "success_rate":  success_rate,
+        "duration":      total_duration,
+        "results":       results,
     })
 
     return {
         "suite_status": suite_status,
+        "execution_id": execution.id,
         "total": total, "passed": passed, "failed": failed,
         "skipped": skipped, "success_rate": success_rate, "results": results,
     }
 
+
+# ============================================================
+# SSE push wrapper
+# ============================================================
 
 async def _push_event(test_case_id: str, event_type: str, data: Dict[str, Any]) -> None:
     """Push event to SSE manager."""
     try:
         from app.streaming.sse_manager import push_event
         from app.ai_agents_v2.playwright_e2e.agent import format_tool_result
-        
-        # Formate le contenu pour les agent_step
+
         if event_type == "agent_step" and "tool" in data:
             tool_name = data.get("tool", "")
             content = data.get("content", "")
             if data.get("step_type") == "observe":
                 formatted_content = format_tool_result(tool_name, content)
                 data["content"] = formatted_content
-        
+
         await push_event(test_case_id, event_type, data)
     except ImportError as e:
         logger.warning(f"SSE manager not available, event not sent: {event_type} - {e}")

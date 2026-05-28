@@ -227,24 +227,35 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   }
 
   private _restoreLastRun(suiteId: string): void {
-    this.playwrightService.getLastSuiteRun(suiteId).subscribe({
+    // Restore the last TestExecution for this suite (if any) into the panel
+    this.playwrightService.listTestExecutions({ suiteId, limit: 1 }).subscribe({
       next: (data) => {
-        if (!data.has_runs || !data.results.length) return;
-        // Don't overwrite a live/in-progress run
+        if (!data.items.length) return;
         if (this.isSuiteRunning()) return;
-        this.suiteLogEntries.set(
-          data.results.map(r => ({
-            tc_id: r.tc_id,
-            tc_code: r.tc_code,
-            title: r.title,
-            status: r.status as SuiteLogEntry['status'],
-            run_id: r.run_id ?? undefined,
-          }))
-        );
-        if (data.summary) {
-          this.suiteRunSummary.set(data.summary);
-          this.showSuitePanel.set(true);
-        }
+
+        const exec = data.items[0];
+        this.playwrightService.getTestExecutionDetail(exec.id).subscribe({
+          next: (detail) => {
+            this.suiteLogEntries.set(
+              detail.test_case_results.map(r => ({
+                tc_id: r.test_case_id,
+                tc_code: r.tc_code ?? '?',
+                title: r.title ?? r.test_case_id,
+                status: r.status as SuiteLogEntry['status'],
+                run_id: r.id,
+              }))
+            );
+            this.suiteRunSummary.set({
+              total: exec.total_count,
+              passed: exec.passed_count,
+              failed: exec.failed_count + exec.error_count,
+              skipped: exec.skipped_count,
+              duration: exec.duration ?? 0,
+            });
+            this.showSuitePanel.set(true);
+          },
+          error: () => {},
+        });
       },
       error: () => { /* silent — panel just stays empty */ },
     });

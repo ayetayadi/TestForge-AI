@@ -9,7 +9,7 @@
         <h1>Playwright Scripts</h1>
         <span class="lang-badge">TypeScript</span>
       </div>
-      <p class="subtitle">Generate v1 draft scripts and run full test suites via Playwright MCP</p>
+      <p class="subtitle">Generate v1 draft Playwright scripts for your test cases</p>
     </div>
 
     <div class="header-center">
@@ -22,12 +22,12 @@
     </div>
 
     <div class="header-actions">
-      <button class="btn-run-suite" (click)="openRunModal()" [disabled]="isSuiteRunning()">
+      <a class="btn-run-suite" routerLink="/test-execution">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
         </svg>
-        Run Test Suite
-      </button>
+        Go to Execution
+      </a>
       <button class="btn-secondary" (click)="loadData()">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
@@ -115,7 +115,6 @@
 
           <div class="script-card__accent" [class]="getAccentClass(row.lastRunStatus)"></div>
 
-          <!-- Top badges row -->
           <div class="script-card__top">
             <span class="tc-code" (click)="goToDetail(row.testCase.id)">{{ row.testCase.tc_code }}</span>
             <span class="badge badge-exec-order">#{{ (page() - 1) * pageSize() + i + 1 }}</span>
@@ -124,7 +123,6 @@
               <span class="badge badge-script">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
                   <path fill-rule="evenodd" d="M11.986 3H12a2 2 0 0 1 2 2v6a2 2 0 0 1-1.5 1.937V7A2.5 2.5 0 0 0 10 4.5H4.063A2 2 0 0 1 6 3h.014A2.25 2.25 0 0 1 8.25 1h1.5a2.25 2.25 0 0 1 2.236 2ZM10.5 4v-.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75V4h3Z" clip-rule="evenodd" />
-                  <path fill-rule="evenodd" d="M3 6a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H3Zm4 3.75a.75.75 0 0 1-1.5 0V8.56l-.22.22a.75.75 0 0 1-1.06-1.06l1.5-1.5a.75.75 0 0 1 1.06 0l1.5 1.5a.75.75 0 1 1-1.06 1.06l-.22-.22v1.19Z" clip-rule="evenodd" />
                 </svg>
                 v{{ row.activeScriptVersion }}
               </span>
@@ -141,10 +139,8 @@
             }
           </div>
 
-          <!-- Title -->
           <h3 class="script-card__title" (click)="goToDetail(row.testCase.id)">{{ row.testCase.title }}</h3>
 
-          <!-- Meta -->
           <div class="script-card__meta">
             @if (row.testCase.project_name) {
               <div class="meta-item">
@@ -164,21 +160,8 @@
             }
           </div>
 
-          <!-- Live steps for active card (individual run) -->
-          @if (isActiveTestCase(row.testCase.id) && executionSteps().length > 0) {
-            <div class="card-steps">
-              @for (step of executionSteps(); track step.order) {
-                <div class="step-item" [class]="'step-' + step.status">
-                  <span class="step-icon">{{ getStepIcon(step.type) }}</span>
-                  <span class="step-content">{{ step.content }}</span>
-                </div>
-              }
-            </div>
-          }
-
-          <!-- Card actions -->
           <div class="script-card__actions">
-            <button class="btn-view" (click)="goToDetail(row.testCase.id)" title="View script & run details">
+            <button class="btn-view" (click)="goToDetail(row.testCase.id)" title="View script details">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
                 <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
@@ -193,7 +176,7 @@
                 [disabled]="row.isGenerating"
                 title="Delete all scripts">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+                  <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4z" clip-rule="evenodd"/>
                 </svg>
                 Delete
               </button>
@@ -203,7 +186,7 @@
               class="btn-generate"
               [disabled]="row.isGenerating"
               (click)="generateScript(row)"
-              title="{{ row.hasScript ? 'Regenerate v1 draft script' : 'Generate v1 draft script (no real locators)' }}"
+              title="{{ row.hasScript ? 'Regenerate v1 draft script' : 'Generate v1 draft script' }}"
             >
               @if (row.isGenerating) {
                 <span class="spinner-inline"></span>
@@ -216,7 +199,6 @@
               }
             </button>
           </div>
-
         </div>
       }
     </div>
@@ -234,391 +216,7 @@
       </div>
     }
   }
-
-  <!-- ══════════════════════════════════════════════════════════════
-       LIVE EXECUTION PANEL
-  ══════════════════════════════════════════════════════════════ -->
-  @if (showSuitePanel()) {
-    <div class="suite-panel">
-
-      <!-- Panel header -->
-      <div class="suite-panel__header">
-        <div class="suite-panel__header-left">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
-          </svg>
-          <div>
-            <h3>{{ suiteRunningName() }}</h3>
-            <span class="suite-panel__subtitle">Suite Execution</span>
-          </div>
-        </div>
-        <div class="suite-panel__header-right">
-          @if (isSuiteRunning()) {
-            <span class="badge-running">
-              <span class="pulse-dot"></span>
-              Running…
-            </span>
-          } @else if (suiteRunSummary()) {
-            <span class="badge-done">Completed</span>
-          }
-          @if (!isSuiteRunning()) {
-            <button class="btn-icon-close" (click)="closeSuitePanel()" title="Close panel">✕</button>
-          }
-        </div>
-      </div>
-
-      <!-- TC execution log -->
-      <div class="suite-panel__body">
-        <div class="tc-log">
-          @for (entry of suiteLogEntries(); track entry.tc_id) {
-            <div class="tc-log__row" [class]="getEntryStatusClass(entry.status)">
-              <span class="tc-log__icon">{{ getEntryStatusIcon(entry.status) }}</span>
-              <span class="tc-log__code">{{ entry.tc_code }}</span>
-              <span class="tc-log__title">{{ entry.title }}</span>
-              <span class="tc-log__status">{{ entry.status }}</span>
-              @if (entry.run_id && (entry.status === 'passed' || entry.status === 'failed')) {
-                <a class="tc-log__link" [routerLink]="['/playwright-scripts', entry.tc_id]" title="View full report">
-                  View report →
-                </a>
-              }
-            </div>
-          }
-          @if (isSuiteRunning() && suiteLogEntries().length === 0) {
-            <div class="tc-log__waiting">
-              <span class="spinner-inline"></span>
-              Waiting for execution to start…
-            </div>
-          }
-        </div>
-
-        <!-- Summary (shown after completion) -->
-        @if (suiteRunSummary(); as summary) {
-          <div class="suite-panel__summary">
-            <div class="summary-stats">
-              <div class="summary-stat summary-stat--passed">
-                <span class="summary-stat__value">{{ summary.passed }}</span>
-                <span class="summary-stat__label">Passed</span>
-              </div>
-              <div class="summary-stat summary-stat--failed">
-                <span class="summary-stat__value">{{ summary.failed }}</span>
-                <span class="summary-stat__label">Failed</span>
-              </div>
-              <div class="summary-stat summary-stat--skipped">
-                <span class="summary-stat__value">{{ summary.skipped }}</span>
-                <span class="summary-stat__label">Skipped</span>
-              </div>
-              <div class="summary-stat">
-                <span class="summary-stat__value">{{ formatDuration(summary.duration) }}</span>
-                <span class="summary-stat__label">Duration</span>
-              </div>
-            </div>
-
-            <div class="summary-actions">
-              <button class="btn-download" (click)="downloadReport()" [disabled]="isDownloadingReport()">
-                @if (isDownloadingReport()) {
-                  <span class="spinner-inline"></span> Generating…
-                } @else {
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z"/>
-                    <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z"/>
-                  </svg>
-                  Download PDF Report
-                }
-              </button>
-
-              @if (hasFailedRuns()) {
-                <button class="btn-email" (click)="openEmailDialog()">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
-                    <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
-                  </svg>
-                  Send Failed Reports
-                </button>
-              }
-            </div>
-          </div>
-        }
-      </div>
-
-    </div>
-  }
-
 </div>
-
-<!-- ══════════════════════════════════════════════════════════════
-     RUN TEST SUITE MODAL
-══════════════════════════════════════════════════════════════ -->
-@if (showRunModal()) {
-  <div class="modal-overlay" (click)="closeRunModal()">
-    <div class="run-modal" (click)="$event.stopPropagation()">
-
-      <!-- Modal header -->
-      <div class="run-modal__header">
-        <div class="run-modal__title">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
-          </svg>
-          Run Test Suite
-        </div>
-        <div class="run-modal__steps">
-          <span class="step-dot" [class.step-dot--active]="runModalStep() === 1" [class.step-dot--done]="runModalStep() > 1">
-            <span class="step-num">1</span> Configure
-          </span>
-          <span class="step-line"></span>
-          <span class="step-dot" [class.step-dot--active]="runModalStep() === 2">
-            <span class="step-num">2</span> Execution Plan
-          </span>
-        </div>
-        <button class="run-modal__close" (click)="closeRunModal()">✕</button>
-      </div>
-
-      <!-- ── STEP 1 : Configure ── -->
-      @if (runModalStep() === 1) {
-        <div class="run-modal__body">
-
-          <div class="form-group">
-            <label class="form-label">Test Suite <span class="required">*</span></label>
-            <select class="form-select" [ngModel]="runModalSuiteId()" (ngModelChange)="runModalSuiteId.set($event)">
-              <option value="">— Select an active suite —</option>
-              @for (suite of suites(); track suite.id) {
-                <option [value]="suite.id">{{ suite.title }}</option>
-              }
-            </select>
-            @if (suites().length === 0) {
-              <p class="form-hint form-hint--warn">No active test suites found.</p>
-            }
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">App URL <span class="required">*</span></label>
-            <input
-              class="form-input"
-              type="url"
-              placeholder="https://your-app.example.com"
-              [ngModel]="runModalAppUrl()"
-              (ngModelChange)="runModalAppUrl.set($event)"
-            />
-            <p class="form-hint">URL of the application to test. The browser will navigate here before each test case.</p>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group form-group--half">
-              <label class="form-label">Browser</label>
-              <div class="browser-pills">
-                @for (b of browsers; track b) {
-                  <button
-                    class="browser-pill"
-                    [class.browser-pill--active]="runModalBrowser() === b"
-                    (click)="runModalBrowser.set(b)"
-                    type="button"
-                  >{{ b }}</button>
-                }
-              </div>
-            </div>
-
-            <div class="form-group form-group--half">
-              <label class="form-label">Options</label>
-              <div class="toggle-list">
-                <label class="toggle-row">
-                  <input type="checkbox" [checked]="runModalHeadless()" (change)="runModalHeadless.set(!runModalHeadless())" />
-                  <span class="toggle-label">Headless mode</span>
-                  <span class="toggle-desc">No visible browser window</span>
-                </label>
-                <label class="toggle-row">
-                  <input type="checkbox" [checked]="runModalStopOnFail()" (change)="runModalStopOnFail.set(!runModalStopOnFail())" />
-                  <span class="toggle-label">Stop on failure</span>
-                  <span class="toggle-desc">Halt suite when a TC fails</span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">AI Model</label>
-            <select class="form-select" [ngModel]="runModalModel()" (ngModelChange)="runModalModel.set($event)">
-              @for (m of availableModels(); track m.id) {
-                <option [value]="m.id">{{ m.label }}</option>
-              }
-            </select>
-            @if (runModalModelDescription()) {
-              <p class="form-hint">{{ runModalModelDescription() }}</p>
-            }
-          </div>
-
-        </div>
-
-        <div class="run-modal__footer">
-          <button class="btn-secondary" (click)="closeRunModal()">Cancel</button>
-          <button
-            class="btn-next"
-            (click)="proceedToStep2()"
-            [disabled]="isLoadingModalTcs() || !runModalSuiteId()"
-          >
-            @if (isLoadingModalTcs()) {
-              <span class="spinner-inline"></span> Loading…
-            } @else {
-              Review Execution Plan
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clip-rule="evenodd"/>
-              </svg>
-            }
-          </button>
-        </div>
-      }
-
-      <!-- ── STEP 2 : Execution Plan ── -->
-      @if (runModalStep() === 2) {
-        <div class="run-modal__body">
-
-          <!-- Suite summary banner -->
-          <div class="plan-banner">
-            <div class="plan-banner__left">
-              <span class="plan-banner__name">{{ runModalSuiteName() }}</span>
-              <span class="plan-banner__meta">{{ includedTcCount() }} test case{{ includedTcCount() !== 1 ? 's' : '' }} included</span>
-            </div>
-            @if (noScriptCount() > 0) {
-              <div class="plan-banner__warn">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
-                </svg>
-                {{ noScriptCount() }} without script — will be auto-generated at runtime
-              </div>
-            }
-          </div>
-
-          <!-- Drag & drop TC list -->
-          <p class="plan-help">Drag to reorder · Uncheck to exclude from this run</p>
-
-          <div
-            cdkDropList
-            class="plan-tc-list"
-            (cdkDropListDropped)="dropTcInModal($event)"
-          >
-            @for (tc of runModalTcs(); track tc.id; let idx = $index) {
-              <div
-                class="plan-tc-row"
-                [class.plan-tc-row--excluded]="tc.excluded"
-                cdkDrag
-              >
-                <div class="plan-tc-row__drag" cdkDragHandle title="Drag to reorder">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z"/>
-                  </svg>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z"/>
-                  </svg>
-                </div>
-
-                <span class="plan-tc-row__pos">{{ idx + 1 }}</span>
-                <span class="plan-tc-row__code">{{ tc.tc_code }}</span>
-                <span class="plan-tc-row__title">{{ tc.title }}</span>
-
-                <span class="badge" [class]="getScriptBadgeClass(tc)" [title]="getScriptBadgeLabel(tc)">
-                  {{ getScriptBadgeLabel(tc) }}
-                </span>
-
-                <label class="plan-tc-row__toggle" [title]="tc.excluded ? 'Click to include' : 'Click to exclude'">
-                  <input
-                    type="checkbox"
-                    [checked]="!tc.excluded"
-                    (change)="toggleTcExcluded(tc)"
-                  />
-                  <span class="toggle-track">
-                    <span class="toggle-thumb"></span>
-                  </span>
-                </label>
-
-                <!-- CDK drag placeholder -->
-                <div class="plan-tc-row__drag-placeholder" *cdkDragPlaceholder></div>
-              </div>
-            }
-          </div>
-
-          <!-- Validation errors -->
-          @if (modalErrors().length > 0) {
-            <div class="modal-errors">
-              @for (err of modalErrors(); track err) {
-                <div class="modal-error">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
-                  </svg>
-                  {{ err }}
-                </div>
-              }
-            </div>
-          }
-
-        </div>
-
-        <div class="run-modal__footer">
-          <button class="btn-secondary" (click)="backToStep1()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/>
-            </svg>
-            Back
-          </button>
-          <button
-            class="btn-start"
-            (click)="startSuiteRun()"
-            [disabled]="modalErrors().length > 0 || isSavingOrder()"
-          >
-            @if (isSavingOrder()) {
-              <span class="spinner-inline"></span> Saving order…
-            } @else {
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
-              </svg>
-              Start Execution
-            }
-          </button>
-        </div>
-      }
-
-    </div>
-  </div>
-}
-
-<!-- ══════════════════════════════════════════════════════════════
-     EMAIL DIALOG
-══════════════════════════════════════════════════════════════ -->
-@if (showEmailDialog()) {
-  <div class="modal-overlay" (click)="closeEmailDialog()">
-    <div class="email-dialog" (click)="$event.stopPropagation()">
-      <div class="email-dialog__header">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
-          <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
-        </svg>
-        Send Failed TC Reports
-        <button class="email-dialog__close" (click)="closeEmailDialog()">✕</button>
-      </div>
-      <div class="email-dialog__body">
-        <p class="email-dialog__desc">
-          An email will be sent for each failed test case, including the execution steps and error screenshot.
-        </p>
-        <label class="form-label">Recipients</label>
-        <textarea
-          class="form-input"
-          rows="3"
-          placeholder="dev@example.com, qa@example.com"
-          [ngModel]="emailTo()"
-          (ngModelChange)="emailTo.set($event)"
-        ></textarea>
-        <p class="form-hint">Separate multiple addresses with commas or new lines.</p>
-      </div>
-      <div class="email-dialog__footer">
-        <button class="btn-secondary" (click)="closeEmailDialog()">Cancel</button>
-        <button class="btn-start" (click)="sendFailedReports()" [disabled]="isSendingEmail()">
-          @if (isSendingEmail()) {
-            <span class="spinner-inline"></span> Sending…
-          } @else {
-            Send Reports
-          }
-        </button>
-      </div>
-    </div>
-  </div>
-}
 
 <!-- ══════════════════════════════════════════════════════════════
      DELETE CONFIRM DIALOG
@@ -628,7 +226,7 @@
     <div class="delete-dialog" (click)="$event.stopPropagation()">
       <div class="delete-dialog__header">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+          <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5z" clip-rule="evenodd"/>
         </svg>
         Delete All Scripts
         <button class="delete-dialog__close" (click)="cancelDeleteAllScripts()">×</button>

@@ -1,0 +1,492 @@
+<div class="execution-page">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       HEADER (gradient indigo, comme risk-analysis)
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="header-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="page-title">Test Execution</h1>
+        <p class="page-subtitle">Run test suites and review execution history</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-secondary" (click)="loadExecutions()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
+        </svg>
+        Refresh
+      </button>
+      <button class="btn-run-suite" (click)="openRunModal()" [disabled]="isSuiteRunning()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+        </svg>
+        Run Test Suite
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       STATS BAR
+  ══════════════════════════════════════════════════════════════ -->
+  @if (globalStats(); as stats) {
+    <div class="stats-bar">
+      <div class="stat-card stat-card--total">
+        <div class="stat-value">{{ stats.total_runs }}</div>
+        <div class="stat-label">Total Runs</div>
+      </div>
+      <div class="stat-card stat-card--running">
+        <div class="stat-value">
+          {{ stats.running }}
+          @if (stats.running > 0) { <span class="pulse-dot"></span> }
+        </div>
+        <div class="stat-label">Running</div>
+      </div>
+      <div class="stat-card stat-card--passed">
+        <div class="stat-value">{{ stats.passed }}</div>
+        <div class="stat-label">Passed</div>
+      </div>
+      <div class="stat-card stat-card--failed">
+        <div class="stat-value">{{ stats.failed + stats.error }}</div>
+        <div class="stat-label">Failed / Error</div>
+      </div>
+      <div class="stat-card stat-card--rate">
+        <div class="stat-value">{{ stats.pass_rate }}%</div>
+        <div class="stat-label">Pass Rate</div>
+      </div>
+      <div class="stat-card stat-card--duration">
+        <div class="stat-value">{{ formatDuration(stats.avg_duration) }}</div>
+        <div class="stat-label">Avg Duration</div>
+      </div>
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════
+       LIVE EXECUTION PANEL (en cours)
+  ══════════════════════════════════════════════════════════════ -->
+  @if (showLivePanel()) {
+    <div class="section-card live-panel">
+      <div class="live-panel__header">
+        <div class="live-panel__title">
+          @if (isSuiteRunning()) {
+            <span class="pulse-dot"></span>
+            <h2>Running: {{ suiteRunningName() }}</h2>
+          } @else {
+            <h2>{{ suiteRunningName() }} — Completed</h2>
+          }
+        </div>
+        @if (!isSuiteRunning()) {
+          <button class="btn-icon-close" (click)="closeLivePanel()" title="Close panel">✕</button>
+        }
+      </div>
+
+      <div class="tc-log">
+        @for (entry of suiteLogEntries(); track entry.tc_id) {
+          <div class="tc-log__row" [class]="getStatusClass(entry.status)">
+            <span class="tc-log__icon">{{ getStatusIcon(entry.status) }}</span>
+            <span class="tc-log__code">{{ entry.tc_code }}</span>
+            <span class="tc-log__title">{{ entry.title }}</span>
+            <span class="tc-log__status">{{ entry.status }}</span>
+          </div>
+        }
+        @if (isSuiteRunning() && suiteLogEntries().length === 0) {
+          <div class="tc-log__waiting">
+            <span class="spinner-inline"></span>
+            Waiting for execution to start…
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════
+       EXECUTION HISTORY
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="section-card">
+    <div class="section-header">
+      <h2 class="section-title">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Execution History
+        <span class="register-count">{{ executions().length }}</span>
+      </h2>
+    </div>
+
+    @if (isLoading()) {
+      <div class="loading-state">
+        <app-spinner text="Loading executions..." />
+      </div>
+    } @else if (executions().length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0z"/>
+          </svg>
+        </div>
+        <h3>No executions yet</h3>
+        <p>Click "Run Test Suite" above to launch your first execution</p>
+      </div>
+    } @else {
+      <div class="execution-list">
+        @for (ex of executions(); track ex.id) {
+          <div class="execution-row" [class]="getStatusClass(ex.status)">
+            <div class="execution-row__left">
+              <div class="row-suite">
+                <span class="row-suite__title">{{ ex.suite_title || 'Unknown suite' }}</span>
+                @if (ex.project_name) {
+                  <span class="row-suite__project">{{ ex.project_name }}</span>
+                }
+              </div>
+              <div class="row-meta">
+                <span class="row-meta__item">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M5.75 3a.75.75 0 01.75.75V4.5h7V3.75a.75.75 0 011.5 0V4.5h.25A2.75 2.75 0 0118 7.25v8A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8A2.75 2.75 0 014.75 4.5H5V3.75A.75.75 0 015.75 3z"/></svg>
+                  {{ formatDate(ex.started_at) }}
+                </span>
+                <span class="row-meta__item">{{ ex.browser }}</span>
+                <span class="row-meta__item">{{ formatDuration(ex.duration) }}</span>
+                @if (ex.triggered_by_email) {
+                  <span class="row-meta__item">{{ ex.triggered_by_email }}</span>
+                }
+              </div>
+            </div>
+
+            <div class="execution-row__counters">
+              <div class="counter counter--passed">
+                <span class="counter__value">{{ ex.passed_count }}</span>
+                <span class="counter__label">Passed</span>
+              </div>
+              <div class="counter counter--failed">
+                <span class="counter__value">{{ ex.failed_count + ex.error_count }}</span>
+                <span class="counter__label">Failed</span>
+              </div>
+              <div class="counter counter--skipped">
+                <span class="counter__value">{{ ex.skipped_count }}</span>
+                <span class="counter__label">Skipped</span>
+              </div>
+              <div class="counter counter--total">
+                <span class="counter__value">{{ ex.total_count }}</span>
+                <span class="counter__label">Total</span>
+              </div>
+            </div>
+
+            <div class="execution-row__right">
+              <span class="status-badge" [class]="getStatusClass(ex.status)">
+                {{ getStatusIcon(ex.status) }} {{ ex.status }}
+              </span>
+              <button class="btn-details" (click)="openDetail(ex.id)">
+                View Details
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     RUN TEST SUITE MODAL
+══════════════════════════════════════════════════════════════ -->
+@if (showRunModal()) {
+  <div class="modal-overlay" (click)="closeRunModal()">
+    <div class="run-modal" (click)="$event.stopPropagation()">
+
+      <div class="run-modal__header">
+        <div class="run-modal__title">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+          </svg>
+          Run Test Suite
+        </div>
+        <div class="run-modal__steps">
+          <span class="step-dot" [class.step-dot--active]="runModalStep() === 1" [class.step-dot--done]="runModalStep() > 1">
+            <span class="step-num">1</span> Configure
+          </span>
+          <span class="step-line"></span>
+          <span class="step-dot" [class.step-dot--active]="runModalStep() === 2">
+            <span class="step-num">2</span> Execution Plan
+          </span>
+        </div>
+        <button class="run-modal__close" (click)="closeRunModal()">✕</button>
+      </div>
+
+      @if (runModalStep() === 1) {
+        <div class="run-modal__body">
+          <div class="form-group">
+            <label class="form-label">Test Suite <span class="required">*</span></label>
+            <select class="form-select" [ngModel]="runModalSuiteId()" (ngModelChange)="runModalSuiteId.set($event)">
+              <option value="">— Select an active suite —</option>
+              @for (suite of suites(); track suite.id) {
+                <option [value]="suite.id">{{ suite.title }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">App URL <span class="required">*</span></label>
+            <input
+              class="form-input"
+              type="url"
+              placeholder="https://your-app.example.com"
+              [ngModel]="runModalAppUrl()"
+              (ngModelChange)="runModalAppUrl.set($event)"
+            />
+            <p class="form-hint">URL of the application to test.</p>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group form-group--half">
+              <label class="form-label">Browser</label>
+              <div class="browser-pills">
+                @for (b of browsers; track b) {
+                  <button
+                    class="browser-pill"
+                    [class.browser-pill--active]="runModalBrowser() === b"
+                    (click)="runModalBrowser.set(b)"
+                    type="button"
+                  >{{ b }}</button>
+                }
+              </div>
+            </div>
+
+            <div class="form-group form-group--half">
+              <label class="form-label">Options</label>
+              <div class="toggle-list">
+                <label class="toggle-row">
+                  <input type="checkbox" [checked]="runModalHeadless()" (change)="runModalHeadless.set(!runModalHeadless())" />
+                  <span class="toggle-label">Headless mode</span>
+                </label>
+                <label class="toggle-row">
+                  <input type="checkbox" [checked]="runModalStopOnFail()" (change)="runModalStopOnFail.set(!runModalStopOnFail())" />
+                  <span class="toggle-label">Stop on failure</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">AI Model</label>
+            <select class="form-select" [ngModel]="runModalModel()" (ngModelChange)="runModalModel.set($event)">
+              @for (m of availableModels(); track m.id) {
+                <option [value]="m.id">{{ m.label }}</option>
+              }
+            </select>
+            @if (runModalModelDescription()) {
+              <p class="form-hint">{{ runModalModelDescription() }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="run-modal__footer">
+          <button class="btn-secondary" (click)="closeRunModal()">Cancel</button>
+          <button
+            class="btn-next"
+            (click)="proceedToStep2()"
+            [disabled]="isLoadingModalTcs() || !runModalSuiteId()"
+          >
+            @if (isLoadingModalTcs()) {
+              <span class="spinner-inline"></span> Loading…
+            } @else {
+              Review Execution Plan →
+            }
+          </button>
+        </div>
+      }
+
+      @if (runModalStep() === 2) {
+        <div class="run-modal__body">
+          <div class="plan-banner">
+            <div class="plan-banner__left">
+              <span class="plan-banner__name">{{ runModalSuiteName() }}</span>
+              <span class="plan-banner__meta">
+                {{ includedTcCount() }} test case{{ includedTcCount() !== 1 ? 's' : '' }} included
+              </span>
+            </div>
+            @if (noScriptCount() > 0) {
+              <div class="plan-banner__warn">
+                ⚠ {{ noScriptCount() }} without script — will be auto-generated at runtime
+              </div>
+            }
+          </div>
+
+          <p class="plan-help">Drag to reorder · Uncheck to exclude from this run</p>
+
+          <div cdkDropList class="plan-tc-list" (cdkDropListDropped)="dropTcInModal($event)">
+            @for (tc of runModalTcs(); track tc.id; let idx = $index) {
+              <div class="plan-tc-row" [class.plan-tc-row--excluded]="tc.excluded" cdkDrag>
+                <div class="plan-tc-row__drag" cdkDragHandle>⋮⋮</div>
+                <span class="plan-tc-row__pos">{{ idx + 1 }}</span>
+                <span class="plan-tc-row__code">{{ tc.tc_code }}</span>
+                <span class="plan-tc-row__title">{{ tc.title }}</span>
+                <span class="badge" [class]="getScriptBadgeClass(tc)">{{ getScriptBadgeLabel(tc) }}</span>
+                <label class="plan-tc-row__toggle">
+                  <input type="checkbox" [checked]="!tc.excluded" (change)="toggleTcExcluded(tc)" />
+                  <span class="toggle-track">
+                    <span class="toggle-thumb"></span>
+                  </span>
+                </label>
+              </div>
+            }
+          </div>
+
+          @if (modalErrors().length > 0) {
+            <div class="modal-errors">
+              @for (err of modalErrors(); track err) {
+                <div class="modal-error">⚠ {{ err }}</div>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="run-modal__footer">
+          <button class="btn-secondary" (click)="backToStep1()">← Back</button>
+          <button
+            class="btn-start"
+            (click)="startSuiteRun()"
+            [disabled]="modalErrors().length > 0 || isSavingOrder()"
+          >
+            @if (isSavingOrder()) {
+              <span class="spinner-inline"></span> Saving…
+            } @else {
+              ▶ Start Execution
+            }
+          </button>
+        </div>
+      }
+
+    </div>
+  </div>
+}
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     DETAIL MODAL — View Details
+══════════════════════════════════════════════════════════════ -->
+@if (showDetailModal()) {
+  <div class="modal-overlay" (click)="closeDetail()">
+    <div class="detail-modal" (click)="$event.stopPropagation()">
+
+      <div class="detail-modal__header">
+        @if (detailExecution(); as ex) {
+          <div class="detail-modal__title">
+            <h2>{{ ex.suite_title || 'Execution' }}</h2>
+            <span class="detail-modal__meta">
+              {{ formatDate(ex.started_at) }} · {{ ex.browser }} · {{ formatDuration(ex.duration) }}
+            </span>
+          </div>
+        } @else {
+          <div class="detail-modal__title"><h2>Loading…</h2></div>
+        }
+        <button class="run-modal__close" (click)="closeDetail()">✕</button>
+      </div>
+
+      <div class="detail-modal__body">
+        @if (isLoadingDetail()) {
+          <div class="loading-state"><app-spinner text="Loading details..." /></div>
+        } @else if (detailExecution(); as ex) {
+
+          <!-- Top counters -->
+          <div class="detail-counters">
+            <div class="counter counter--passed">
+              <span class="counter__value">{{ ex.passed_count }}</span>
+              <span class="counter__label">Passed</span>
+            </div>
+            <div class="counter counter--failed">
+              <span class="counter__value">{{ ex.failed_count + ex.error_count }}</span>
+              <span class="counter__label">Failed</span>
+            </div>
+            <div class="counter counter--skipped">
+              <span class="counter__value">{{ ex.skipped_count }}</span>
+              <span class="counter__label">Skipped</span>
+            </div>
+            <div class="counter counter--total">
+              <span class="counter__value">{{ ex.total_count }}</span>
+              <span class="counter__label">Total</span>
+            </div>
+          </div>
+
+          <!-- Per-TC results with expandable steps -->
+          <div class="tc-results">
+            @for (tcr of ex.test_case_results; track tcr.id) {
+              <div class="tc-result" [class]="getStatusClass(tcr.status)">
+                <div class="tc-result__header" (click)="toggleTcExpansion(tcr.id)">
+                  <span class="tc-result__order">#{{ tcr.execution_order }}</span>
+                  <span class="tc-result__icon">{{ getStatusIcon(tcr.status) }}</span>
+                  <span class="tc-result__code">{{ tcr.tc_code }}</span>
+                  <span class="tc-result__title">{{ tcr.title }}</span>
+
+                  <div class="tc-result__stats">
+                    <span class="tc-result__steps">
+                      {{ tcr.steps_passed }}/{{ (tcr.steps_passed || 0) + (tcr.steps_failed || 0) }} steps
+                    </span>
+                    <span class="tc-result__duration">{{ formatDuration(tcr.duration) }}</span>
+                    <span class="status-badge" [class]="getStatusClass(tcr.status)">{{ tcr.status }}</span>
+                  </div>
+
+                  <svg class="chevron" [class.chevron--open]="expandedTcId() === tcr.id"
+                       xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 011.08 1.04l-4.25 4.4a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+
+                @if (expandedTcId() === tcr.id) {
+                  <div class="tc-result__body">
+
+                    @if (tcr.justification) {
+                      <div class="tc-result__justification">
+                        <strong>Result:</strong> {{ tcr.justification }}
+                      </div>
+                    }
+
+                    @if (tcr.error_message) {
+                      <div class="tc-result__error">
+                        <strong>Error:</strong> {{ tcr.error_message }}
+                      </div>
+                    }
+
+                    @if (tcr.steps && tcr.steps.length > 0) {
+                      <div class="steps-list">
+                        <h4>Steps</h4>
+                        @for (step of tcr.steps; track step.order) {
+                          <div class="step-item" [class]="'step-' + step.status">
+                            <span class="step-order">#{{ step.order + 1 }}</span>
+                            <span class="step-type">{{ step.type }}</span>
+                            @if (step.tool_name) {
+                              <span class="step-tool">{{ step.tool_name }}</span>
+                            }
+                            <span class="step-content">{{ step.content }}</span>
+                            <span class="step-status">{{ step.status }}</span>
+                          </div>
+                        }
+                      </div>
+                    } @else {
+                      <p class="empty-steps">No steps recorded.</p>
+                    }
+
+                    @if (tcr.screenshot_b64) {
+                      <div class="screenshot">
+                        <h4>Final Screenshot</h4>
+                        <img [src]="'data:image/png;base64,' + tcr.screenshot_b64" alt="screenshot" />
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}
