@@ -332,6 +332,8 @@ export interface TestExecutionBasic {
   skipped_count: number;
   error_count: number;
   triggered_by_email?: string | null;
+  is_closed: boolean;
+  closed_at?: string | null;
 }
 
 export interface TestExecutionDetail extends TestExecutionBasic {

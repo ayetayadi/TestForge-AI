@@ -75,6 +75,16 @@ class CreateDefectRequest(BaseModel):
     test_case_id: str
 
 
+class NotifyDeveloperRequest(BaseModel):
+    recipients: List[str] = Field(default_factory=list, description="Developer email addresses")
+    method: str = Field(default="email", description="email | jira | both")
+    include_passed: bool = Field(default=False, description="Include passed TCs in the report")
+    include_steps: bool = Field(default=True)
+    include_screenshots: bool = Field(default=True)
+    jira_project_key: Optional[str] = Field(default=None, description="Required if method=jira/both")
+    jira_priority: str = Field(default="High")
+
+
 class UpdateScriptRequest(BaseModel):
     script_content: str = Field(..., min_length=1, description="Edited TypeScript content")
 
@@ -594,6 +604,8 @@ async def list_test_executions_endpoint(
             "skipped_count":       ex.skipped_count,
             "error_count":         ex.error_count,
             "triggered_by_email":  triggered_email,
+            "is_closed":           ex.is_closed,
+            "closed_at":           ex.closed_at.isoformat() if ex.closed_at else None,
         })
 
     return {"items": items, "total": listing["total"], "stats": stats}
@@ -656,8 +668,140 @@ async def get_test_execution_detail_endpoint(
         "failed_count":    ex.failed_count,
         "skipped_count":   ex.skipped_count,
         "error_count":     ex.error_count,
+        "is_closed":       ex.is_closed,
+        "closed_at":       ex.closed_at.isoformat() if ex.closed_at else None,
         "test_case_results": tc_results_data,
     }
+
+
+# ============================================================
+# EXECUTION — NOTIFY DEVELOPER (suite-level report)
+# ============================================================
+
+@router.post("/test-executions/{execution_id}/notify-developer")
+async def notify_developer_endpoint(
+    execution_id: str,
+    request: NotifyDeveloperRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send a comprehensive report (email and/or Jira) for an entire execution."""
+    from app.repositories import playwright_repository as repo
+    from app.services.execution_report_service import (
+        build_full_report, send_execution_report_email,
+        create_defect_from_execution, create_jira_issue_from_defect,
+    )
+
+    method = (request.method or "email").lower()
+    if method not in ("email", "jira", "both"):
+        raise HTTPException(status_code=400, detail="method must be email | jira | both")
+
+    if method in ("email", "both") and not request.recipients:
+        raise HTTPException(status_code=400, detail="recipients required for email")
+
+    if method in ("jira", "both") and not request.jira_project_key:
+        raise HTTPException(status_code=400, detail="jira_project_key required for Jira")
+
+    ex = await repo.get_test_execution(db, execution_id)
+    if not ex:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+
+    tc_results = await repo.list_tc_results_for_execution(db, execution_id)
+    if not tc_results:
+        raise HTTPException(status_code=404, detail="No TC results to send")
+
+    selected = [
+        r for r in tc_results
+        if request.include_passed or r.status.value in ("failed", "error")
+    ]
+    if not selected:
+        raise HTTPException(status_code=400, detail="No matching test cases to notify")
+
+    emails_sent = 0
+    jira_keys: List[str] = []
+    errors: List[str] = []
+
+    for r in selected:
+        is_failed = r.status.value in ("failed", "error")
+
+        if method in ("email", "both"):
+            try:
+                report = await build_full_report(db, r.id)
+                if "error" not in report:
+                    if not request.include_steps:
+                        report["steps"] = []
+                    if not request.include_screenshots:
+                        if report.get("tc_result"):
+                            report["tc_result"]["screenshot_b64"] = None
+                    await send_execution_report_email(report=report, recipients=request.recipients)
+                    emails_sent += 1
+            except Exception as e:
+                errors.append(f"Email failed for {r.id}: {e}")
+
+        if method in ("jira", "both") and is_failed:
+            try:
+                defect = await create_defect_from_execution(
+                    db, tc_result_id=r.id, test_case_id=r.test_case_id
+                )
+                if defect and defect.get("id"):
+                    await db.commit()
+                    jira = await create_jira_issue_from_defect(
+                        db,
+                        defect_id=defect["id"],
+                        user_id=current_user.id,
+                        project_key=request.jira_project_key,
+                        priority=request.jira_priority,
+                    )
+                    if jira and jira.get("key"):
+                        jira_keys.append(jira["key"])
+            except Exception as e:
+                errors.append(f"Jira failed for {r.id}: {e}")
+
+    return {
+        "status": "notified",
+        "execution_id": execution_id,
+        "tc_count": len(selected),
+        "emails_sent": emails_sent,
+        "jira_issues": jira_keys,
+        "errors": errors,
+        "method": method,
+    }
+
+
+# ============================================================
+# EXECUTION — CLOSE / REOPEN
+# ============================================================
+
+@router.post("/test-executions/{execution_id}/close")
+async def close_execution_endpoint(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Clôture une TestExecution (is_closed=true)."""
+    from app.repositories import playwright_repository as repo
+    ex = await repo.get_test_execution(db, execution_id)
+    if not ex:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+    updated = await repo.close_test_execution(db, execution_id, closed_by=current_user.id)
+    await db.commit()
+    return {"is_closed": True, "closed_at": updated.closed_at, "closed_by": updated.closed_by}
+
+
+@router.post("/test-executions/{execution_id}/reopen")
+async def reopen_execution_endpoint(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Réouvre une TestExecution clôturée."""
+    from app.repositories import playwright_repository as repo
+    ex = await repo.get_test_execution(db, execution_id)
+    if not ex:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+    await repo.reopen_test_execution(db, execution_id)
+    await db.commit()
+    return {"is_closed": False}
 
 
 # ============================================================

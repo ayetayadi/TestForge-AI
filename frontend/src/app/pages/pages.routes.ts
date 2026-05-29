@@ -106,6 +106,13 @@ export const PagesRoutes: Routes = [
     pathMatch: 'full',
   },
   {
+    path: 'test-execution/:executionId',
+    loadComponent: () =>
+      import('./execution-detail/execution-detail.component').then(m => m.ExecutionDetailComponent),
+    canActivate: [authGuard],
+    data: { title: 'Execution Detail' },
+  },
+  {
     path: 'risk-analysis',
     loadComponent: () =>
       import('./risk-analysis/risk-analysis.component').then(m => m.RiskAnalysisComponent),

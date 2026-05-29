@@ -180,6 +180,9 @@
               <span class="status-badge" [class]="getStatusClass(ex.status)">
                 {{ getStatusIcon(ex.status) }} {{ ex.status }}
               </span>
+              @if (ex.is_closed) {
+                <span class="badge-closed">Closed</span>
+              }
               <button class="btn-details" (click)="openDetail(ex.id)">
                 View Details
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -370,123 +373,3 @@
 }
 
 
-<!-- ══════════════════════════════════════════════════════════════
-     DETAIL MODAL — View Details
-══════════════════════════════════════════════════════════════ -->
-@if (showDetailModal()) {
-  <div class="modal-overlay" (click)="closeDetail()">
-    <div class="detail-modal" (click)="$event.stopPropagation()">
-
-      <div class="detail-modal__header">
-        @if (detailExecution(); as ex) {
-          <div class="detail-modal__title">
-            <h2>{{ ex.suite_title || 'Execution' }}</h2>
-            <span class="detail-modal__meta">
-              {{ formatDate(ex.started_at) }} · {{ ex.browser }} · {{ formatDuration(ex.duration) }}
-            </span>
-          </div>
-        } @else {
-          <div class="detail-modal__title"><h2>Loading…</h2></div>
-        }
-        <button class="run-modal__close" (click)="closeDetail()">✕</button>
-      </div>
-
-      <div class="detail-modal__body">
-        @if (isLoadingDetail()) {
-          <div class="loading-state"><app-spinner text="Loading details..." /></div>
-        } @else if (detailExecution(); as ex) {
-
-          <!-- Top counters -->
-          <div class="detail-counters">
-            <div class="counter counter--passed">
-              <span class="counter__value">{{ ex.passed_count }}</span>
-              <span class="counter__label">Passed</span>
-            </div>
-            <div class="counter counter--failed">
-              <span class="counter__value">{{ ex.failed_count + ex.error_count }}</span>
-              <span class="counter__label">Failed</span>
-            </div>
-            <div class="counter counter--skipped">
-              <span class="counter__value">{{ ex.skipped_count }}</span>
-              <span class="counter__label">Skipped</span>
-            </div>
-            <div class="counter counter--total">
-              <span class="counter__value">{{ ex.total_count }}</span>
-              <span class="counter__label">Total</span>
-            </div>
-          </div>
-
-          <!-- Per-TC results with expandable steps -->
-          <div class="tc-results">
-            @for (tcr of ex.test_case_results; track tcr.id) {
-              <div class="tc-result" [class]="getStatusClass(tcr.status)">
-                <div class="tc-result__header" (click)="toggleTcExpansion(tcr.id)">
-                  <span class="tc-result__order">#{{ tcr.execution_order }}</span>
-                  <span class="tc-result__icon">{{ getStatusIcon(tcr.status) }}</span>
-                  <span class="tc-result__code">{{ tcr.tc_code }}</span>
-                  <span class="tc-result__title">{{ tcr.title }}</span>
-
-                  <div class="tc-result__stats">
-                    <span class="tc-result__steps">
-                      {{ tcr.steps_passed }}/{{ (tcr.steps_passed || 0) + (tcr.steps_failed || 0) }} steps
-                    </span>
-                    <span class="tc-result__duration">{{ formatDuration(tcr.duration) }}</span>
-                    <span class="status-badge" [class]="getStatusClass(tcr.status)">{{ tcr.status }}</span>
-                  </div>
-
-                  <svg class="chevron" [class.chevron--open]="expandedTcId() === tcr.id"
-                       xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 011.08 1.04l-4.25 4.4a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
-                  </svg>
-                </div>
-
-                @if (expandedTcId() === tcr.id) {
-                  <div class="tc-result__body">
-
-                    @if (tcr.justification) {
-                      <div class="tc-result__justification">
-                        <strong>Result:</strong> {{ tcr.justification }}
-                      </div>
-                    }
-
-                    @if (tcr.error_message) {
-                      <div class="tc-result__error">
-                        <strong>Error:</strong> {{ tcr.error_message }}
-                      </div>
-                    }
-
-                    @if (tcr.steps && tcr.steps.length > 0) {
-                      <div class="steps-list">
-                        <h4>Steps</h4>
-                        @for (step of tcr.steps; track step.order) {
-                          <div class="step-item" [class]="'step-' + step.status">
-                            <span class="step-order">#{{ step.order + 1 }}</span>
-                            <span class="step-type">{{ step.type }}</span>
-                            @if (step.tool_name) {
-                              <span class="step-tool">{{ step.tool_name }}</span>
-                            }
-                            <span class="step-content">{{ step.content }}</span>
-                            <span class="step-status">{{ step.status }}</span>
-                          </div>
-                        }
-                      </div>
-                    } @else {
-                      <p class="empty-steps">No steps recorded.</p>
-                    }
-
-                    @if (tcr.screenshot_b64) {
-                      <div class="screenshot">
-                        <h4>Final Screenshot</h4>
-                        <img [src]="'data:image/png;base64,' + tcr.screenshot_b64" alt="screenshot" />
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            }
-          </div>
-        }
-      </div>
-    </div>
-  </div>
-}

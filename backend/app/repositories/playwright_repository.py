@@ -332,6 +332,35 @@ async def get_test_execution(db: AsyncSession, execution_id: str) -> Optional[Te
     return result.scalar_one_or_none()
 
 
+async def close_test_execution(
+    db: AsyncSession,
+    execution_id: str,
+    closed_by: Optional[str] = None,
+) -> Optional[TestExecution]:
+    """Marque une TestExecution comme clôturée."""
+    await db.execute(
+        update(TestExecution)
+        .where(TestExecution.id == execution_id)
+        .values(is_closed=True, closed_at=datetime.utcnow(), closed_by=closed_by)
+    )
+    await db.flush()
+    return await get_test_execution(db, execution_id)
+
+
+async def reopen_test_execution(
+    db: AsyncSession,
+    execution_id: str,
+) -> Optional[TestExecution]:
+    """Réouvre une TestExecution clôturée."""
+    await db.execute(
+        update(TestExecution)
+        .where(TestExecution.id == execution_id)
+        .values(is_closed=False, closed_at=None, closed_by=None)
+    )
+    await db.flush()
+    return await get_test_execution(db, execution_id)
+
+
 async def list_test_executions(
     db: AsyncSession,
     *,

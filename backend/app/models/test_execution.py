@@ -82,6 +82,18 @@ class TestExecution(Base):
     )
 
     # ==============================
+    # CLÔTURE
+    # ==============================
+
+    is_closed: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
+    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    closed_by: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # ==============================
     # RELATIONS
     # ==============================
 

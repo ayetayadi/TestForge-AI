@@ -482,6 +482,25 @@ $warn-bd:   #fed7aa;
   &.status--pending { background: $skip-bg; color: $skip-c; }
 }
 
+.badge-closed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+
+  &::before {
+    content: '✓';
+    font-size: 0.65rem;
+  }
+}
+
 .btn-details {
   display: inline-flex;
   align-items: center;

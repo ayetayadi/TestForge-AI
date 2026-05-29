@@ -575,6 +575,53 @@ export class PlaywrightE2EService {
   }
 
   /**
+   * Send a full execution report to the developer (email and/or Jira).
+   * POST /playwright/test-executions/{id}/notify-developer
+   */
+  notifyDeveloper(executionId: string, payload: {
+    recipients?: string[];
+    method: 'email' | 'jira' | 'both';
+    include_passed?: boolean;
+    include_steps?: boolean;
+    include_screenshots?: boolean;
+    jira_project_key?: string;
+    jira_priority?: string;
+  }): Observable<{
+    status: string;
+    execution_id: string;
+    tc_count: number;
+    emails_sent: number;
+    jira_issues: string[];
+    errors: string[];
+    method: string;
+  }> {
+    return this.http.post<any>(
+      `${this.apiUrl}/test-executions/${executionId}/notify-developer`,
+      payload,
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Close a TestExecution (persisted in DB).
+   * POST /playwright/test-executions/{id}/close
+   */
+  closeExecution(executionId: string): Observable<{ is_closed: boolean; closed_at: string | null }> {
+    return this.http.post<any>(
+      `${this.apiUrl}/test-executions/${executionId}/close`, {}
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Reopen a closed TestExecution.
+   * POST /playwright/test-executions/{id}/reopen
+   */
+  reopenExecution(executionId: string): Observable<{ is_closed: boolean }> {
+    return this.http.post<any>(
+      `${this.apiUrl}/test-executions/${executionId}/reopen`, {}
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
    * History of TC results for a test case.
    * GET /playwright/test-case/{test_case_id}/results
    */

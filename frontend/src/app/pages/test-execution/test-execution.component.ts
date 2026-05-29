@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Subscription, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
@@ -13,7 +14,7 @@ import { ToastService } from '../../services/toast.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { TestSuiteListItem } from '../../models/test-suite.model';
 import {
-  TestExecutionBasic, TestExecutionDetail, TestExecutionGlobalStats,
+  TestExecutionBasic, TestExecutionGlobalStats,
 } from '../../models/playwright.models';
 
 interface ModalTcRow {
@@ -48,6 +49,7 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
   private playwrightService = inject(PlaywrightE2EService);
   private testSuiteService  = inject(TestSuiteService);
   private toastService      = inject(ToastService);
+  private router            = inject(Router);
 
   // ── Page state ────────────────────────────────────────────────────────────────
   isLoading      = signal(true);
@@ -91,12 +93,6 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
   suiteLogEntries  = signal<SuiteLogEntry[]>([]);
   suiteRunningName = signal('');
   currentExecutionId = signal<string | null>(null);
-
-  // ── Detail modal ─────────────────────────────────────────────────────────────
-  showDetailModal  = signal(false);
-  detailExecution  = signal<TestExecutionDetail | null>(null);
-  isLoadingDetail  = signal(false);
-  expandedTcId     = signal<string | null>(null);
 
   private suiteSub: Subscription | null = null;
 
@@ -340,31 +336,9 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
     return 'badge-v1';
   }
 
-  // ── Detail modal ─────────────────────────────────────────────────────────────
+  // ── Detail navigation ────────────────────────────────────────────────────────
   openDetail(executionId: string): void {
-    this.showDetailModal.set(true);
-    this.isLoadingDetail.set(true);
-    this.expandedTcId.set(null);
-    this.playwrightService.getTestExecutionDetail(executionId).subscribe({
-      next: (detail) => {
-        this.detailExecution.set(detail);
-        this.isLoadingDetail.set(false);
-      },
-      error: () => {
-        this.toastService.error('Failed to load execution details');
-        this.isLoadingDetail.set(false);
-        this.showDetailModal.set(false);
-      },
-    });
-  }
-
-  closeDetail(): void {
-    this.showDetailModal.set(false);
-    this.detailExecution.set(null);
-  }
-
-  toggleTcExpansion(tcResultId: string): void {
-    this.expandedTcId.set(this.expandedTcId() === tcResultId ? null : tcResultId);
+    this.router.navigate(['/test-execution', executionId]);
   }
 
   // ── UI helpers ────────────────────────────────────────────────────────────────
