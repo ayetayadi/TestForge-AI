@@ -310,6 +310,9 @@ export interface TestCaseResultDetail extends TestCaseResultBasic {
   error_message?: string | null;
   screenshot_b64?: string | null;
   script_version_id?: string | null;
+  script_source?: string | null;
+  script_version_number?: number | null;
+  script_placeholder_count?: number | null;
   started_at?: string | null;
   completed_at?: string | null;
 }

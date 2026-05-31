@@ -131,5 +131,21 @@ class Settings(BaseSettings):
     # =========================
     DEEPEVAL_API_KEY: str | None = None
 
+    # =========================
+    # AZURE OPENAI CONFIG (juge LLM pour l'évaluation)
+    # =========================
+    AZURE_OPENAI_ENDPOINT_JUDGE: str | None = None
+    AZURE_OPENAI_KEY_JUDGE: str | None = None
+    AZURE_OPENAI_DEPLOYMENT_JUDGE: str = "gpt-4.1"
+    AZURE_OPENAI_API_VERSION_JUDGE: str = "2025-01-01-preview"
+
+    # =========================
+    # LANGSMITH CONFIG
+    # =========================
+    LANGSMITH_API_KEY: str | None = None
+    LANGSMITH_TRACING: str | None = None
+    LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
+    LANGCHAIN_PROJECT: str = "TestForge-Eval"
+
 
 settings = Settings()

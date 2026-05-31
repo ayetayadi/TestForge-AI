@@ -41,4 +41,6 @@ RULES:
     [SPECIFY NUMBER]  → e.g. "displays at least [SPECIFY NUMBER] results"
     [SPECIFY LENGTH]  → e.g. "accepts a minimum of [SPECIFY LENGTH] characters"
 
-Return an improved version that fixes all the issues listed above, fully compliant with INVEST."""
+Return an improved version that fixes all the issues listed above, fully compliant with INVEST.
+
+CRITICAL LANGUAGE RULE: The output language MUST be {language_label}. Every word of improved_story and every acceptance criterion MUST be written in {language_label}. Switching languages is strictly forbidden."""

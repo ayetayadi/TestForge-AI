@@ -151,6 +151,9 @@
               <span class="tc-result__title">{{ tcr.title }}</span>
 
               <div class="tc-result__stats">
+                <span [class]="getScriptBadgeClass(tcr)" [title]="getScriptBadgeLabel(tcr)">
+                  {{ getScriptBadgeLabel(tcr) }}
+                </span>
                 <span class="tc-result__steps">
                   {{ tcr.steps_passed }}/{{ (tcr.steps_passed || 0) + (tcr.steps_failed || 0) }} steps
                 </span>
@@ -166,6 +169,25 @@
 
             @if (expandedTcId() === tcr.id) {
               <div class="tc-result__body">
+
+                @if (tcr.script_version_id) {
+                  <div class="tc-result__script-info">
+                    <div class="script-info__row">
+                      <span class="script-info__label">Script used:</span>
+                      <span [class]="getScriptBadgeClass(tcr)">{{ getScriptBadgeLabel(tcr) }}</span>
+                    </div>
+                    <button
+                      class="btn-view-script"
+                      (click)="openScript(tcr.test_case_id)"
+                      title="Open the script code in detail page"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3.25 4A2.25 2.25 0 001 6.25v7.5A2.25 2.25 0 003.25 16h13.5A2.25 2.25 0 0019 13.75v-7.5A2.25 2.25 0 0016.75 4H3.25zM7.53 10.97a.75.75 0 010 1.06l-1.5 1.5a.75.75 0 11-1.06-1.06L6.44 11.5l-.97-.97a.75.75 0 011.06-1.06l1.5 1.5zM9.75 12a.75.75 0 000 1.5h2.5a.75.75 0 000-1.5h-2.5z" clip-rule="evenodd"/>
+                      </svg>
+                      View script code
+                    </button>
+                  </div>
+                }
 
                 @if (tcr.justification) {
                   <div class="tc-result__justification">

@@ -6,9 +6,9 @@ load_dotenv()
 # ============================================================
 # LLM
 # ============================================================
-LLM_TEMPERATURE = 0.4
+LLM_TEMPERATURE = 0.3
 LLM_MODEL = "llama-3.3-70b-versatile"
-LLM_MAX_TOKENS = 3500
+LLM_MAX_TOKENS = 6000
 LLM_TIMEOUT_SECONDS = 90       # per-story call (initial generation or correction pass)
 BATCH_LLM_MAX_TOKENS = 8000    # batch call covering multiple user stories at once
 BATCH_LLM_TIMEOUT_SECONDS = 180
@@ -23,13 +23,13 @@ MIN_AC_COVERAGE = 0.80         # 80% of ACs must be covered
 # COUNT ESTIMATION
 # count = ceil(total_ACs / AC_TO_TC_RATIO), minimum 1
 # ============================================================
-AC_TO_TC_RATIO = 2.5
+AC_TO_TC_RATIO = 1.5
 
 # ============================================================
 # CORRECTION LOOP
 # Max iterations when coverage < 80%
 # ============================================================
-MAX_CORRECTION_ITERATIONS = 1
+MAX_CORRECTION_ITERATIONS = 2
 
 # ============================================================
 # GHERKIN VALIDATION

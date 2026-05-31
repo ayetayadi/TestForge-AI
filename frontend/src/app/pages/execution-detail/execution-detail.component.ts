@@ -7,7 +7,7 @@ import { PlaywrightE2EService } from '../../services/playwright-e2e.service';
 import { JiraService } from '../../services/jira.service';
 import { ToastService } from '../../services/toast.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
-import { TestExecutionDetail } from '../../models/playwright.models';
+import { TestExecutionDetail, TestCaseResultDetail } from '../../models/playwright.models';
 
 @Component({
   selector: 'app-execution-detail',
@@ -93,6 +93,27 @@ export class ExecutionDetailComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/test-execution']);
+  }
+
+  openScript(testCaseId: string): void {
+    this.router.navigate(['/playwright-scripts', testCaseId]);
+  }
+
+  getScriptBadgeLabel(tcr: TestCaseResultDetail): string {
+    const src = tcr.script_source;
+    if (!src) return 'No script';
+    if (src === 'v2_corrected') return `v2 Corrected · v${tcr.script_version_number ?? '?'}`;
+    const ph = tcr.script_placeholder_count ?? 0;
+    if (ph > 0) return `v1 Draft · ${ph} placeholder${ph > 1 ? 's' : ''}`;
+    return `v1 Draft · v${tcr.script_version_number ?? '?'}`;
+  }
+
+  getScriptBadgeClass(tcr: TestCaseResultDetail): string {
+    const src = tcr.script_source;
+    if (!src) return 'script-badge script-badge--none';
+    if (src === 'v2_corrected') return 'script-badge script-badge--v2';
+    const ph = tcr.script_placeholder_count ?? 0;
+    return ph > 0 ? 'script-badge script-badge--v1-ph' : 'script-badge script-badge--v1';
   }
 
   // ── Notify developer ────────────────────────────────────────────

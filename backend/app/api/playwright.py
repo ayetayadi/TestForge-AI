@@ -620,6 +620,7 @@ async def get_test_execution_detail_endpoint(
     from app.repositories import playwright_repository as repo
     from app.models.test_suite import TestSuite
     from app.models.test_case import TestCase
+    from app.models.playwright_script_version import PlaywrightScriptVersion as _PSV
 
     ex = await repo.get_test_execution(db, execution_id)
     if not ex:
@@ -631,6 +632,17 @@ async def get_test_execution_detail_endpoint(
     tc_results_data: List[Dict[str, Any]] = []
     for r in tc_results:
         tc_row = await db.get(TestCase, r.test_case_id)
+
+        script_source = None
+        script_version_number = None
+        script_placeholder_count = None
+        if r.script_version_id:
+            script_row = await db.get(_PSV, r.script_version_id)
+            if script_row:
+                script_source = script_row.source.value if script_row.source else None
+                script_version_number = script_row.version_number
+                script_placeholder_count = script_row.placeholder_count
+
         tc_results_data.append({
             "id":              r.id,
             "test_case_id":    r.test_case_id,
@@ -645,7 +657,10 @@ async def get_test_execution_detail_endpoint(
             "justification":   r.justification,
             "error_message":   r.error_message,
             "screenshot_b64":  r.screenshot_b64,
-            "script_version_id": r.script_version_id,
+            "script_version_id":        r.script_version_id,
+            "script_source":            script_source,
+            "script_version_number":    script_version_number,
+            "script_placeholder_count": script_placeholder_count,
             "started_at":      r.started_at.isoformat() if r.started_at else None,
             "completed_at":    r.completed_at.isoformat() if r.completed_at else None,
         })

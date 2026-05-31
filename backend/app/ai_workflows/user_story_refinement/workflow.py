@@ -139,7 +139,7 @@ class UserStoryRefinementPipeline:
             
             try:
                 improvement = await asyncio.wait_for(
-                    self._call_llm(clean_story, ac, initial),
+                    self._call_llm(clean_story, ac, initial, language=language),
                     timeout=60,
                 )
             except asyncio.TimeoutError:
@@ -192,7 +192,7 @@ class UserStoryRefinementPipeline:
                     "phase": "improving",
                     "message": "🔄 Refining story further (second pass)...",
                 })
-                improvement2 = await self._call_llm(improved_story, improved_ac, final)
+                improvement2 = await self._call_llm(improved_story, improved_ac, final, language=language)
                 candidate_story = improvement2.improved_story or improved_story
                 candidate_ac = improvement2.acceptance_criteria or improved_ac
 
@@ -300,7 +300,10 @@ class UserStoryRefinementPipeline:
         story: str,
         ac: List[str],
         score_result: Dict[str, Any],
+        language: str = "fr",
     ) -> ImprovementResult:
+        _LANG_LABELS = {"fr": "French (français)", "en": "English", "ar": "Arabic (العربية)"}
+        language_label = _LANG_LABELS.get(language, language)
         prompt = IMPROVEMENT_PROMPT.format(
             story=story,
             acceptance_criteria="\n".join(f"- {a}" for a in ac) if ac else "(none)",
@@ -308,6 +311,7 @@ class UserStoryRefinementPipeline:
             issues="\n".join(f"- {i}" for i in score_result.get("issues", [])) or "(none)",
             suggestions="\n".join(f"- {s}" for s in score_result.get("suggestions", [])) or "(none)",
             threshold=MIN_SCORE_THRESHOLD,
+            language_label=language_label,
         )
         cb = get_trace_callback()
         invoke_config = {"callbacks": [cb]} if cb else {}

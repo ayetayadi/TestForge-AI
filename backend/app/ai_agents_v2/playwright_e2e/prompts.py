@@ -1,6 +1,3 @@
-# ============================================================
-# ai_agents_v2/playwright_e2e/prompts.py (OPTIMIZED)
-# ============================================================
 
 from app.ai_agents_v2.playwright_e2e.config import PLACEHOLDER_PREFIX, MAX_REACT_ITERATIONS, APP_BASE_URL
 

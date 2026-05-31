@@ -46,7 +46,7 @@ def _get_api_key_for_worker(worker_id: int) -> str:
     
     if not api_key:
         logger.warning(f"[TC WORKER-{worker_id}] ⚠️ {key_name} not found, using fallback")
-        api_key = os.getenv("GROQ_API_KEY_1", os.getenv("GROQ_API_KEY", ""))
+        api_key = os.getenv("GROQ_API_KEY_4", os.getenv("GROQ_API_KEY", ""))
     
     return api_key
 
