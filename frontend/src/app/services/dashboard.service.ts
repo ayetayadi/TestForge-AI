@@ -2,36 +2,34 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-export interface CoverageItem {
-  label: string;
-  value: number;
-}
-
-export interface PriorityItem {
-  label: string;
-  value: number;
-  color_class: string;
-}
-
-export interface ActivityItem {
-  message: string;
-  time: string;
-  kind: 'test_case' | 'user_story';
+export interface ProjectRow {
+  project_id: string;
+  project_key: string;
+  project_name: string;
+  stories_count: number;
+  refined_count: number;       // US raffinées par IA
+  risks_count: number;         // risques analysés
+  test_plans_count: number;
+  test_suites_count: number;
+  test_cases_count: number;
+  executions_count: number;
+  passed_count: number;
+  failed_count: number;
 }
 
 export interface DashboardStats {
-  user_stories_count: number;
-  user_stories_this_week: number;
-  test_cases_count: number;
-  test_cases_this_week: number;
-  gherkin_coverage: number;
-  quality_score: number;
-  scored_stories_count: number;
   projects_count: number;
+  stories_count: number;
+  refined_count: number;
+  risks_count: number;
+  test_plans_count: number;
+  test_suites_count: number;
+  test_cases_count: number;
+  executions_count: number;
+  passed_count: number;
+  failed_count: number;
   has_data: boolean;
-  test_type_coverage: CoverageItem[];
-  priority_distribution: PriorityItem[];
-  recent_activities: ActivityItem[];
+  projects: ProjectRow[];
 }
 
 @Injectable({ providedIn: 'root' })

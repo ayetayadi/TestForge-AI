@@ -155,7 +155,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   });
 
   currentTestRunId = computed(() =>
-    this.fullReport()?.test_run?.id ?? this.lastRun()?.id ?? null
+    this.fullReport()?.tc_result?.id ?? this.lastRun()?.id ?? null
   );
 
   currentDefect = computed(() => this.fullReport()?.defect ?? null);
@@ -163,7 +163,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   hasUserStory = computed(() => !!this.fullReport()?.test_case?.user_story_id);
 
   reportStatus = computed((): 'passed' | 'failed' | 'error' | 'unknown' => {
-    const r = this.fullReport()?.result;
+    const r = this.fullReport()?.tc_result;
     if (!r) return 'unknown';
     return r.status as any;
   });
@@ -306,12 +306,13 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
 
   private loadLastRunAndReport(switchTab = false): void {
     this.playwrightService.getLastRun(this.testCaseId()).subscribe({
-      next: (run) => {
-        if (run.test_run) {
-          this.lastRun.set(run.test_run);
-          this.lastRunResult.set(run.result ?? null);
-          this.lastRunSteps.set(run.steps ?? []);
-          this.loadFullReport(run.test_run.id, switchTab);
+      next: (run: any) => {
+        const tcr = run?.tc_result;
+        if (tcr?.id) {
+          this.lastRun.set(tcr);
+          this.lastRunResult.set(tcr ?? null);
+          this.lastRunSteps.set(tcr.steps ?? []);
+          this.loadFullReport(tcr.id, switchTab);
         }
       },
       error: () => {},
@@ -340,7 +341,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
     this.isLoadingHistory.set(true);
     this.playwrightService.getRunsForTestCase(this.testCaseId()).subscribe({
       next: (res) => {
-        this.runHistory.set(res.runs);
+        this.runHistory.set(res.results as any);
         this.isLoadingHistory.set(false);
       },
       error: () => {

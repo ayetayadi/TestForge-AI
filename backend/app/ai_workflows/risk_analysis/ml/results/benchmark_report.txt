@@ -8,7 +8,7 @@ RAPPORT KNN — Risk Analysis (5 classes)
   Dimensions       : 384
   Modele           : KNN (weights=uniform, metric=cosine)
   Selection k      : GridSearchCV 5-fold, scoring=f1_macro
-  Temps entrainement : 26.5s
+  Temps entrainement : 53.2s
 
   k retenu — Probabilite : k=3  (CV F1=0.760)
   k retenu — Impact      : k=3  (CV F1=0.748)

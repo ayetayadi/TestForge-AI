@@ -14,26 +14,18 @@ class WorkflowStatus(str, Enum):
 # TEST EXECUTION
 # ==============================
 
-class TestRunStatus(str, Enum):
-    RUNNING = "running"
+class TestExecutionStatus(str, Enum):
+    """Statut global d'une exécution de suite (TestExecution)."""
+    RUNNING   = "running"
     COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+    ABORTED   = "aborted"
 
-class TestResultStatus(str, Enum):
-    PASSED = "passed"
-    FAILED = "failed"
-    ERROR = "error"
+class TestCaseResultStatus(str, Enum):
+    """Statut d'un cas de test dans une TestExecution."""
+    PASSED  = "passed"
+    FAILED  = "failed"
+    ERROR   = "error"
     SKIPPED = "skipped"
-
-class StepType(str, Enum):
-    THINK = "think"
-    ACT = "act"
-    OBSERVE = "observe"
-
-class StepStatus(str, Enum):
-    SUCCESS = "success"
-    FAILED = "failed"
 
 class ScriptValidationStatus(str, Enum):
     NOT_VALIDATED = "not_validated"

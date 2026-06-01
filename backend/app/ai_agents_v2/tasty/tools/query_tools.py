@@ -16,8 +16,7 @@ from app.models.jira_project import JiraProject
 from app.models.playwright_script_version import PlaywrightScriptVersion
 from app.models.test_case import TestCase
 from app.models.test_plan import TestPlan
-from app.models.test_result import TestResult
-from app.models.test_run import TestRun
+from app.models.test_case_result import TestCaseResult
 from app.models.test_suite import TestSuite
 from app.models.user_story import UserStory
 
@@ -334,40 +333,35 @@ def make_query_tools(user_id: str) -> List:
         passed = failed = pending = 0
         async with async_session_maker() as db:
             for tc in tcs:
-                # Latest TestRun for this TC (via script_version)
-                run_r = await db.execute(
-                    select(TestRun)
-                    .join(
-                        PlaywrightScriptVersion,
-                        TestRun.script_version_id == PlaywrightScriptVersion.id,
-                    )
-                    .where(PlaywrightScriptVersion.test_case_id == tc.id)
-                    .order_by(TestRun.started_at.desc())
+                # Latest TestCaseResult for this TC (all executions)
+                tcr_r = await db.execute(
+                    select(TestCaseResult)
+                    .where(TestCaseResult.test_case_id == tc.id)
+                    .order_by(TestCaseResult.created_at.desc())
                     .limit(1)
                 )
-                run = run_r.scalar_one_or_none()
+                tc_result = tcr_r.scalar_one_or_none()
 
-                if run is None:
+                if tc_result is None:
                     status_icon = "⏳"
                     status_text = "not run"
                     pending += 1
                 else:
-                    result_r = await db.execute(
-                        select(TestResult).where(TestResult.test_run_id == run.id)
-                    )
-                    result = result_r.scalar_one_or_none()
-                    result_status = result.status.value if result else run.status.value
-                    if result_status in ("passed",):
+                    result_status = tc_result.status.value
+                    if result_status == "passed":
                         status_icon, status_text = "✅", "passed"
                         passed += 1
-                    elif result_status in ("error",):
+                    elif result_status == "error":
                         status_icon, status_text = "💥", "error"
                         failed += 1
                     else:
                         status_icon, status_text = "❌", "failed"
                         failed += 1
 
-                    duration = f" ({round(run.duration or 0, 1)} s)" if run.duration else ""
+                    duration = (
+                        f" ({round(tc_result.duration or 0, 1)} s)"
+                        if tc_result.duration else ""
+                    )
                     rows.append(
                         f"- {status_icon} **{tc.tc_code}**: {tc.title[:65]} "
                         f"— `{status_text}`{duration}"

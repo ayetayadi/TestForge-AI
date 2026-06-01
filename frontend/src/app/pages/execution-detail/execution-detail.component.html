@@ -1,0 +1,412 @@
+<div class="exec-detail-page">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       HEADER
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="page-header">
+    <div class="header-left">
+      <button class="btn-back" (click)="goBack()" title="Back to executions">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
+        </svg>
+        Back
+      </button>
+      <div>
+        @if (execution(); as ex) {
+          <h1 class="page-title">{{ ex.suite_title || 'Execution' }}</h1>
+          <p class="page-subtitle">
+            {{ formatDate(ex.started_at) }} · {{ ex.browser }} · {{ formatDuration(ex.duration) }}
+          </p>
+        } @else {
+          <h1 class="page-title">Execution Detail</h1>
+        }
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button
+        class="btn-notify"
+        (click)="openNotifyModal()"
+        [disabled]="!execution() || isClosed()"
+        title="Send execution report to the developer"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 003-3H7a3 3 0 003 3z"/>
+        </svg>
+        Notify Developer
+      </button>
+
+      @if (!isClosed()) {
+        <button
+          class="btn-close-suite"
+          (click)="openCloseModal()"
+          [disabled]="!execution()"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
+          </svg>
+          Close Suite
+        </button>
+      } @else {
+        <button class="btn-reopen" (click)="reopenSuite()">Reopen</button>
+      }
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       STATUS BANNERS
+  ══════════════════════════════════════════════════════════════ -->
+  @if (notified() && !isClosed()) {
+    <div class="banner banner--info">
+      <span class="banner__icon">📨</span>
+      <div>
+        <strong>Developer notified — awaiting code correction</strong>
+        <p>The execution report has been sent. You'll be able to close this suite once issues are resolved.</p>
+      </div>
+    </div>
+  }
+
+  @if (isClosed()) {
+    <div class="banner banner--success">
+      <span class="banner__icon">✓</span>
+      <div>
+        <strong>Suite closed</strong>
+        <p>This execution has been marked as closed.</p>
+      </div>
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════
+       LOADING
+  ══════════════════════════════════════════════════════════════ -->
+  @if (isLoading()) {
+    <div class="loading-state">
+      <app-spinner text="Loading execution details..." />
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════
+       MAIN CONTENT
+  ══════════════════════════════════════════════════════════════ -->
+  @if (!isLoading() && execution(); as ex) {
+
+    <!-- Counters -->
+    <div class="counters-bar">
+      <div class="counter counter--passed">
+        <span class="counter__value">{{ ex.passed_count }}</span>
+        <span class="counter__label">Passed</span>
+      </div>
+      <div class="counter counter--failed">
+        <span class="counter__value">{{ ex.failed_count + ex.error_count }}</span>
+        <span class="counter__label">Failed</span>
+      </div>
+      <div class="counter counter--skipped">
+        <span class="counter__value">{{ ex.skipped_count }}</span>
+        <span class="counter__label">Skipped</span>
+      </div>
+      <div class="counter counter--total">
+        <span class="counter__value">{{ ex.total_count }}</span>
+        <span class="counter__label">Total</span>
+      </div>
+    </div>
+
+    <!-- Execution config -->
+    <div class="section-card config-card">
+      <div class="config-grid">
+        <div class="config-item">
+          <span class="config-label">App URL</span>
+          <span class="config-value">{{ ex.app_url }}</span>
+        </div>
+        <div class="config-item">
+          <span class="config-label">Browser</span>
+          <span class="config-value">{{ ex.browser }}</span>
+        </div>
+        <div class="config-item">
+          <span class="config-label">Mode</span>
+          <span class="config-value">{{ ex.headless ? 'Headless' : 'Headed' }}</span>
+        </div>
+        <div class="config-item">
+          <span class="config-label">Status</span>
+          <span class="status-badge" [class]="getStatusClass(ex.status)">
+            {{ getStatusIcon(ex.status) }} {{ ex.status }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-TC results -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2 class="section-title">Test Cases</h2>
+        <span class="register-count">{{ ex.test_case_results.length }}</span>
+      </div>
+
+      <div class="tc-results">
+        @for (tcr of ex.test_case_results; track tcr.id) {
+          <div class="tc-result" [class]="getStatusClass(tcr.status)">
+            <div class="tc-result__header" (click)="toggleTc(tcr.id)">
+              <span class="tc-result__order">#{{ tcr.execution_order }}</span>
+              <span class="tc-result__icon">{{ getStatusIcon(tcr.status) }}</span>
+              <span class="tc-result__code">{{ tcr.tc_code }}</span>
+              <span class="tc-result__title">{{ tcr.title }}</span>
+
+              <div class="tc-result__stats">
+                <span [class]="getScriptBadgeClass(tcr)" [title]="getScriptBadgeLabel(tcr)">
+                  {{ getScriptBadgeLabel(tcr) }}
+                </span>
+                <span class="tc-result__steps">
+                  {{ tcr.steps_passed }}/{{ (tcr.steps_passed || 0) + (tcr.steps_failed || 0) }} steps
+                </span>
+                <span class="tc-result__duration">{{ formatDuration(tcr.duration) }}</span>
+                <span class="status-badge" [class]="getStatusClass(tcr.status)">{{ tcr.status }}</span>
+              </div>
+
+              <svg class="chevron" [class.chevron--open]="expandedTcId() === tcr.id"
+                   xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 011.08 1.04l-4.25 4.4a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+              </svg>
+            </div>
+
+            @if (expandedTcId() === tcr.id) {
+              <div class="tc-result__body">
+
+                @if (tcr.script_version_id) {
+                  <div class="tc-result__script-info">
+                    <div class="script-info__row">
+                      <span class="script-info__label">Script used:</span>
+                      <span [class]="getScriptBadgeClass(tcr)">{{ getScriptBadgeLabel(tcr) }}</span>
+                    </div>
+                    <button
+                      class="btn-view-script"
+                      (click)="openScript(tcr.test_case_id)"
+                      title="Open the script code in detail page"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3.25 4A2.25 2.25 0 001 6.25v7.5A2.25 2.25 0 003.25 16h13.5A2.25 2.25 0 0019 13.75v-7.5A2.25 2.25 0 0016.75 4H3.25zM7.53 10.97a.75.75 0 010 1.06l-1.5 1.5a.75.75 0 11-1.06-1.06L6.44 11.5l-.97-.97a.75.75 0 011.06-1.06l1.5 1.5zM9.75 12a.75.75 0 000 1.5h2.5a.75.75 0 000-1.5h-2.5z" clip-rule="evenodd"/>
+                      </svg>
+                      View script code
+                    </button>
+                  </div>
+                }
+
+                @if (tcr.justification) {
+                  <div class="tc-result__justification">
+                    <strong>Result:</strong> {{ tcr.justification }}
+                  </div>
+                }
+
+                @if (tcr.error_message) {
+                  <div class="tc-result__error">
+                    <strong>Error:</strong> {{ tcr.error_message }}
+                  </div>
+                }
+
+                @if (tcr.steps && tcr.steps.length > 0) {
+                  <div class="steps-list">
+                    <h4>Steps</h4>
+                    @for (step of tcr.steps; track step.order) {
+                      <div class="step-item" [class]="'step-' + step.status">
+                        <span class="step-order">#{{ step.order + 1 }}</span>
+                        <span class="step-type">{{ step.type }}</span>
+                        @if (step.tool_name) {
+                          <span class="step-tool">{{ step.tool_name }}</span>
+                        }
+                        <span class="step-content">{{ step.content }}</span>
+                        <span class="step-status">{{ step.status }}</span>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <p class="empty-steps">No steps recorded.</p>
+                }
+
+                @if (tcr.screenshot_b64) {
+                  <div class="screenshot">
+                    <h4>Final Screenshot</h4>
+                    <img [src]="'data:image/png;base64,' + tcr.screenshot_b64" alt="screenshot" />
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     NOTIFY DEVELOPER MODAL
+══════════════════════════════════════════════════════════════ -->
+@if (showNotifyModal()) {
+  <div class="modal-overlay" (click)="closeNotifyModal()">
+    <div class="notify-modal" (click)="$event.stopPropagation()">
+
+      <div class="notify-modal__header">
+        <h2>Notify Developer</h2>
+        <button class="notify-modal__close" (click)="closeNotifyModal()">✕</button>
+      </div>
+
+      <div class="notify-modal__body">
+
+        <div class="form-group">
+          <label class="form-label">Delivery method</label>
+          <div class="method-pills">
+            <button
+              class="method-pill" type="button"
+              [class.method-pill--active]="notifyMethod() === 'email'"
+              (click)="notifyMethod.set('email')">
+              📧 Email
+            </button>
+            <button
+              class="method-pill" type="button"
+              [class.method-pill--active]="notifyMethod() === 'jira'"
+              (click)="notifyMethod.set('jira')">
+              🐛 Jira
+            </button>
+            <button
+              class="method-pill" type="button"
+              [class.method-pill--active]="notifyMethod() === 'both'"
+              (click)="notifyMethod.set('both')">
+              📧 + 🐛 Both
+            </button>
+          </div>
+        </div>
+
+        @if (notifyMethod() === 'email' || notifyMethod() === 'both') {
+          <div class="form-group">
+            <label class="form-label">Recipients <span class="required">*</span></label>
+            <input
+              class="form-input"
+              type="text"
+              placeholder="dev1@example.com, dev2@example.com"
+              [ngModel]="notifyRecipients()"
+              (ngModelChange)="notifyRecipients.set($event)"
+            />
+            <p class="form-hint">Separate multiple emails with commas</p>
+          </div>
+        }
+
+        @if (notifyMethod() === 'jira' || notifyMethod() === 'both') {
+          <div class="form-row">
+            <div class="form-group form-group--half">
+              <label class="form-label">Jira Project <span class="required">*</span></label>
+              <select
+                class="form-select"
+                [ngModel]="notifyJiraProjectKey()"
+                (ngModelChange)="notifyJiraProjectKey.set($event)">
+                <option value="">— Select a project —</option>
+                @for (p of jiraProjects(); track p.key) {
+                  <option [value]="p.key">{{ p.name }} ({{ p.key }})</option>
+                }
+              </select>
+            </div>
+            <div class="form-group form-group--half">
+              <label class="form-label">Priority</label>
+              <select
+                class="form-select"
+                [ngModel]="notifyJiraPriority()"
+                (ngModelChange)="notifyJiraPriority.set($event)">
+                <option value="Highest">Highest</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+          </div>
+        }
+
+        <div class="form-group">
+          <label class="form-label">Report content</label>
+          <div class="toggle-list">
+            <label class="toggle-row">
+              <input
+                type="checkbox"
+                [checked]="notifyIncludePassed()"
+                (change)="notifyIncludePassed.set(!notifyIncludePassed())" />
+              <span class="toggle-label">Include passed test cases (otherwise only failed)</span>
+            </label>
+            <label class="toggle-row">
+              <input
+                type="checkbox"
+                [checked]="notifyIncludeSteps()"
+                (change)="notifyIncludeSteps.set(!notifyIncludeSteps())" />
+              <span class="toggle-label">Include execution steps</span>
+            </label>
+            <label class="toggle-row">
+              <input
+                type="checkbox"
+                [checked]="notifyIncludeShots()"
+                (change)="notifyIncludeShots.set(!notifyIncludeShots())" />
+              <span class="toggle-label">Include screenshots</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="notify-modal__footer">
+        <button class="btn-secondary" (click)="closeNotifyModal()" [disabled]="isSending()">
+          Cancel
+        </button>
+        <button class="btn-send" (click)="sendNotification()" [disabled]="isSending()">
+          @if (isSending()) {
+            <span class="spinner-inline"></span> Sending…
+          } @else {
+            Send Report
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     CLOSE SUITE CONFIRMATION
+══════════════════════════════════════════════════════════════ -->
+@if (showCloseModal()) {
+  <div class="modal-overlay" (click)="cancelClose()">
+    <div class="close-dialog" (click)="$event.stopPropagation()">
+      @if (hasFailures()) {
+        <div class="close-dialog__header close-dialog__header--warn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+          </svg>
+          <h3>Failed test cases still present</h3>
+          <button class="close-dialog__x" (click)="cancelClose()">✕</button>
+        </div>
+        <div class="close-dialog__body">
+          <p>
+            This execution still has
+            <strong>{{ (execution()?.failed_count || 0) + (execution()?.error_count || 0) }}</strong>
+            failed test case(s). Closing the suite now will keep them as failed in the history.
+          </p>
+          <p class="close-dialog__hint">
+            Consider waiting for the developer to fix and re-running the suite before closing.
+          </p>
+        </div>
+        <div class="close-dialog__footer">
+          <button class="btn-secondary" (click)="cancelClose()" [disabled]="isClosing()">Cancel</button>
+          <button class="btn-force-close" (click)="confirmClose()" [disabled]="isClosing()">
+            Force Close
+          </button>
+        </div>
+      } @else {
+        <div class="close-dialog__header">
+          <h3>Close this suite execution?</h3>
+          <button class="close-dialog__x" (click)="cancelClose()">✕</button>
+        </div>
+        <div class="close-dialog__body">
+          <p>All test cases passed. The execution will be marked as closed.</p>
+        </div>
+        <div class="close-dialog__footer">
+          <button class="btn-secondary" (click)="cancelClose()" [disabled]="isClosing()">Cancel</button>
+          <button class="btn-confirm-close" (click)="confirmClose()" [disabled]="isClosing()">
+            Close Suite
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}

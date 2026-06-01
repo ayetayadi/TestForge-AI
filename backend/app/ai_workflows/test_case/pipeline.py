@@ -9,8 +9,10 @@ Flow per User Story:
 """
 
 import asyncio
+import json
 import logging
 import math
+import re
 from typing import Any, Callable, Dict, List, Literal, Optional
 
 from langfuse import observe
@@ -278,7 +280,11 @@ class TestCasePipeline:
             })
 
             raw_tcs = self._repair_gherkin(raw_tcs)
-            ac_coverage = validate_ac_coverage(raw_tcs, acceptance_criteria)
+            # Fix 3: compute coverage on filtered TCs (same filters as _finalize)
+            # so the correction loop knows the real post-filter coverage
+            ac_coverage = validate_ac_coverage(
+                self._filter_for_coverage(raw_tcs, scenario_type), acceptance_criteria
+            )
 
             # ── STEP 6: CORRECTION LOOP ───────────────────
             iteration = 0
@@ -319,7 +325,9 @@ class TestCasePipeline:
                 self._remap_risk_ids(extra_tcs, risk_label_map)
                 extra_tcs = self._repair_gherkin(extra_tcs)
                 raw_tcs.extend(extra_tcs)
-                ac_coverage = validate_ac_coverage(raw_tcs, acceptance_criteria)
+                ac_coverage = validate_ac_coverage(
+                    self._filter_for_coverage(raw_tcs, scenario_type), acceptance_criteria
+                )
 
             # ── STEP 7: FINALIZE ─────────────────────────
             await self._emit(progress_callback, "phase", {
@@ -501,7 +509,9 @@ class TestCasePipeline:
                 self._remap_risk_ids(raw_tcs, risk_label_map)
                 raw_tcs = self._repair_gherkin(raw_tcs)
 
-            ac_coverage = validate_ac_coverage(raw_tcs, acceptance_criteria)
+            ac_coverage = validate_ac_coverage(
+                self._filter_for_coverage(raw_tcs, scenario_type), acceptance_criteria
+            )
             story_risk_level = story_data.get("risk_level") or risk_level
 
             if not ac_coverage["is_sufficient"]:
@@ -526,7 +536,9 @@ class TestCasePipeline:
                     self._remap_risk_ids(extra_tcs, risk_label_map)
                     extra_tcs = self._repair_gherkin(extra_tcs)
                     raw_tcs.extend(extra_tcs)
-                    ac_coverage = validate_ac_coverage(raw_tcs, acceptance_criteria)
+                    ac_coverage = validate_ac_coverage(
+                        self._filter_for_coverage(raw_tcs, scenario_type), acceptance_criteria
+                    )
                 except Exception as e:
                     logger.warning(
                         f"[TC BATCH] Correction failed for {story_data.get('issue_key')}: {e}"
@@ -694,8 +706,86 @@ class TestCasePipeline:
             scenario_type=scenario_type,
             count=count,
         )
-        typed_llm = self._base_llm.with_structured_output(_make_typed_batch(scenario_type), method="json_mode")
-        return await typed_llm.ainvoke(prompt)
+        # Use raw LLM + manual JSON repair — Groq json_mode ignores schema structure
+        # in correction calls (omits `order`, returns bare TC instead of {"test_cases": [...]})
+        response = await self._base_llm.ainvoke(prompt)
+        content = response.content.strip()
+        
+        # Nettoie les caractères de contrôle qui cassent le parsing JSON
+        # (sauts de ligne dans les strings, tabulations, etc.)
+        import re as re_module
+        content = re_module.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', content)
+        # Remplace les \n et \t multiples par des espaces simples
+        content = re_module.sub(r'\s+', ' ', content)
+
+        def _salvage_truncated_json(s: str) -> dict:
+            """Recover complete TC objects from a truncated JSON string."""
+            # Try closing the array/object directly
+            for suffix in [']}', ' ]}', '  ]}', '}]}', '"}]}']:
+                try:
+                    candidate = s.rstrip().rstrip(',') + suffix
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    pass
+            # Find the last position where a complete TC object closed (depth goes from 2→1)
+            depth = 0
+            in_string = False
+            escape_next = False
+            last_tc_end = -1
+            for i, c in enumerate(s):
+                if escape_next:
+                    escape_next = False
+                    continue
+                if c == '\\' and in_string:
+                    escape_next = True
+                    continue
+                if c == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if c == '{':
+                    depth += 1
+                elif c == '}':
+                    depth -= 1
+                    if depth == 1:  # just closed a TC object inside test_cases array
+                        last_tc_end = i
+            if last_tc_end > 0:
+                for suffix in [']}', ' ]}']:
+                    try:
+                        return json.loads(s[:last_tc_end + 1] + suffix)
+                    except json.JSONDecodeError:
+                        pass
+            raise json.JSONDecodeError("Cannot salvage truncated JSON", s, 0)
+
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            raw_candidate = match.group() if match else content
+            try:
+                data = json.loads(raw_candidate)
+            except json.JSONDecodeError:
+                try:
+                    # Repair bad escape sequences
+                    fixed = re_module.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw_candidate)
+                    data = json.loads(fixed)
+                except json.JSONDecodeError:
+                    # Last resort: salvage complete TCs from truncated response
+                    data = _salvage_truncated_json(raw_candidate)
+
+        # Repair: wrap bare TC object in {"test_cases": [...]}
+        if "test_cases" not in data:
+            data = {"test_cases": [data]}
+
+        # Repair: add missing `order` field to steps (Groq often omits it)
+        for tc in data.get("test_cases", []):
+            for i, step in enumerate(tc.get("steps", [])):
+                if "order" not in step:
+                    step["order"] = i + 1
+
+        TypedBatch = _make_typed_batch(scenario_type)
+        return TypedBatch.model_validate(data)
 
     # ============================================================
     # HELPERS
@@ -712,6 +802,32 @@ class TestCasePipeline:
                 if label in risk_label_map
             ]
 
+    def _filter_for_coverage(self, test_cases: List[Dict[str, Any]], scenario_type: str) -> List[Dict[str, Any]]:
+        """Apply the same type/content filters as _finalize (without dedup/sort) to estimate post-filter coverage."""
+        filtered = [tc for tc in test_cases if tc.get("test_type", "").lower().strip() == scenario_type]
+        if scenario_type != "boundary":
+            content_ok = [tc for tc in filtered if not _has_boundary_signals(tc)]
+            if content_ok:  # mirror _finalize: only remove boundary TCs if non-boundary TCs still exist
+                filtered = content_ok
+        if scenario_type == "positive":
+            content_ok = [tc for tc in filtered if not _has_negative_signals(tc)]
+            if content_ok:  # mirror _finalize: only remove negative TCs if positive TCs still exist
+                filtered = content_ok
+        return filtered
+
+    @staticmethod
+    def _rebuild_gherkin_from_steps(title: str, steps: List[Dict[str, Any]]) -> str:
+        """Build a minimal valid Gherkin scenario from a structured steps list."""
+        if not steps:
+            return ""
+        kw_map = {0: "Given", 1: "When", 2: "Then"}
+        lines = [f"Scenario: {title}"]
+        for i, step in enumerate(steps):
+            kw = kw_map.get(i, "And")
+            action = step.get("action", "")
+            lines.append(f"  {kw} {action}")
+        return "\n".join(lines)
+
     def _repair_gherkin(self, test_cases: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         repaired = []
         for tc in test_cases:
@@ -726,6 +842,18 @@ class TestCasePipeline:
                 logger.warning(
                     f"[TEST CASE] Gherkin issues in '{tc.get('title', '?')}': {issues}"
                 )
+                # Fix 1: try to rebuild Gherkin from structured steps when Gherkin is invalid/empty
+                if tc.get("steps"):
+                    rebuilt = self._rebuild_gherkin_from_steps(
+                        tc.get("title", "Test Case"), tc["steps"]
+                    )
+                    rebuilt_valid, _ = validate_gherkin(rebuilt)
+                    if rebuilt_valid:
+                        tc["gherkin_scenario"] = rebuilt
+                        gherkin = rebuilt
+                        logger.info(
+                            f"[TEST CASE] Gherkin rebuilt from steps for '{tc.get('title', '?')}'"
+                        )
 
             if not tc.get("steps") and gherkin:
                 parsed = parse_gherkin_steps(gherkin)

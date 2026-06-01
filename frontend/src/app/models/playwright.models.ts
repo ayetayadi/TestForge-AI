@@ -12,18 +12,31 @@ export enum ScriptValidationStatus {
   DRAFT = "draft"
 }
 
-export enum TestRunStatus {
-  RUNNING = "running",
+export enum TestExecutionStatus {
+  RUNNING   = "running",
   COMPLETED = "completed",
-  FAILED = "failed",
-  CANCELLED = "cancelled"
+  ABORTED   = "aborted",
+}
+
+export enum TestCaseResultStatus {
+  PASSED  = "passed",
+  FAILED  = "failed",
+  ERROR   = "error",
+  SKIPPED = "skipped",
+}
+
+// ── Legacy alias enums (kept so existing components compile) ────────
+export enum TestRunStatus {
+  RUNNING   = "running",
+  COMPLETED = "completed",
+  ABORTED   = "aborted",
 }
 
 export enum TestResultStatus {
-  PASSED = "passed",
-  FAILED = "failed",
-  ERROR = "error",
-  SKIPPED = "skipped"
+  PASSED  = "passed",
+  FAILED  = "failed",
+  ERROR   = "error",
+  SKIPPED = "skipped",
 }
 
 export enum StepType {
@@ -263,4 +276,88 @@ export interface ScriptVersionUI {
   placeholderCount: number;
   createdAt: Date;
   content?: string;
+}
+
+// ============================================================
+// TEST EXECUTION / TEST CASE RESULT  (nouveau modèle backend)
+// ============================================================
+
+export interface TcResultStep {
+  order: number;
+  type: 'think' | 'act' | 'observe' | string;
+  tool_name?: string | null;
+  content: string;
+  status: 'success' | 'failed' | string;
+  error?: string | null;
+  duration?: number | null;
+}
+
+export interface TestCaseResultBasic {
+  id: string;
+  test_case_id: string;
+  tc_code?: string | null;
+  title?: string | null;
+  execution_order: number;
+  status: string;
+  duration?: number | null;
+  steps_passed: number;
+  steps_failed: number;
+}
+
+export interface TestCaseResultDetail extends TestCaseResultBasic {
+  steps: TcResultStep[];
+  justification?: string | null;
+  error_message?: string | null;
+  screenshot_b64?: string | null;
+  script_version_id?: string | null;
+  script_source?: string | null;
+  script_version_number?: number | null;
+  script_placeholder_count?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface TestExecutionBasic {
+  id: string;
+  suite_id: string;
+  suite_title?: string | null;
+  project_name?: string | null;
+  app_url: string;
+  browser: string;
+  headless: boolean;
+  status: string;
+  started_at: string;
+  completed_at?: string | null;
+  duration?: number | null;
+  total_count: number;
+  passed_count: number;
+  failed_count: number;
+  skipped_count: number;
+  error_count: number;
+  triggered_by_email?: string | null;
+  is_closed: boolean;
+  closed_at?: string | null;
+}
+
+export interface TestExecutionDetail extends TestExecutionBasic {
+  stop_on_failure?: boolean;
+  model_id?: string | null;
+  test_case_results: TestCaseResultDetail[];
+}
+
+export interface TestExecutionGlobalStats {
+  total_runs: number;
+  running: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  error: number;
+  pass_rate: number;       // %
+  avg_duration: number;    // seconds
+}
+
+export interface TestExecutionListResponse {
+  items: TestExecutionBasic[];
+  total: number;
+  stats: TestExecutionGlobalStats;
 }

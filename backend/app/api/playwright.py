@@ -9,6 +9,7 @@ from app.services import playwright_service as service
 from app.streaming.sse_manager import event_generator, event_buffer
 from app.api.deps import get_current_user, get_user_project_ids
 from app.models.user import User
+from app.models.enums import TestExecutionStatus
 
 router = APIRouter(prefix="/playwright", tags=["Playwright E2E"])
 
@@ -44,7 +45,6 @@ class ExecuteScriptRequest(BaseModel):
 
 
 class FullWorkflowRequest(BaseModel):
-    """Requête pour le workflow complet (génération + exécution)."""
     test_case_id: str
     app_url: Optional[str] = None
     browser: str = "chromium"
@@ -52,17 +52,8 @@ class FullWorkflowRequest(BaseModel):
     model_id: Optional[str] = None
 
 
-class SuiteRunRequest(BaseModel):
-    """Requête pour exécuter plusieurs test cases en ordre séquentiel."""
-    test_case_ids: List[str] = Field(..., description="IDs dans l'ordre d'exécution")
-    app_url: Optional[str] = None
-    browser: str = "chromium"
-    headless: bool = True
-    stop_on_failure: bool = Field(default=False, description="Stop suite if a TC fails")
-
-
 class SuiteSmartRunRequest(BaseModel):
-    """Execute all TCs in a suite: auto-generate missing scripts + resolve + run."""
+    """Execute all TCs in a suite: auto-generate missing scripts + run."""
     app_url: Optional[str] = None
     browser: str = Field(default="chromium", description="chromium, firefox, webkit")
     headless: bool = Field(default=True)
@@ -84,6 +75,16 @@ class CreateDefectRequest(BaseModel):
     test_case_id: str
 
 
+class NotifyDeveloperRequest(BaseModel):
+    recipients: List[str] = Field(default_factory=list, description="Developer email addresses")
+    method: str = Field(default="email", description="email | jira | both")
+    include_passed: bool = Field(default=False, description="Include passed TCs in the report")
+    include_steps: bool = Field(default=True)
+    include_screenshots: bool = Field(default=True)
+    jira_project_key: Optional[str] = Field(default=None, description="Required if method=jira/both")
+    jira_priority: str = Field(default="High")
+
+
 class UpdateScriptRequest(BaseModel):
     script_content: str = Field(..., min_length=1, description="Edited TypeScript content")
 
@@ -100,12 +101,6 @@ class ScriptListResponse(BaseModel):
     scripts: List[Dict[str, Any]]
 
 
-class TestRunDetailsResponse(BaseModel):
-    test_run: Dict[str, Any]
-    result: Optional[Dict[str, Any]]
-    steps: List[Dict[str, Any]]
-
-
 # ============================================================
 # BACKGROUND TASKS
 # ============================================================
@@ -117,6 +112,7 @@ async def _execute_script_background(
     browser: str,
     headless: bool,
     model_id: Optional[str] = None,
+    triggered_by: Optional[str] = None,
 ):
     async with async_session_maker() as db:
         await service.execute_script(
@@ -128,6 +124,7 @@ async def _execute_script_background(
             headless=headless,
             save_to_db=True,
             model_id=model_id,
+            triggered_by=triggered_by,
         )
 
 
@@ -156,6 +153,7 @@ async def _suite_smart_run_background(
     headless: bool,
     stop_on_failure: bool,
     model_id: Optional[str] = None,
+    triggered_by: Optional[str] = None,
 ):
     async with async_session_maker() as db:
         await service.run_suite_smart(
@@ -166,37 +164,20 @@ async def _suite_smart_run_background(
             headless=headless,
             stop_on_failure=stop_on_failure,
             model_id=model_id,
-        )
-
-
-async def _suite_run_background(
-    test_case_ids: List[str],
-    app_url: Optional[str],
-    browser: str,
-    headless: bool,
-    stop_on_failure: bool,
-):
-    async with async_session_maker() as db:
-        await service.run_suite(
-            db,
-            test_case_ids=test_case_ids,
-            app_url=app_url,
-            browser=browser,
-            headless=headless,
-            stop_on_failure=stop_on_failure,
+            triggered_by=triggered_by,
         )
 
 
 # ============================================================
-# ENDPOINTS
+# SCRIPT GENERATION & EXECUTION
 # ============================================================
 
 @router.post("/generate-script", response_model=GenerateScriptResponse)
 async def generate_script_endpoint(
     request: GenerateScriptRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Génère un Script v1 avec placeholders à partir des cas de test."""
+    """Generate a v1 Playwright script with placeholders."""
     try:
         result = await service.generate_script_v1(
             db,
@@ -205,9 +186,7 @@ async def generate_script_endpoint(
             save_to_db=True,
             model_id=request.model_id,
         )
-        
         return GenerateScriptResponse(**result)
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -216,8 +195,9 @@ async def generate_script_endpoint(
 async def execute_script_endpoint(
     request: ExecuteScriptRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
 ):
-    """Lance l'exécution du script en arrière-plan (résultats via SSE)."""
+    """Trigger execution of a single test case (async, results via SSE)."""
     background_tasks.add_task(
         _execute_script_background,
         request.test_case_id,
@@ -226,6 +206,7 @@ async def execute_script_endpoint(
         request.browser,
         request.headless,
         request.model_id,
+        current_user.id,
     )
     return AsyncStartResponse(
         status="started",
@@ -239,7 +220,7 @@ async def full_workflow_endpoint(
     request: FullWorkflowRequest,
     background_tasks: BackgroundTasks,
 ):
-    """Workflow complet: Génération + Exécution en arrière-plan."""
+    """Generation + execution chained in background."""
     background_tasks.add_task(
         _full_workflow_background,
         request.test_case_id,
@@ -255,39 +236,19 @@ async def full_workflow_endpoint(
     )
 
 
-@router.post("/run-suite", response_model=AsyncStartResponse)
-async def run_suite_endpoint(
-    request: SuiteRunRequest,
-    background_tasks: BackgroundTasks,
-):
-    """Exécute plusieurs test cases séquentiellement dans l'ordre fourni."""
-    if not request.test_case_ids:
-        raise HTTPException(status_code=400, detail="test_case_ids list is empty")
+# ============================================================
+# TC RESULT — DETAIL, REPORT, EMAIL, DEFECT
+# ============================================================
 
-    background_tasks.add_task(
-        _suite_run_background,
-        request.test_case_ids,
-        request.app_url,
-        request.browser,
-        request.headless,
-        request.stop_on_failure,
-    )
-    return AsyncStartResponse(
-        status="started",
-        test_case_id=request.test_case_ids[0],
-        message=f"Suite run started: {len(request.test_case_ids)} test cases. Monitor each TC's SSE stream.",
-    )
-
-
-@router.get("/test-run/{test_run_id}/report")
+@router.get("/tc-result/{tc_result_id}/report")
 async def get_full_report_endpoint(
-    test_run_id: str,
+    tc_result_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Retourne le rapport complet d'un test run (steps, résultat, defect, raisonnement LLM)."""
+    """Full report for a single TestCaseResult (steps, defect, LLM reasoning)."""
     try:
         from app.services.execution_report_service import build_full_report
-        report = await build_full_report(db, test_run_id)
+        report = await build_full_report(db, tc_result_id)
         if "error" in report:
             raise HTTPException(status_code=404, detail=report["error"])
         return report
@@ -297,42 +258,42 @@ async def get_full_report_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/test-run/{test_run_id}/send-email")
+@router.post("/tc-result/{tc_result_id}/send-email")
 async def send_report_email_endpoint(
-    test_run_id: str,
+    tc_result_id: str,
     request: SendReportEmailRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Envoie le rapport d'exécution par email aux destinataires spécifiés."""
+    """Send the execution report by email for a failed TC result."""
     try:
         from app.services.execution_report_service import build_full_report, send_execution_report_email
         if not request.recipients:
             raise HTTPException(status_code=400, detail="No recipients provided")
 
-        report = await build_full_report(db, test_run_id)
+        report = await build_full_report(db, tc_result_id)
         if "error" in report:
             raise HTTPException(status_code=404, detail=report["error"])
 
         await send_execution_report_email(report=report, recipients=request.recipients)
-        return {"status": "sent", "recipients": request.recipients, "test_run_id": test_run_id}
+        return {"status": "sent", "recipients": request.recipients, "tc_result_id": tc_result_id}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/test-run/{test_run_id}/create-defect")
+@router.post("/tc-result/{tc_result_id}/create-defect")
 async def create_defect_endpoint(
-    test_run_id: str,
+    tc_result_id: str,
     request: CreateDefectRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Crée manuellement un defect à partir d'un test run échoué."""
+    """Manually create a defect from a failed TC result."""
     try:
         from app.services.execution_report_service import create_defect_from_execution
         defect = await create_defect_from_execution(
             db,
-            test_run_id=test_run_id,
+            tc_result_id=tc_result_id,
             test_case_id=request.test_case_id,
         )
         if not defect:
@@ -355,7 +316,7 @@ async def create_jira_from_defect_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Crée un ticket Jira Bug à partir d'un defect TestForge."""
+    """Create a Jira Bug ticket from a TestForge defect."""
     try:
         from app.services.execution_report_service import create_jira_issue_from_defect
         result = await create_jira_issue_from_defect(
@@ -374,36 +335,36 @@ async def create_jira_from_defect_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/test-case/{test_case_id}/scripts", response_model=ScriptListResponse)
-async def get_test_case_scripts_endpoint(
-    test_case_id: str,
-    db: AsyncSession = Depends(get_db)
+@router.get("/tc-result/{tc_result_id}")
+async def get_tc_result_details_endpoint(
+    tc_result_id: str,
+    db: AsyncSession = Depends(get_db),
 ):
-    """Récupère tous les scripts d'un test case."""
+    """Full TC result details (steps JSON, screenshot, etc.)."""
     try:
-        result = await service.get_test_case_scripts(db, test_case_id)
-        return ScriptListResponse(**result)
-        
+        result = await service.get_tc_result_details(db, tc_result_id)
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/test-run/{test_run_id}", response_model=TestRunDetailsResponse)
-async def get_test_run_details_endpoint(
-    test_run_id: str,
-    db: AsyncSession = Depends(get_db)
+# ============================================================
+# SCRIPT VERSIONS
+# ============================================================
+
+@router.get("/test-case/{test_case_id}/scripts", response_model=ScriptListResponse)
+async def get_test_case_scripts_endpoint(
+    test_case_id: str,
+    db: AsyncSession = Depends(get_db),
 ):
-    """Récupère les détails complets d'un test run."""
+    """List all script versions for a test case."""
     try:
-        result = await service.get_test_run_details(db, test_run_id)
-        
-        if "error" in result:
-            raise HTTPException(status_code=404, detail=result["error"])
-        
-        return TestRunDetailsResponse(**result)
-        
-    except HTTPException:
-        raise
+        result = await service.get_test_case_scripts(db, test_case_id)
+        return ScriptListResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -411,22 +372,22 @@ async def get_test_run_details_endpoint(
 @router.get("/script/{script_version_id}")
 async def get_script_content_endpoint(
     script_version_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Récupère le contenu d'un script spécifique."""
+    """Read a specific script version content."""
     from app.repositories import playwright_repository as repo
     script = await repo.get_script_version(db, script_version_id)
     if not script:
         raise HTTPException(status_code=404, detail=f"Script {script_version_id} not found")
     return {
-        "id": str(script.id),
-        "content": script.script_content,
-        "version_number": script.version_number,
-        "source": script.source,
-        "is_active": script.is_active,
+        "id":                str(script.id),
+        "content":           script.script_content,
+        "version_number":    script.version_number,
+        "source":            script.source,
+        "is_active":         script.is_active,
         "placeholder_count": script.placeholder_count,
         "validation_status": script.validation_status,
-        "created_at": script.created_at.isoformat() if script.created_at else None,
+        "created_at":        script.created_at.isoformat() if script.created_at else None,
     }
 
 
@@ -436,19 +397,11 @@ async def delete_script_version_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """
-    Delete a specific PlaywrightScriptVersion.
-
-    - If the version was active, the next most recent version is promoted automatically.
-    - All TestRuns linked to this version are deleted in cascade.
-    """
+    """Delete a specific script version. Promotes next-most-recent as active."""
     from app.repositories import playwright_repository as repo
-
     result = await repo.delete_script_version(db, script_version_id)
-
     if not result["deleted"]:
         raise HTTPException(status_code=404, detail=f"Script version {script_version_id} not found")
-
     await db.commit()
     return result
 
@@ -459,14 +412,11 @@ async def delete_all_scripts_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Delete all Playwright script versions for a test case."""
+    """Delete all script versions for a test case."""
     from app.repositories import playwright_repository as repo
-
     result = await repo.delete_all_scripts_for_test_case(db, test_case_id)
-
     if not result["deleted"]:
         raise HTTPException(status_code=404, detail="No scripts found for this test case")
-
     await db.commit()
     return result
 
@@ -477,15 +427,10 @@ async def update_script_endpoint(
     request: UpdateScriptRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Save a manual edit as a new script version.
-    Creates a new PlaywrightScriptVersion with source=MANUAL_EDIT, marks it active,
-    and updates TestCase.active_playwright_script_id.
-    Preserves the original version in history.
-    """
+    """Save a manual edit as a new script version."""
     import re as _re
     from app.repositories import playwright_repository as repo
-    from app.models.playwright_script_version import ScriptSource, ScriptValidationStatus
+    from app.models.playwright_script_version import ScriptSource, ScriptValidationStatus  # noqa: F401
 
     existing = await repo.get_script_version(db, script_version_id)
     if not existing:
@@ -502,82 +447,69 @@ async def update_script_endpoint(
         is_active=True,
     )
 
-    # Keep TestCase.active_playwright_script_id in sync
     await repo.update_test_case_after_execution(
         db,
         test_case_id=existing.test_case_id,
         active_script_id=str(new_version.id),
         locator_mapping={},
     )
-
     await db.commit()
 
     return {
-        "id": str(new_version.id),
-        "version_number": new_version.version_number,
-        "source": new_version.source,
-        "is_active": new_version.is_active,
+        "id":                str(new_version.id),
+        "version_number":    new_version.version_number,
+        "source":            new_version.source,
+        "is_active":         new_version.is_active,
         "placeholder_count": new_version.placeholder_count,
         "validation_status": new_version.validation_status,
-        "created_at": new_version.created_at.isoformat() if new_version.created_at else None,
+        "created_at":        new_version.created_at.isoformat() if new_version.created_at else None,
     }
 
 
-@router.get("/test-case/{test_case_id}/last-run")
-async def get_last_test_run_endpoint(
+# ============================================================
+# PER-TC HISTORY (last result + runs list)
+# ============================================================
+
+@router.get("/test-case/{test_case_id}/last-result")
+async def get_last_tc_result_endpoint(
     test_case_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Récupère le dernier test run pour un test case (toutes versions de script)."""
-    try:
-        from app.repositories import playwright_repository as repo
-
-        latest_run = await repo.get_latest_run_for_test_case(db, test_case_id)
-
-        if not latest_run:
-            return {"message": f"No test runs found for test_case {test_case_id}"}
-
-        return await service.get_test_run_details(db, latest_run.id)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Most recent TestCaseResult for a TC, across all executions."""
+    from app.repositories import playwright_repository as repo
+    latest = await repo.get_latest_tc_result_for_test_case(db, test_case_id)
+    if not latest:
+        return {"message": f"No results found for test_case {test_case_id}"}
+    return await service.get_tc_result_details(db, latest.id)
 
 
-@router.get("/test-case/{test_case_id}/runs")
-async def get_test_case_runs_endpoint(
+@router.get("/test-case/{test_case_id}/results")
+async def list_tc_results_for_test_case_endpoint(
     test_case_id: str,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
 ):
-    """Liste tous les runs d'un test case (toutes versions de script), du plus récent au plus ancien."""
-    try:
-        from app.repositories import playwright_repository as repo
-
-        runs = await repo.get_runs_for_test_case(db, test_case_id, limit=limit)
-
-        result_list = []
-        for run in runs:
-            result_obj = await repo.get_test_result(db, run.id)
-            script_version = (
-                await repo.get_script_version(db, run.script_version_id)
-                if run.script_version_id else None
-            )
-            result_list.append({
-                "id": run.id,
-                "status": run.status.value,
-                "browser": run.browser,
-                "duration": run.duration,
-                "started_at": run.started_at.isoformat() if run.started_at else None,
-                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-                "result_status": result_obj.status.value if result_obj else None,
-                "result_step_count": result_obj.step_count if result_obj else 0,
-                "script_version_number": script_version.version_number if script_version else None,
-            })
-
-        return {"runs": result_list, "total": len(result_list)}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """All results for a TC across all executions, newest first."""
+    from app.repositories import playwright_repository as repo
+    results = await repo.list_tc_results_for_test_case(db, test_case_id, limit=limit)
+    return {
+        "results": [
+            {
+                "id":              r.id,
+                "execution_id":    r.execution_id,
+                "status":          r.status.value,
+                "duration":        r.duration,
+                "steps_passed":    r.steps_passed,
+                "steps_failed":    r.steps_failed,
+                "execution_order": r.execution_order,
+                "started_at":      r.started_at.isoformat() if r.started_at else None,
+                "completed_at":    r.completed_at.isoformat() if r.completed_at else None,
+                "created_at":      r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in results
+        ],
+        "total": len(results),
+    }
 
 
 # ============================================================
@@ -586,13 +518,13 @@ async def get_test_case_runs_endpoint(
 
 @router.get("/test-case/{test_case_id}/stream")
 async def stream_test_execution(request: Request, test_case_id: str):
-    """Stream SSE pour suivre l'exécution d'un test case en temps réel."""
+    """SSE stream for a single TC execution."""
     return StreamingResponse(
         event_generator(test_case_id, request),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
+            "Cache-Control":     "no-cache",
+            "Connection":        "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )
@@ -600,39 +532,291 @@ async def stream_test_execution(request: Request, test_case_id: str):
 
 @router.get("/test-case/{test_case_id}/stream/status")
 async def stream_status_endpoint(test_case_id: str):
-    """Retourne les événements bufferisés pour un test case."""
     return {"test_case_id": test_case_id, "buffered_events": event_buffer.get(test_case_id, [])}
 
 
 # ============================================================
-# TEST RUNS — LIST & STATS
+# TEST EXECUTIONS — LIST, DETAIL, STATS
 # ============================================================
 
-@router.get("/test-runs")
-async def list_test_runs_endpoint(
+@router.get("/test-executions")
+async def list_test_executions_endpoint(
     limit: int = 50,
     offset: int = 0,
-    result_filter: Optional[str] = None,
+    suite_id: Optional[str] = None,
+    status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Liste les test runs de l'utilisateur avec contexte complet.
-    result_filter: passed | failed | error | skipped | all
-    """
-    try:
-        from app.repositories.playwright_repository import get_all_test_runs_with_context
-        project_ids = await get_user_project_ids(db, current_user.id)
-        data = await get_all_test_runs_with_context(
-            db,
-            limit=limit,
-            offset=offset,
-            result_filter=result_filter if result_filter and result_filter != "all" else None,
-            project_ids=project_ids,
-        )
-        return data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """List paginated TestExecutions with global stats. Filtered by user's projects."""
+    from app.repositories import playwright_repository as repo
+    from app.models.test_suite import TestSuite
+    from app.models.test_plan import TestPlan
+    from app.models.user import User as _User
+    from sqlalchemy import select as _sel
+
+    project_ids = await get_user_project_ids(db, current_user.id)
+    status_enum = None
+    if status:
+        try:
+            status_enum = TestExecutionStatus(status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+    listing = await repo.list_test_executions(
+        db,
+        limit=limit,
+        offset=offset,
+        suite_id=suite_id,
+        status=status_enum,
+        project_ids=project_ids,
+    )
+    stats = await repo.get_execution_global_stats(db, project_ids=project_ids)
+
+    # Hydrate with suite_title / project_name / triggered_by_email
+    items: List[Dict[str, Any]] = []
+    for ex in listing["items"]:
+        suite_row = await db.get(TestSuite, ex.suite_id)
+        project_name = None
+        if suite_row and suite_row.test_plan_id:
+            plan = await db.get(TestPlan, suite_row.test_plan_id)
+            project_name = getattr(plan, "project_name", None)
+        triggered_email = None
+        if ex.triggered_by:
+            user_row = await db.get(_User, ex.triggered_by)
+            triggered_email = user_row.email if user_row else None
+
+        items.append({
+            "id":                  ex.id,
+            "suite_id":            ex.suite_id,
+            "suite_title":         suite_row.title if suite_row else None,
+            "project_name":        project_name,
+            "app_url":             ex.app_url,
+            "browser":             ex.browser,
+            "headless":            ex.headless,
+            "status":              ex.status.value,
+            "started_at":          ex.started_at.isoformat() if ex.started_at else None,
+            "completed_at":        ex.completed_at.isoformat() if ex.completed_at else None,
+            "duration":            ex.duration,
+            "total_count":         ex.total_count,
+            "passed_count":        ex.passed_count,
+            "failed_count":        ex.failed_count,
+            "skipped_count":       ex.skipped_count,
+            "error_count":         ex.error_count,
+            "triggered_by_email":  triggered_email,
+            "is_closed":           ex.is_closed,
+            "closed_at":           ex.closed_at.isoformat() if ex.closed_at else None,
+        })
+
+    return {"items": items, "total": listing["total"], "stats": stats}
+
+
+@router.get("/test-executions/{execution_id}")
+async def get_test_execution_detail_endpoint(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Full execution detail with every TestCaseResult (status, steps, screenshot)."""
+    from app.repositories import playwright_repository as repo
+    from app.models.test_suite import TestSuite
+    from app.models.test_case import TestCase
+    from app.models.playwright_script_version import PlaywrightScriptVersion as _PSV
+
+    ex = await repo.get_test_execution(db, execution_id)
+    if not ex:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+
+    suite_row = await db.get(TestSuite, ex.suite_id)
+    tc_results = await repo.list_tc_results_for_execution(db, execution_id)
+
+    tc_results_data: List[Dict[str, Any]] = []
+    for r in tc_results:
+        tc_row = await db.get(TestCase, r.test_case_id)
+
+        script_source = None
+        script_version_number = None
+        script_placeholder_count = None
+        if r.script_version_id:
+            script_row = await db.get(_PSV, r.script_version_id)
+            if script_row:
+                script_source = script_row.source.value if script_row.source else None
+                script_version_number = script_row.version_number
+                script_placeholder_count = script_row.placeholder_count
+
+        tc_results_data.append({
+            "id":              r.id,
+            "test_case_id":    r.test_case_id,
+            "tc_code":         tc_row.tc_code if tc_row else None,
+            "title":           tc_row.title if tc_row else None,
+            "execution_order": r.execution_order,
+            "status":          r.status.value,
+            "duration":        r.duration,
+            "steps_passed":    r.steps_passed,
+            "steps_failed":    r.steps_failed,
+            "steps":           r.steps or [],
+            "justification":   r.justification,
+            "error_message":   r.error_message,
+            "screenshot_b64":  r.screenshot_b64,
+            "script_version_id":        r.script_version_id,
+            "script_source":            script_source,
+            "script_version_number":    script_version_number,
+            "script_placeholder_count": script_placeholder_count,
+            "started_at":      r.started_at.isoformat() if r.started_at else None,
+            "completed_at":    r.completed_at.isoformat() if r.completed_at else None,
+        })
+
+    return {
+        "id":              ex.id,
+        "suite_id":        ex.suite_id,
+        "suite_title":     suite_row.title if suite_row else None,
+        "app_url":         ex.app_url,
+        "browser":         ex.browser,
+        "headless":        ex.headless,
+        "stop_on_failure": ex.stop_on_failure,
+        "model_id":        ex.model_id,
+        "status":          ex.status.value,
+        "started_at":      ex.started_at.isoformat() if ex.started_at else None,
+        "completed_at":    ex.completed_at.isoformat() if ex.completed_at else None,
+        "duration":        ex.duration,
+        "total_count":     ex.total_count,
+        "passed_count":    ex.passed_count,
+        "failed_count":    ex.failed_count,
+        "skipped_count":   ex.skipped_count,
+        "error_count":     ex.error_count,
+        "is_closed":       ex.is_closed,
+        "closed_at":       ex.closed_at.isoformat() if ex.closed_at else None,
+        "test_case_results": tc_results_data,
+    }
+
+
+# ============================================================
+# EXECUTION — NOTIFY DEVELOPER (suite-level report)
+# ============================================================
+
+@router.post("/test-executions/{execution_id}/notify-developer")
+async def notify_developer_endpoint(
+    execution_id: str,
+    request: NotifyDeveloperRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send a comprehensive report (email and/or Jira) for an entire execution."""
+    from app.repositories import playwright_repository as repo
+    from app.services.execution_report_service import (
+        build_full_report, send_execution_report_email,
+        create_defect_from_execution, create_jira_issue_from_defect,
+    )
+
+    method = (request.method or "email").lower()
+    if method not in ("email", "jira", "both"):
+        raise HTTPException(status_code=400, detail="method must be email | jira | both")
+
+    if method in ("email", "both") and not request.recipients:
+        raise HTTPException(status_code=400, detail="recipients required for email")
+
+    if method in ("jira", "both") and not request.jira_project_key:
+        raise HTTPException(status_code=400, detail="jira_project_key required for Jira")
+
+    ex = await repo.get_test_execution(db, execution_id)
+    if not ex:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+
+    tc_results = await repo.list_tc_results_for_execution(db, execution_id)
+    if not tc_results:
+        raise HTTPException(status_code=404, detail="No TC results to send")
+
+    selected = [
+        r for r in tc_results
+        if request.include_passed or r.status.value in ("failed", "error")
+    ]
+    if not selected:
+        raise HTTPException(status_code=400, detail="No matching test cases to notify")
+
+    emails_sent = 0
+    jira_keys: List[str] = []
+    errors: List[str] = []
+
+    for r in selected:
+        is_failed = r.status.value in ("failed", "error")
+
+        if method in ("email", "both"):
+            try:
+                report = await build_full_report(db, r.id)
+                if "error" not in report:
+                    if not request.include_steps:
+                        report["steps"] = []
+                    if not request.include_screenshots:
+                        if report.get("tc_result"):
+                            report["tc_result"]["screenshot_b64"] = None
+                    await send_execution_report_email(report=report, recipients=request.recipients)
+                    emails_sent += 1
+            except Exception as e:
+                errors.append(f"Email failed for {r.id}: {e}")
+
+        if method in ("jira", "both") and is_failed:
+            try:
+                defect = await create_defect_from_execution(
+                    db, tc_result_id=r.id, test_case_id=r.test_case_id
+                )
+                if defect and defect.get("id"):
+                    await db.commit()
+                    jira = await create_jira_issue_from_defect(
+                        db,
+                        defect_id=defect["id"],
+                        user_id=current_user.id,
+                        project_key=request.jira_project_key,
+                        priority=request.jira_priority,
+                    )
+                    if jira and jira.get("key"):
+                        jira_keys.append(jira["key"])
+            except Exception as e:
+                errors.append(f"Jira failed for {r.id}: {e}")
+
+    return {
+        "status": "notified",
+        "execution_id": execution_id,
+        "tc_count": len(selected),
+        "emails_sent": emails_sent,
+        "jira_issues": jira_keys,
+        "errors": errors,
+        "method": method,
+    }
+
+
+# ============================================================
+# EXECUTION — CLOSE / REOPEN
+# ============================================================
+
+@router.post("/test-executions/{execution_id}/close")
+async def close_execution_endpoint(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Clôture une TestExecution (is_closed=true)."""
+    from app.repositories import playwright_repository as repo
+    ex = await repo.get_test_execution(db, execution_id)
+    if not ex:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+    updated = await repo.close_test_execution(db, execution_id, closed_by=current_user.id)
+    await db.commit()
+    return {"is_closed": True, "closed_at": updated.closed_at, "closed_by": updated.closed_by}
+
+
+@router.post("/test-executions/{execution_id}/reopen")
+async def reopen_execution_endpoint(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Réouvre une TestExecution clôturée."""
+    from app.repositories import playwright_repository as repo
+    ex = await repo.get_test_execution(db, execution_id)
+    if not ex:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+    await repo.reopen_test_execution(db, execution_id)
+    await db.commit()
+    return {"is_closed": False}
 
 
 # ============================================================
@@ -644,12 +828,9 @@ async def execute_suite_smart_endpoint(
     suite_id: str,
     request: SuiteSmartRunRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Execute all test cases in a suite sequentially.
-    Auto-generates Playwright scripts for TCs that don't have one yet.
-    Stream progress via GET /playwright/suite/{suite_id}/stream.
-    """
+    """Launch the full suite execution in background. Stream via /suite/{id}/stream."""
     background_tasks.add_task(
         _suite_smart_run_background,
         suite_id,
@@ -658,6 +839,7 @@ async def execute_suite_smart_endpoint(
         request.headless,
         request.stop_on_failure,
         request.model_id,
+        current_user.id,
     )
     return {
         "status": "started",
@@ -669,82 +851,16 @@ async def execute_suite_smart_endpoint(
 
 @router.get("/suite/{suite_id}/stream")
 async def stream_suite_execution(request: Request, suite_id: str):
-    """SSE stream for suite-level execution progress."""
+    """SSE stream for suite-level execution."""
     return StreamingResponse(
         event_generator(f"suite_{suite_id}", request),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
+            "Cache-Control":     "no-cache",
+            "Connection":        "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )
-
-
-@router.get("/suite/{suite_id}/last-run")
-async def get_suite_last_run(
-    suite_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Returns the most recent run result for every active TC in a suite.
-    Used to restore the execution panel after navigating away and back.
-    """
-    from sqlalchemy import select as _select
-    from app.models.test_case import TestCase as _TC
-    from app.repositories import playwright_repository as repo
-
-    tc_rows = (await db.execute(
-        _select(_TC)
-        .where(_TC.test_suite_id == suite_id, _TC.is_active == True)
-        .order_by(_TC.execution_order.asc().nullslast(), _TC.tc_code.asc())
-    )).scalars().all()
-
-    results = []
-    passed = failed = 0
-    total_duration = 0.0
-    has_runs = False
-
-    for tc in tc_rows:
-        latest_run = await repo.get_latest_run_for_test_case(db, tc.id)
-        if latest_run:
-            has_runs = True
-            result_obj = await repo.get_test_result(db, latest_run.id)
-            if (
-                latest_run.status.value == "completed"
-                and (result_obj is None or result_obj.status.value == "passed")
-            ):
-                tc_status = "passed"
-                passed += 1
-            else:
-                tc_status = "failed"
-                failed += 1
-            total_duration += latest_run.duration or 0.0
-        else:
-            tc_status = "pending"
-
-        results.append({
-            "tc_id": tc.id,
-            "tc_code": tc.tc_code,
-            "title": tc.title,
-            "status": tc_status,
-            "run_id": latest_run.id if latest_run else None,
-            "duration": latest_run.duration if latest_run else None,
-            "started_at": latest_run.started_at.isoformat() if latest_run and latest_run.started_at else None,
-        })
-
-    return {
-        "suite_id": suite_id,
-        "has_runs": has_runs,
-        "results": results,
-        "summary": {
-            "total": len(results),
-            "passed": passed,
-            "failed": failed,
-            "skipped": 0,
-            "duration": round(total_duration, 1),
-        } if has_runs else None,
-    }
 
 
 @router.get("/suite/{suite_id}/scripts-status")
@@ -752,10 +868,7 @@ async def get_suite_scripts_status(
     suite_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Returns the Playwright script status for every active TC in a suite.
-    Used by the frontend 'Review Scripts' step before launching execution.
-    """
+    """Script status (has_script, placeholder_count) for every active TC in a suite."""
     from sqlalchemy import select as _select
     from app.models.test_case import TestCase as _TC
     from app.models.playwright_script_version import PlaywrightScriptVersion as _PSV
@@ -766,35 +879,31 @@ async def get_suite_scripts_status(
         .order_by(_TC.execution_order.asc().nullslast(), _TC.tc_code.asc())
     )).scalars().all()
 
-    from sqlalchemy import select as _sel2
     result = []
     for tc in tc_rows:
         script = None
-        # Primary: use the pinned active pointer
         if tc.active_playwright_script_id:
             script = await db.get(_PSV, tc.active_playwright_script_id)
-        # Fallback: find any is_active version (covers scripts generated before the pointer was written)
         if script is None:
             fallback = (await db.execute(
-                _sel2(_PSV)
+                _select(_PSV)
                 .where(_PSV.test_case_id == tc.id, _PSV.is_active == True)
                 .limit(1)
             )).scalar_one_or_none()
             if fallback:
                 script = fallback
-                # Heal the pointer so future calls are fast
                 tc.active_playwright_script_id = str(fallback.id)
                 await db.flush()
 
         result.append({
-            "tc_id": tc.id,
-            "tc_code": tc.tc_code,
-            "title": tc.title,
-            "has_script": script is not None,
-            "script_id": str(script.id) if script else None,
-            "version_number": script.version_number if script else None,
+            "tc_id":             tc.id,
+            "tc_code":           tc.tc_code,
+            "title":             tc.title,
+            "has_script":        script is not None,
+            "script_id":         str(script.id) if script else None,
+            "version_number":    script.version_number if script else None,
             "placeholder_count": script.placeholder_count if script else None,
-            "source": script.source.value if script else None,
+            "source":            script.source.value if script else None,
         })
 
     return {"suite_id": suite_id, "test_cases": result, "total": len(result)}
@@ -806,7 +915,7 @@ async def get_suite_scripts_status(
 
 @router.get("/models")
 async def get_models_endpoint():
-    """Returns the list of LLM models available for script generation and execution."""
+    """List LLM models available for script generation and execution."""
     from app.llm.llm_control import get_available_models
     return {"models": get_available_models()}
 
@@ -817,14 +926,13 @@ async def get_models_endpoint():
 
 @router.get("/health")
 async def health_check_endpoint():
-    """Vérifie l'état du service Playwright E2E."""
+    """Playwright E2E service health."""
     from app.ai_agents_v2.playwright_e2e.config import MCP_PLAYWRIGHT_SERVER_URL
-    
     return {
         "status": "healthy",
         "mcp_server_url": MCP_PLAYWRIGHT_SERVER_URL,
         "agents": {
             "script_generator": "available",
-            "react_agent": "available"
-        }
+            "react_agent": "available",
+        },
     }

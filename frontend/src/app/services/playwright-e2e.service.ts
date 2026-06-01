@@ -23,6 +23,9 @@ import {
   DiscoveredLocator,
   UpdateScriptRequest,
   UpdateScriptResponse,
+  TestExecutionListResponse,
+  TestExecutionDetail,
+  TestCaseResultDetail,
 } from '../models/playwright.models';
 
 import { SseService } from './sse.service';
@@ -47,24 +50,26 @@ export interface ExecutionReport {
 }
 
 export interface FullExecutionReport {
-  test_run: {
+  tc_result: {
     id: string;
+    execution_id: string;
     status: string;
-    browser: string;
-    base_url: string;
-    headless: boolean;
     duration: number | null;
-    started_at: string | null;
-    completed_at: string | null;
-  };
-  result: {
-    status: string;
+    screenshot_b64: string | null;
     justification: string | null;
     error_message: string | null;
-    screenshot_b64: string | null;
-    duration: number | null;
-    step_count: number;
+    started_at: string | null;
     completed_at: string | null;
+    steps_passed: number;
+    steps_failed: number;
+  };
+  execution: {
+    id: string;
+    suite_id: string;
+    app_url: string;
+    browser: string;
+    headless: boolean;
+    started_at: string | null;
   } | null;
   test_case: {
     id: string;
@@ -127,14 +132,6 @@ export interface RunHistoryItem {
   script_version_number: number | null;
 }
 
-export interface SuiteRunRequest {
-  test_case_ids: string[];
-  app_url?: string;
-  browser?: string;
-  headless?: boolean;
-  stop_on_failure?: boolean;
-}
-
 export interface SuiteSmartRunRequest {
   app_url: string;
   browser?: string;
@@ -166,53 +163,6 @@ export interface SuiteScriptStatus {
   version_number?: number;
   placeholder_count?: number;
   source?: string;
-}
-
-export interface TestRunListItem {
-  id: string;
-  status: string;
-  browser: string;
-  base_url: string;
-  headless: boolean;
-  duration: number | null;
-  started_at: string | null;
-  completed_at: string | null;
-  result_status: string | null;
-  result_step_count: number;
-  test_case: {
-    id: string;
-    tc_code: string;
-    title: string;
-    risk_level: string | null;
-    priority: string | null;
-    test_type: string | null;
-    user_story_id: string | null;
-    script_version_id: string;
-    script_version_number: number;
-    script_source: string;
-  } | null;
-  defect: {
-    id: string;
-    title: string;
-    severity: string;
-    status: string;
-    jira_issue_key: string | null;
-    created_at: string | null;
-  } | null;
-}
-
-export interface TestRunsListResponse {
-  runs: TestRunListItem[];
-  total: number;
-  stats: {
-    total: number;
-    passed: number;
-    failed: number;
-    skipped: number;
-    running: number;
-    pass_rate: number;
-    avg_duration: number;
-  };
 }
 
 @Injectable({
@@ -512,24 +462,24 @@ export class PlaywrightE2EService {
   }
   
   /**
-   * Récupère les détails complets d'un test run
-   * GET /playwright/test-run/{test_run_id}
+   * Détails complets d'un TestCaseResult (steps JSON, screenshot, etc.)
+   * GET /playwright/tc-result/{tc_result_id}
    */
-  getTestRunDetails(testRunId: string): Observable<TestRunDetailsResponse> {
-    return this.http.get<TestRunDetailsResponse>(
-      `${this.apiUrl}/test-run/${testRunId}`
+  getTestRunDetails(tcResultId: string): Observable<any> {
+    return this.http.get<any>(
+      `${this.apiUrl}/tc-result/${tcResultId}`
     ).pipe(
       catchError(this.handleError)
     );
   }
-  
+
   /**
-   * Récupère le dernier test run pour un test case
-   * GET /playwright/test-case/{test_case_id}/last-run
+   * Dernier TestCaseResult pour un TC (toutes exécutions)
+   * GET /playwright/test-case/{test_case_id}/last-result
    */
   getLastRun(testCaseId: string): Observable<LastRunResponse> {
     return this.http.get<LastRunResponse>(
-      `${this.apiUrl}/test-case/${testCaseId}/last-run`
+      `${this.apiUrl}/test-case/${testCaseId}/last-result`
     ).pipe(
       catchError(this.handleError)
     );
@@ -558,90 +508,131 @@ export class PlaywrightE2EService {
   }
 
   /**
-   * Récupère le rapport complet d'un test run
-   * GET /playwright/test-run/{id}/report
+   * Full report for a failed TC result.
+   * GET /playwright/tc-result/{id}/report
    */
-  getFullReport(testRunId: string): Observable<FullExecutionReport> {
-    return this.http.get<FullExecutionReport>(
-      `${this.apiUrl}/test-run/${testRunId}/report`
+  getFullReport(tcResultId: string): Observable<any> {
+    return this.http.get<any>(
+      `${this.apiUrl}/tc-result/${tcResultId}/report`
     ).pipe(catchError(this.handleError));
   }
 
   /**
-   * Envoie le rapport par email
-   * POST /playwright/test-run/{id}/send-email
+   * Send execution report by email.
+   * POST /playwright/tc-result/{id}/send-email
    */
-  sendReportEmail(testRunId: string, recipients: string[]): Observable<{ status: string; recipients: string[] }> {
+  sendReportEmail(tcResultId: string, recipients: string[]): Observable<{ status: string; recipients: string[] }> {
     return this.http.post<{ status: string; recipients: string[] }>(
-      `${this.apiUrl}/test-run/${testRunId}/send-email`,
+      `${this.apiUrl}/tc-result/${tcResultId}/send-email`,
       { recipients }
     ).pipe(catchError(this.handleError));
   }
 
   /**
-   * Crée un ticket Jira à partir d'un defect
+   * Create a Jira ticket from a defect.
    * POST /playwright/defect/{defect_id}/create-jira
    */
-  createJiraIssue(defectId: string, projectKey: string, risk_level: string = 'High'): Observable<{ key: string; id: string }> {
+  createJiraIssue(defectId: string, projectKey: string, priority: string = 'High'): Observable<{ key: string; id: string }> {
     return this.http.post<{ key: string; id: string }>(
       `${this.apiUrl}/defect/${defectId}/create-jira`,
-      { defect_id: defectId, project_key: projectKey, risk_level }
+      { defect_id: defectId, project_key: projectKey, priority }
     ).pipe(catchError(this.handleError));
   }
 
   /**
-   * Crée un defect manuellement depuis un test run
-   * POST /playwright/test-run/{id}/create-defect
+   * Manually create a defect from a TC result.
+   * POST /playwright/tc-result/{id}/create-defect
    */
-  createDefectFromRun(testRunId: string, testCaseId: string): Observable<any> {
+  createDefectFromRun(tcResultId: string, testCaseId: string): Observable<any> {
     return this.http.post<any>(
-      `${this.apiUrl}/test-run/${testRunId}/create-defect`,
+      `${this.apiUrl}/tc-result/${tcResultId}/create-defect`,
       { test_case_id: testCaseId }
     ).pipe(catchError(this.handleError));
   }
 
   /**
-   * Récupère la liste de tous les test runs avec contexte + stats
-   * GET /playwright/test-runs
+   * List all TestExecutions with global stats.
+   * GET /playwright/test-executions
    */
-  getTestRunsList(options: { limit?: number; offset?: number; resultFilter?: string } = {}): Observable<TestRunsListResponse> {
-    const { limit = 50, offset = 0, resultFilter } = options;
-    let url = `${this.apiUrl}/test-runs?limit=${limit}&offset=${offset}`;
-    if (resultFilter && resultFilter !== 'all') {
-      url += `&result_filter=${resultFilter}`;
-    }
-    return this.http.get<TestRunsListResponse>(url).pipe(catchError(this.handleError));
+  listTestExecutions(options: {
+    limit?: number; offset?: number; suiteId?: string; status?: string;
+  } = {}): Observable<TestExecutionListResponse> {
+    const { limit = 50, offset = 0, suiteId, status } = options;
+    let url = `${this.apiUrl}/test-executions?limit=${limit}&offset=${offset}`;
+    if (suiteId) url += `&suite_id=${suiteId}`;
+    if (status)  url += `&status=${status}`;
+    return this.http.get<TestExecutionListResponse>(url).pipe(catchError(this.handleError));
   }
 
   /**
-   * Récupère l'historique de tous les runs d'un test case (toutes versions)
-   * GET /playwright/test-case/{test_case_id}/runs
+   * Full detail of a TestExecution with all TCResults + steps.
+   * GET /playwright/test-executions/{id}
    */
-  getRunsForTestCase(testCaseId: string, limit = 20): Observable<{ runs: RunHistoryItem[]; total: number }> {
-    return this.http.get<{ runs: RunHistoryItem[]; total: number }>(
-      `${this.apiUrl}/test-case/${testCaseId}/runs?limit=${limit}`
+  getTestExecutionDetail(executionId: string): Observable<TestExecutionDetail> {
+    return this.http.get<TestExecutionDetail>(
+      `${this.apiUrl}/test-executions/${executionId}`
     ).pipe(catchError(this.handleError));
   }
 
   /**
-   * Lance l'exécution en suite (plusieurs TCs en ordre)
-   * POST /playwright/run-suite
+   * Send a full execution report to the developer (email and/or Jira).
+   * POST /playwright/test-executions/{id}/notify-developer
    */
-  runSuite(request: SuiteRunRequest): Observable<AsyncStartResponse> {
-    this.isExecutingSubject.next(true);
-    return this.http.post<AsyncStartResponse>(
-      `${this.apiUrl}/run-suite`,
-      request
-    ).pipe(
-      catchError((err) => {
-        this.isExecutingSubject.next(false);
-        return this.handleError(err);
-      })
-    );
+  notifyDeveloper(executionId: string, payload: {
+    recipients?: string[];
+    method: 'email' | 'jira' | 'both';
+    include_passed?: boolean;
+    include_steps?: boolean;
+    include_screenshots?: boolean;
+    jira_project_key?: string;
+    jira_priority?: string;
+  }): Observable<{
+    status: string;
+    execution_id: string;
+    tc_count: number;
+    emails_sent: number;
+    jira_issues: string[];
+    errors: string[];
+    method: string;
+  }> {
+    return this.http.post<any>(
+      `${this.apiUrl}/test-executions/${executionId}/notify-developer`,
+      payload,
+    ).pipe(catchError(this.handleError));
   }
 
   /**
-   * Lance le smart-run pour toute une suite (génère + exécute chaque TC)
+   * Close a TestExecution (persisted in DB).
+   * POST /playwright/test-executions/{id}/close
+   */
+  closeExecution(executionId: string): Observable<{ is_closed: boolean; closed_at: string | null }> {
+    return this.http.post<any>(
+      `${this.apiUrl}/test-executions/${executionId}/close`, {}
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Reopen a closed TestExecution.
+   * POST /playwright/test-executions/{id}/reopen
+   */
+  reopenExecution(executionId: string): Observable<{ is_closed: boolean }> {
+    return this.http.post<any>(
+      `${this.apiUrl}/test-executions/${executionId}/reopen`, {}
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * History of TC results for a test case.
+   * GET /playwright/test-case/{test_case_id}/results
+   */
+  getRunsForTestCase(testCaseId: string, limit = 20): Observable<{ results: any[]; total: number }> {
+    return this.http.get<{ results: any[]; total: number }>(
+      `${this.apiUrl}/test-case/${testCaseId}/results?limit=${limit}`
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Smart-run for a whole suite (generates + executes each TC).
    * POST /playwright/suite/{suite_id}/execute-smart
    */
   executeSuiteSmart(suiteId: string, request: SuiteSmartRunRequest): Observable<{ status: string; message: string }> {
@@ -652,30 +643,13 @@ export class PlaywrightE2EService {
   }
 
   /**
-   * Récupère le statut des scripts pour chaque TC d'une suite
+   * Script status for each TC of a suite.
    * GET /playwright/suite/{suite_id}/scripts-status
    */
   getSuiteScriptsStatus(suiteId: string): Observable<{ suite_id: string; test_cases: SuiteScriptStatus[]; total: number }> {
     return this.http.get<{ suite_id: string; test_cases: SuiteScriptStatus[]; total: number }>(
       `${this.apiUrl}/suite/${suiteId}/scripts-status`
     ).pipe(catchError(this.handleError));
-  }
-
-  /**
-   * Returns the most recent run result per TC in a suite (for panel restore on navigation).
-   * GET /playwright/suite/{suite_id}/last-run
-   */
-  getLastSuiteRun(suiteId: string): Observable<{
-    suite_id: string;
-    has_runs: boolean;
-    results: Array<{
-      tc_id: string; tc_code: string; title: string;
-      status: string; run_id: string | null;
-      duration: number | null; started_at: string | null;
-    }>;
-    summary: { total: number; passed: number; failed: number; skipped: number; duration: number } | null;
-  }> {
-    return this.http.get<any>(`${this.apiUrl}/suite/${suiteId}/last-run`).pipe(catchError(this.handleError));
   }
 
   /**

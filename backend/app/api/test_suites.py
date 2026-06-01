@@ -368,7 +368,7 @@ async def get_dependency_graph(
 # ============================================================
 
 class SuiteReportEntry(BaseModel):
-    run_id: Optional[str] = None
+    tc_result_id: Optional[str] = None
     tc_code: str
     title: str
     status: str
@@ -391,13 +391,13 @@ async def export_suite_report_pdf(
     db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> Response:
-    from app.services.playwright_service import get_test_run_details
+    from app.services.playwright_service import get_tc_result_details
     from app.services.test_plan_export_service import SuiteReportExportService
 
     run_details: Dict[str, Any] = {}
     for entry in body.entries:
-        if entry.run_id:
-            run_details[entry.run_id] = await get_test_run_details(db, entry.run_id)
+        if entry.tc_result_id:
+            run_details[entry.tc_result_id] = await get_tc_result_details(db, entry.tc_result_id)
 
     try:
         exporter = SuiteReportExportService()

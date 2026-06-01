@@ -139,13 +139,15 @@ gherkin_scenario
   Full Gherkin BDD block covering ALL possible scenarios for this test case.
   RULES:
     • Start with: Scenario: <title>
+    • MANDATORY: Every scenario MUST have at least 3 steps — one Given, one When, one Then (minimum)
     • Given: system state before the action
     • When: the action performed by the actor
-    • Then: the observable outcome
+    • Then: the observable outcome (must be specific and measurable)
     • Use And / But for additional steps
     • Use concrete values from test_data (never placeholders like <email>)
     • For parametric scenarios use Scenario Outline with Examples table
     • IMPORTANT: Use single quotes ' for values inside the Gherkin text, NOT double quotes "
+    • IMPORTANT: Use concrete explicit values in every step — NEVER write "the valid credentials" or "the email address", always write the actual value
   Example (positive):
     Scenario: Login with valid credentials
       Given the user is on the login page
@@ -174,13 +176,32 @@ gherkin_scenario
 
 steps
   Structured list that mirrors the Gherkin scenario above, step by step.
-  Each step: order (int starting at 1), action (what the tester does), expected (what the system shows — empty string for Given/When steps).
-  IMPORTANT: Use single quotes ' for values inside action and expected strings.
-  Example:
+  Each step: order (int starting at 1), action (what the tester does), expected (what the system shows — empty string for intermediate steps).
+  MANDATORY: Every test case MUST have at least 3 steps (one Given-type, one When-type, one Then-type).
+  CRITICAL — ALL steps for ALL test types MUST use EXPLICIT concrete values, NEVER generic descriptions:
+    ❌ WRONG: "Enter the email address" / "Enter the password" / "Click the button"
+    ✅ CORRECT: "Enter email 'user@example.com' in the Email field" / "Enter password 'SecurePass123!'" / "Click the 'Login' button"
+  CRITICAL — Every Then/expected step MUST state a specific, observable outcome:
+    ❌ WRONG: "The system responds correctly" / "The page updates" / "Verify it works"
+    ✅ CORRECT: "User is redirected to /dashboard" / "Error message 'Invalid credentials' is displayed below the Email field"
+  For BOUNDARY tests: also include the EXACT limit value AND its boundary context:
+    ❌ WRONG: "Enter boundary value" / "Enter value at the limit"
+    ✅ CORRECT: "Enter password 'Secur3P@' (exactly 8 characters — minimum allowed length)"
+  Example (positive):
     - order: 1, action: "Navigate to /login", expected: "Login page is displayed"
-    - order: 2, action: "Enter email 'user@example.com'", expected: ""
-    - order: 3, action: "Enter password 'SecurePass123!'", expected: ""
-    - order: 4, action: "Click the 'Login' button", expected: "User is redirected to /dashboard"
+    - order: 2, action: "Enter email 'user@example.com' in the Email field", expected: ""
+    - order: 3, action: "Enter password 'SecurePass123!' in the Password field", expected: ""
+    - order: 4, action: "Click the 'Login' button", expected: "User is redirected to /dashboard and a welcome message is shown"
+  Example (negative):
+    - order: 1, action: "Navigate to /login", expected: "Login page is displayed"
+    - order: 2, action: "Enter email 'notanemail' in the Email field", expected: ""
+    - order: 3, action: "Enter password 'SecurePass123!' in the Password field", expected: ""
+    - order: 4, action: "Click the 'Login' button", expected: "Error message 'Invalid email format' is displayed below the Email field"
+  Example (boundary — ALWAYS include exact value and boundary context):
+    - order: 1, action: "Navigate to /login", expected: "Login page is displayed"
+    - order: 2, action: "Enter email 'a@b.com' (valid email, shortest possible)", expected: ""
+    - order: 3, action: "Enter password 'Secur3P@' (exactly 8 characters — minimum allowed length)", expected: ""
+    - order: 4, action: "Click the 'Login' button", expected: "User is redirected to /dashboard — password at minimum length is accepted"
 
 test_data
   JSON object with ALL concrete values used in this test case.
@@ -255,7 +276,10 @@ RULES:
 - Steps must be atomic (one user action per step)
 - All field values must be in English
 - All test_data values must be LITERAL strings, not code expressions
-- Output ONLY the JSON object — no markdown code blocks, no extra text before or after
+- Output ONLY a JSON object with the key "test_cases" containing an array of test case objects:
+  {{"test_cases": [{{...}}, {{...}}]}}
+  NEVER output a bare test case object directly — ALWAYS wrap inside the test_cases array.
+- No markdown code blocks, no extra text before or after the JSON
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRICT CONSTRAINTS — ANY VIOLATION MAKES THE OUTPUT INVALID:
@@ -285,7 +309,9 @@ STRICT CONSTRAINTS — ANY VIOLATION MAKES THE OUTPUT INVALID:
    - Each test case tests exactly ONE feature or flow ✓
    - No two TCs execute the same steps — if they do, merge them into one ✓
    - No two TCs differ only in which form field is filled — if so, merge into one TC that fills ALL fields ✓
-   - Every AC index appears in at least one covered_ac_indices ✓
+   - Every AC index (0 to N-1) appears in at least one covered_ac_indices — NO AC may be left uncovered ✓
+   - Every Gherkin scenario has at least 3 steps (Given, When, Then) ✓
+   - Every step action uses explicit concrete values, not generic descriptions ✓
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
@@ -372,7 +398,6 @@ SELF-CHECK before outputting:
   ✓ No duplicate titles within the same story
 """
 
-
 CORRECTION_PROMPT = """You are an ISTQB-certified test analyst working inside a test management platform.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -430,7 +455,21 @@ gherkin_scenario  Full Gherkin BDD block — MANDATORY FORMAT:
       Then an error message 'Email is required' is displayed
       And no session token is created
   FORBIDDEN: writing the entire scenario on a single line.
-steps             Structured list mirroring the Gherkin scenario (order, action, expected).
+steps             Structured list mirroring the Gherkin scenario step by step.
+                  Each step MUST have all three fields: order (int starting at 1), action (what the tester does), expected (observable result).
+                  MANDATORY: Every TC must have at least 3 steps.
+                  ALL steps MUST use explicit concrete values — NEVER generic descriptions:
+                    ❌ WRONG: "Enter the email" / "Enter the password" / "Click submit"
+                    ✅ CORRECT: "Enter email 'user@example.com' in the Email field" / "Enter password 'SecurePass123!'" / "Click the 'Login' button"
+                  Every Then/expected MUST state a specific observable outcome:
+                    ❌ WRONG: "System responds" / "Page updates"
+                    ✅ CORRECT: "Error message 'Invalid credentials' is displayed below the form"
+                  For BOUNDARY tests: also include the exact limit value and its context:
+                    ✅ "Enter password 'Secur3P@' (exactly 8 characters, minimum length)"
+                  Example:
+                    [{{"order": 1, "action": "Navigate to /login", "expected": "Login page is displayed"}},
+                     {{"order": 2, "action": "Enter email 'user@example.com' in the Email field", "expected": ""}},
+                     {{"order": 3, "action": "Click the 'Login' button", "expected": "Error message 'Invalid credentials' is displayed below the Email field"}}]
 test_data         JSON object with concrete values. Double quotes for JSON, single for inner values.
 expected_results  List of final assertions — use single quotes ' for values.
 covered_ac_indices  0-based indices of ACs this TC covers (from the UNCOVERED ACs above).
@@ -439,7 +478,10 @@ covered_risk_ids  List of risk IDs from the accepted risks section, or [].
 estimated_duration  Estimated execution time in minutes (integer). 1–3 steps → 2–5, 4–6 steps → 5–10, 7+ → 10–20.
 
 CRITICAL JSON FORMATTING: single quotes inside strings, double quotes only as JSON delimiters.
-Output ONLY the JSON object — no markdown, no extra text.
+- Output ONLY a JSON object with the key "test_cases" containing an array of test case objects:
+  {{{{}}"test_cases": [{{{{}}...{{}}}}, {{{{}}...{{}}}}]{{}}}}
+  NEVER output a bare test case object directly — ALWAYS wrap inside the test_cases array.
+- No markdown code blocks, no extra text before or after the JSON
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRICT CONSTRAINTS:

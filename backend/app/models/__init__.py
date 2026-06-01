@@ -6,7 +6,7 @@ from .user_story import UserStory
 from .user_story_version import UserStoryVersion
 from .enums import (
     StoryDecision, WorkflowStatus,
-    TestRunStatus, TestResultStatus, StepType, StepStatus,
+    TestExecutionStatus, TestCaseResultStatus,
     ScriptValidationStatus, ScriptSource,
     TestPlanStatus, TestSuiteStatus,
     TestCaseType,
@@ -16,9 +16,8 @@ from .enums import (
 from .defect import Defect
 from .test_case import TestCase
 from .playwright_script_version import PlaywrightScriptVersion
-from .test_run import TestRun
-from .test_result import TestResult
-from .test_step_result import TestStepResult
+from .test_execution import TestExecution
+from .test_case_result import TestCaseResult
 from .test_plan import TestPlan
 from .risk import Risk
 from .test_suite import TestSuite
@@ -36,10 +35,6 @@ __all__ = [
     "StoryDecision",
     "WorkflowStatus",
 
-    "TestRunStatus",
-    "TestResultStatus",
-    "StepType",
-    "StepStatus",
     "ScriptValidationStatus",
     "ScriptSource",
 
@@ -54,9 +49,10 @@ __all__ = [
 
     "TestCase",
     "PlaywrightScriptVersion",
-    "TestRun",
-    "TestResult",
-    "TestStepResult",
+    "TestExecution",
+    "TestCaseResult",
+    "TestExecutionStatus",
+    "TestCaseResultStatus",
     "TestPlan",
     "Risk",
     "TestSuite",
