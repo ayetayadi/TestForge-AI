@@ -1,159 +1,335 @@
-<div class="dashboard-container">
-  <div class="dashboard-header">
-    <h1>Dashboard</h1>
-    <p>Overview of your testing activities</p>
+<div class="user-dashboard">
+
+  <!-- ══════════════════════════════════════════════
+       HEADER
+  ══════════════════════════════════════════════ -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3v18h18"/>
+          <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="page-title">My Dashboard</h1>
+        <p class="page-subtitle">Overview of my QA activity — from backlog to test executions</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-outline" (click)="load(true)" [disabled]="refreshing">
+        <svg class="icon-sm" [class.spin]="refreshing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Refresh
+      </button>
+    </div>
   </div>
 
-  <!-- Loading skeleton -->
-  <ng-container *ngIf="loading">
-    <div class="stats-grid">
-      <div class="stat-card skeleton" *ngFor="let i of skeletonItems"></div>
-    </div>
-    <div class="charts-grid">
-      <div class="chart-card large skeleton tall"></div>
-      <div class="chart-card small skeleton tall"></div>
-    </div>
-    <div class="recent-activity-card skeleton tall"></div>
-  </ng-container>
-
-  <!-- Error banner -->
-  <div class="error-banner" *ngIf="error">
-    <span>⚠ {{ error }}</span>
+  <!-- LOADING -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <span>Loading dashboard…</span>
   </div>
 
-  <!-- Data -->
+  <!-- ERROR -->
+  <div *ngIf="error && !loading" class="error-banner">
+    <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    {{ error }}
+  </div>
+
   <ng-container *ngIf="!loading && stats">
 
-    <!-- Top KPI Cards -->
-    <div class="stats-grid">
-
-      <div class="stat-card">
-        <div class="stat-info">
-          <h3>User Stories</h3>
-          <h2>{{ stats.user_stories_count }}</h2>
-          <span [ngClass]="weeklyClass(stats.user_stories_this_week)">
-            +{{ stats.user_stories_this_week }} this week
-          </span>
-        </div>
-        <div class="stat-icon">📘</div>
+    <!-- ══════════════════════════════════════════════
+         NO DATA
+    ══════════════════════════════════════════════ -->
+    <div class="empty-state" *ngIf="!stats.has_data">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
       </div>
-
-      <div class="stat-card">
-        <div class="stat-info">
-          <h3>Test Cases</h3>
-          <h2>{{ stats.test_cases_count }}</h2>
-          <span [ngClass]="weeklyClass(stats.test_cases_this_week)">
-            +{{ stats.test_cases_this_week }} this week
-          </span>
-        </div>
-        <div class="stat-icon">🧪</div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-info">
-          <h3>BDD Coverage</h3>
-          <h2>{{ stats.gherkin_coverage }}%</h2>
-          <span class="neutral">tests with Gherkin scenario</span>
-        </div>
-        <div class="stat-icon">✅</div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-info">
-          <h3>Story Quality Score</h3>
-          <h2>
-            @if (stats.scored_stories_count > 0) {
-              {{ stats.quality_score }}<span class="score-unit">/100</span>
-            } @else {
-              <span class="score-unit" style="font-size:1.1rem">Not scored yet</span>
-            }
-          </h2>
-          <span class="neutral">{{ stats.scored_stories_count }} stor{{ stats.scored_stories_count === 1 ? 'y' : 'ies' }} refined by AI</span>
-        </div>
-        <div class="stat-icon">⭐</div>
-      </div>
-
+      <h3>No data yet</h3>
+      <p>Connect Jira and import a project to start tracking your QA activity.</p>
     </div>
 
-    <!-- Charts -->
-    <div class="charts-grid">
+    <ng-container *ngIf="stats.has_data">
 
-      <!-- Bar chart: test type coverage -->
-      <div class="chart-card large">
-        <div class="card-header">
-          <h2>Coverage by Test Type</h2>
-        </div>
+      <!-- ══════════════════════════════════════════════
+           KPI GRID
+      ══════════════════════════════════════════════ -->
+      <div class="kpi-grid">
 
-        <div class="bar-chart" *ngIf="coverageItems.length > 0">
-          <div class="bar-item" *ngFor="let item of coverageItems">
-            <div class="bar-wrapper">
-              <div class="bar" [style.height.%]="item.value">
-                <span class="bar-tooltip">{{ item.value }}%</span>
-              </div>
-            </div>
-            <span class="bar-label">{{ item.label }}</span>
+        <div class="kpi-card kpi-card--primary">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ stats.projects_count }}</div>
+            <div class="kpi-label">Projects</div>
+            <div class="kpi-sub">My current scope</div>
           </div>
         </div>
 
-        <div class="empty-chart" *ngIf="coverageItems.length === 0">
-          No test cases yet
-        </div>
-      </div>
-
-      <!-- Donut: priority distribution -->
-      <div class="chart-card small">
-        <div class="card-header">
-          <h2>Test Priority</h2>
-        </div>
-
-        <div class="status-section">
-          <div class="donut-placeholder"
-               [style.background]="'conic-gradient(' + donutGradient + ')'">
-            <div class="donut-center">
-              <span class="donut-total">{{ stats.test_cases_count }}</span>
-              <small>tests</small>
-            </div>
+        <div class="kpi-card kpi-card--teal">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+              <rect x="9" y="3" width="6" height="4" rx="1"/>
+            </svg>
           </div>
-
-          <div class="legend">
-            <div class="legend-item" *ngFor="let item of priorityItems">
-              <div class="legend-left">
-                <span class="dot" [ngClass]="item.color_class"></span>
-                <span>{{ item.label }}</span>
-              </div>
-              <strong>{{ item.value }}</strong>
-            </div>
-            <div class="empty-chart" *ngIf="!priorityItems.length">
-              No data
-            </div>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ stats.stories_count }}</div>
+            <div class="kpi-label">User Stories</div>
+            <div class="kpi-sub">{{ globalRefinedRate }}% refined by AI</div>
           </div>
         </div>
-      </div>
 
-    </div>
-
-    <!-- Activity feed -->
-    <div class="recent-activity-card">
-      <div class="card-header">
-        <h2>Recent Activity</h2>
-      </div>
-
-      <div class="activity-list" *ngIf="activities.length > 0">
-        <div class="activity-item" *ngFor="let activity of activities">
-          <div class="activity-icon">
-            {{ activity.kind === 'test_case' ? '🧪' : '📘' }}
+        <div class="kpi-card kpi-card--warn">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
           </div>
-          <div class="activity-content">
-            <p>{{ activity.message }}</p>
-            <span>{{ activity.time }}</span>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ stats.risks_count }}</div>
+            <div class="kpi-label">Risks Analyzed</div>
+            <div class="kpi-sub">Test prioritization signal</div>
           </div>
         </div>
+
+        <div class="kpi-card kpi-card--sky">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ stats.test_cases_count }}</div>
+            <div class="kpi-label">Test Cases</div>
+            <div class="kpi-sub">{{ stats.test_suites_count }} suites · {{ stats.test_plans_count }} plans</div>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-card--violet">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ stats.executions_count }}</div>
+            <div class="kpi-label">Executions</div>
+            <div class="kpi-sub">Test runs launched</div>
+          </div>
+        </div>
+
+        <div class="kpi-card"
+             [class.kpi-card--green]="globalPassRate >= 80"
+             [class.kpi-card--warn]="globalPassRate >= 50 && globalPassRate < 80"
+             [class.kpi-card--danger]="globalPassRate < 50">
+          <div class="kpi-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ globalPassRate }}%</div>
+            <div class="kpi-label">Pass Rate</div>
+            <div class="kpi-sub">{{ stats.passed_count }} ✓ · {{ stats.failed_count }} ✗</div>
+          </div>
+        </div>
+
       </div>
 
-      <div class="empty-activity" *ngIf="activities.length === 0">
-        No recent activity
-      </div>
-    </div>
+      <!-- ══════════════════════════════════════════════
+           CHARTS ROW — funnel + donut
+      ══════════════════════════════════════════════ -->
+      <div class="charts-row">
 
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">QA Pipeline Funnel</h3>
+            <p class="chart-sub">How my work progresses from backlog to execution — reveals where the flow stops</p>
+          </div>
+          <apx-chart
+            *ngIf="funnelSeries.length > 0"
+            [series]="funnelSeries"
+            [chart]="funnelChart"
+            [stroke]="funnelStroke"
+            [fill]="funnelFill"
+            [colors]="funnelColors"
+            [dataLabels]="funnelDataLabels"
+            [markers]="funnelMarkers"
+            [grid]="funnelGrid"
+            [xaxis]="funnelXaxis"
+            [yaxis]="funnelYaxis"
+            [tooltip]="funnelTooltip"
+          ></apx-chart>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">Execution Results</h3>
+            <p class="chart-sub">Passed vs failed across all my test runs</p>
+          </div>
+          <apx-chart
+            *ngIf="stats.passed_count + stats.failed_count > 0"
+            [series]="donutSeries"
+            [chart]="donutChart"
+            [labels]="donutLabels"
+            [colors]="donutColors"
+            [dataLabels]="donutDataLabels"
+            [plotOptions]="donutPlotOptions"
+            [legend]="donutLegend"
+            [tooltip]="donutTooltip"
+            [responsive]="donutResponsive"
+          ></apx-chart>
+          <div *ngIf="stats.passed_count + stats.failed_count === 0" class="chart-empty">
+            No executions recorded yet
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ══════════════════════════════════════════════
+           BAR — per-project comparison
+      ══════════════════════════════════════════════ -->
+      <div class="chart-card" *ngIf="barSeries.length > 0">
+        <div class="chart-header">
+          <h3 class="chart-title">Activity by Project</h3>
+          <p class="chart-sub">User Stories · Test Cases · Executions — top 8 projects by volume</p>
+        </div>
+        <apx-chart
+          [series]="barSeries"
+          [chart]="barChart"
+          [plotOptions]="barPlotOptions"
+          [dataLabels]="barDataLabels"
+          [colors]="barColors"
+          [legend]="barLegend"
+          [tooltip]="barTooltip"
+          [grid]="barGrid"
+          [xaxis]="barXaxis"
+          [yaxis]="barYaxis"
+        ></apx-chart>
+      </div>
+
+      <!-- ══════════════════════════════════════════════
+           PROJECTS TABLE — detail + pagination
+      ══════════════════════════════════════════════ -->
+      <div class="section-card">
+        <div class="section-top">
+          <div>
+            <h2 class="section-title">Project Breakdown</h2>
+            <p class="section-sub">All my indicators, project by project</p>
+          </div>
+          <div class="search-wrap">
+            <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search projects…"
+              [ngModel]="search"
+              (ngModelChange)="onSearch($event)"
+            />
+          </div>
+        </div>
+
+        <div class="empty-state mini" *ngIf="filteredProjects.length === 0">
+          <h3>No projects found</h3>
+          <p>Try a different search term.</p>
+        </div>
+
+        <div class="table-scroll" *ngIf="filteredProjects.length > 0">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th class="ta-r">US</th>
+                <th class="ta-r">Refined</th>
+                <th class="ta-r">Risks</th>
+                <th class="ta-r">Plans</th>
+                <th class="ta-r">Suites</th>
+                <th class="ta-r">Cases</th>
+                <th class="ta-r">Runs</th>
+                <th class="ta-r">✓</th>
+                <th class="ta-r">✗</th>
+                <th>Pass Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of pagedProjects; trackBy: trackProject">
+                <td>
+                  <div class="proj-cell">
+                    <span class="key-pill">{{ p.project_key }}</span>
+                    <span class="proj-name-text">{{ p.project_name }}</span>
+                  </div>
+                </td>
+                <td class="ta-r"><span class="num c-teal">{{ p.stories_count }}</span></td>
+                <td class="ta-r">
+                  <span class="num c-sky">{{ p.refined_count }}</span>
+                  <span class="rate-mini">{{ refinedRate(p) }}%</span>
+                </td>
+                <td class="ta-r"><span class="num" [class.c-warn]="p.risks_count > 0" [class.c-muted]="p.risks_count === 0">{{ p.risks_count }}</span></td>
+                <td class="ta-r"><span class="num c-purple">{{ p.test_plans_count }}</span></td>
+                <td class="ta-r"><span class="num c-violet">{{ p.test_suites_count }}</span></td>
+                <td class="ta-r"><span class="num c-primary">{{ p.test_cases_count }}</span></td>
+                <td class="ta-r"><span class="num">{{ p.executions_count }}</span></td>
+                <td class="ta-r"><span class="num" [class.c-green]="p.passed_count > 0" [class.c-muted]="p.passed_count === 0">{{ p.passed_count }}</span></td>
+                <td class="ta-r"><span class="num" [class.c-danger]="p.failed_count > 0" [class.c-muted]="p.failed_count === 0">{{ p.failed_count }}</span></td>
+                <td>
+                  <div class="rate-bar" [ngClass]="passRateClass(p)">
+                    <div class="rate-track">
+                      <div class="rate-fill" [style.width.%]="passRate(p)"></div>
+                    </div>
+                    <span class="rate-pct" *ngIf="p.passed_count + p.failed_count > 0">{{ passRate(p) }}%</span>
+                    <span class="rate-pct rate-na" *ngIf="p.passed_count + p.failed_count === 0">—</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="totals-row">
+                <td class="totals-label">Totals</td>
+                <td class="ta-r fw-700 c-teal">{{ stats.stories_count }}</td>
+                <td class="ta-r fw-700 c-sky">{{ stats.refined_count }}</td>
+                <td class="ta-r fw-700 c-warn">{{ stats.risks_count }}</td>
+                <td class="ta-r fw-700 c-purple">{{ stats.test_plans_count }}</td>
+                <td class="ta-r fw-700 c-violet">{{ stats.test_suites_count }}</td>
+                <td class="ta-r fw-700 c-primary">{{ stats.test_cases_count }}</td>
+                <td class="ta-r fw-700">{{ stats.executions_count }}</td>
+                <td class="ta-r fw-700 c-green">{{ stats.passed_count }}</td>
+                <td class="ta-r fw-700 c-danger">{{ stats.failed_count }}</td>
+                <td class="fw-700">{{ globalPassRate }}%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <app-pagination
+          *ngIf="filteredProjects.length > pageSize"
+          [totalItems]="filteredProjects.length"
+          [currentPage]="page"
+          [pageSize]="pageSize"
+          [pageSizeOptions]="[5, 10, 20]"
+          (pageChange)="page = $event"
+          (pageSizeChange)="pageSize = $event; page = 1"
+        ></app-pagination>
+      </div>
+
+    </ng-container>
   </ng-container>
 </div>

@@ -323,23 +323,25 @@ def eval_faithfulness(outputs: dict, reference_outputs: dict) -> dict:
         return {"key": "faithfulness", "score": None, "comment": str(exc)}
 
 
-# ── 6d. Step Clarity — étapes actionnables (LLM-as-judge : Azure gpt-4.1) ───
-def eval_step_clarity(outputs: dict, reference_outputs: dict) -> dict:
+# ── 6d. Answer Relevance — RAGAS (Es et al., 2023) ──────────────────────────
+def eval_answer_relevance(outputs: dict, reference_outputs: dict) -> dict:
     """
-    Azure gpt-4.1 vérifie que chaque étape des TCs est précise et testable.
-    "Cliquer sur le bouton Soumettre" ✅  vs  "Vérifier que ça fonctionne" ❌
+    Answer Relevance (RAGAS) : les TCs générés répondent-ils précisément
+    à la user story et aux ACs fournis en entrée ?
+    Un TC hors-sujet ou trop générique = score bas.
+    Référence : Es et al., 'RAGAS: Automated Evaluation of RAG', 2023.
     """
     from deepeval.metrics import GEval
     from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 
     judge = _build_azure_judge()
     if judge is None:
-        return {"key": "step_clarity", "score": None,
+        return {"key": "answer_relevance", "score": None,
                 "comment": "AZURE_OPENAI_ENDPOINT_JUDGE ou AZURE_OPENAI_KEY_JUDGE manquants"}
 
     test_cases = outputs.get("test_cases", [])
     if not test_cases:
-        return {"key": "step_clarity", "score": 0.0, "comment": "Aucun TC généré"}
+        return {"key": "answer_relevance", "score": 0.0, "comment": "Aucun TC généré"}
 
     steps_text = ""
     for tc in test_cases:
@@ -348,16 +350,15 @@ def eval_step_clarity(outputs: dict, reference_outputs: dict) -> dict:
             steps_text += f"  Step {step.get('order', '?')}: {step.get('action', '')} → {step.get('expected', '')}\n"
 
     metric = GEval(
-        name="step_clarity",
+        name="answer_relevance",
         criteria=(
-            "Évalue si ACTUAL_OUTPUT (les étapes des cas de test) est précis et actionnable. "
-            "Score élevé si : chaque étape décrit exactement ce que le testeur doit faire "
-            "(verbe impératif + objet précis) et quel résultat observable est attendu "
-            "(ex: 'Enter valid email test@example.com in the Email field' → "
-            "'The login button becomes active'). "
-            "Score bas si les étapes sont vagues : 'verify the feature', 'check that it works', "
-            "'ensure the system responds correctly' sans outcome mesurable. "
-            "Les données de test doivent être explicites (ex: 'password: Secur3P@ss' pas 'a password')."
+            "Évalue si ACTUAL_OUTPUT (les cas de test générés) répond directement "
+            "et précisément à INPUT (la user story et les critères d'acceptation). "
+            "Score élevé si : chaque TC teste un comportement explicitement mentionné "
+            "dans la user story ou les ACs, avec des données de test concrètes et "
+            "un résultat observable. "
+            "Score bas si les TCs sont hors-sujet, trop génériques, ou testent des "
+            "comportements non demandés dans l'input."
         ),
         evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
         model=judge,
@@ -365,16 +366,17 @@ def eval_step_clarity(outputs: dict, reference_outputs: dict) -> dict:
         async_mode=False,
     )
 
-    lc_test_case = LLMTestCase(input="Generated test case steps:", actual_output=steps_text)
+    story = outputs.get("story", "")
+    lc_test_case = LLMTestCase(input=story, actual_output=steps_text)
 
     try:
         metric.measure(lc_test_case)
         score = float(metric.score)
         reason = (getattr(metric, "reason", "") or "")[:300]
-        return {"key": "step_clarity", "score": score, "comment": reason}
+        return {"key": "answer_relevance", "score": score, "comment": reason}
     except Exception as exc:
-        logger.warning("step_clarity eval failed: %s", exc)
-        return {"key": "step_clarity", "score": None, "comment": str(exc)}
+        logger.warning("answer_relevance eval failed: %s", exc)
+        return {"key": "answer_relevance", "score": None, "comment": str(exc)}
 
 
 # ── 7. Lancer l'évaluation ───────────────────────────────────────────────────
@@ -394,10 +396,10 @@ def main() -> None:
         run_pipeline,                        # target : pipeline à évaluer
         data=DATASET_NAME,                   # dataset LangSmith
         evaluators=[
-            eval_ac_coverage,               # 1. AC Coverage (déterministe)
-            eval_gherkin_validity,           # 2. Gherkin Validity (déterministe)
-            eval_faithfulness,               # 3. Faithfulness (LLM-as-judge)
-            eval_step_clarity,               # 4. Step Clarity (LLM-as-judge)
+            eval_ac_coverage,               # 1. Requirement Coverage — IEEE 829
+            eval_gherkin_validity,           # 2. Gherkin Validity — BDD (North 2006)
+            eval_faithfulness,               # 3. Faithfulness — RAGAS (Es et al. 2023)
+            eval_answer_relevance,           # 4. Answer Relevance — RAGAS (Es et al. 2023)
         ],
         experiment_prefix="tc-generation",   # nom de l'expérience dans LangSmith
         max_concurrency=1,                   # 1 exemple à la fois (évite throttling Groq)

@@ -397,13 +397,13 @@ async def execute_script(
     """
     logger.info(f"Executing script for test_case {test_case_id}")
 
+    # Script v1 is OPTIONAL — the ReAct agent runs directly from the test case.
     if script_version_id:
         script_version = await repo.get_script_version(db, script_version_id)
     else:
         script_version = await repo.get_active_script(db, test_case_id)
 
-    if not script_version:
-        return {"status": "error", "error": f"No script found for test_case {test_case_id}"}
+    script_hint = script_version.script_content if script_version else None
 
     test_case = await repo.get_test_case(db, test_case_id)
     if not test_case:
@@ -431,7 +431,7 @@ async def execute_script(
             execution_id=execution.id,
             test_case_id=test_case_id,
             execution_order=1,
-            script_version_id=script_version.id,
+            script_version_id=script_version.id if script_version else None,
         )
         await repo.commit(db)
 
@@ -467,25 +467,42 @@ async def execute_script(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
+    tc_for_agent = {
+        "title": test_case.title,
+        "description": test_case.description,
+        "preconditions": test_case.preconditions,
+        "postconditions": test_case.postconditions,
+        "steps": test_case.steps,
+        "gherkin_source": test_case.gherkin_source,
+        "test_data": test_case.test_data,
+        "expected_results": test_case.expected_results,
+        "locators": test_case.locators,
+    }
+
     try:
-        exec_result = await _react_agent.run(
-            script_v1=script_version.script_content,
-            **({"app_url": app_url} if app_url else {}),
-            test_case_id=test_case_id,
-            headless=headless,
-            browser=browser,
-            on_step=_on_step,
-            page_snapshots=page_snapshots or {},
-            model_id=model_id,
-        )
+        # Open one browser session and let the ReAct agent drive it from the test case
+        async with PlaywrightMCPClient(headless=headless, browser=browser) as mcp:
+            tools = {t.name: t for t in mcp.tools}
+            exec_result = await _react_agent.run_react(
+                tools,
+                test_case=tc_for_agent,
+                app_url=app_url or settings.TEST_APPLICATION_URL,
+                test_case_id=test_case_id,
+                on_step=_on_step,
+                script_v1_hint=script_hint,
+                model_id=model_id,
+            )
 
         if save_to_db and tc_result and execution:
-            await _persist_tc_result(db, tc_result.id, execution.id, script_version, exec_result)
+            await _persist_tc_result(
+                db, tc_result.id, execution.id, script_version, exec_result,
+                test_case_id=test_case_id,
+            )
 
         # Testomat reporting (best-effort)
         from app.models.test_case import TestCase as _TC
         from app.services import testomat_service
-        tc = await db.get(_TC, script_version.test_case_id)
+        tc = await db.get(_TC, test_case_id)
         if tc:
             testomat_status = (
                 "passed"
@@ -504,7 +521,7 @@ async def execute_script(
 
         exec_result["execution_id"]     = execution.id if execution else None
         exec_result["tc_result_id"]     = tc_result.id if tc_result else None
-        exec_result["script_version_id"] = script_version.id
+        exec_result["script_version_id"] = script_version.id if script_version else None
 
         await _push_event(test_case_id, "completed", {
             "execution_id":          exec_result["execution_id"],
@@ -562,19 +579,28 @@ async def _persist_tc_result(
     execution_id: str,
     script_version: Any,
     exec_result: Dict[str, Any],
+    test_case_id: Optional[str] = None,
 ) -> None:
-    """Persist agent results into TestCaseResult + script_v2 logic + auto-defect."""
+    """Persist agent results into TestCaseResult + script_v2 logic + auto-defect.
+
+    script_version may be None when the tester never generated a v1 draft and the
+    ReAct agent ran directly from the test case. In that case test_case_id supplies
+    the link and the reconstructed script_v2 becomes the first saved script.
+    """
     steps_json = _build_steps_json(exec_result)
     steps_passed = int(exec_result.get("steps_passed", 0))
     steps_failed = int(exec_result.get("steps_failed", 0))
     duration     = exec_result.get("duration")
 
-    # If the agent corrected the script, save v2 and pin it active
+    # Resolve the owning test case id from whichever source is available
+    tc_id = test_case_id or (script_version.test_case_id if script_version else None)
+
+    # If the agent produced a script (ReAct always does), save v2 and pin it active
     script_v2_record = None
-    if exec_result.get("script_v2"):
+    if exec_result.get("script_v2") and tc_id:
         script_v2_record = await repo.save_script(
             db,
-            test_case_id=script_version.test_case_id,
+            test_case_id=tc_id,
             script_content=exec_result["script_v2"],
             source=ScriptSource.V2_CORRECTED,
             placeholder_count=exec_result.get("remaining_placeholders", 0),
@@ -585,7 +611,7 @@ async def _persist_tc_result(
         locator_mapping = exec_result.get("locator_mapping", {})
         await repo.update_test_case_after_execution(
             db,
-            test_case_id=script_version.test_case_id,
+            test_case_id=tc_id,
             active_script_id=script_v2_record.id,
             locator_mapping=locator_mapping,
         )
@@ -597,14 +623,16 @@ async def _persist_tc_result(
         steps_failed,
     )
 
+    # Prefer the agent's own justification (ReAct verdict) when present
     remaining = exec_result.get("remaining_placeholders", 0)
-    total_ph = script_version.placeholder_count or 0
+    total_ph = (script_version.placeholder_count or 0) if script_version else 0
     resolved_ph = total_ph - remaining
     justification = (
-        f"Placeholders: {resolved_ph}/{total_ph} resolved. "
         f"Steps: {steps_passed} passed, {steps_failed} failed."
+        + (f" Placeholders: {resolved_ph}/{total_ph} resolved." if total_ph else "")
     )
 
+    fallback_version_id = script_version.id if script_version else None
     await repo.update_tc_result(
         db,
         tc_result_id=tc_result_id,
@@ -617,7 +645,7 @@ async def _persist_tc_result(
         screenshot_b64=exec_result.get("screenshot"),
         duration=duration,
         completed_at=datetime.utcnow(),
-        script_version_id=(script_v2_record.id if script_v2_record else script_version.id),
+        script_version_id=(script_v2_record.id if script_v2_record else fallback_version_id),
     )
 
     # Update parent execution counters (single-TC mode)
@@ -638,12 +666,13 @@ async def _persist_tc_result(
     await repo.commit(db)
 
     # Auto-defect on failure
-    if tc_status in (TestCaseResultStatus.FAILED, TestCaseResultStatus.ERROR):
+    defect_tc_id = tc_id or (script_version.test_case_id if script_version else None)
+    if tc_status in (TestCaseResultStatus.FAILED, TestCaseResultStatus.ERROR) and defect_tc_id:
         try:
             from app.services.execution_report_service import create_defect_from_execution
             await create_defect_from_execution(
                 db, tc_result_id=tc_result_id,
-                test_case_id=script_version.test_case_id,
+                test_case_id=defect_tc_id,
             )
             await repo.commit(db)
         except Exception as e:
@@ -1003,56 +1032,15 @@ async def run_suite_smart(
                 "tc_result_id": tcr.id,
             })
 
+            # Script v1 is now OPTIONAL — the ReAct agent works directly from the
+            # test case and reads the live DOM. If a draft exists, it's passed as a hint.
             active_script = await repo.get_active_script(db, tc_id)
-            if not active_script:
-                logger.warning(f"Suite P2: no script for {tc.tc_code} — marking error")
-                failed += 1
-                error_count += 1
-                err_msg = "No script available (generation failed)"
-                await repo.update_tc_result(
-                    db,
-                    tc_result_id=tcr.id,
-                    status=TestCaseResultStatus.ERROR,
-                    error_message=err_msg,
-                    completed_at=datetime.utcnow(),
-                )
-                await repo.commit(db)
-
-                tc_result_payload = {
-                    "tc_id": tc_id, "tc_code": tc.tc_code, "title": tc.title,
-                    "status": "error", "tc_result_id": tcr.id,
-                    "steps_passed": 0, "steps_failed": 0, "duration": 0,
-                    "error": err_msg,
-                }
-                results.append(tc_result_payload)
-                await _push_event(channel, "tc_completed", tc_result_payload)
-
-                if stop_on_failure:
-                    for rem_tc in tc_rows[idx + 1:]:
-                        skipped += 1
-                        rem_tcr = tc_result_by_id[rem_tc.id]
-                        await repo.update_tc_result(
-                            db,
-                            tc_result_id=rem_tcr.id,
-                            status=TestCaseResultStatus.SKIPPED,
-                            error_message="Skipped — previous TC failed",
-                            completed_at=datetime.utcnow(),
-                        )
-                        results.append({
-                            "tc_id": rem_tc.id, "tc_code": rem_tc.tc_code,
-                            "title": rem_tc.title, "status": "skipped",
-                            "tc_result_id": rem_tcr.id,
-                            "steps_passed": 0, "steps_failed": 0,
-                            "duration": 0, "error": "Skipped — previous TC failed",
-                        })
-                    await repo.commit(db)
-                    break
-                continue
+            script_hint = active_script.script_content if active_script else None
 
             # Inter-TC: don't navigate to app_url; restore localStorage for non-auth TCs
             if idx > 0:
                 await asyncio.sleep(0.5)
-                if _saved_local_storage and not _is_auth_tc(tc.title, active_script.script_content):
+                if _saved_local_storage and not _is_auth_tc(tc.title, script_hint or ""):
                     await _restore_local_storage(tools, _saved_local_storage)
 
             async def _on_step(label: str, status: str, error: str = None, _tc_id=tc_id):
@@ -1065,19 +1053,31 @@ async def run_suite_smart(
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
 
+            tc_for_agent = {
+                "title": tc.title,
+                "description": tc.description,
+                "preconditions": tc.preconditions,
+                "postconditions": tc.postconditions,
+                "steps": tc.steps,
+                "gherkin_source": tc.gherkin_source,
+                "test_data": tc.test_data,
+                "expected_results": tc.expected_results,
+                "locators": tc.locators,
+            }
+
             try:
                 exec_result = await asyncio.wait_for(
-                    _react_agent.run_with_tools(
+                    _react_agent.run_react(
                         tools,
-                        script_v1=active_script.script_content,
+                        test_case=tc_for_agent,
                         app_url=app_url or settings.TEST_APPLICATION_URL,
                         test_case_id=tc_id,
                         on_step=_on_step,
-                        page_snapshots=shared_snapshots if shared_snapshots else {},
+                        script_v1_hint=script_hint,
                         suite_continuation=(idx > 0),
                         model_id=model_id,
                     ),
-                    timeout=180.0,
+                    timeout=240.0,
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"TC {tc.tc_code} timed out after 180 s")
@@ -1099,13 +1099,15 @@ async def run_suite_smart(
                 }
 
             try:
-                await _persist_tc_result(db, tcr.id, execution.id, active_script, exec_result)
+                await _persist_tc_result(
+                    db, tcr.id, execution.id, active_script, exec_result, test_case_id=tc_id,
+                )
             except Exception as save_e:
                 logger.error(f"Failed to save results for {tc.tc_code}: {save_e}")
 
             # Capture localStorage for downstream TCs
             if exec_result.get("execution_status") in ("passed", "completed"):
-                if _is_auth_tc(tc.title, active_script.script_content):
+                if _is_auth_tc(tc.title, script_hint or ""):
                     captured = await _save_local_storage(tools)
                     if captured:
                         _saved_local_storage = captured

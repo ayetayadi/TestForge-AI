@@ -113,6 +113,9 @@ class Settings(BaseSettings):
     # MCP / PLAYWRIGHT CONFIG
     # =========================
     TEST_APPLICATION_URL: str = "http://localhost:3000"
+    # Credentials used by the ReAct agent to auto-login before non-auth test cases
+    TEST_USER_EMAIL: str = ""
+    TEST_USER_PASSWORD: str = ""
 
     # =========================
     # TESTOMAT.IO CONFIG

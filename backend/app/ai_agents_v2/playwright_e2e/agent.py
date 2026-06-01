@@ -5,7 +5,7 @@ import re
 import time
 from typing import Dict, Any, List, Optional
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langfuse import observe
 from langfuse import get_client as get_langfuse_client
 
@@ -16,6 +16,7 @@ from .prompts import (
     MAPPING_SYSTEM, MAPPING_USER,
     REF_RESOLVER_SYSTEM, REF_RESOLVER_USER,
     RECOVERY_SYSTEM, RECOVERY_USER,
+    REACT_VERIFY_SYSTEM, REACT_VERIFY_USER,
 )
 from .config import LLM_MAX_TOKENS, LLM_MODEL, LLM_TEMPERATURE, APP_BASE_URL, PLACEHOLDER_PREFIX
 
@@ -77,6 +78,25 @@ def _looks_like_login_page(snapshot: str) -> bool:
         "navigation", "navbar", "menu", "home", "projects",
     ))
     return has_password and has_email and not has_authenticated_nav
+
+
+def _is_auth_test_case(tc: dict) -> bool:
+    """
+    Return True if the test case is about authentication itself (login, register,
+    logout, session). For these, we do NOT auto-login — the test is the auth flow.
+    """
+    auth_keywords = (
+        "login", "log in", "sign in", "signin", "register", "inscription",
+        "create account", "signup", "sign up", "disconnect", "logout",
+        "log out", "session", "password reset", "forgot password",
+        "connexion", "déconnexion", "créer un compte",
+    )
+    haystack = " ".join([
+        tc.get("title", ""),
+        tc.get("description", ""),
+        tc.get("gherkin_source", "") or "",
+    ]).lower()
+    return any(kw in haystack for kw in auth_keywords)
 
 
 class PlaywrightReActAgent:
@@ -969,6 +989,535 @@ class PlaywrightReActAgent:
             locator_mapping=accumulated_mapping,
         )
 
+    # ════════════════════════════════════════════════════════════════════════
+    # TRUE ReAct VERIFICATION AGENT
+    # Executes a test case against the live app by reading the DOM and letting
+    # the LLM drive the MCP tools (bind_tools). Works WITH or WITHOUT a script_v1.
+    # Produces a correct script_v2 reconstructed from what actually worked.
+    # ════════════════════════════════════════════════════════════════════════
+
+    # Tools the LLM is allowed to drive in the ReAct loop. Screenshot/close are
+    # handled by us, not the model, so they are excluded from bind_tools.
+    _REACT_TOOL_NAMES = frozenset({
+        "browser_navigate", "browser_snapshot", "browser_click", "browser_type",
+        "browser_press_key", "browser_select_option", "browser_wait_for",
+        "browser_handle_dialog", "browser_hover", "browser_file_upload",
+        "browser_navigate_back",
+    })
+
+    _MAX_REACT_STEPS = 22  # hard cap on LLM turns to bound cost/time
+
+    async def run_react(
+        self,
+        tools: dict,
+        test_case: Dict[str, Any],
+        app_url: str = APP_BASE_URL,
+        test_case_id: Optional[str] = None,
+        on_step=None,
+        script_v1_hint: Optional[str] = None,
+        suite_continuation: bool = False,
+        model_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Drive the live application from the test case using a real ReAct loop.
+
+        The test case (Gherkin + expected results) is the oracle. The LLM observes
+        the DOM, decides each MCP tool call itself, and we record every successful
+        action to rebuild a clean, replayable script_v2.
+
+        Returns the standard _result(...) dict, fully compatible with the suite
+        executor and single-TC persistence path.
+        """
+        start = time.time()
+
+        if not {"browser_navigate", "browser_snapshot"}.issubset(tools):
+            return self._result(
+                script_v1_hint or "", "error", 0, 0, 0,
+                "Required MCP tools not available", time.time() - start,
+                locator_mapping={},
+            )
+
+        effective_model = model_id or LLM_MODEL
+        # ReAct turns only emit ONE tool call or a short verdict — a small output
+        # budget keeps each turn fast/cheap and fits free-tier credit limits.
+        base_llm = create_llm_for_model(effective_model, LLM_TEMPERATURE, 700)
+
+        # Bind only the safe, drivable tools so the model picks refs itself
+        bindable = [t for name, t in tools.items() if name in self._REACT_TOOL_NAMES]
+        try:
+            llm = base_llm.bind_tools(bindable)
+        except Exception as e:
+            logger.error(f"ReAct: bind_tools failed ({e}) — model may lack tool support")
+            return self._result(
+                script_v1_hint or "", "error", 0, 0, 0,
+                f"bind_tools unsupported: {e}", time.time() - start, locator_mapping={},
+            )
+
+        # ── Land on the app and capture the first observation ───────────────────
+        if not suite_continuation:
+            try:
+                await tools["browser_navigate"].ainvoke({"url": app_url})
+            except Exception as e:
+                logger.warning(f"ReAct initial navigate failed: {e}")
+        latest_snapshot = await self._wait_for_dom_stable(
+            tools, max_wait=8.0, check_interval=0.6, stable_checks=2
+        )
+
+        # ── Auto-login if the app shows a login page but this TC is not an auth test ──
+        from app.core.config import settings as _settings
+        if (
+            not suite_continuation
+            and _looks_like_login_page(latest_snapshot)
+            and not _is_auth_test_case(test_case)
+            and _settings.TEST_USER_EMAIL
+            and _settings.TEST_USER_PASSWORD
+        ):
+            logger.info("ReAct: landing on login page for non-auth TC — auto-logging in")
+            snap_after_login = await self._auto_login(
+                tools, _settings.TEST_USER_EMAIL, _settings.TEST_USER_PASSWORD
+            )
+            if snap_after_login:
+                latest_snapshot = snap_after_login
+
+        title = test_case.get("title", "Test case")
+        tc_block = self._format_tc_for_react(test_case)
+        hint = (script_v1_hint or "(none — work directly from the test case)")[:1200]
+
+        recorded_lines: List[str] = []   # → script_v2 body
+        locator_mapping: Dict[str, str] = {}
+        step_details: List[Dict[str, Any]] = []
+        action_log: List[str] = []       # textual memory injected into each fresh prompt
+        steps_passed = 0
+        steps_failed = 0
+        verdict_text: Optional[str] = None
+        last_sig: Optional[tuple] = None   # anti-loop: signature of the last action
+        repeat_count = 0
+        llm_errors = 0
+        filled_fields: set = set()         # fields already typed into (not visible in DOM)
+        nudge = ""
+        cb = get_trace_callback()
+        invoke_config = {"callbacks": [cb]} if cb else {}
+
+        # Stateless re-prompt loop: each turn sends a FRESH [System, Human] with the
+        # live DOM + an action log. No tool-role messages are accumulated, so Groq's
+        # strict tool_call_id history rules can never be violated.
+        for turn in range(self._MAX_REACT_STEPS):
+            log_text = "\n".join(action_log[-14:]) if action_log else "(nothing done yet)"
+            filled_text = ", ".join(sorted(filled_fields)) if filled_fields else "none yet"
+            human = (
+                REACT_VERIFY_USER.format(app_url=app_url, test_case=tc_block, script_v1_hint=hint)
+                + f"\n\nACTIONS DONE SO FAR (do NOT repeat these — they already succeeded):\n{log_text}"
+                + f"\n\nFIELDS ALREADY FILLED (do NOT fill these again): {filled_text}"
+                + f"\n\nCURRENT PAGE SNAPSHOT (act using these refs):\n{_compress_dom(latest_snapshot)}"
+                + "\n\nNOTE: filled input values are NOT shown in the snapshot — if the action log "
+                  "says you already filled a field, TRUST IT and move on; do not fill it again."
+                + "\n\nDecide the SINGLE next action: call EXACTLY ONE tool for the NEXT step you have "
+                  "not done yet (after filling all fields, click the submit/create button). "
+                  "If every step AND every expected result has been verified, reply with your "
+                  "VERDICT in plain text (no tool call)."
+                + (f"\n\n⚠️ {nudge}" if nudge else "")
+            )
+            messages = [
+                SystemMessage(content=REACT_VERIFY_SYSTEM),
+                HumanMessage(content=human),
+            ]
+            nudge = ""  # consumed
+
+            try:
+                ai = await llm.ainvoke(messages, config=invoke_config)
+                tool_calls = getattr(ai, "tool_calls", None) or []
+                content = ai.content or ""
+                llm_errors = 0
+            except Exception as e:
+                # llama-3.3 on Groq sometimes emits a malformed tool call →
+                # Groq returns `tool_use_failed`. Recover the intended call from
+                # the error payload instead of aborting the whole test.
+                recovered = self._recover_tool_call_from_error(e)
+                if recovered:
+                    logger.info(f"ReAct: recovered malformed tool call → {recovered['name']}")
+                    tool_calls, content = [recovered], ""
+                    llm_errors = 0
+                else:
+                    llm_errors = locals().get("llm_errors", 0) + 1
+                    logger.error(f"ReAct: LLM call failed at turn {turn} ({llm_errors}/3): {e}")
+                    if llm_errors >= 3:
+                        step_details.append({"step": f"LLM turn {turn}", "status": "failed", "error": str(e)[:160]})
+                        break
+                    continue
+
+            # No tool call → final verdict
+            if not tool_calls:
+                verdict_text = content.strip()
+                logger.info(f"🧠 ReAct verdict received at turn {turn}")
+                break
+
+            # Execute ONE action per turn, then re-observe and re-prompt
+            call = tool_calls[0]
+            name = call.get("name", "")
+            args = self._normalize_react_args(name, call.get("args", {}) or {})
+
+            if name not in tools:
+                action_log.append(f"tried unavailable tool '{name}'")
+                continue
+
+            # ── Anti-loop guard: detect the model repeating the same action ─────
+            sig = (
+                name,
+                str(args.get("ref", "")),
+                str(args.get("text", args.get("value", ""))),
+            )
+            if name != "browser_snapshot" and sig == last_sig:
+                repeat_count += 1
+                if repeat_count >= 3:
+                    logger.info("ReAct: stuck repeating an action → forcing verdict evaluation")
+                    nudge = ("You are repeating the same action. Stop. Click the final submit/create "
+                             "button if not yet done, then give your VERDICT.")
+                    # one last nudged turn, then bail if it persists
+                    if repeat_count >= 5:
+                        break
+                action_log.append(f"(ignored duplicate {name} — already done)")
+                nudge = ("You just repeated an action already in the log. Do the NEXT step instead "
+                         "(e.g., click the create/submit button), or give your VERDICT.")
+                continue
+            repeat_count = 0
+            last_sig = sig
+
+            try:
+                raw = await tools[name].ainvoke(args)
+                result_text = self._extract_snapshot_text(str(raw))
+                if "[ref=" in result_text:
+                    latest_snapshot = result_text
+
+                if name == "browser_snapshot":
+                    action_log.append("observed the page (snapshot)")
+                else:
+                    ts_line = self._react_action_to_ts(name, args, latest_snapshot)
+                    if ts_line:
+                        recorded_lines.append(ts_line)
+                        desc = args.get("element") or args.get("ref") or name
+                        locator_mapping[str(desc)] = ts_line
+                    label = self._react_step_label(name, args)
+                    steps_passed += 1
+                    step_details.append({"step": label, "status": "passed"})
+                    action_log.append(f"✓ {label}")
+                    # Remember filled fields so the model stops re-filling what it
+                    # cannot see (input values are absent from the snapshot).
+                    if name == "browser_type":
+                        fld = self._ref_to_locator(latest_snapshot, args.get("ref", "")) or args.get("element", "")
+                        fld_name = re.search(r"name:\s*'([^']+)'", fld or "")
+                        filled_fields.add(fld_name.group(1) if fld_name else (args.get("element") or args.get("ref", "")))
+                    if on_step:
+                        await on_step(label, "passed")
+
+                # After a page transition, refresh the DOM so the next turn sees reality
+                if name in ("browser_click", "browser_navigate", "browser_navigate_back",
+                            "browser_press_key", "browser_handle_dialog", "browser_select_option"):
+                    latest_snapshot = await self._wait_for_dom_stable(
+                        tools, max_wait=6.0, check_interval=0.5, stable_checks=2
+                    )
+
+            except Exception as e:
+                err = str(e).splitlines()[0][:160] if str(e) else "unknown error"
+                logger.warning(f"ReAct tool '{name}' failed: {err}")
+                label = self._react_step_label(name, args)
+                steps_failed += 1
+                step_details.append({"step": label, "status": "failed", "error": err})
+                action_log.append(f"✗ {label} FAILED: {err}")
+                if on_step:
+                    await on_step(label, "failed", error=err)
+                # Re-observe so the model can recover on the next turn
+                try:
+                    latest_snapshot = await self._safe_snapshot(tools)
+                except Exception:
+                    pass
+
+        # ── Parse the verdict + fold its expectation lines into step_details ────
+        passed_verdict, justification = self._parse_react_verdict(verdict_text)
+        for jline in justification:
+            ok = jline.lstrip().startswith("✅")
+            step_details.append({
+                "step": jline.lstrip("✅❌ ").strip()[:200],
+                "status": "passed" if ok else "failed",
+            })
+            if ok:
+                steps_passed += 1
+            else:
+                steps_failed += 1
+
+        if verdict_text is None:
+            # Loop hit the step cap without a verdict → inconclusive = failure
+            steps_failed += 1
+            justification = justification or ["❌ Agent did not reach a verdict within the step budget"]
+            passed_verdict = False
+
+        # ── Final screenshot (always — needed for failed TCs) ───────────────────
+        screenshot_b64 = await self._capture_screenshot(tools, test_case_id)
+
+        script_v2 = self._build_react_script_v2(title, app_url, recorded_lines)
+        status = "completed" if passed_verdict else "failed"
+        error = None if passed_verdict else " | ".join(justification)[:500]
+
+        logger.info(
+            f"ReAct done — verdict={'PASSED' if passed_verdict else 'FAILED'}, "
+            f"{steps_passed} passed / {steps_failed} failed, {len(recorded_lines)} script lines"
+        )
+
+        result = self._result(
+            script_v2, status,
+            steps_passed=steps_passed, steps_failed=steps_failed,
+            remaining=0, error=error, duration=time.time() - start,
+            step_details=step_details, screenshot=screenshot_b64,
+            locator_mapping=locator_mapping,
+        )
+        result["action_log"] = action_log
+        return result
+
+    # ── ReAct helpers ───────────────────────────────────────────────────────────
+
+    def _format_tc_for_react(self, tc: Dict[str, Any]) -> str:
+        """Render a test case as a compact, oracle-friendly block for the prompt."""
+        lines = [f"Title: {tc.get('title', 'Untitled')}"]
+        if tc.get("description"):
+            lines.append(f"Description: {tc['description']}")
+        pre = tc.get("preconditions") or []
+        if pre:
+            lines.append("Preconditions:")
+            lines += [f"  - {p}" for p in pre]
+        if tc.get("gherkin_source"):
+            lines.append("Steps (Gherkin):")
+            lines += [f"  {l}" for l in str(tc["gherkin_source"]).splitlines() if l.strip()]
+        else:
+            steps = tc.get("steps") or []
+            if steps:
+                lines.append("Steps:")
+                for s in steps:
+                    if isinstance(s, dict):
+                        lines.append(f"  - {s.get('action', '')}"
+                                     + (f" → {s.get('expected', '')}" if s.get("expected") else ""))
+                    else:
+                        lines.append(f"  - {s}")
+        td = tc.get("test_data") or {}
+        if td:
+            lines.append("Test Data (use these exact values):")
+            lines += [f"  {k} = {v}" for k, v in td.items()]
+        er = tc.get("expected_results") or []
+        if er:
+            lines.append("Expected Results (verify each one is really present):")
+            lines += [f"  - {e}" for e in er]
+        post = tc.get("postconditions") or []
+        if post:
+            lines.append("Postconditions:")
+            lines += [f"  - {p}" for p in post]
+        return "\n".join(lines)
+
+    async def _auto_login(self, tools: dict, email: str, password: str) -> Optional[str]:
+        """
+        Programmatically log into the app using the test credentials.
+        Called before non-auth test cases when the landing page is still the login screen.
+        Returns the snapshot after login, or None if login failed.
+        """
+        try:
+            snap = await self._safe_snapshot(tools)
+            # Find email field ref
+            email_ref = None
+            pass_ref = None
+            btn_ref = None
+            for line in snap.splitlines():
+                ll = line.lower()
+                if ("textbox" in ll or "input" in ll) and "email" in ll and "[ref=" in line:
+                    m = re.search(r'\[ref=(e\d+)\]', line)
+                    if m:
+                        email_ref = m.group(1)
+                elif ("textbox" in ll or "input" in ll) and "password" in ll and "[ref=" in line:
+                    m = re.search(r'\[ref=(e\d+)\]', line)
+                    if m:
+                        pass_ref = m.group(1)
+                elif "button" in ll and any(kw in ll for kw in ("connexion", "login", "sign in", "se connecter")) and "[ref=" in line:
+                    m = re.search(r'\[ref=(e\d+)\]', line)
+                    if m:
+                        btn_ref = m.group(1)
+
+            if not (email_ref and pass_ref):
+                logger.warning("Auto-login: could not find email/password fields in login page")
+                return None
+
+            await tools["browser_type"].ainvoke({"ref": email_ref, "text": email})
+            await tools["browser_type"].ainvoke({"ref": pass_ref, "text": password})
+
+            # Find login button if not already found
+            if not btn_ref:
+                snap2 = await self._safe_snapshot(tools)
+                for line in snap2.splitlines():
+                    ll = line.lower()
+                    if "button" in ll and "[ref=" in line:
+                        m = re.search(r'\[ref=(e\d+)\]', line)
+                        if m:
+                            btn_ref = m.group(1)
+                            break
+
+            if btn_ref:
+                await tools["browser_click"].ainvoke({"ref": btn_ref})
+            else:
+                await tools["browser_press_key"].ainvoke({"key": "Enter"})
+
+            # Wait for page to change after login
+            snap_after = await self._wait_for_dom_stable(tools, max_wait=8.0, check_interval=0.6, stable_checks=2)
+            if not _looks_like_login_page(snap_after):
+                logger.info("Auto-login: succeeded — now on authenticated page")
+                return snap_after
+            else:
+                logger.warning("Auto-login: still on login page after submit — credentials may be wrong")
+                return None
+        except Exception as e:
+            logger.warning(f"Auto-login failed: {e}")
+            return None
+
+    def _ref_to_locator(self, snapshot: str, ref: str) -> Optional[str]:
+        """
+        Reverse lookup: given an aria ref, find its snapshot line and build a
+        stable Playwright locator (getByRole with the accessible name).
+        """
+        if not ref or not snapshot:
+            return None
+        for line in snapshot.splitlines():
+            if f"[ref={ref}]" not in line:
+                continue
+            m = re.search(r'(\w+)\s+"([^"]*)"', line)
+            if m:
+                role, name = m.group(1), m.group(2).replace("'", "\\'")
+                if name:
+                    return f"page.getByRole('{role}', {{ name: '{name}' }})"
+                return f"page.getByRole('{role}')"
+            # No accessible name on the line — fall back to a text locator if any
+            mt = re.search(r'"([^"]+)"', line)
+            if mt:
+                return f"page.getByText('{mt.group(1)}')"
+            return None
+        return None
+
+    def _react_action_to_ts(self, name: str, args: dict, snapshot: str) -> Optional[str]:
+        """Turn one executed MCP tool call into a replayable TypeScript line."""
+        if name == "browser_navigate":
+            return f"await page.goto('{args.get('url', '')}');"
+        if name == "browser_press_key":
+            return f"await page.keyboard.press('{args.get('key', 'Enter')}');"
+
+        ref = args.get("ref") or args.get("target") or ""
+        loc = self._ref_to_locator(snapshot, ref)
+        if not loc:
+            return None
+        if name == "browser_click":
+            return f"await {loc}.click();"
+        if name == "browser_type":
+            val = str(args.get("text", args.get("value", ""))).replace("'", "\\'")
+            return f"await {loc}.fill('{val}');"
+        if name == "browser_select_option":
+            val = str(args.get("values", args.get("value", ""))).replace("'", "\\'")
+            return f"await {loc}.selectOption('{val}');"
+        if name == "browser_hover":
+            return f"await {loc}.hover();"
+        return None
+
+    def _react_step_label(self, name: str, args: dict) -> str:
+        short = name.replace("browser_", "")
+        if name == "browser_navigate":
+            return f"navigate → {args.get('url', '')}"
+        if name == "browser_type":
+            return f"type '{args.get('text', args.get('value', ''))}' into {args.get('element', args.get('ref', ''))}"
+        if name in ("browser_click", "browser_hover"):
+            return f"{short} {args.get('element', args.get('ref', ''))}"
+        if name == "browser_press_key":
+            return f"press {args.get('key', '')}"
+        return f"{short} {args.get('element', '')}".strip()
+
+    def _normalize_react_args(self, name: str, args: dict) -> dict:
+        """
+        Reconcile the various arg shapes models emit for MCP element tools.
+        Some models use 'target' for the aria ref; MCP element tools also want an
+        'element' description alongside 'ref'.
+        """
+        args = dict(args)
+        tgt = args.get("target")
+        if "ref" not in args and isinstance(tgt, str) and re.match(r"^e\d+$", tgt.strip()):
+            args["ref"] = tgt.strip()
+        if name in ("browser_click", "browser_type", "browser_hover", "browser_select_option"):
+            if "element" not in args or not args.get("element"):
+                args["element"] = args.get("ref", "target element")
+        return args
+
+    @staticmethod
+    def _recover_tool_call_from_error(err: Exception) -> Optional[dict]:
+        """
+        Groq returns `tool_use_failed` with the raw text the model meant to emit,
+        e.g.  <function=browser_click{"target": "e37"}</function>
+        Parse it back into a {name, args, id} tool call so a single malformed
+        generation does not abort the whole verification run.
+        """
+        msg = str(err)
+        if "tool_use_failed" not in msg and "failed_generation" not in msg:
+            return None
+        m = re.search(r"<function=(\w+)\s*(\{.*?\})", msg, re.DOTALL)
+        if not m:
+            return None
+        name = m.group(1)
+        try:
+            args = json.loads(m.group(2))
+        except Exception:
+            return None
+        return {"name": name, "args": args, "id": "recovered_0"}
+
+    @staticmethod
+    def _parse_react_verdict(text: Optional[str]) -> tuple:
+        """Extract (passed: bool, justification_lines: list[str]) from the final message."""
+        if not text:
+            return False, []
+        passed = bool(re.search(r"VERDICT\s*:\s*PASSED", text, re.IGNORECASE))
+        just: List[str] = []
+        for line in text.splitlines():
+            s = line.strip()
+            if s.startswith("✅") or s.startswith("❌") or s.startswith("- "):
+                just.append(s.lstrip("- ").strip())
+        return passed, [j for j in just if j]
+
+    def _build_react_script_v2(self, title: str, app_url: str, lines: List[str]) -> str:
+        """Assemble a clean, replayable Playwright script from recorded actions."""
+        safe_title = title.replace("'", "\\'")
+        # Drop consecutive duplicate lines (the model sometimes re-fills a field)
+        deduped: List[str] = []
+        for l in lines:
+            if not deduped or deduped[-1] != l:
+                deduped.append(l)
+        lines = deduped
+        body = "\n".join(f"  {l}" for l in lines) if lines else "  // no actions recorded"
+        # Ensure the script always opens the app even if the model skipped goto
+        if not any("page.goto(" in l for l in lines):
+            body = f"  await page.goto('{app_url}');\n" + body
+        return (
+            "import { test, expect } from '@playwright/test';\n\n"
+            f"test('{safe_title}', async ({{ page }}) => {{\n"
+            f"{body}\n"
+            "});\n"
+        )
+
+    async def _capture_screenshot(self, tools: dict, test_case_id: Optional[str]) -> Optional[str]:
+        """Take a final screenshot and return base64 — shared by ReAct + Phase 4."""
+        if "browser_take_screenshot" not in tools:
+            return None
+        try:
+            raw = await tools["browser_take_screenshot"].ainvoke({})
+            b64 = self._extract_screenshot_b64(raw)
+            if b64 and test_case_id:
+                import os, base64 as _b64
+                os.makedirs("screenshots", exist_ok=True)
+                fname = f"screenshots/test_{test_case_id}_{time.strftime('%Y%m%d-%H%M%S')}.png"
+                with open(fname, "wb") as f:
+                    f.write(_b64.b64decode(b64))
+                logger.info(f"📸 Screenshot saved: {fname}")
+            return b64
+        except Exception as e:
+            logger.warning(f"📸 ReAct screenshot failed: {e}")
+            return None
+
     def _elem_params(self, tool, ref: str, description: str) -> dict:
         """
         Build the element-targeting params for an MCP tool call.
@@ -982,8 +1531,18 @@ class PlaywrightReActAgent:
         back to the description string.
         """
         try:
-            if hasattr(tool, "args_schema") and tool.args_schema:
-                props = tool.args_schema.schema().get("properties", {})
+            props = {}
+            schema = getattr(tool, "args_schema", None)
+            if schema:
+                # langchain may expose args_schema as a Pydantic model (v1 .schema(),
+                # v2 .model_json_schema()) OR already as a plain dict JSON-schema.
+                if isinstance(schema, dict):
+                    props = schema.get("properties", {})
+                elif hasattr(schema, "model_json_schema"):
+                    props = schema.model_json_schema().get("properties", {})
+                elif hasattr(schema, "schema"):
+                    props = schema.schema().get("properties", {})
+            if props:
                 logger.info(f"🔍 ELEM_PARAMS: tool properties={list(props.keys())}")
                 if "ref" in props:
                     logger.info(f"🔍 ELEM_PARAMS: using ref={ref}")
@@ -1888,6 +2447,10 @@ class PlaywrightReActAgent:
         if match:
             content = match.group(0)
 
+        # Sanitise invalid JSON escapes the LLM emits for French labels with
+        # apostrophes, e.g.  'Nom d\'utilisateur'  → \' is not valid JSON (#2).
+        content = content.replace("\\'", "'")
+
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
@@ -1950,22 +2513,38 @@ class PlaywrightReActAgent:
                     if "data" in item and item["data"]:
                         logger.info("📸 Extracted from list[dict data]")
                         return str(item["data"])
-                    # Cherche un chemin de fichier PNG dans le texte
+                    # Cherche un chemin de fichier PNG dans le texte.
+                    # IMPORTANT: capture the OPTIONAL leading dot INSIDE the group —
+                    # the MCP server writes to a hidden ".playwright-mcp" dir, and
+                    # dropping the dot made every screenshot file lookup fail (#4).
                     if item.get("type") == "text":
                         text = item.get("text", "")
-                        path_match = re.search(r'\(\.?([\w\-\/\\]+\.png)\)', text)
+                        path_match = re.search(r'\((\.?[\w\-\/\\]+\.png)\)', text)
                         if path_match:
-                            filepath = path_match.group(1)
+                            rel = path_match.group(1)
                             import os, base64
-                            if not os.path.isabs(filepath):
-                                filepath = os.path.join(os.getcwd(), filepath)
-                            try:
-                                with open(filepath, 'rb') as f:
-                                    b64 = base64.b64encode(f.read()).decode()
+                            # The MCP server is a SEPARATE process; it writes the PNG
+                            # relative to ITS own cwd (often the user's home dir), not
+                            # ours. Try every plausible base dir + match by basename.
+                            base_name = os.path.basename(rel)
+                            candidates = [rel] if os.path.isabs(rel) else [
+                                os.path.join(os.getcwd(), rel),
+                                os.path.join(os.path.expanduser("~"), rel),
+                                os.path.join(os.path.expanduser("~"), ".playwright-mcp", base_name),
+                                os.path.join(os.getcwd(), "backend", rel),
+                                os.path.abspath(rel),
+                            ]
+                            for filepath in candidates:
+                                try:
+                                    with open(filepath, 'rb') as f:
+                                        b64 = base64.b64encode(f.read()).decode()
                                     logger.info(f"📸 Loaded screenshot from file: {filepath} ({len(b64)} chars)")
                                     return b64
-                            except Exception as e:
-                                logger.warning(f"📸 Failed to read screenshot file {filepath}: {e}")
+                                except FileNotFoundError:
+                                    continue
+                                except Exception as e:
+                                    logger.warning(f"📸 Failed to read screenshot file {filepath}: {e}")
+                            logger.warning(f"📸 Screenshot file not found in any candidate path for '{rel}'")
     
         if isinstance(raw, dict):
             if raw.get("type") == "image":

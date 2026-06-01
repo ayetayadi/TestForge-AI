@@ -1,11 +1,11 @@
 """
 LangSmith evaluation for the TestForge user story refinement pipeline.
 
-4 métriques choisies pour cette tâche :
-  1. score_improvement   — gain de score qualité initial→final              (déterministe)
-  2. invest_compliance   — respect des principes INVEST                      (déterministe)
-  3. ac_completeness     — ACs complètes, vérifiables et mesurables          (Azure gpt-4.1)
-  4. story_clarity       — story claire, au bon format, sans termes vagues   (Azure gpt-4.1)
+4 métriques issues de la littérature :
+  1. semantic_similarity — similarité sémantique SBERT original→amélioré    (Reimers & Gurevych, 2019)
+  2. invest_compliance   — respect du framework INVEST                       (Wake, 2003 ; Cohn, 2004)
+  3. verifiability       — ACs vérifiables et mesurables (IEEE 830)          (Azure gpt-4.1 / G-Eval)
+  4. aqusa_quality       — qualité AQUSA : format, clarté, atomicité         (Lucassen et al., 2016)
 
 Le raffineur utilise Groq llama-3.3-70b.
 Le juge utilise Azure gpt-4.1 (modèle différent → évaluation non biaisée).
@@ -230,31 +230,23 @@ def _build_azure_judge():
 
 # ── 7. Les 4 évaluateurs ─────────────────────────────────────────────────────
 
-# ── 7a. Score Improvement (déterministe) ─────────────────────────────────────
-def eval_score_improvement(outputs: dict, reference_outputs: dict) -> dict:
+# ── 7a. Semantic Similarity — SBERT (Reimers & Gurevych, 2019) ───────────────
+def eval_semantic_similarity(outputs: dict, reference_outputs: dict) -> dict:
     """
-    Mesure le gain de score qualité entre la story originale et la story améliorée.
-    Score = final_score du pipeline (0→1).
-    On vérifie aussi que le pipeline a atteint le seuil min attendu.
+    Mesure la similarité sémantique cosinus entre la story originale et la story
+    améliorée, calculée via paraphrase-multilingual-MiniLM-L12-v2 (SBERT).
+    Un score élevé garantit que le sens et l'intention sont préservés après
+    raffinement — contrainte essentielle pour éviter la dérive sémantique.
+    Référence : Reimers & Gurevych, 'Sentence-BERT', EMNLP 2019.
     """
-    final_score   = float(outputs.get("final_score", 0.0))
-    initial_score = float(outputs.get("initial_score", 0.0))
-    delta = final_score - initial_score
-    min_expected  = float(reference_outputs.get("min_final_score", 0.0))
-    must_improve  = reference_outputs.get("must_improve", True)
-
-    # Score normalisé : on récompense d'atteindre le seuil cible
-    score = min(1.0, final_score / max(min_expected, 0.01)) if min_expected > 0 else final_score
-
-    # Pénalité si la story devait s'améliorer mais ne l'a pas fait
-    if must_improve and delta <= 0:
-        score = max(0.0, score - 0.2)
-
+    similarity = float(outputs.get("similarity", 0.0))
+    is_improved = outputs.get("is_improved", False)
+    status = outputs.get("workflow_status", "?")
     comment = (
-        f"score {initial_score:.3f} → {final_score:.3f} (Δ{delta:+.3f}) "
-        f"| seuil attendu ≥ {min_expected:.2f} | status={outputs.get('workflow_status', '?')}"
+        f"similarité cosinus SBERT = {similarity:.3f} "
+        f"| is_improved={is_improved} | status={status}"
     )
-    return {"key": "score_improvement", "score": round(score, 3), "comment": comment}
+    return {"key": "semantic_similarity", "score": round(similarity, 3), "comment": comment}
 
 
 # ── 7b. INVEST Compliance (déterministe) ─────────────────────────────────────
@@ -284,14 +276,14 @@ def eval_invest_compliance(outputs: dict, reference_outputs: dict) -> dict:
     return {"key": "invest_compliance", "score": round(adjusted, 3), "comment": comment}
 
 
-# ── 7c. AC Completeness — ACs vérifiables et mesurables (Azure gpt-4.1) ──────
-def eval_ac_completeness(outputs: dict, reference_outputs: dict) -> dict:
+# ── 7c. Verifiability — IEEE 830 (LLM-as-judge : Azure gpt-4.1) ─────────────
+def eval_verifiability(outputs: dict, reference_outputs: dict) -> dict:
     """
-    Azure gpt-4.1 évalue si les critères d'acceptation générés sont :
-    - complets (couvrent les cas nominaux + erreurs)
-    - vérifiables (verbe d'action + résultat observable)
-    - mesurables (valeurs quantifiables : délai, nombre, longueur)
-    Score bas = ACs vagues ou trop peu nombreuses.
+    IEEE 830 exige que chaque exigence soit 'verifiable' : il doit exister
+    un processus fini et économiquement viable pour vérifier qu'elle est satisfaite.
+    Évalue si les ACs générées sont vérifiables par test (verbe d'action précis,
+    valeur mesurable, résultat observable).
+    Référence : IEEE Std 830-1998, section 4.3.
     """
     from deepeval.metrics import GEval
     from deepeval.test_case import LLMTestCase, LLMTestCaseParams
@@ -305,23 +297,23 @@ def eval_ac_completeness(outputs: dict, reference_outputs: dict) -> dict:
     story = outputs.get("improved_story", "")
 
     if not acs:
-        return {"key": "ac_completeness", "score": 0.0,
+        return {"key": "verifiability", "score": 0.0,
                 "comment": "Aucun critère d'acceptation généré"}
 
     ac_text = "\n".join(f"- {ac}" for ac in acs)
 
     metric = GEval(
-        name="ac_completeness",
+        name="verifiability",
         criteria=(
-            "Évalue si ACTUAL_OUTPUT (les critères d'acceptation) est complet, "
-            "vérifiable et mesurable par rapport à INPUT (la user story améliorée). "
+            "Évalue si ACTUAL_OUTPUT (les critères d'acceptation) est vérifiable "
+            "au sens IEEE 830 par rapport à INPUT (la user story améliorée). "
             "Score élevé si : "
             "(1) chaque AC utilise un verbe d'action précis (affiche, retourne, redirige, bloque), "
             "(2) au moins un AC inclut une valeur mesurable (durée, nombre, longueur, pourcentage), "
             "(3) les cas nominaux ET les cas d'erreur sont couverts, "
             "(4) aucun AC n'est vague ('fonctionne correctement', 'répond bien'). "
-            "Score bas si les ACs sont trop génériques, non mesurables, ou si des scénarios "
-            "importants sont absents (ex: story de connexion sans AC sur les erreurs)."
+            "Score bas si les ACs sont ambiguës, non mesurables, ou non testables "
+            "par un processus défini — critères IEEE 830 section 4.3."
         ),
         evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
         model=judge,
@@ -335,20 +327,21 @@ def eval_ac_completeness(outputs: dict, reference_outputs: dict) -> dict:
         metric.measure(lc_test_case)
         score = float(metric.score)
         reason = (getattr(metric, "reason", "") or "")[:300]
-        return {"key": "ac_completeness", "score": score, "comment": reason}
+        return {"key": "verifiability", "score": score, "comment": reason}
     except Exception as exc:
-        logger.warning("ac_completeness eval failed: %s", exc)
-        return {"key": "ac_completeness", "score": None, "comment": str(exc)}
+        logger.warning("verifiability eval failed: %s", exc)
+        return {"key": "verifiability", "score": None, "comment": str(exc)}
 
 
-# ── 7d. Story Clarity — format et clarté (Azure gpt-4.1) ─────────────────────
-def eval_story_clarity(outputs: dict, reference_outputs: dict) -> dict:
+# ── 7d. AQUSA Quality — Lucassen et al., 2016 (LLM-as-judge : Azure gpt-4.1) ─
+def eval_aqusa_quality(outputs: dict, reference_outputs: dict) -> dict:
     """
-    Azure gpt-4.1 évalue si la story améliorée est claire et bien formulée :
-    - Format respecté (As a… / I want… / so that…)
-    - Pas de termes vagues (rapidement, facilement, intuitivement)
-    - Une seule fonctionnalité par story (S - Small)
-    Score bas = story toujours vague ou trop longue après raffinement.
+    Évalue la qualité de la user story selon les critères AQUSA
+    (Automatic Quality User Story Artisan) : well-formed, atomic, unambiguous.
+    - Well-formed : format 'En tant que [rôle] / je veux / afin de' respecté
+    - Atomic : une seule fonctionnalité par story (critère S d'INVEST)
+    - Unambiguous : absence de termes vagues (rapidement, facilement, etc.)
+    Référence : Lucassen et al., 'Forging High-Quality User Stories', RE 2016.
     """
     from deepeval.metrics import GEval
     from deepeval.test_case import LLMTestCase, LLMTestCaseParams
@@ -360,21 +353,22 @@ def eval_story_clarity(outputs: dict, reference_outputs: dict) -> dict:
 
     improved_story = outputs.get("improved_story", "")
     if not improved_story:
-        return {"key": "story_clarity", "score": 0.0, "comment": "Story vide"}
+        return {"key": "aqusa_quality", "score": 0.0, "comment": "Story vide"}
 
     metric = GEval(
-        name="story_clarity",
+        name="aqusa_quality",
         criteria=(
-            "Évalue si ACTUAL_OUTPUT (la user story améliorée) est claire, bien formatée "
-            "et exempte de termes vagues. "
+            "Évalue si ACTUAL_OUTPUT (la user story améliorée) satisfait les critères "
+            "AQUSA (Lucassen et al., 2016) : well-formed, atomic, unambiguous. "
             "Score élevé si : "
-            "(1) le format est respecté : 'En tant que [rôle], je veux [action], afin de [bénéfice]' "
-            "ou équivalent anglais 'As a [role], I want [feature], so that [benefit]', "
-            "(2) aucun terme vague n'est présent (rapidement, facilement, efficacement, "
+            "(1) Well-formed : format respecté 'En tant que [rôle], je veux [action], "
+            "afin de [bénéfice]' ou 'As a [role], I want [feature], so that [benefit]', "
+            "(2) Unambiguous : aucun terme vague (rapidement, facilement, efficacement, "
             "intuitivement, seamless, robust), "
-            "(3) la story décrit UNE SEULE fonctionnalité (pas un ensemble), "
-            "(4) la story est concise (idéalement 15-40 mots). "
-            "Score bas si : format manquant, termes vagues présents, story trop large ou trop vague."
+            "(3) Atomic : la story décrit UNE SEULE fonctionnalité (critère S d'INVEST), "
+            "(4) Minimal : concise, idéalement 15-40 mots, sans détails d'implémentation. "
+            "Score bas si : format manquant (not well-formed), termes vagues (ambiguous), "
+            "ou plusieurs fonctionnalités (not atomic)."
         ),
         evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
         model=judge,
@@ -391,10 +385,10 @@ def eval_story_clarity(outputs: dict, reference_outputs: dict) -> dict:
         metric.measure(lc_test_case)
         score = float(metric.score)
         reason = (getattr(metric, "reason", "") or "")[:300]
-        return {"key": "story_clarity", "score": score, "comment": reason}
+        return {"key": "aqusa_quality", "score": score, "comment": reason}
     except Exception as exc:
-        logger.warning("story_clarity eval failed: %s", exc)
-        return {"key": "story_clarity", "score": None, "comment": str(exc)}
+        logger.warning("aqusa_quality eval failed: %s", exc)
+        return {"key": "aqusa_quality", "score": None, "comment": str(exc)}
 
 
 # ── 8. Lancer l'évaluation ───────────────────────────────────────────────────
@@ -413,10 +407,10 @@ def main() -> None:
         run_pipeline,
         data=DATASET_NAME,
         evaluators=[
-            eval_score_improvement,   # 1. Score improvement (déterministe)
-            eval_invest_compliance,   # 2. INVEST compliance (déterministe)
-            eval_ac_completeness,     # 3. AC completeness (LLM-as-judge)
-            eval_story_clarity,       # 4. Story clarity (LLM-as-judge)
+            eval_semantic_similarity, # 1. Semantic Similarity — SBERT (Reimers & Gurevych, 2019)
+            eval_invest_compliance,   # 2. INVEST Compliance — Wake 2003, Cohn 2004
+            eval_verifiability,       # 3. Verifiability — IEEE 830 (LLM-as-judge)
+            eval_aqusa_quality,       # 4. AQUSA Quality — Lucassen et al. 2016 (LLM-as-judge)
         ],
         experiment_prefix="us-refinement",
         max_concurrency=1,
@@ -428,8 +422,8 @@ def main() -> None:
     try:
         df = results.to_pandas()
         metric_cols = [c for c in df.columns if c in (
-            "feedback.score_improvement", "feedback.invest_compliance",
-            "feedback.ac_completeness", "feedback.story_clarity",
+            "feedback.semantic_similarity", "feedback.invest_compliance",
+            "feedback.verifiability", "feedback.aqusa_quality",
         )]
         if metric_cols:
             display_cols = (
