@@ -368,7 +368,22 @@ class TestPlanExportService:
 # ============================================================
 
 class SuiteReportExportService:
-    """Generates a PDF execution report for a test suite run."""
+    """Generates a detailed PDF execution report for a test suite run."""
+
+    # ── status helpers ──────────────────────────────────────────
+    _STATUS_COLOR = {
+        "passed":  "#16a34a",
+        "failed":  "#dc2626",
+        "error":   "#ea580c",
+        "skipped": "#6b7280",
+    }
+    _STATUS_BG = {
+        "passed":  "#f0fdf4",
+        "failed":  "#fef2f2",
+        "error":   "#fff7ed",
+        "skipped": "#f9fafb",
+    }
+    _STATUS_ICON = {"passed": "PASSED", "failed": "FAILED", "error": "ERROR", "skipped": "SKIPPED"}
 
     def export_pdf(
         self,
@@ -386,167 +401,255 @@ class SuiteReportExportService:
                 SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
                 HRFlowable, KeepTogether,
             )
-            from reportlab.lib.enums import TA_LEFT, TA_CENTER
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
         except ImportError as exc:
             raise RuntimeError(
                 "PDF export requires 'reportlab'. Install with: pip install reportlab"
             ) from exc
 
+        W = 170 * mm
+
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
-            buffer,
-            pagesize=A4,
-            leftMargin=20 * mm,
-            rightMargin=20 * mm,
-            topMargin=20 * mm,
-            bottomMargin=20 * mm,
+            buffer, pagesize=A4,
+            leftMargin=20 * mm, rightMargin=20 * mm,
+            topMargin=20 * mm, bottomMargin=20 * mm,
         )
 
         styles = getSampleStyleSheet()
-        brand_blue = colors.HexColor("#1a6fc4")
-        dark = colors.HexColor("#1a1a2e")
-        grey = colors.HexColor("#6b7280")
+        BLUE  = colors.HexColor("#1a6fc4")
+        DARK  = colors.HexColor("#1a1a2e")
+        GREY  = colors.HexColor("#6b7280")
+        LGREY = colors.HexColor("#e5e7eb")
+        FLGREY = colors.HexColor("#f9fafb")
+        GREEN = colors.HexColor("#16a34a")
+        RED   = colors.HexColor("#dc2626")
 
-        h1 = ParagraphStyle("H1", parent=styles["Heading1"], fontSize=20, textColor=dark, spaceAfter=4)
-        h2 = ParagraphStyle("H2", parent=styles["Heading2"], fontSize=11, textColor=brand_blue, spaceBefore=10, spaceAfter=3)
-        body = ParagraphStyle("Body", parent=styles["Normal"], fontSize=9, leading=13, spaceAfter=4)
-        small = ParagraphStyle("Small", parent=styles["Normal"], fontSize=8, textColor=grey, spaceAfter=2)
-        footer_style = ParagraphStyle("Footer", parent=styles["Normal"], fontSize=8, textColor=grey, alignment=TA_CENTER)
+        def _style(name, **kw):
+            return ParagraphStyle(name, parent=styles["Normal"], **kw)
+
+        S = {
+            "brand":  _style("brand",  fontSize=9,  textColor=BLUE, spaceAfter=2),
+            "h1":     _style("h1",     fontSize=22, textColor=DARK, spaceAfter=4, fontName="Helvetica-Bold"),
+            "sname":  _style("sname",  fontSize=13, textColor=DARK, spaceAfter=4),
+            "small":  _style("small",  fontSize=8,  textColor=GREY, spaceAfter=2),
+            "footer": _style("footer", fontSize=8,  textColor=GREY, alignment=TA_CENTER),
+        }
+
+        def _hr(color=LGREY, thick=0.5, after=4):
+            return HRFlowable(width="100%", thickness=thick, color=color, spaceAfter=after)
 
         story = []
 
-        # ── Header ──────────────────────────────────────────────
-        story.append(Paragraph("TESTFORGE", ParagraphStyle(
-            "Brand", parent=styles["Normal"], fontSize=10, textColor=brand_blue, spaceAfter=2,
-        )))
-        story.append(Paragraph("Suite Execution Report", h1))
-        story.append(Paragraph(suite_name, ParagraphStyle(
-            "SuiteName", parent=styles["Normal"], fontSize=12, textColor=dark, spaceAfter=4,
-        )))
+        # ── Header ────────────────────────────────────────────
+        story.append(Paragraph("TESTFORGE", S["brand"]))
+        story.append(Paragraph("Suite Execution Report", S["h1"]))
+        story.append(Paragraph(suite_name, S["sname"]))
         story.append(Paragraph(
             f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
-            small,
+            S["small"],
         ))
-        story.append(HRFlowable(width="100%", thickness=1, color=brand_blue, spaceAfter=8))
+        story.append(_hr(BLUE, 1.5, 10))
 
-        # ── Summary table ────────────────────────────────────────
+        # ── Summary table ─────────────────────────────────────
         if summary:
-            passed = summary.get("passed", 0)
-            failed = summary.get("failed", 0)
+            passed  = summary.get("passed", 0)
+            failed  = summary.get("failed", 0)
             skipped = summary.get("skipped", 0)
-            duration = summary.get("duration", 0)
-            total = passed + failed + skipped
+            total   = passed + failed + skipped
+            dur     = summary.get("duration", 0)
 
-            summary_data = [
-                ["Total", str(total)],
-                ["Passed", str(passed)],
-                ["Failed", str(failed)],
-                ["Skipped", str(skipped)],
-                ["Duration", f"{duration:.1f}s"],
+            _lbl = _style("sl", fontSize=9, textColor=GREY, fontName="Helvetica-Bold")
+            sum_data = [
+                [Paragraph("Total",    _lbl), Paragraph(str(total),    _style("sv0", fontSize=9, textColor=DARK))],
+                [Paragraph("Passed",   _lbl), Paragraph(str(passed),   _style("sv1", fontSize=9, textColor=GREEN))],
+                [Paragraph("Failed",   _lbl), Paragraph(str(failed),   _style("sv2", fontSize=9, textColor=RED))],
+                [Paragraph("Skipped",  _lbl), Paragraph(str(skipped),  _style("sv3", fontSize=9, textColor=DARK))],
+                [Paragraph("Duration", _lbl), Paragraph(f"{dur:.1f}s", _style("sv4", fontSize=9, textColor=DARK))],
             ]
-            summary_table = Table(summary_data, colWidths=[40 * mm, 30 * mm], hAlign="LEFT")
-            summary_table.setStyle(TableStyle([
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f0f4ff")),
-                ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#555555")),
-                ("TEXTCOLOR", (1, 1), (1, 1), colors.HexColor("#16a34a")),
-                ("TEXTCOLOR", (1, 2), (1, 2), colors.HexColor("#dc2626")),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#dddddd")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            sum_tbl = Table(sum_data, colWidths=[55 * mm, 55 * mm], hAlign="LEFT")
+            sum_tbl.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (0, -1), FLGREY),
+                ("GRID",          (0, 0), (-1, -1), 0.25, LGREY),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+                ("TOPPADDING",    (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
             ]))
-            story.append(summary_table)
-            story.append(Spacer(1, 10))
+            story.append(sum_tbl)
+            story.append(Spacer(1, 14))
 
-        # ── Per-TC sections ──────────────────────────────────────
+        # ── Per test case ─────────────────────────────────────
         for entry in entries:
-            run_id = entry.get("tc_result_id") or entry.get("run_id")
+            run_id  = entry.get("tc_result_id") or entry.get("run_id")
             tc_code = entry.get("tc_code", "?")
-            title = entry.get("title", "")
-            status = entry.get("status", "unknown")
+            title   = entry.get("title", "Untitled")
+            status  = (entry.get("status") or "unknown").lower()
+
+            detail        = (run_details.get(run_id) or {}) if run_id else {}
+            tc_result     = detail.get("tc_result") or {}
+            exec_info     = detail.get("execution") or {}
+            exec_steps    = detail.get("steps") or []
+            justification = tc_result.get("justification") or ""
+
+            browser  = exec_info.get("browser") or ""
+            duration = tc_result.get("duration")
 
             if status == "passed":
-                icon, hex_color = "✓", "#16a34a"
+                icon_char  = "✓"
+                icon_color = GREEN
             elif status in ("failed", "error"):
-                icon, hex_color = "✗", "#dc2626"
+                icon_char  = "✗"
+                icon_color = RED
             else:
-                icon, hex_color = "—", "#6b7280"
+                icon_char  = "—"
+                icon_color = GREY
 
-            tc_block = []
-            tc_block.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb"), spaceAfter=3))
-            tc_block.append(Paragraph(
-                f'<font color="{hex_color}">{icon}</font>  <b>{tc_code}</b> — {title}',
-                ParagraphStyle("TCTitle", parent=styles["Normal"], fontSize=10, spaceAfter=3),
-            ))
+            block = []
+            block.append(Spacer(1, 8))
 
-            detail = run_details.get(run_id) if run_id else None
-            if detail and not detail.get("error"):
-                execution_info = detail.get("execution", {}) or {}
-                tc_result_info = detail.get("tc_result", {}) or {}
-                steps = detail.get("steps", [])
+            # ── TC heading ────────────────────────────────────
+            hdr_cells = [[
+                Paragraph(
+                    f"<b>{icon_char}</b>",
+                    _style(f"ico_{tc_code}", fontSize=11, textColor=icon_color,
+                           fontName="Helvetica-Bold"),
+                ),
+                Paragraph(
+                    f"<b>{tc_code}</b> — {title}",
+                    _style(f"tch_{tc_code}", fontSize=11, textColor=DARK,
+                           fontName="Helvetica-Bold"),
+                ),
+            ]]
+            hdr_tbl = Table(hdr_cells, colWidths=[7 * mm, W - 7 * mm], hAlign="LEFT")
+            hdr_tbl.setStyle(TableStyle([
+                ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+                ("TOPPADDING",    (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            block.append(hdr_tbl)
 
-                meta_rows = [["Status", status.upper()]]
-                if execution_info.get("browser"):
-                    meta_rows.append(["Browser", execution_info["browser"]])
-                if tc_result_info.get("duration") is not None:
-                    meta_rows.append(["Duration", f"{tc_result_info['duration']:.1f}s"])
-                if tc_result_info.get("justification"):
-                    meta_rows.append(["Result", tc_result_info["justification"][:120]])
+            # ── Meta table ────────────────────────────────────
+            _ml = _style("ml", fontSize=8, textColor=GREY)
+            _mv = _style("mv", fontSize=8, textColor=DARK)
 
-                meta_table = Table(meta_rows, colWidths=[30 * mm, 140 * mm], hAlign="LEFT")
-                meta_table.setStyle(TableStyle([
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                    ("TEXTCOLOR", (0, 0), (0, -1), grey),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#dddddd")),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ]))
-                tc_block.append(meta_table)
+            meta_rows = [
+                [Paragraph("Status",  _ml), Paragraph(status.upper(), _mv)],
+                [Paragraph("Browser", _ml), Paragraph(browser or "—", _mv)],
+            ]
+            if duration is not None:
+                meta_rows.append([Paragraph("Duration", _ml), Paragraph(f"{duration:.1f}s", _mv)])
+            if justification:
+                meta_rows.append([Paragraph("Result", _ml), Paragraph(justification[:300], _mv)])
 
-                if steps:
-                    tc_block.append(Spacer(1, 4))
-                    tc_block.append(Paragraph("Steps:", small))
-                    steps_data = [["#", "Type", "Content", "Status"]]
-                    for s in steps:
-                        step_status = s.get("status", "")
-                        step_icon = "✓" if step_status == "success" else "✗"
-                        steps_data.append([
-                            str(s.get("order", "")),
-                            s.get("type", "").upper()[:8],
-                            str(s.get("content", ""))[:90],
-                            step_icon,
-                        ])
-                    steps_table = Table(steps_data, colWidths=[8 * mm, 18 * mm, 130 * mm, 10 * mm], hAlign="LEFT")
-                    steps_table.setStyle(TableStyle([
-                        ("FONTSIZE", (0, 0), (-1, -1), 7),
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8fafc")),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                        ("GRID", (0, 0), (-1, -1), 0.2, colors.HexColor("#e5e7eb")),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                        ("TOPPADDING", (0, 0), (-1, -1), 2),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                        ("TEXTCOLOR", (3, 1), (3, -1), grey),
-                    ]))
-                    tc_block.append(steps_table)
-            else:
-                tc_block.append(Paragraph(f"Status: {status.upper()}", body))
+            meta_tbl = Table(meta_rows, colWidths=[25 * mm, W - 25 * mm], hAlign="LEFT")
+            meta_tbl.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (0, -1), FLGREY),
+                ("GRID",          (0, 0), (-1, -1), 0.25, LGREY),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+                ("TOPPADDING",    (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ]))
+            block.append(meta_tbl)
+            block.append(Spacer(1, 4))
 
-            tc_block.append(Spacer(1, 6))
-            story.append(KeepTogether(tc_block))
+            # ── Steps table ───────────────────────────────────
+            if exec_steps:
+                block.append(Paragraph("Steps:", S["small"]))
 
-        # ── Footer ───────────────────────────────────────────────
+                _th = _style("th", fontSize=8, fontName="Helvetica-Bold", textColor=DARK)
+                trace_rows = [[
+                    Paragraph("#",       _th),
+                    Paragraph("Type",    _th),
+                    Paragraph("Content", _th),
+                    Paragraph("Status",  _th),
+                ]]
+                alt_style = []
+
+                for row_i, s in enumerate(exec_steps, start=1):
+                    stype   = (s.get("type") or "act").lower()
+                    sstatus = (s.get("status") or "").lower()
+                    is_failed = sstatus in ("failed", "error") or stype == "error"
+
+                    type_label = stype.upper()
+                    main_content = (s.get("content") or s.get("action") or "")
+                    step_err = (
+                        s.get("error") or s.get("error_message") or
+                        s.get("error_detail") or ""
+                    )
+
+                    content_text = main_content[:300]
+                    if is_failed and step_err:
+                        content_text += f"\nError: {step_err[:200]}"
+                    content_cell = Paragraph(
+                        content_text,
+                        _style(f"cc_{row_i}", fontSize=7, textColor=DARK, leading=10),
+                    )
+
+                    if sstatus in ("success", "passed"):
+                        result_char  = "✓"
+                        result_color = GREY
+                    elif is_failed:
+                        result_char  = "✗"
+                        result_color = RED
+                    else:
+                        result_char  = "—"
+                        result_color = GREY
+
+                    trace_rows.append([
+                        Paragraph(
+                            str(s.get("order", row_i - 1)),
+                            _style(f"tn_{row_i}", fontSize=7, textColor=GREY),
+                        ),
+                        Paragraph(
+                            type_label,
+                            _style(f"tt_{row_i}", fontSize=7, textColor=GREY),
+                        ),
+                        content_cell,
+                        Paragraph(
+                            result_char,
+                            _style(f"ri_{row_i}", fontSize=9, textColor=result_color,
+                                   alignment=TA_CENTER),
+                        ),
+                    ])
+
+                    if row_i % 2 == 0:
+                        alt_style.append(("BACKGROUND", (0, row_i), (-1, row_i), FLGREY))
+
+                trace_tbl = Table(
+                    trace_rows,
+                    colWidths=[10 * mm, 13 * mm, 135 * mm, 12 * mm],
+                    hAlign="LEFT",
+                )
+                trace_tbl.setStyle(TableStyle([
+                    ("FONTSIZE",      (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+                    ("TOPPADDING",    (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+                    ("GRID",          (0, 0), (-1, -1), 0.2, LGREY),
+                    ("ALIGN",         (3, 0), (3, -1),  "CENTER"),
+                    ("BACKGROUND",    (0, 0), (-1, 0),  FLGREY),
+                ] + alt_style))
+                block.append(trace_tbl)
+
+            block.append(Spacer(1, 10))
+
+            story.append(KeepTogether(block[:4]))
+            story.extend(block[4:])
+
+        # ── Footer ────────────────────────────────────────────
         story.append(Spacer(1, 12))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey, spaceAfter=4))
+        story.append(_hr(LGREY, 0.5, 4))
         story.append(Paragraph(
             "Generated by TestForge AI — Intelligent Test Automation",
-            footer_style,
+            S["footer"],
         ))
 
         doc.build(story)

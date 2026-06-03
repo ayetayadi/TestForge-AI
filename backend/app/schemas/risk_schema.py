@@ -36,10 +36,10 @@ class RiskBase(BaseModel):
         description="Probability of failure: 1 (unlikely) to 5 (almost certain)"
     )
     
-    # ── PROBABILITY FACTORS (Document original) ──
+    # ── PROBABILITY FACTORS ──
     probability_factors: Optional[Dict[str, int]] = Field(
         None,
-        description="Detail factors: {complexity, change_rate, dev_experience, tech_debt} each 1-5"
+        description="P sub-factors: {story_complexity, ac_complexity, dependencies, clarity} each 1-5. P = round(avg)."
     )
     probability_reasoning: Optional[str] = Field(
         None,
@@ -54,10 +54,10 @@ class RiskBase(BaseModel):
         description="Impact severity: 1 (minimal) to 5 (business-critical)"
     )
     
-    # ── IMPACT FACTORS (Document original) ──
+    # ── IMPACT FACTORS ──
     impact_factors: Optional[Dict[str, int]] = Field(
         None,
-        description="Detail factors: {users_affected, revenue, safety, reputation} each 1-5"
+        description="I sub-factors: {users_affected, revenue, safety, reputation} each 1-5. I = round(avg)."
     )
     impact_reasoning: Optional[str] = Field(
         None,
@@ -114,19 +114,18 @@ class RiskBase(BaseModel):
     
     def compute_level(self) -> str:
         """
-        Classify risk level based on score.
-        Document original thresholds:
-        - Critical: 20-25
-        - High: 12-19
-        - Medium: 6-11
-        - Low: 1-5
+        ISTQB 5×5 matrix classification (Score = P × I, range 1-25):
+        - Critical : 15-25
+        - High     :  9-14
+        - Medium   :  4-8
+        - Low      :  1-3
         """
         score = self.compute_risk_score()
-        if score >= 20:
+        if score >= 15:
             return "critical"
-        if score >= 12:
+        if score >= 9:
             return "high"
-        if score >= 6:
+        if score >= 4:
             return "medium"
         return "low"
     

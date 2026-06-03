@@ -109,6 +109,7 @@ async def generate_test_suites(
         result = await service.generate_suites(
             test_plan_id=request.test_plan_id,
             project_name=request.project_name,
+            strategy=request.strategy,
         )
         return GenerateTestSuitesResponse(**result)
     except ValueError as exc:

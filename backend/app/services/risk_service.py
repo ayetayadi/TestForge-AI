@@ -22,7 +22,6 @@ from app.schemas.risk_schema import (
 from app.ai_workflows.risk_analysis.pipeline import (
     RiskAnalysisPipeline,
     get_pipeline,
-    analyse_stories_batch,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,17 +46,12 @@ class RiskService:
         test_plan_id: Optional[str] = None,
     ) -> RiskResponse:
         """
-        Analyze a User Story with LLM for risk assessment.
-        
-        Pipeline (aligned with Risk Based Testing document):
-          1. LLM analyzes story + ACs
-          2. Returns P (1-5), I (1-5), description, mitigation, reasoning
-          3. Calculates Score = P × I
-          4. Classifies level: Critical (20+) / High (12-19) / Medium (6-11) / Low (1-5)
-          5. Recommends test depth
+        Analyze a User Story with LLM (ISTQB Risk-Based Testing).
+        Creates one Risk record per identified scenario (1-3 per story).
+        Returns the highest-scoring risk record.
         """
         pipeline = get_pipeline()
-        
+
         result = await pipeline.run(
             story=story,
             acceptance_criteria=acceptance_criteria,
@@ -65,41 +59,47 @@ class RiskService:
             user_story_id=user_story_id,
             test_plan_id=test_plan_id,
         )
-        
+
         if result.get("workflow_status") == "error":
             logger.error(f"Risk analysis failed: {result.get('error')}")
             raise ValueError(f"Risk analysis failed: {result.get('error')}")
-        
-        risk_create = RiskCreate(
-            user_story_id=user_story_id,
-            test_plan_id=test_plan_id,
-            description=result["description"],
-            mitigation=result.get("mitigation", ""),
-            reasoning=result.get("reasoning", ""),
-            probability=result["probability"],          # 1-5
-            impact=result["impact"],                    # 1-5
-            probability_factors=result.get("probability_factors"),
-            impact_factors=result.get("impact_factors"),
-            probability_reasoning=result.get("probability_reasoning"),
-            impact_reasoning=result.get("impact_reasoning"),
-            test_depth=result.get("test_depth", "standard"),
-            is_ai_generated=True,
-            is_accepted=None,
-            source="llm",
-            source_story_text=story,
-            source_acceptance_criteria=acceptance_criteria,
-        )
-    
-        risk = await self.repository.create(risk_create)
+
+        valid_depths = {"comprehensive", "thorough", "standard", "smoke"}
+        created_risks = []
+        for risk_data in result.get("risks", []):
+            td = risk_data.get("test_depth", "standard")
+            risk_create = RiskCreate(
+                user_story_id=user_story_id,
+                test_plan_id=test_plan_id,
+                description=risk_data.get("description", ""),
+                mitigation=risk_data.get("mitigation", ""),
+                reasoning=risk_data.get("reasoning", ""),
+                probability=risk_data["probability"],
+                impact=risk_data["impact"],
+                probability_factors=risk_data.get("probability_factors"),
+                impact_factors=risk_data.get("impact_factors"),
+                probability_reasoning=risk_data.get("probability_reasoning", ""),
+                impact_reasoning=risk_data.get("impact_reasoning", ""),
+                test_depth=td if td in valid_depths else "standard",
+                is_ai_generated=True,
+                is_accepted=None,
+                source="llm",
+                source_story_text=story,
+                source_acceptance_criteria=acceptance_criteria,
+            )
+            risk = await self.repository.create(risk_create)
+            created_risks.append(risk)
+
         await self.db.commit()
-    
+
+        # Return the highest-scoring risk for backward compatibility
+        primary = max(created_risks, key=lambda r: r.risk_score)
         logger.info(
-            f"[RISK SERVICE] Analysis complete for {issue_key}: "
-            f"P={risk.probability} I={risk.impact} Score={risk.risk_score} "
-            f"Level={risk.level} TestDepth={risk.test_depth}"
+            f"[RISK SERVICE] {issue_key}: {len(created_risks)} scenario(s) — "
+            f"highest P={primary.probability} I={primary.impact} "
+            f"Score={primary.risk_score} Level={primary.level}"
         )
-        
-        return RiskResponse.model_validate(risk)
+        return RiskResponse.model_validate(primary)
 
     async def analyze_user_stories_batch(
         self,
@@ -108,31 +108,36 @@ class RiskService:
         concurrency: int = 2,
     ) -> RiskBatchResponse:
         """
-        Analyze multiple User Stories in batch with LLM.
-        
+        Analyze multiple User Stories in batch (ISTQB Risk-Based Testing).
+        Creates one Risk record per identified scenario (1-3 per story).
+
         Args:
-            stories_data: List of dicts with keys:
-                - story (str): The user story text
-                - acceptance_criteria (List[str]): ACs
-                - user_story_id (str): DB ID
-                - issue_key (str): Jira key
-            test_plan_id: Optional test plan to link risks to
-            concurrency: Max parallel LLM calls (keep low to avoid rate limits)
+            stories_data: list of dicts with story, acceptance_criteria,
+                          user_story_id, issue_key
+            concurrency:  max parallel LLM calls (keep low to avoid rate limits)
         """
+        import asyncio as _asyncio
         pipeline = get_pipeline()
-        
-        # Run batch analysis via pipeline
-        ai_results = await analyse_stories_batch(
-            pipeline=pipeline,
-            stories=stories_data,
-            test_plan_id=test_plan_id,
-            concurrency=concurrency,
+        semaphore = _asyncio.Semaphore(concurrency)
+        valid_depths = {"comprehensive", "thorough", "standard", "smoke"}
+
+        async def _run_one(story_data: Dict[str, Any]) -> Dict[str, Any]:
+            async with semaphore:
+                return await pipeline.run(
+                    story=story_data.get("story", ""),
+                    acceptance_criteria=story_data.get("acceptance_criteria", []),
+                    issue_key=story_data.get("issue_key", "?"),
+                    user_story_id=story_data.get("user_story_id"),
+                    test_plan_id=test_plan_id,
+                )
+
+        ai_results = await _asyncio.gather(
+            *[_run_one(s) for s in stories_data], return_exceptions=False
         )
-        
-        # Transform each result into a persisted risk
+
         created = []
         failed = []
-        
+
         for idx, result in enumerate(ai_results):
             if result.get("workflow_status") == "error":
                 failed.append({
@@ -141,41 +146,41 @@ class RiskService:
                     "issue_key": result.get("issue_key", "?"),
                 })
                 continue
-            
-            try:
-                risk_create = RiskCreate(
-                    user_story_id=result.get("user_story_id"),
-                    test_plan_id=test_plan_id,
-                    description=result["description"],
-                    mitigation=result.get("mitigation", ""),
-                    reasoning=result.get("reasoning", ""),
-                    probability=result["probability"],
-                    impact=result["impact"],
-                    probability_factors=result.get("probability_factors"),
-                    impact_factors=result.get("impact_factors"),
-                    probability_reasoning=result.get("probability_reasoning"),
-                    impact_reasoning=result.get("impact_reasoning"),
-                    test_depth=result.get("test_depth", "standard"),
-                    is_ai_generated=True,
-                    is_accepted=None,
-                    source="llm",
-                    source_story_text=result.get("source_story_text", ""),
-                    source_acceptance_criteria=result.get("source_acceptance_criteria", []),
-                )
-                
-                risk = await self.repository.create(risk_create)
-                created.append(risk)
-                
-            except Exception as e:
-                logger.error(f"Failed to persist risk for {result.get('issue_key')}: {e}")
-                failed.append({
-                    "index": idx,
-                    "error": str(e),
-                    "issue_key": result.get("issue_key", "?"),
-                })
-        
+
+            for risk_data in result.get("risks", []):
+                try:
+                    td = risk_data.get("test_depth", "standard")
+                    risk_create = RiskCreate(
+                        user_story_id=risk_data.get("user_story_id"),
+                        test_plan_id=test_plan_id,
+                        description=risk_data.get("description", ""),
+                        mitigation=risk_data.get("mitigation", ""),
+                        reasoning=risk_data.get("reasoning", ""),
+                        probability=risk_data["probability"],
+                        impact=risk_data["impact"],
+                        probability_factors=risk_data.get("probability_factors"),
+                        impact_factors=risk_data.get("impact_factors"),
+                        probability_reasoning=risk_data.get("probability_reasoning", ""),
+                        impact_reasoning=risk_data.get("impact_reasoning", ""),
+                        test_depth=td if td in valid_depths else "standard",
+                        is_ai_generated=True,
+                        is_accepted=None,
+                        source="llm",
+                    )
+                    risk = await self.repository.create(risk_create)
+                    created.append(risk)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to persist risk for {result.get('issue_key')}: {e}"
+                    )
+                    failed.append({
+                        "index": idx,
+                        "error": str(e),
+                        "issue_key": result.get("issue_key", "?"),
+                    })
+
         await self.db.commit()
-        
+
         return RiskBatchResponse(
             created=[RiskResponse.model_validate(r) for r in created],
             failed=failed,

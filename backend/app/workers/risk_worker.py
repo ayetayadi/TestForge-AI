@@ -152,57 +152,55 @@ class RiskAnalysisWorker:
                         result.get("error", "LLM pipeline returned error")
                     )
 
-                # ── STEP 3: Persist Risk ──
+                # ── STEP 3: Persist one Risk record per scenario ──
                 await self._notify(job_id, "risk_processing", {
                     "status": "persisting",
-                    "message": "Saving risk assessment to database...",
+                    "message": f"Saving {len(result.get('risks', []))} risk scenario(s)...",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
 
-                # Extract test_depth from LLM result
-                test_depth_raw = result.get("test_depth")
-                if isinstance(test_depth_raw, dict):
-                    test_depth_value = test_depth_raw.get("depth", "standard")
-                else:
-                    test_depth_value = test_depth_raw or "standard"
-                
-                valid_depths = ["comprehensive", "thorough", "standard", "smoke"]
-                test_depth_value = test_depth_value if test_depth_value in valid_depths else "standard"
-
+                valid_depths = {"comprehensive", "thorough", "standard", "smoke"}
                 repo = RiskRepository(db)
-                risk = await repo.create(RiskCreate(
-                    user_story_id=user_story_id,
-                    test_plan_id=test_plan_id,
-                    description=result["description"],
-                    mitigation=result.get("mitigation", ""),
-                    reasoning=result.get("reasoning", ""),
-                    probability=result["probability"],          # 1-5
-                    impact=result["impact"],                    # 1-5
-                    probability_factors=result.get("probability_factors"),
-                    impact_factors=result.get("impact_factors"),
-                    probability_reasoning=result.get("probability_reasoning"),
-                    impact_reasoning=result.get("impact_reasoning"),
-                    test_depth=test_depth_value,
-                    is_ai_generated=True,
-                    is_accepted=None,
-                    source=content["source"],
-                    source_version_id=content.get("version_id"),
-                    source_story_text=content["story"],
-                    source_acceptance_criteria=json.dumps(content["acceptance_criteria"]),
-                ))
-                await db.commit()
+                created_risks = []
 
-                # Increment success counter
+                for risk_data in result.get("risks", []):
+                    test_depth_raw = risk_data.get("test_depth", "standard")
+                    test_depth_value = test_depth_raw if test_depth_raw in valid_depths else "standard"
+
+                    risk = await repo.create(RiskCreate(
+                        user_story_id=user_story_id,
+                        test_plan_id=test_plan_id,
+                        description=risk_data.get("description", ""),
+                        mitigation=risk_data.get("mitigation", ""),
+                        reasoning=risk_data.get("reasoning", ""),
+                        probability=risk_data["probability"],
+                        impact=risk_data["impact"],
+                        probability_factors=risk_data.get("probability_factors"),
+                        impact_factors=risk_data.get("impact_factors"),
+                        probability_reasoning=risk_data.get("probability_reasoning", ""),
+                        impact_reasoning=risk_data.get("impact_reasoning", ""),
+                        test_depth=test_depth_value,
+                        is_ai_generated=True,
+                        is_accepted=None,
+                        source=content["source"],
+                        source_version_id=content.get("version_id"),
+                        source_story_text=content["story"],
+                        source_acceptance_criteria=json.dumps(content["acceptance_criteria"]),
+                    ))
+                    created_risks.append(risk)
+                    logger.info(
+                        f"[WORKER-{self.worker_id}] ✅ Risk {risk.id} "
+                        f"scenario='{risk_data.get('scenario', '?')}' "
+                        f"P={risk.probability} I={risk.impact} "
+                        f"Score={risk.risk_score} Level={risk.level}"
+                    )
+
+                await db.commit()
                 self.jobs_processed += 1
 
-                # ── LOG SUCCESS ──
                 logger.info(
-                    f"[WORKER-{self.worker_id}] ✅ Risk {risk.id} created "
-                    f"for {issue_key}: "
-                    f"P={risk.probability} I={risk.impact} "
-                    f"Score={risk.risk_score} Level={risk.level} "
-                    f"TestDepth={risk.test_depth} "
-                    f"Source={content['source']} "
+                    f"[WORKER-{self.worker_id}] ✅ {len(created_risks)} risk(s) created "
+                    f"for {issue_key} | Source={content['source']} "
                     f"(jobs: {self.jobs_processed} ok, {self.jobs_failed} failed)"
                 )
 
@@ -210,18 +208,22 @@ class RiskAnalysisWorker:
                 await self._notify(job_id, "risk_analyzed", {
                     "status": "completed",
                     "worker_id": self.worker_id,
-                    "risk_id": risk.id,
                     "user_story_id": user_story_id,
                     "issue_key": issue_key,
-                    "level": risk.level,
-                    "risk_score": risk.risk_score,
-                    "probability": risk.probability,
-                    "impact": risk.impact,
-                    "description": risk.description,
-                    "mitigation": risk.mitigation,
-                    "test_depth": risk.test_depth,
-                    "probability_factors": risk.probability_factors,
-                    "impact_factors": risk.impact_factors,
+                    "risk_count": len(created_risks),
+                    "risks": [
+                        {
+                            "risk_id": r.id,
+                            "level": r.level,
+                            "risk_score": r.risk_score,
+                            "probability": r.probability,
+                            "impact": r.impact,
+                            "description": r.description,
+                            "mitigation": r.mitigation,
+                            "test_depth": r.test_depth,
+                        }
+                        for r in created_risks
+                    ],
                     "source": content["source"],
                     "can_modify": True,
                     "timestamp": datetime.now(timezone.utc).isoformat(),

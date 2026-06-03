@@ -155,11 +155,25 @@ mat-sidenav-container {
 .sidebar-scroll-container {
   height: calc(100vh - 80px);
   overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+
   &::-webkit-scrollbar {
-    display: none;
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+
+    &:hover {
+      background: #94a3b8;
+    }
   }
 }
 

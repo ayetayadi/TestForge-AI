@@ -14,15 +14,16 @@ if TYPE_CHECKING:
 
 class Risk(Base):
     """
-    Risk analysis for User Stories with Acceptance Criteria.
-    
-    LLM analyzes the story → gives P (1-5) and I (1-5) → Score = P × I
-    
-    Classification:
-    - Critical: 20-25 → Comprehensive testing (60% effort)
-    - High: 12-19     → Thorough testing (25% effort)
-    - Medium: 6-11    → Standard testing (10% effort)
-    - Low: 1-5        → Smoke tests (5% effort)
+    Risk analysis for User Stories — ISTQB Risk-Based Testing.
+
+    LLM identifies 1-3 risk scenarios per story.
+    Each scenario: P (1-5) × I (1-5) = Score (1-25)
+
+    Classification (ISTQB 5×5 matrix):
+    - Critical : 15-25 → Comprehensive testing (60% effort)
+    - High     :  9-14 → Thorough testing     (25% effort)
+    - Medium   :  4-8  → Standard testing     (10% effort)
+    - Low      :  1-3  → Smoke tests           (5% effort)
     """
     __tablename__ = "risks"
 
@@ -145,6 +146,19 @@ class Risk(Base):
     )  # When was it accepted/rejected?
 
     # ==============================
+    # RESIDUAL RISK  (ISTQB §5.5 — assessed after test execution)
+    # Set by QA lead after testing is complete, not during initial analysis.
+    # ==============================
+    residual_risk_score: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True,
+        comment="Remaining risk score after test execution and defect fixing"
+    )
+    residual_level: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True,
+        comment="critical | high | medium | low — after mitigation"
+    )
+
+    # ==============================
     # TIMESTAMPS
     # ==============================
     created_at: Mapped[datetime] = mapped_column(
@@ -190,13 +204,13 @@ class Risk(Base):
 
     @property
     def is_critical(self) -> bool:
-        """Score ≥ 20 → Comprehensive testing required."""
-        return self.risk_score >= 20
+        """Score ≥ 15 → Comprehensive testing required (ISTQB 5×5 threshold)."""
+        return self.risk_score >= 15
 
     @property
     def is_high_priority(self) -> bool:
-        """Score ≥ 12 → Thorough testing required."""
-        return self.risk_score >= 12
+        """Score ≥ 9 → Thorough testing required."""
+        return self.risk_score >= 9
 
     @property
     def risk_matrix_position(self) -> str:

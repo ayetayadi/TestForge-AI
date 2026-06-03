@@ -5,15 +5,18 @@ load_dotenv()
 
 # ============================================================
 # LLM
+# Uses Groq llama-3.3-70b-versatile — native structured output,
+# fastest available, no slash so routes to the Groq pool directly.
+# max_tokens is kept small because the output schema is flat ints
+# + two short strings; no verbose reasoning requested.
 # ============================================================
-LLM_TEMPERATURE = 0.2
-LLM_MODEL = "openai/gpt-oss-120b"
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS_RISK", "1500"))
-LLM_TIMEOUT_SECONDS = 240
+LLM_TEMPERATURE = 0.1
+LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MAX_TOKENS = 800
+LLM_TIMEOUT_SECONDS = 60
 
 # ============================================================
-# ÉCHELLES CONFORMES AU DOCUMENT ORIGINAL
-# P et I sont tous les deux sur une échelle 1-5
+# P and I SCALES  (ISTQB Risk-Based Testing — 1-5 ordinal scale)
 # ============================================================
 PROBABILITY_MIN = 1
 PROBABILITY_MAX = 5
@@ -21,62 +24,45 @@ IMPACT_MIN = 1
 IMPACT_MAX = 5
 
 # ============================================================
-# SEUILS DE CLASSIFICATION (Document original)
-# Critical ≥ 20 | High 12-19 | Medium 6-11 | Low 1-5
+# CLASSIFICATION THRESHOLDS  (ISTQB 5×5 matrix, 25-point scale)
+#
+#   Critical : 15 – 25
+#   High     :  9 – 14
+#   Medium   :  4 –  8
+#   Low      :  1 –  3
 # ============================================================
-LEVEL_CRITICAL_MIN = 20
-LEVEL_HIGH_MIN = 12
-LEVEL_MEDIUM_MIN = 6
-# Low : risk_score 1-5
+LEVEL_CRITICAL_MIN = 15
+LEVEL_HIGH_MIN = 9
+LEVEL_MEDIUM_MIN = 4
 
 # ============================================================
-# FACTEURS DE PROBABILITÉ (Document original)
+# PROBABILITY SUB-FACTORS  (derivable from user story text)
+# P = round( avg(story_complexity, ac_complexity, dependencies, clarity) )
 # ============================================================
 PROBABILITY_FACTORS = {
-    "complexity": {
-        "simple_crud": 1,
-        "business_logic": 3,
-        "algorithms_integrations": 5
-    },
-    "change_rate": {
-        "stable_6months": 1,
-        "monthly": 3,
-        "weekly_daily": 5
-    },
-    "developer_experience": {
-        "senior_expert": 1,
-        "mid_level": 3,
-        "junior_new": 5
-    },
-    "technical_debt": {
-        "clean_code": 1,
-        "some_debt": 3,
-        "legacy_no_tests": 5
-    }
+    "story_complexity": "1=trivial display, 3=some conditions/rules, 5=complex logic/algorithms",
+    "ac_complexity":    "1=1-2 simple ACs, 3=3-5 with detail, 5=6+ ACs with edge cases",
+    "dependencies":     "1=standalone, 3=one external system, 5=many systems (payment, email…)",
+    "clarity":          "1=perfectly clear, 3=some vague terms, 5=unclear/missing details",
 }
 
 # ============================================================
-# FACTEURS D'IMPACT (Document original)
+# IMPACT SUB-FACTORS  (ISTQB standard impact dimensions)
+# I = round( avg(users_affected, revenue, safety, reputation) )
 # ============================================================
 IMPACT_FACTORS = {
-    "users_affected": {
-        "admin_only": 1,
-        "department": 3,
-        "all_users": 5
-    },
-    "revenue": {
-        "none": 1,
-        "indirect": 3,
-        "direct_checkout": 5
-    },
-    "safety": {
-        "convenience": 1,
-        "data_loss": 3,
-        "physical_harm": 5
-    },
-    "reputation": {
-        "internal": 1,
-        "industry": 3,
-        "public_scandal": 5
-    }
+    "users_affected": "1=admin/internal, 3=department/group, 5=all end-users/public",
+    "revenue":        "1=no impact, 3=indirect (analytics), 5=direct (payments/orders)",
+    "safety":         "1=cosmetic only, 3=data loss risk, 5=security breach/legal",
+    "reputation":     "1=internal only, 3=visible to clients, 5=public-facing",
+}
+
+# ============================================================
+# EFFORT ALLOCATION BY RISK LEVEL  (ISTQB §5.2.4)
+# ============================================================
+EFFORT_ALLOCATION = {
+    "critical": 0.60,
+    "high":     0.25,
+    "medium":   0.10,
+    "low":      0.05,
 }

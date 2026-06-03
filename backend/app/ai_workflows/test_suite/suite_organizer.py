@@ -3,12 +3,15 @@ Pure functions for test suite organization.
 
 No LLM, no I/O:
   - group_by_test_type   → one suite per test type (positive, negative, edge_case)
+  - group_by_user_story  → one suite per User Story
+  - topological_sort_tcs → Kahn's algorithm sort respecting explicit dependency edges
   - assign_suite_order   → set execution_order on suites
   - build_suite_record   → assemble a TestSuite-compatible dict
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.ai_workflows.test_suite.config import (
     MIN_TC_PER_SUITE,
@@ -30,6 +33,73 @@ def group_by_test_type(test_cases: List[Dict[str, Any]]) -> Dict[str, List[Dict[
         t = (tc.get("test_type") or "positive").lower()
         groups.setdefault(t, []).append(tc)
     return {k: v for k, v in groups.items() if len(v) >= MIN_TC_PER_SUITE}
+
+def group_by_user_story(test_cases: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Group test cases by user_story_id. Each story gets its own suite.
+    TCs with no story are grouped under 'unassigned'."""
+    groups: Dict[str, List] = {}
+    for tc in test_cases:
+        us_id = tc.get("user_story_id") or "unassigned"
+        groups.setdefault(us_id, []).append(tc)
+    return {k: v for k, v in groups.items() if len(v) >= MIN_TC_PER_SUITE}
+
+
+def topological_sort_tcs(
+    tcs: List[Any],
+    dependency_edges: List[Tuple[str, str]],
+    sort_key_fn: Callable[[Any], Any],
+) -> List[Any]:
+    """
+    Kahn's algorithm topological sort respecting explicit dependency edges.
+
+    dependency_edges: list of (source_tc_code, target_tc_code) — source runs BEFORE target.
+    sort_key_fn: tiebreaker applied within the same "wave" of zero-in-degree nodes.
+
+    TCs not referenced in any edge are still included, ordered by sort_key_fn.
+    Cycles are detected and the remaining TCs are appended sorted by sort_key_fn.
+    """
+    def _code(tc: Any) -> str:
+        return tc.tc_code if hasattr(tc, "tc_code") else tc.get("tc_code", "")
+
+    tc_map: Dict[str, Any] = {_code(tc): tc for tc in tcs}
+    valid_edges = [(s, t) for s, t in dependency_edges if s in tc_map and t in tc_map]
+
+    adj: Dict[str, List[str]] = defaultdict(list)
+    in_degree: Dict[str, int] = {code: 0 for code in tc_map}
+
+    for src, tgt in valid_edges:
+        adj[src].append(tgt)
+        in_degree[tgt] += 1
+
+    ready = sorted(
+        [tc for tc in tcs if in_degree[_code(tc)] == 0],
+        key=sort_key_fn,
+    )
+
+    result: List[Any] = []
+    while ready:
+        current = ready.pop(0)
+        result.append(current)
+        for neighbor_code in adj.get(_code(current), []):
+            in_degree[neighbor_code] -= 1
+            if in_degree[neighbor_code] == 0:
+                ready.append(tc_map[neighbor_code])
+                ready.sort(key=sort_key_fn)
+
+    # Cycle fallback: append remaining TCs sorted by sort_key_fn
+    processed = {_code(tc) for tc in result}
+    remaining = sorted(
+        [tc for tc in tcs if _code(tc) not in processed],
+        key=sort_key_fn,
+    )
+    if remaining:
+        logger.warning(
+            f"[TOPO SORT] {len(remaining)} TCs in dependency cycle — appended at end"
+        )
+    result.extend(remaining)
+    return result
+
+
 
 def pick_suite_type(group_key: str) -> str:
     """Retourne le type de scénario comme suite_type."""

@@ -138,7 +138,7 @@ class DependencyNode(BaseModel):
     test_type: Optional[str] = None
     execution_order: Optional[int] = None
     test_suite_id: Optional[str] = None
-    business_flow: Optional[str] = None  # ← Déjà présent    
+    business_flow: Optional[str] = None  # ← Déjà présent
     flow_rank: Optional[int] = Field(None, description="Business flow rank (1-8)")
     risk_weight: Optional[int] = Field(None, description="Risk weight (100-1000)")
     status_color: Optional[str] = Field(None, description="Couleur selon le flow")
@@ -268,14 +268,18 @@ class TestSuiteDetailSchema(BaseModel):
 class GenerateTestSuitesRequest(BaseModel):
     test_plan_id: str = Field(..., description="Parent Test Plan ID")
     project_name: str = Field("", description="Project name for suite titles")
+    strategy: str = Field(
+        "user_story",
+        description="Grouping strategy: 'user_story' (one suite per User Story) or 'test_type' (positive/negative/boundary)",
+    )
 
 
 class GenerateTestSuitesResponse(BaseModel):
     suites: List[Dict[str, Any]] = Field(default_factory=list)
     count: int = 0
-    strategy: str = "risk_level"
+    strategy: str = "user_story"
     workflow_status: str = "success"
-    error: Optional[str] = None  # ✅ Ajouté pour les erreurs
+    error: Optional[str] = None
 
 
 # ============================================================
