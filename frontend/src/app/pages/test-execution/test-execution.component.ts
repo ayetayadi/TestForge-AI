@@ -57,6 +57,22 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
   globalStats    = signal<TestExecutionGlobalStats | null>(null);
   suites         = signal<TestSuiteListItem[]>([]);
 
+  // ── Pagination ────────────────────────────────────────────────────────────────
+  readonly pageSize = 10;
+  currentPage = signal(1);
+  pagedExecutions = computed(() => {
+    const start = (this.currentPage() - 1) * this.pageSize;
+    return this.executions().slice(start, start + this.pageSize);
+  });
+  totalPages = computed(() => Math.max(1, Math.ceil(this.executions().length / this.pageSize)));
+  pageNumbers = computed(() => Array.from({ length: this.totalPages() }, (_, i) => i + 1));
+
+  // ── Delete ───────────────────────────────────────────────────────────────────
+  deletingId = signal<string | null>(null);
+
+  // ── Relaunch ─────────────────────────────────────────────────────────────────
+  relaunchingId = signal<string | null>(null);
+
   // ── Run modal ────────────────────────────────────────────────────────────────
   showRunModal       = signal(false);
   runModalStep       = signal<1 | 2>(1);
@@ -116,7 +132,8 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
   // ── Data loading ─────────────────────────────────────────────────────────────
   loadExecutions(): void {
     this.isLoading.set(true);
-    this.playwrightService.listTestExecutions({ limit: 50 }).subscribe({
+    this.currentPage.set(1);
+    this.playwrightService.listTestExecutions({ limit: 200 }).subscribe({
       next: (res) => {
         this.executions.set(res.items);
         this.globalStats.set(res.stats);
@@ -125,6 +142,29 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
       error: () => {
         this.toastService.error('Failed to load executions');
         this.isLoading.set(false);
+      },
+    });
+  }
+
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages()) return;
+    this.currentPage.set(page);
+  }
+
+  deleteExecution(ex: TestExecutionBasic, event: Event): void {
+    event.stopPropagation();
+    if (!confirm(`Delete execution of "${ex.suite_title || 'this suite'}"? This cannot be undone.`)) return;
+    this.deletingId.set(ex.id);
+    this.playwrightService.deleteExecution(ex.id).subscribe({
+      next: () => {
+        this.executions.update(list => list.filter(e => e.id !== ex.id));
+        this.toastService.success('Execution deleted');
+        if (this.currentPage() > this.totalPages()) this.currentPage.set(this.totalPages());
+        this.deletingId.set(null);
+      },
+      error: () => {
+        this.toastService.error('Failed to delete execution');
+        this.deletingId.set(null);
       },
     });
   }
@@ -237,38 +277,99 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
       next: () => {
         this.isSavingOrder.set(false);
         this.showRunModal.set(false);
-        this.suiteRunningName.set(suiteName);
-        this.isSuiteRunning.set(true);
-        this.showLivePanel.set(true);
-        this.suiteLogEntries.set([]);
-        this.currentExecutionId.set(null);
-
-        this.suiteSub?.unsubscribe();
-        this.suiteSub = this.playwrightService.connectSuiteStream(suiteId).subscribe({
-          next: (event) => this._handleSuiteEvent(event),
-          error: () => {
-            this.isSuiteRunning.set(false);
-            this.toastService.error('Execution stream disconnected');
-          },
-          complete: () => this.isSuiteRunning.set(false),
-        });
-
-        this.playwrightService.executeSuiteSmart(suiteId, {
+        this._launchSuite(suiteId, suiteName, {
           app_url: this.runModalAppUrl(),
           browser: this.runModalBrowser(),
           headless: this.runModalHeadless(),
           stop_on_failure: this.runModalStopOnFail(),
           model_id: this.runModalModel(),
-        }).subscribe({
-          error: () => {
-            this.isSuiteRunning.set(false);
-            this.toastService.error('Failed to start suite execution');
-          },
         });
       },
       error: () => {
         this.isSavingOrder.set(false);
         this.toastService.error('Failed to save execution order');
+      },
+    });
+  }
+
+  /**
+   * Relance une exécution avec la même configuration (suite, URL, navigateur).
+   * Recharge les TCs de la suite pour afficher leurs codes/titres dans le panneau live.
+   */
+  relaunchExecution(ex: TestExecutionBasic, event: Event): void {
+    event.stopPropagation();
+    if (this.isSuiteRunning()) {
+      this.toastService.error('A suite is already running — wait for it to finish');
+      return;
+    }
+
+    const suiteId = ex.suite_id;
+    const suiteName = ex.suite_title || 'Test suite';
+    this.relaunchingId.set(ex.id);
+
+    this.testSuiteService.getById(suiteId).subscribe({
+      next: (suite) => {
+        const tcs: ModalTcRow[] = suite.test_cases
+          .filter(tc => tc.is_active)
+          .sort((a, b) => (a.execution_order ?? 999) - (b.execution_order ?? 999))
+          .map((tc, idx) => ({
+            id: tc.id,
+            tc_code: tc.tc_code,
+            title: tc.title,
+            execution_order: tc.execution_order ?? (idx + 1),
+            excluded: tc.excluded_from_run,
+            has_script: false,
+            placeholder_count: 0,
+          }));
+        this.runModalTcs.set(tcs);
+        this.relaunchingId.set(null);
+        this._launchSuite(suiteId, suiteName, {
+          app_url: ex.app_url,
+          browser: ex.browser as 'chromium' | 'firefox' | 'webkit',
+          headless: ex.headless,
+          stop_on_failure: false,
+          model_id: this.runModalModel(),
+        });
+      },
+      error: () => {
+        this.relaunchingId.set(null);
+        this.toastService.error('Failed to load suite for relaunch');
+      },
+    });
+  }
+
+  /** Shared launch path: opens the live panel, the SSE stream, and fires the run. */
+  private _launchSuite(
+    suiteId: string,
+    suiteName: string,
+    opts: {
+      app_url: string;
+      browser: 'chromium' | 'firefox' | 'webkit';
+      headless: boolean;
+      stop_on_failure: boolean;
+      model_id: string;
+    },
+  ): void {
+    this.suiteRunningName.set(suiteName);
+    this.isSuiteRunning.set(true);
+    this.showLivePanel.set(true);
+    this.suiteLogEntries.set([]);
+    this.currentExecutionId.set(null);
+
+    this.suiteSub?.unsubscribe();
+    this.suiteSub = this.playwrightService.connectSuiteStream(suiteId).subscribe({
+      next: (event) => this._handleSuiteEvent(event),
+      error: () => {
+        this.isSuiteRunning.set(false);
+        this.toastService.error('Execution stream disconnected');
+      },
+      complete: () => this.isSuiteRunning.set(false),
+    });
+
+    this.playwrightService.executeSuiteSmart(suiteId, opts).subscribe({
+      error: () => {
+        this.isSuiteRunning.set(false);
+        this.toastService.error('Failed to start suite execution');
       },
     });
   }

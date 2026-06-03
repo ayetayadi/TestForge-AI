@@ -46,28 +46,41 @@ $danger-bd:  #fecaca;
 // ══════════════════════════════════════════════════════════
 
 .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
   background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   border-radius: 10px;
   padding: 20px 24px;
   color: #fff;
   box-shadow: $shadow-md;
+}
+
+.header-left {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 14px;
 }
 
-.header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
+.page-icon {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+
+  svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fbbf24;
+  }
 }
 
-.header-title {
-  flex: 1;
-  min-width: 200px;
-
+.header-left > div {
   h1 {
     margin: 0 0 2px;
     font-size: 1.25rem;
@@ -75,12 +88,12 @@ $danger-bd:  #fecaca;
     letter-spacing: -0.01em;
     color: #fff;
   }
+}
 
-  .subtitle {
-    margin: 0;
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.7);
-  }
+.header-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .header-actions {
@@ -99,6 +112,7 @@ $danger-bd:  #fecaca;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   flex-wrap: wrap;
+  flex-basis: 100%;
 }
 
 .project-label {
@@ -293,6 +307,87 @@ $danger-bd:  #fecaca;
 }
 
 // ══════════════════════════════════════════════════════════
+// SECTION CARD + REGISTER HEADER
+// ══════════════════════════════════════════════════════════
+
+.section-card {
+  background: $bg-card;
+  border: $border;
+  border-radius: 10px;
+  box-shadow: $shadow-sm;
+  overflow: hidden;
+}
+
+.register-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: $border;
+  background: $bg-card;
+}
+
+.register-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: $text-primary;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.register-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.1);
+  color: $primary;
+  border-radius: 20px;
+}
+
+.register-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+// ── Empty CTA button ──────────────────────────────────────
+
+.btn-empty-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+  color: #fff;
+  border: none;
+  border-radius: $radius;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all $transition;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
 // STATUS TABS
 // ══════════════════════════════════════════════════════════
 
@@ -355,6 +450,7 @@ $danger-bd:  #fecaca;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
+  padding: 16px 20px;
 }
 
 .plan-card {
@@ -544,27 +640,24 @@ $danger-bd:  #fecaca;
 // ══════════════════════════════════════════════════════════
 
 .empty-state {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 60px 24px;
   text-align: center;
-  background: $bg-card;
-  border-radius: 10px;
-  border: 1px dashed #e5e7eb;
   color: $text-secondary;
 
   .empty-icon {
     width: 80px;
     height: 80px;
-    background: rgba(99, 102, 241, 0.05);
+    background: rgba(99, 102, 241, 0.06);
     border-radius: 50%;
     display: grid;
     place-items: center;
     margin-bottom: 18px;
-    font-size: 2rem;
+
+    svg { stroke: #a5b4fc; }
   }
 
   h3 {
@@ -617,12 +710,12 @@ $danger-bd:  #fecaca;
 // PAGINATION
 // ══════════════════════════════════════════════════════════
 
-.pagination-row {
+.pagination-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding-top: 18px;
+  padding: 14px 20px;
   border-top: $border;
 }
 
@@ -1058,7 +1151,7 @@ $danger-bd:  #fecaca;
     padding: 16px;
   }
 
-  .header-content {
+  .page-header {
     flex-direction: column;
     align-items: flex-start;
   }

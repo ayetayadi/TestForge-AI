@@ -148,6 +148,32 @@ reasoning:
   Score = 4 × 5 = 20 (CRITICAL) - needs full testing, spend 60% of time here
 
 ═══════════════════════════════════════════════════════
+OUTPUT FORMAT — respond with ONLY this JSON object, no other text
+═══════════════════════════════════════════════════════
+
+{{
+  "probability": <integer 1-5>,
+  "impact": <integer 1-5>,
+  "description": "<one sentence: what could go wrong>",
+  "mitigation": "<one sentence: what the tester should do>",
+  "probability_factors": {{
+    "story_complexity": <1-5>,
+    "ac_complexity": <1-5>,
+    "dependencies": <1-5>,
+    "clarity": <1-5>
+  }},
+  "impact_factors": {{
+    "users_affected": <1-5>,
+    "revenue": <1-5>,
+    "safety": <1-5>,
+    "reputation": <1-5>
+  }},
+  "probability_reasoning": "<one sentence explaining P>",
+  "impact_reasoning": "<one sentence explaining I>",
+  "reasoning": "<line1: why P\\nline2: why I\\nline3: P x I = Score (Level)>"
+}}
+
+═══════════════════════════════════════════════════════
 IMPORTANT RULES
 ═══════════════════════════════════════════════════════
 - Use simple words. Write like you are talking to a colleague.

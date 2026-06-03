@@ -82,7 +82,7 @@
               <input type="checkbox" id="headless" [checked]="headless()" (change)="headless.set($any($event.target).checked)" />
               <label for="headless">Headless</label>
             </div>
-            @if (availableModels().length > 0) {
+            <!-- @if (availableModels().length > 0) {
               <div class="field">
                 <label>AI Model</label>
                 <select class="form-select" [value]="selectedModel()" (change)="selectedModel.set($any($event.target).value)">
@@ -94,7 +94,7 @@
                   <span class="field-hint">{{ selectedModelDescription() }}</span>
                 }
               </div>
-            }
+            } -->
           </div>
           <div class="versions-card">
             <h3>Versions ({{ scripts().length }})</h3>

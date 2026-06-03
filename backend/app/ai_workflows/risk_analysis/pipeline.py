@@ -64,6 +64,60 @@ class RiskAnalysisOutput(BaseModel):
         description="comprehensive, thorough, standard, or smoke"
     )
 
+def _normalize_llm_data(data: dict) -> dict:
+    """Map LLM shorthand keys to the expected RiskAnalysisOutput field names."""
+    # probability: accept P, prob, probability
+    if "probability" not in data:
+        for alias in ("P", "prob", "p"):
+            if alias in data:
+                data["probability"] = data.pop(alias)
+                break
+
+    # impact: accept I, imp, impact
+    if "impact" not in data:
+        for alias in ("I", "imp", "i"):
+            if alias in data:
+                data["impact"] = data.pop(alias)
+                break
+
+    # description: accept risk_description, risk_desc, risk
+    if "description" not in data:
+        for alias in ("risk_description", "risk_desc", "risk", "risk_summary"):
+            if alias in data:
+                data["description"] = data.pop(alias)
+                break
+
+    # reasoning: join if returned as a list
+    if "reasoning" in data and isinstance(data["reasoning"], list):
+        data["reasoning"] = "\n".join(str(line) for line in data["reasoning"])
+
+    # probability_reasoning / impact_reasoning: tolerate missing with fallback
+    if "probability_reasoning" not in data:
+        data["probability_reasoning"] = ""
+    if "impact_reasoning" not in data:
+        data["impact_reasoning"] = ""
+
+    # probability_factors / impact_factors: tolerate missing with defaults
+    if "probability_factors" not in data:
+        p = int(data.get("probability", 3))
+        data["probability_factors"] = {
+            "story_complexity": p, "ac_complexity": p,
+            "dependencies": p, "clarity": p,
+        }
+    if "impact_factors" not in data:
+        i = int(data.get("impact", 3))
+        data["impact_factors"] = {
+            "users_affected": i, "revenue": i,
+            "safety": i, "reputation": i,
+        }
+
+    # mitigation: tolerate missing
+    if "mitigation" not in data:
+        data["mitigation"] = data.get("recommendation", data.get("test_recommendation", ""))
+
+    return data
+
+
 class RiskAnalysisPipeline:
     """Pipeline conforme au document Risk Based Testing original."""
 
@@ -203,6 +257,7 @@ class RiskAnalysisPipeline:
             content = re.sub(r'\s*```$', '', content)
             
             data = json.loads(content)
+            data = _normalize_llm_data(data)
             return RiskAnalysisOutput(**data)
         except (json.JSONDecodeError, KeyError) as e:
             logger.error(f"[RISK ANALYSIS] JSON parse failed for {issue_key}: {content[:300]}")

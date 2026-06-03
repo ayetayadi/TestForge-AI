@@ -37,8 +37,8 @@ export class AdminDashboardComponent implements OnInit {
 
   // ── Donut chart ───────────────────────────────────────────
   donutSeries: number[] = [];
-  donutLabels: string[] = ['User Stories', 'Test Cases', 'Test Plans', 'Defects', 'Risks'];
-  donutColors = ['#0d9488', '#0284c7', '#9333ea', '#dc2626', '#ea580c'];
+  donutLabels: string[] = ['User Stories', 'Test Cases', 'Test Plans', 'Risks'];
+  donutColors = ['#0d9488', '#0284c7', '#9333ea', '#ea580c'];
   donutChart = { type: 'donut' as const, height: 280, toolbar: { show: false }, fontFamily: 'inherit' };
   donutDataLabels = { enabled: false };
   donutPlotOptions = {
@@ -78,7 +78,7 @@ export class AdminDashboardComponent implements OnInit {
   };
   barPlotOptions = { bar: { borderRadius: 4, columnWidth: '58%', dataLabels: { position: 'top' } } };
   barDataLabels = { enabled: false };
-  barColors = ['#0d9488', '#0284c7', '#dc2626'];
+  barColors = ['#0d9488', '#0284c7', '#ea580c'];
   barLegend = { position: 'top' as const, fontSize: '11px', fontWeight: 600 };
   barTooltip = { y: { formatter: (v: number) => v.toLocaleString() } };
   barGrid = { borderColor: '#f0f0f0', strokeDashArray: 4, yaxis: { lines: { show: true } } };
@@ -121,7 +121,6 @@ export class AdminDashboardComponent implements OnInit {
       g.total_stories,
       g.total_test_cases,
       g.total_test_plans,
-      g.total_defects,
       g.total_risks,
     ];
 
@@ -130,9 +129,9 @@ export class AdminDashboardComponent implements OnInit {
     this.barCategories = top.map((t) => t.username);
     this.barXaxis = { categories: this.barCategories, labels: { style: { fontSize: '11px' } } };
     this.barSeries = [
-      { name: 'User Stories',    data: top.map((t) => t.total_stories) },
-      { name: 'Test Cases', data: top.map((t) => t.total_test_cases) },
-      { name: 'Defects',    data: top.map((t) => t.total_defects) },
+      { name: 'User Stories', data: top.map((t) => t.total_stories) },
+      { name: 'Test Cases',   data: top.map((t) => t.total_test_cases) },
+      { name: 'Risks',        data: top.map((t) => t.total_risks) },
     ];
   }
 

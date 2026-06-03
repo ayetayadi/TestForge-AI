@@ -524,6 +524,113 @@ $warn-bd:   #fed7aa;
   }
 }
 
+.btn-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid $fail-bd;
+  border-radius: 6px;
+  background: $fail-bg;
+  color: $fail-c;
+  cursor: pointer;
+  transition: all $transition;
+  flex-shrink: 0;
+
+  svg { width: 14px; height: 14px; }
+
+  &:hover:not(:disabled) {
+    background: $fail-c;
+    color: #fff;
+    border-color: $fail-c;
+  }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.btn-relaunch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #059669;
+  border-radius: 6px;
+  background: rgba(5, 150, 105, 0.06);
+  color: #059669;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition;
+  flex-shrink: 0;
+
+  svg { width: 14px; height: 14px; }
+
+  &:hover:not(:disabled) {
+    background: #059669;
+    color: #fff;
+  }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+// ══════════════════════════════════════════════════════════
+// PAGINATION
+// ══════════════════════════════════════════════════════════
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px 0 4px;
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    color: $text-secondary;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all $transition;
+
+    svg { width: 14px; height: 14px; }
+
+    &:hover:not(:disabled) {
+      border-color: $primary;
+      color: $primary;
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    &--active {
+      background: $primary;
+      border-color: $primary;
+      color: #fff;
+      font-weight: 700;
+      &:hover { background: $primary-dark; border-color: $primary-dark; color: #fff; }
+    }
+
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+  }
+}
+
+.register-count--page {
+  background: rgba(99, 102, 241, 0.08);
+  color: $primary;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-left: 4px;
+}
+
 // ══════════════════════════════════════════════════════════
 // EMPTY / LOADING
 // ══════════════════════════════════════════════════════════

@@ -372,8 +372,17 @@ async def generate_script_v1(
 # ============================================================
 
 def _map_exec_status_to_tc_result_status(exec_status: str, steps_failed: int) -> TestCaseResultStatus:
-    """Translate agent exec_result.execution_status into TestCaseResultStatus."""
-    if exec_status in ("passed", "completed") and steps_failed == 0:
+    """
+    Translate agent exec_result.execution_status into TestCaseResultStatus.
+
+    The ReAct agent's verdict IS the oracle: it already judged whether every
+    expected result was really met against the live page. exec_status is
+    "completed" only when that verdict was PASSED. We therefore trust it and do
+    NOT additionally require steps_failed == 0 — otherwise a single transient
+    tool hiccup (e.g. a stale [ref=eXX] the agent retried and recovered from)
+    would wrongly doom an otherwise-successful run to FAILED.
+    """
+    if exec_status in ("passed", "completed"):
         return TestCaseResultStatus.PASSED
     if exec_status == "error":
         return TestCaseResultStatus.ERROR

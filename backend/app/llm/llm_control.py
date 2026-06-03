@@ -29,7 +29,7 @@ def _get_key_semaphore(key_id: str) -> asyncio.Semaphore:
         _key_semaphores[key_id] = asyncio.Semaphore(1)
     return _key_semaphores[key_id]
 
-_MIN_CALL_INTERVAL = 10.0
+_MIN_CALL_INTERVAL = 4.0
 _last_call_times: dict[str, float] = {}
 
 _RETRY_DELAYS = [15, 30, 60]
@@ -195,7 +195,7 @@ async def _direct_groq_call(
     key: str, model: str, temperature: float, max_tokens: int, messages: list,
     tools: list | None = None, tool_choice=None,
 ) -> ChatResult:
-    client = _groq_lib.AsyncGroq(api_key=key)
+    client = _groq_lib.AsyncGroq(api_key=key, max_retries=0)
     params: dict = dict(
         model=model,
         messages=_messages_to_dicts(messages),
@@ -454,6 +454,7 @@ def create_llm(temperature: float, model: str, max_tokens: int) -> ControlledCha
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
+        max_retries=0,
     )
 
 

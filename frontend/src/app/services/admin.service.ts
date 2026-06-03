@@ -34,7 +34,6 @@ export interface ProjectMetrics {
   story_count: number;
   test_case_count: number;
   test_plan_count: number;
-  defect_count: number;
   risk_count: number;
 }
 
@@ -48,7 +47,6 @@ export interface TesterMetrics {
   total_stories: number;
   total_test_cases: number;
   total_test_plans: number;
-  total_defects: number;
   total_risks: number;
   projects: ProjectMetrics[];
 }
@@ -59,7 +57,6 @@ export interface GlobalMetrics {
   total_stories: number;
   total_test_cases: number;
   total_test_plans: number;
-  total_defects: number;
   total_risks: number;
 }
 

@@ -1143,6 +1143,11 @@ class PlaywrightReActAgent:
                     if llm_errors >= 3:
                         step_details.append({"step": f"LLM turn {turn}", "status": "failed", "error": str(e)[:160]})
                         break
+                    # Tell the LLM to avoid special characters in element descriptions
+                    # so the next turn doesn't generate the same broken tool call.
+                    nudge = ("Your last tool call was rejected because the element name contained "
+                             "a special character (apostrophe). On your next call, identify the "
+                             "element by its [ref=eXX] value from the snapshot instead of its label.")
                     continue
 
             # No tool call → final verdict
@@ -1217,7 +1222,10 @@ class PlaywrightReActAgent:
                     )
 
             except Exception as e:
-                err = str(e).splitlines()[0][:160] if str(e) else "unknown error"
+                # MCP returns markdown errors like "### Error\n<real reason>\n### Ran…".
+                # Keep the REAL reason, not just the "### Error" header line, so the
+                # failure is diagnosable and the model knows WHY the ref didn't work.
+                err = self._extract_tool_error(e)
                 logger.warning(f"ReAct tool '{name}' failed: {err}")
                 label = self._react_step_label(name, args)
                 steps_failed += 1
@@ -1225,11 +1233,41 @@ class PlaywrightReActAgent:
                 action_log.append(f"✗ {label} FAILED: {err}")
                 if on_step:
                     await on_step(label, "failed", error=err)
-                # Re-observe so the model can recover on the next turn
+                # Re-observe so the model can recover on the next turn …
                 try:
                     latest_snapshot = await self._safe_snapshot(tools)
                 except Exception:
                     pass
+                # … and tell it the ref it just used is dead so it stops hammering
+                # the same stale/uneditable element and picks a fresh one instead.
+                bad_ref = args.get("ref", "") or args.get("target", "")
+                if bad_ref:
+                    nudge = (
+                        f"Your action on [ref={bad_ref}] FAILED: {err}. That ref is "
+                        f"stale or not interactable. Look at the CURRENT snapshot and "
+                        f"choose a DIFFERENT fresh ref for this step — do NOT reuse "
+                        f"[ref={bad_ref}]. If the field truly isn't on the page, skip "
+                        f"it and continue."
+                    )
+                    # Clear the anti-loop signature so a genuine retry on a NEW ref
+                    # isn't instantly suppressed as a duplicate.
+                    last_sig = None
+
+        # ── Forced verdict: the loop broke out WITHOUT a plain-text verdict ──────
+        # This happens when the anti-loop guard bails (the model kept re-emitting
+        # the same action and never produced a VERDICT). The whole TC was about to
+        # be marked "no verdict = fail" even though most steps succeeded. Make ONE
+        # final tool-LESS call so the model MUST judge PASS/FAIL from what it did,
+        # instead of defaulting to failure just because it got stuck clicking.
+        if verdict_text is None and action_log:
+            try:
+                verdict_text = await self._force_react_verdict(
+                    base_llm, tc_block, action_log, latest_snapshot, invoke_config
+                )
+                if verdict_text:
+                    logger.info(f"ReAct: forced verdict after loop break → {verdict_text[:60]}")
+            except Exception as e:
+                logger.warning(f"ReAct: forced verdict call failed: {e}")
 
         # ── Parse the verdict + fold its expectation lines into step_details ────
         passed_verdict, justification = self._parse_react_verdict(verdict_text)
@@ -1452,6 +1490,9 @@ class PlaywrightReActAgent:
         e.g.  <function=browser_click{"target": "e37"}</function>
         Parse it back into a {name, args, id} tool call so a single malformed
         generation does not abort the whole verification run.
+
+        Groq/llama-3.3 also emits \' inside JSON strings (e.g. French labels like
+        "Nom d\'utilisateur") which is invalid JSON. Sanitize before parsing.
         """
         msg = str(err)
         if "tool_use_failed" not in msg and "failed_generation" not in msg:
@@ -1460,11 +1501,42 @@ class PlaywrightReActAgent:
         if not m:
             return None
         name = m.group(1)
+        raw_json = m.group(2)
+        # \' is not a valid JSON escape — strip the backslash so json.loads succeeds
+        sanitized = raw_json.replace("\\'", "'")
         try:
-            args = json.loads(m.group(2))
+            args = json.loads(sanitized)
         except Exception:
-            return None
+            try:
+                args = json.loads(raw_json)
+            except Exception:
+                return None
         return {"name": name, "args": args, "id": "recovered_0"}
+
+    @staticmethod
+    def _extract_tool_error(err: Exception) -> str:
+        """
+        Pull the human-readable reason out of an MCP tool error.
+
+        MCP Playwright returns markdown like:
+            ### Error
+            locator.fill: Element is not an <input>, <textarea> ...
+            ### Ran Playwright code
+            ```js ...
+        `str(err).splitlines()[0]` would keep only "### Error", hiding the real
+        cause. This skips markdown headers/code fences and returns the first
+        meaningful line so failures are diagnosable and the model can react.
+        """
+        raw = str(err).strip()
+        if not raw:
+            return "unknown error"
+        lines = [l.strip() for l in raw.splitlines() if l.strip()]
+        meaningful = [
+            l for l in lines
+            if not l.startswith("###") and not l.startswith("```") and l != "Error"
+        ]
+        chosen = meaningful[0] if meaningful else (lines[0] if lines else "unknown error")
+        return chosen[:200]
 
     @staticmethod
     def _parse_react_verdict(text: Optional[str]) -> tuple:
@@ -1478,6 +1550,38 @@ class PlaywrightReActAgent:
             if s.startswith("✅") or s.startswith("❌") or s.startswith("- "):
                 just.append(s.lstrip("- ").strip())
         return passed, [j for j in just if j]
+
+    async def _force_react_verdict(
+        self, base_llm, tc_block: str, action_log: List[str],
+        latest_snapshot: str, invoke_config: dict,
+    ) -> Optional[str]:
+        """
+        Last-resort verdict. Called when the ReAct loop broke out (e.g. anti-loop
+        guard) without the model ever emitting a plain-text VERDICT.
+
+        Uses the *tool-less* base LLM so the model physically cannot emit another
+        tool call — it MUST answer with a verdict. This converts a "stuck but
+        mostly-completed" run into a real PASS/FAIL judgment instead of an
+        automatic failure.
+        """
+        log_text = "\n".join(action_log[-20:]) if action_log else "(nothing recorded)"
+        human = (
+            "You were verifying this test case against a live app but the run was "
+            "stopped because you kept repeating an action.\n\n"
+            f"TEST CASE:\n{tc_block}\n\n"
+            f"ACTIONS YOU ACTUALLY COMPLETED:\n{log_text}\n\n"
+            f"FINAL PAGE SNAPSHOT:\n{_compress_dom(latest_snapshot)}\n\n"
+            "Based ONLY on the actions completed and the final page state, decide "
+            "whether the test case's expected results were met. Do NOT call any tool. "
+            "Reply with exactly one line 'VERDICT: PASSED' or 'VERDICT: FAILED', then "
+            "one bullet (✅ or ❌) per expected result explaining why."
+        )
+        messages = [
+            SystemMessage(content=REACT_VERIFY_SYSTEM),
+            HumanMessage(content=human),
+        ]
+        ai = await base_llm.ainvoke(messages, config=invoke_config)
+        return (ai.content or "").strip() or None
 
     def _build_react_script_v2(self, title: str, app_url: str, lines: List[str]) -> str:
         """Assemble a clean, replayable Playwright script from recorded actions."""

@@ -332,6 +332,15 @@ async def get_test_execution(db: AsyncSession, execution_id: str) -> Optional[Te
     return result.scalar_one_or_none()
 
 
+async def delete_test_execution(db: AsyncSession, execution_id: str) -> bool:
+    ex = await get_test_execution(db, execution_id)
+    if not ex:
+        return False
+    await db.delete(ex)
+    await db.flush()
+    return True
+
+
 async def close_test_execution(
     db: AsyncSession,
     execution_id: str,
