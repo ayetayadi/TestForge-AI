@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.models import (
     User, JiraConnection, JiraProject, UserStory, UserStoryVersion,
     TestPlan, TestSuite, TestCase, Risk, Defect, TcCoverage,
-    PlaywrightScriptVersion, TestExecution, TestCaseResult, Job,
+    PlaywrightScriptVersion, TestExecution, TestCaseResult,
 )
 from app.core.database import Base
 

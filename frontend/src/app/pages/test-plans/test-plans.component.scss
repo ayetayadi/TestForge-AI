@@ -64,7 +64,7 @@ $danger-bd:  #fecaca;
   gap: 14px;
 }
 
-.page-icon {
+.header-icon {
   width: 44px;
   height: 44px;
   background: rgba(255, 255, 255, 0.15);
@@ -80,157 +80,187 @@ $danger-bd:  #fecaca;
   }
 }
 
-.header-left > div {
-  h1 {
-    margin: 0 0 2px;
-    font-size: 1.25rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: #fff;
-  }
+.page-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
 }
 
-.header-subtitle {
+.page-subtitle {
   margin: 2px 0 0;
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.7);
 }
 
-.header-actions {
+// ══════════════════════════════════════════════════════════
+// SETUP CARD
+// ══════════════════════════════════════════════════════════
+
+.setup-card {
+  background: $bg-card;
+  border: $border;
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: $shadow-sm;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  flex-direction: column;
+  gap: 16px;
 }
 
-// ── Project bar inside header ──────────────────────────────
-
-.project-bar {
+.setup-card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  justify-content: space-between;
   flex-wrap: wrap;
-  flex-basis: 100%;
+  gap: 10px;
 }
 
-.project-label {
+.setup-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: $text-primary;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  svg { stroke: $primary; }
+}
+
+.setup-filters-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+
+  &--project { min-width: 220px; flex: 1.5; }
+  &--cta     { min-width: 150px; flex-shrink: 0; }
+}
+
+.setup-label {
   font-size: 0.65rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.7);
+  color: $text-secondary;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
-.project-select {
-  height: 36px;
-  padding: 0 32px 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+.setup-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.setup-select-icon {
+  position: absolute;
+  left: 10px;
+  stroke: $text-secondary;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.setup-select {
+  height: 38px;
+  width: 100%;
+  padding: 0 32px 0 30px;
+  border: $border;
   border-radius: $radius;
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: $bg-page;
+  color: $text-primary;
   font-size: 0.8rem;
-  min-width: 240px;
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23ffffff' stroke-width='2'%3E%3Cpath d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
-  transition: border-color $transition, background $transition;
-
-  option {
-    background: #4f46e5;
-    color: #fff;
-  }
+  transition: border-color $transition, box-shadow $transition;
 
   &:focus {
     outline: none;
-    border-color: rgba(255, 255, 255, 0.6);
-    background-color: rgba(255, 255, 255, 0.2);
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    background-color: #fff;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: #9ca3af;
+  }
+}
+
+.btn-run-analysis {
+  height: 38px;
+  width: 100%;
+  padding: 0 20px;
+  border: none;
+  border-radius: $radius;
+  background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all $transition;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+  }
+
+  &:disabled {
+    background: #d1d5db;
+    box-shadow: none;
+    cursor: not-allowed;
+    color: #9ca3af;
+  }
+}
+
+.btn-delete-all {
+  height: 38px;
+  width: 100%;
+  padding: 0 16px;
+  border: 1px solid #fecaca;
+  border-radius: $radius;
+  background: #fef2f2;
+  color: $danger-c;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all $transition;
+  white-space: nowrap;
+
+  svg { stroke: $danger-c; }
+
+  &:hover:not(:disabled) {
+    background: $danger-c;
+    color: #fff;
+    svg { stroke: #fff; }
+    transform: translateY(-1px);
   }
 }
 
 // ══════════════════════════════════════════════════════════
 // BUTTONS
 // ══════════════════════════════════════════════════════════
-
-.btn-primary {
-  height: 36px;
-  padding: 0 18px;
-  border: none;
-  border-radius: $radius;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: all $transition;
-  white-space: nowrap;
-
-  svg, .icon {
-    width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-  }
-
-  &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.3);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.btn-danger {
-  height: 36px;
-  padding: 0 16px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: $radius;
-  background: rgba(220, 38, 38, 0.25);
-  color: #fff;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: all $transition;
-  white-space: nowrap;
-
-  .icon {
-    font-size: 1rem;
-    line-height: 1;
-  }
-
-  &:hover:not(:disabled) {
-    background: rgba(220, 38, 38, 0.45);
-    transform: translateY(-1px);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
 
 .btn-secondary {
   height: 36px;

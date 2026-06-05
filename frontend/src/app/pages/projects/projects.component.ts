@@ -1,7 +1,6 @@
 import { Component, OnInit, inject, signal, computed, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { SearchBarComponent } from '../../components/search-bar/search-bar.component';
 import { FilterBarComponent, FilterGroup, ActiveFilters } from '../../components/filter-bar/filter-bar.component';
 import { PaginationComponent } from '../../components/pagination/pagination.component';
@@ -17,7 +16,6 @@ import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-
   standalone: true,
   imports: [
     CommonModule,
-    SpinnerComponent,
     SearchBarComponent,
     FilterBarComponent,
     PaginationComponent,

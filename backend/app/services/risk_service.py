@@ -261,16 +261,24 @@ class RiskService:
             result = await self.db.execute(stmt)
             approved_map = {row[0]: row[1] for row in result.all()}
 
+        from datetime import timezone as _tz
+
+        def _as_aware(dt):
+            if dt is None:
+                return None
+            return dt if dt.tzinfo is not None else dt.replace(tzinfo=_tz.utc)
+
         eligibility: dict[str, bool] = {}
         for risk in risks:
             story = risk.user_story
             if not story:
                 eligibility[risk.id] = False
                 continue
-            jira_ts = story.jira_updated_at or story.updated_at
-            cond_a = jira_ts is not None and jira_ts > risk.created_at
-            latest_approved = approved_map.get(risk.user_story_id)
-            cond_b = latest_approved is not None and latest_approved > risk.created_at
+            jira_ts = _as_aware(story.jira_updated_at or story.updated_at)
+            risk_created = _as_aware(risk.created_at)
+            cond_a = jira_ts is not None and risk_created is not None and jira_ts > risk_created
+            latest_approved = _as_aware(approved_map.get(risk.user_story_id))
+            cond_b = latest_approved is not None and risk_created is not None and latest_approved > risk_created
             eligibility[risk.id] = bool(cond_a or cond_b)
 
         return eligibility

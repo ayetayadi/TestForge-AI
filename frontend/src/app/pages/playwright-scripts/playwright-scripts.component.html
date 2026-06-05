@@ -1,84 +1,83 @@
 <div class="playwright-page">
 
-  <!-- ══════════════════════════════════════════════════════════════
-       HEADER
-  ══════════════════════════════════════════════════════════════ -->
+  <!-- ── PAGE HEADER ────────────────────────────────────────── -->
   <div class="page-header">
     <div class="header-left">
-<div class="header-icon">
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-    <!-- cercle -->
-    <circle cx="12" cy="12" r="9" stroke="currentColor"></circle>
-    
-    <!-- triangle play -->
-    <path stroke-linecap="round" stroke-linejoin="round" d="M10 8l6 4-6 4V8z" />
-  </svg>
-</div>
-      <div class="title-wrapper">
-        <h1>Playwright Scripts</h1>
-        <span class="lang-badge">TypeScript</span>
-        <p class="subtitle">Generate v1 draft Playwright scripts for your test cases</p>
+      <div class="header-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <circle cx="12" cy="12" r="9" stroke="currentColor"></circle>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 8l6 4-6 4V8z" />
+        </svg>
       </div>
-    </div>
-
-    <div class="header-center">
-      <div class="stat-badge">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
-        </svg>
-        <span>{{ totalScripts() }} / {{ totalRows() }} scripts generated</span>
+      <div>
+        <h1 class="page-title">Playwright Scripts <span class="lang-badge">TypeScript</span></h1>
+        <p class="page-subtitle">Generate v1 draft Playwright scripts for your test cases</p>
       </div>
-    </div>
-
-    <div class="header-actions">
-      <a class="btn-run-suite" routerLink="/test-execution">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
-        </svg>
-        Go to Execution
-      </a>
-      <button class="btn-secondary" (click)="loadData()">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
-        </svg>
-        Refresh
-      </button>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════
-       FILTER BAR
-  ══════════════════════════════════════════════════════════════ -->
-  <div class="filters-bar">
-    <div class="filter-item search-item">
-      <app-search-bar
-        placeholder="Search by code, title or story..."
-        [debounce]="300"
-        (searchChange)="onSearchChange($event)"
-      />
+  <!-- ── SETUP CARD ────────────────────────────────────────── -->
+  <div class="setup-card">
+    <div class="setup-card-header">
+      <div class="setup-card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        Filter Scripts
+      </div>
+      <div class="stat-info">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
+          <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+        </svg>
+        {{ totalScripts() }} / {{ totalRows() }} scripts generated
+      </div>
     </div>
-    <div class="filter-item">
-      <select class="filter-select" [value]="selectedProjectId()" (change)="onProjectChange($event)">
-        <option value="">All Projects</option>
-        @for (project of projects(); track project.id) {
-          <option [value]="project.id">{{ project.project_name }}</option>
-        }
-      </select>
-    </div>
-    <div class="filter-item">
-      <select class="filter-select filter-select--suite" [value]="selectedSuiteFilter()" (change)="onSuiteFilterChange($event)">
-        <option value="">All Test Suites</option>
-        @for (suite of suites(); track suite.id) {
-          <option [value]="suite.id">{{ suite.title }}</option>
-        }
-      </select>
-    </div>
-    <div class="filter-item">
-      <app-filter-bar
-        [groups]="filterGroups()"
-        [activeFilters]="activeFilters()"
-        (filtersChange)="onFiltersChange($event)"
-      />
+
+    <div class="setup-filters-row">
+      <!-- Search -->
+      <div class="setup-field setup-field--search">
+        <app-search-bar
+          placeholder="Search by code, title or story..."
+          [debounce]="300"
+          (searchChange)="onSearchChange($event)"
+        />
+      </div>
+      <!-- Project -->
+      <div class="setup-field">
+        <select class="filter-select" [value]="selectedProjectId()" (change)="onProjectChange($event)">
+          <option value="">All Projects</option>
+          @for (project of projects(); track project.id) {
+            <option [value]="project.id">{{ project.project_name }}</option>
+          }
+        </select>
+      </div>
+      <!-- Suite -->
+      <!-- Advanced filters -->
+      <div class="setup-field">
+        <app-filter-bar
+          [groups]="filterGroups()"
+          [activeFilters]="activeFilters()"
+          (filtersChange)="onFiltersChange($event)"
+        />
+      </div>
+      <!-- Go to Execution -->
+      <div class="setup-field setup-field--cta">
+        <a class="btn-run-analysis" routerLink="/test-execution">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
+          </svg>
+          Go to Execution
+        </a>
+      </div>
+      <!-- Refresh -->
+      <div class="setup-field setup-field--cta">
+        <button class="btn-refresh" (click)="loadData()">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
     </div>
   </div>
 
@@ -141,6 +140,10 @@
 
             @if (row.hasScript && row.placeholderCount > 0) {
               <span class="badge badge-placeholder" title="{{ row.placeholderCount }} locator placeholder(s)">⚠ {{ row.placeholderCount }} ph</span>
+            }
+
+            @if (row.testCase.test_type) {
+              <span class="badge" [class]="getTestTypeBadgeClass(row.testCase.test_type)">{{ row.testCase.test_type }}</span>
             }
 
             @if (row.lastRunStatus) {

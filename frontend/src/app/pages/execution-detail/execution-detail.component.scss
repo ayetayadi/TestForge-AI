@@ -474,12 +474,120 @@ $info-bd:   #bae6fd;
     letter-spacing: 0.04em;
   }
 
-  img {
-    max-width: 100%;
-    max-height: 460px;
+  .screenshot-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .screenshot-thumb {
+    max-width: 240px;
+    max-height: 150px;
     border: $border;
     border-radius: 6px;
     box-shadow: $shadow-sm;
+    cursor: zoom-in;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+
+    &:hover {
+      transform: scale(1.02);
+      box-shadow: $shadow-md;
+    }
+  }
+}
+
+.btn-screenshot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.08);
+  color: #4338ca;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  svg { width: 14px; height: 14px; }
+
+  &:hover { background: rgba(99, 102, 241, 0.16); }
+
+  &--download {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.08);
+    color: #047857;
+
+    &:hover { background: rgba(16, 185, 129, 0.16); }
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// SCREENSHOT LIGHTBOX
+// ══════════════════════════════════════════════════════════
+
+.screenshot-lightbox {
+  display: flex;
+  flex-direction: column;
+  max-width: 92vw;
+  max-height: 92vh;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 14px;
+    border-bottom: $border;
+    background: #f8fafc;
+  }
+
+  &__title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $text-secondary;
+    word-break: break-all;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  &__close {
+    width: 30px;
+    height: 30px;
+    border: $border;
+    border-radius: 6px;
+    background: #fff;
+    color: $text-secondary;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover { background: #f1f5f9; color: #0f172a; }
+  }
+
+  &__body {
+    overflow: auto;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    img {
+      max-width: 100%;
+      max-height: calc(92vh - 70px);
+      border-radius: 4px;
+    }
   }
 }
 

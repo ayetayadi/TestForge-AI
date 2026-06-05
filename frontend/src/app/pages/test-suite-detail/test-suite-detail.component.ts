@@ -236,6 +236,11 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
         const exec = data.items[0];
         this.playwrightService.getTestExecutionDetail(exec.id).subscribe({
           next: (detail) => {
+            // Guard again here: this detail fetch is async, so a run the user
+            // just started could already be in progress by the time it resolves.
+            // Without this, the restored (stale) statuses would overwrite the
+            // live 'pending'/'running' rows — making a fresh run show "passed".
+            if (this.isSuiteRunning()) return;
             this.suiteLogEntries.set(
               detail.test_case_results.map(r => ({
                 tc_id: r.test_case_id,
@@ -455,7 +460,21 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
     this.showSuiteRunModal.set(false);
     this.isSuiteRunning.set(true);
     this.showSuitePanel.set(true);
-    this.suiteLogEntries.set([]);
+    // Pre-populate the panel as 'pending' RIGHT NOW from the test cases that will
+    // run — so we never keep showing the previous run's restored status (e.g. a
+    // stale "passed") while waiting for the first SSE event, which can be buffered
+    // server-side before this client subscribes ("buffered, no listeners").
+    const toRun = this.getTestCases()
+      .filter(tc => tc.is_active && !tc.excluded_from_run)
+      .sort((a, b) => (a.execution_order ?? 0) - (b.execution_order ?? 0));
+    this.suiteLogEntries.set(
+      toRun.map(tc => ({
+        tc_id: tc.id,
+        tc_code: tc.tc_code ?? '?',
+        title: tc.title ?? tc.id,
+        status: 'pending' as SuiteLogEntry['status'],
+      }))
+    );
     this.suiteRunSummary.set(null);
 
     this._suiteSub?.unsubscribe();
@@ -1114,7 +1133,7 @@ buildGraphLayout(): GraphLayoutData | null {
   if (!graph || graph.nodes.length === 0) return null;
 
   const NODE_W  = 160;
-  const NODE_H  = 60;
+  const NODE_H  = 64;   // must match the rendered <rect height="64"> in the template
   const H_GAP   = 36;
   const V_GAP   = 80;
   const PAD_X   = 16;
@@ -1225,12 +1244,18 @@ buildGraphLayout(): GraphLayoutData | null {
     laneMap[flow].push(node);
   }
 
-  // Trier dans chaque lane par risque (Critical d'abord)
+  // Trier dans chaque lane selon l'ordre d'exécution sauvegardé (la chaîne de
+  // dépendances) pour que les arêtes aillent de gauche à droite sans croisement.
+  // Le risque ne sert que de fallback si un TC n'est pas dans l'ordre d'exécution.
+  const laneExecOrder = this.localTcs().map(tc => tc.tc_code);
   for (const flow of FLOW_ORDER) {
     if (laneMap[flow]) {
-      laneMap[flow].sort((a, b) => 
-        (RISK_RANK[a.priority ?? 'low'] ?? 3) - (RISK_RANK[b.priority ?? 'low'] ?? 3)
-      );
+      laneMap[flow].sort((a, b) => {
+        const ia = laneExecOrder.indexOf(a.tc_code);
+        const ib = laneExecOrder.indexOf(b.tc_code);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        return (RISK_RANK[a.priority ?? 'low'] ?? 3) - (RISK_RANK[b.priority ?? 'low'] ?? 3);
+      });
     }
   }
 

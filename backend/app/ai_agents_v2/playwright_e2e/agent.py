@@ -18,7 +18,7 @@ from .prompts import (
     RECOVERY_SYSTEM, RECOVERY_USER,
     REACT_VERIFY_SYSTEM, REACT_VERIFY_USER,
 )
-from .config import LLM_MAX_TOKENS, LLM_MODEL, LLM_TEMPERATURE, APP_BASE_URL, PLACEHOLDER_PREFIX
+from .config import LLM_MAX_TOKENS, LLM_MODEL, LLM_TEMPERATURE, APP_BASE_URL, PLACEHOLDER_PREFIX, DEBUG
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +71,18 @@ def _looks_like_login_page(snapshot: str) -> bool:
     navigation that would indicate an authenticated session.
     """
     s = snapshot.lower()
-    has_password = "password" in s
-    has_email = any(kw in s for kw in ("email", "username", "sign in", "log in", "signin"))
+    # Bilingual EN/FR — the target app may render labels in French
+    # ("Mot de passe", "Se connecter", "Connexion") which the old English-only
+    # check missed, so auto-login never fired.
+    has_password = any(kw in s for kw in ("password", "mot de passe", "passe", "pwd"))
+    has_email = any(kw in s for kw in (
+        "email", "e-mail", "courriel", "username", "identifiant", "utilisateur",
+        "sign in", "log in", "signin", "connexion", "se connecter",
+    ))
     has_authenticated_nav = any(kw in s for kw in (
         "dashboard", "logout", "sign out", "signout", "profile", "sidebar",
         "navigation", "navbar", "menu", "home", "projects",
+        "déconnexion", "tableau de bord", "accueil", "se déconnecter",
     ))
     return has_password and has_email and not has_authenticated_nav
 
@@ -91,10 +98,11 @@ def _is_auth_test_case(tc: dict) -> bool:
         "log out", "session", "password reset", "forgot password",
         "connexion", "déconnexion", "créer un compte",
     )
+    # Use `or ""` (not just .get default) — the keys exist but may hold None.
     haystack = " ".join([
-        tc.get("title", ""),
-        tc.get("description", ""),
-        tc.get("gherkin_source", "") or "",
+        tc.get("title") or "",
+        tc.get("description") or "",
+        tc.get("gherkin_source") or "",
     ]).lower()
     return any(kw in haystack for kw in auth_keywords)
 
@@ -1038,9 +1046,10 @@ class PlaywrightReActAgent:
             )
 
         effective_model = model_id or LLM_MODEL
-        # ReAct turns only emit ONE tool call or a short verdict — a small output
-        # budget keeps each turn fast/cheap and fits free-tier credit limits.
-        base_llm = create_llm_for_model(effective_model, LLM_TEMPERATURE, 700)
+        # Each ReAct turn emits either ONE tool call or a VERDICT with per-result
+        # justification. 700 tokens was too small — the verdict got truncated before
+        # "VERDICT: PASSED" could appear, causing every run to show as failed.
+        base_llm = create_llm_for_model(effective_model, LLM_TEMPERATURE, 1500)
 
         # Bind only the safe, drivable tools so the model picks refs itself
         bindable = [t for name, t in tools.items() if name in self._REACT_TOOL_NAMES]
@@ -1065,14 +1074,22 @@ class PlaywrightReActAgent:
 
         # ── Auto-login if the app shows a login page but this TC is not an auth test ──
         from app.core.config import settings as _settings
+        _is_login_pg = _looks_like_login_page(latest_snapshot)
+        _is_auth_tc = _is_auth_test_case(test_case)
+        logger.info(
+            f"🔐 AUTO-LOGIN decision: suite_continuation={suite_continuation} | "
+            f"looks_like_login_page={_is_login_pg} | is_auth_test={_is_auth_tc} | "
+            f"creds_set={bool(_settings.TEST_USER_EMAIL and _settings.TEST_USER_PASSWORD)} "
+            f"→ will_auto_login={(not suite_continuation) and _is_login_pg and (not _is_auth_tc) and bool(_settings.TEST_USER_EMAIL and _settings.TEST_USER_PASSWORD)}"
+        )
         if (
             not suite_continuation
-            and _looks_like_login_page(latest_snapshot)
-            and not _is_auth_test_case(test_case)
+            and _is_login_pg
+            and not _is_auth_tc
             and _settings.TEST_USER_EMAIL
             and _settings.TEST_USER_PASSWORD
         ):
-            logger.info("ReAct: landing on login page for non-auth TC — auto-logging in")
+            logger.info(f"ReAct: landing on login page for non-auth TC — auto-logging in as {_settings.TEST_USER_EMAIL}")
             snap_after_login = await self._auto_login(
                 tools, _settings.TEST_USER_EMAIL, _settings.TEST_USER_PASSWORD
             )
@@ -1095,15 +1112,38 @@ class PlaywrightReActAgent:
         llm_errors = 0
         filled_fields: set = set()         # fields already typed into (not visible in DOM)
         nudge = ""
+        submit_nudge_used = False           # only nudge once about a forgotten submit click
         cb = get_trace_callback()
         invoke_config = {"callbacks": [cb]} if cb else {}
 
         # Stateless re-prompt loop: each turn sends a FRESH [System, Human] with the
         # live DOM + an action log. No tool-role messages are accumulated, so Groq's
         # strict tool_call_id history rules can never be violated.
+        snapshot_only_streak = 0  # consecutive turns where model only called browser_snapshot
         for turn in range(self._MAX_REACT_STEPS):
             log_text = "\n".join(action_log[-14:]) if action_log else "(nothing done yet)"
             filled_text = ", ".join(sorted(filled_fields)) if filled_fields else "none yet"
+            all_real_actions = [a for a in action_log if not a.startswith("observed")]
+            logger.info(
+                f"\n{'='*64}\n"
+                f"🎬 ReAct TURN {turn}/{self._MAX_REACT_STEPS} | "
+                f"real_actions={len(all_real_actions)} | snap_streak={snapshot_only_streak} | "
+                f"passed={steps_passed} failed={steps_failed} | llm_errors={llm_errors}\n"
+                f"{'='*64}\n"
+                f"📋 ACTION LOG:\n{log_text}"
+            )
+            verdict_cue = (
+                "\n\n⚠️ ALL STEPS APPEAR DONE — do NOT call any more tools. "
+                "Reply NOW with your VERDICT: PASSED or VERDICT: FAILED, then justify each expected result."
+                if snapshot_only_streak >= 2 or (all_real_actions and len(all_real_actions) >= 3 and turn >= 8)
+                else (
+                    "\n\nIF every Gherkin step is done AND every expected result is verified → "
+                    "reply with VERDICT: PASSED (or FAILED) in plain text, NO tool call. "
+                    "Otherwise call EXACTLY ONE tool for the next unfinished step. "
+                    "NOTE: the snapshot below is fresh — only call browser_snapshot if you need "
+                    "a NEW view after an action you are about to perform."
+                )
+            )
             human = (
                 REACT_VERIFY_USER.format(app_url=app_url, test_case=tc_block, script_v1_hint=hint)
                 + f"\n\nACTIONS DONE SO FAR (do NOT repeat these — they already succeeded):\n{log_text}"
@@ -1111,10 +1151,7 @@ class PlaywrightReActAgent:
                 + f"\n\nCURRENT PAGE SNAPSHOT (act using these refs):\n{_compress_dom(latest_snapshot)}"
                 + "\n\nNOTE: filled input values are NOT shown in the snapshot — if the action log "
                   "says you already filled a field, TRUST IT and move on; do not fill it again."
-                + "\n\nDecide the SINGLE next action: call EXACTLY ONE tool for the NEXT step you have "
-                  "not done yet (after filling all fields, click the submit/create button). "
-                  "If every step AND every expected result has been verified, reply with your "
-                  "VERDICT in plain text (no tool call)."
+                + verdict_cue
                 + (f"\n\n⚠️ {nudge}" if nudge else "")
             )
             messages = [
@@ -1122,12 +1159,24 @@ class PlaywrightReActAgent:
                 HumanMessage(content=human),
             ]
             nudge = ""  # consumed
+            if DEBUG:
+                logger.info(f"📨 FULL HUMAN PROMPT (turn {turn}):\n{human}\n{'-'*64}")
+            else:
+                logger.info(
+                    f"👁️  SNAPSHOT sent to LLM ({len(_compress_dom(latest_snapshot))} chars compressed)"
+                    + (f" | ⚠️ NUDGE active" if "nudge" in human.lower() else "")
+                )
 
             try:
                 ai = await llm.ainvoke(messages, config=invoke_config)
                 tool_calls = getattr(ai, "tool_calls", None) or []
                 content = ai.content or ""
                 llm_errors = 0
+                _preview = content if len(content) <= 500 else content[:500] + "…[truncated]"
+                logger.info(
+                    f"🧠 LLM RESPONSE → tool_calls={[c.get('name') for c in tool_calls] or 'NONE'}\n"
+                    f"   content={_preview!r}"
+                )
             except Exception as e:
                 # llama-3.3 on Groq sometimes emits a malformed tool call →
                 # Groq returns `tool_use_failed`. Recover the intended call from
@@ -1153,13 +1202,48 @@ class PlaywrightReActAgent:
             # No tool call → final verdict
             if not tool_calls:
                 verdict_text = content.strip()
+                # GUARD — form filled but never submitted: the agent typed/selected
+                # fields but never clicked a Create/Save button, then declared the
+                # item "not created". Nudge it ONCE to click submit before judging.
+                if not submit_nudge_used:
+                    _SUBMIT_KW = ("submit", "save", "create", "enregistr", "créer",
+                                  "creer", "ajouter", "valider", "soumettre", "confirm")
+                    filled = any(
+                        a.startswith("✓ type") or a.startswith("✓ select_option")
+                        for a in action_log
+                    )
+                    clicked_submit = any(
+                        a.startswith("✓ click") and any(kw in a.lower() for kw in _SUBMIT_KW)
+                        for a in action_log
+                    )
+                    if filled and not clicked_submit and "FAILED" in verdict_text.upper():
+                        submit_nudge_used = True
+                        nudge = ("You filled the form but NEVER clicked the submit button "
+                                 "(Save / Create / Enregistrer / Créer / Ajouter). A form that "
+                                 "is not submitted creates NOTHING. Take a snapshot, find the "
+                                 "submit/create button, CLICK it, wait, then re-verify — do "
+                                 "NOT give a verdict yet.")
+                        logger.info(
+                            "ReAct: form filled but no submit click detected — "
+                            "nudging to click Create before accepting the FAILED verdict"
+                        )
+                        verdict_text = None
+                        continue
                 logger.info(f"🧠 ReAct verdict received at turn {turn}")
+                break
+
+            # Some models (llama-3.3) emit a VERDICT in content AND a tool_call
+            # simultaneously. Capture the verdict and stop — don't execute the tool.
+            if content and re.search(r"VERDICT\s*:\s*(PASSED|FAILED)", content, re.IGNORECASE):
+                verdict_text = content.strip()
+                logger.info(f"🧠 ReAct verdict in content alongside tool_call — captured at turn {turn}")
                 break
 
             # Execute ONE action per turn, then re-observe and re-prompt
             call = tool_calls[0]
             name = call.get("name", "")
             args = self._normalize_react_args(name, call.get("args", {}) or {})
+            logger.info(f"⚙️  EXECUTE → {name}({json.dumps(args, ensure_ascii=False)[:300]})")
 
             if name not in tools:
                 action_log.append(f"tried unavailable tool '{name}'")
@@ -1189,19 +1273,23 @@ class PlaywrightReActAgent:
 
             try:
                 raw = await tools[name].ainvoke(args)
+                logger.info(f"📤 {name} RETURNED: {str(raw)[:250]!r}")
                 result_text = self._extract_snapshot_text(str(raw))
                 if "[ref=" in result_text:
                     latest_snapshot = result_text
 
                 if name == "browser_snapshot":
                     action_log.append("observed the page (snapshot)")
+                    snapshot_only_streak += 1
                 else:
+                    snapshot_only_streak = 0
                     ts_line = self._react_action_to_ts(name, args, latest_snapshot)
                     if ts_line:
                         recorded_lines.append(ts_line)
                         desc = args.get("element") or args.get("ref") or name
                         locator_mapping[str(desc)] = ts_line
-                    label = self._react_step_label(name, args)
+                    friendly = self._friendly_target_from_result(str(raw))
+                    label = self._react_step_label(name, args, target=friendly)
                     steps_passed += 1
                     step_details.append({"step": label, "status": "passed"})
                     action_log.append(f"✓ {label}")
@@ -1225,6 +1313,7 @@ class PlaywrightReActAgent:
                 # MCP returns markdown errors like "### Error\n<real reason>\n### Ran…".
                 # Keep the REAL reason, not just the "### Error" header line, so the
                 # failure is diagnosable and the model knows WHY the ref didn't work.
+                snapshot_only_streak = 0
                 err = self._extract_tool_error(e)
                 logger.warning(f"ReAct tool '{name}' failed: {err}")
                 label = self._react_step_label(name, args)
@@ -1270,17 +1359,32 @@ class PlaywrightReActAgent:
                 logger.warning(f"ReAct: forced verdict call failed: {e}")
 
         # ── Parse the verdict + fold its expectation lines into step_details ────
+        logger.info(
+            f"\n{'#'*64}\n"
+            f"🏁 ReAct VERDICT PARSING\n"
+            f"   verdict_text = {verdict_text!r}\n"
+            f"{'#'*64}"
+        )
         passed_verdict, justification = self._parse_react_verdict(verdict_text)
+        logger.info(
+            f"   → passed_verdict={passed_verdict} | justification={justification}\n"
+            f"   → reason: {'no verdict text (loop hit cap or got stuck)' if verdict_text is None else ('regex matched VERDICT: PASSED' if passed_verdict else 'VERDICT: PASSED not found in text')}"
+        )
         for jline in justification:
-            ok = jline.lstrip().startswith("✅")
+            # A justification line is a FAILURE only if it carries a ❌ marker.
+            # The ✅/❌ can appear ANYWHERE in the line — the LLM often writes
+            # "Expected result: ✅ verified" rather than "✅ Expected result",
+            # so the old startswith("✅") check wrongly flagged verified results
+            # as failures. Presence of ❌ = unmet expectation; otherwise passed.
+            failed_line = "❌" in jline
             step_details.append({
-                "step": jline.lstrip("✅❌ ").strip()[:200],
-                "status": "passed" if ok else "failed",
+                "step": jline.lstrip("✅❌ -").strip()[:200],
+                "status": "failed" if failed_line else "passed",
             })
-            if ok:
-                steps_passed += 1
-            else:
+            if failed_line:
                 steps_failed += 1
+            else:
+                steps_passed += 1
 
         if verdict_text is None:
             # Loop hit the step cap without a verdict → inconclusive = failure
@@ -1360,17 +1464,23 @@ class PlaywrightReActAgent:
             email_ref = None
             pass_ref = None
             btn_ref = None
+            # Bilingual EN/FR field detection. The first matching field of each
+            # kind wins — login forms list email before password.
+            _EMAIL_KW = ("email", "e-mail", "courriel", "identifiant", "utilisateur", "username")
+            _PASS_KW = ("password", "mot de passe", "passe", "pwd")
+            _BTN_KW = ("connexion", "se connecter", "login", "log in", "sign in", "connecter")
             for line in snap.splitlines():
                 ll = line.lower()
-                if ("textbox" in ll or "input" in ll) and "email" in ll and "[ref=" in line:
+                is_input = ("textbox" in ll or "input" in ll or "searchbox" in ll)
+                if is_input and "[ref=" in line and email_ref is None and any(k in ll for k in _EMAIL_KW):
                     m = re.search(r'\[ref=(e\d+)\]', line)
                     if m:
                         email_ref = m.group(1)
-                elif ("textbox" in ll or "input" in ll) and "password" in ll and "[ref=" in line:
+                elif is_input and "[ref=" in line and pass_ref is None and any(k in ll for k in _PASS_KW):
                     m = re.search(r'\[ref=(e\d+)\]', line)
                     if m:
                         pass_ref = m.group(1)
-                elif "button" in ll and any(kw in ll for kw in ("connexion", "login", "sign in", "se connecter")) and "[ref=" in line:
+                elif "button" in ll and "[ref=" in line and btn_ref is None and any(kw in ll for kw in _BTN_KW):
                     m = re.search(r'\[ref=(e\d+)\]', line)
                     if m:
                         btn_ref = m.group(1)
@@ -1379,24 +1489,18 @@ class PlaywrightReActAgent:
                 logger.warning("Auto-login: could not find email/password fields in login page")
                 return None
 
-            await tools["browser_type"].ainvoke({"ref": email_ref, "text": email})
-            await tools["browser_type"].ainvoke({"ref": pass_ref, "text": password})
+            logger.info(f"Auto-login: found refs — email={email_ref}, pass={pass_ref}, btn={btn_ref}")
+            # MCP browser_type requires both "ref" AND "target" (target = the ref string,
+            # element = human description). Passing only "ref" causes "expected string,
+            # received undefined" on the "target" field.
+            await tools["browser_type"].ainvoke({"ref": email_ref, "target": email_ref, "element": "email field", "text": email})
+            await tools["browser_type"].ainvoke({"ref": pass_ref, "target": pass_ref, "element": "password field", "text": password})
 
-            # Find login button if not already found
-            if not btn_ref:
-                snap2 = await self._safe_snapshot(tools)
-                for line in snap2.splitlines():
-                    ll = line.lower()
-                    if "button" in ll and "[ref=" in line:
-                        m = re.search(r'\[ref=(e\d+)\]', line)
-                        if m:
-                            btn_ref = m.group(1)
-                            break
-
-            if btn_ref:
-                await tools["browser_click"].ainvoke({"ref": btn_ref})
-            else:
-                await tools["browser_press_key"].ainvoke({"key": "Enter"})
+            # Press Enter to submit — more reliable than clicking a button ref detected
+            # from the snapshot (which can match wrong elements like nav buttons that
+            # appear before the form inputs in the accessibility tree, e.g. e8 instead
+            # of the real submit button e19).
+            await tools["browser_press_key"].ainvoke({"key": "Enter"})
 
             # Wait for page to change after login
             snap_after = await self._wait_for_dom_stable(tools, max_wait=8.0, check_interval=0.6, stable_checks=2)
@@ -1456,17 +1560,46 @@ class PlaywrightReActAgent:
             return f"await {loc}.hover();"
         return None
 
-    def _react_step_label(self, name: str, args: dict) -> str:
+    @staticmethod
+    def _friendly_target_from_result(raw: str) -> Optional[str]:
+        """Extract the REAL element name from the MCP '### Ran Playwright code' block.
+
+        MCP returns the actual Playwright locator it ran, e.g.
+        `await page.getByTestId('client-name').fill(...)`. We parse that into a
+        human-readable token (`client-name`, `Clients`, …) so the step log shows
+        real elements instead of the ephemeral `[ref=eXX]`. Zero LLM calls — the
+        info is already in the tool response.
+        """
+        if not raw:
+            return None
+        for pat in (
+            r"getByTestId\(\s*['\"]([^'\"]+)['\"]",
+            r"getByRole\(\s*['\"][^'\"]+['\"]\s*,\s*\{[^}]*name:\s*['\"]([^'\"]+)['\"]",
+            r"getByLabel\(\s*['\"]([^'\"]+)['\"]",
+            r"getByPlaceholder\(\s*['\"]([^'\"]+)['\"]",
+            r"getByText\(\s*['\"]([^'\"]+)['\"]",
+        ):
+            m = re.search(pat, raw)
+            if m:
+                return m.group(1)
+        return None
+
+    def _react_step_label(self, name: str, args: dict, target: Optional[str] = None) -> str:
+        # `target` is the REAL element name parsed from the MCP response (preferred);
+        # fall back to the model-supplied element description, then the raw ref.
+        elem = target or args.get("element") or args.get("ref", "")
         short = name.replace("browser_", "")
         if name == "browser_navigate":
             return f"navigate → {args.get('url', '')}"
         if name == "browser_type":
-            return f"type '{args.get('text', args.get('value', ''))}' into {args.get('element', args.get('ref', ''))}"
+            return f"type '{args.get('text', args.get('value', ''))}' into {elem}"
         if name in ("browser_click", "browser_hover"):
-            return f"{short} {args.get('element', args.get('ref', ''))}"
+            return f"{short} {elem}"
         if name == "browser_press_key":
             return f"press {args.get('key', '')}"
-        return f"{short} {args.get('element', '')}".strip()
+        if name == "browser_wait_for":
+            return f"wait for '{args.get('text', '')}'" if args.get("text") else "wait_for"
+        return f"{short} {elem}".strip()
 
     def _normalize_react_args(self, name: str, args: dict) -> dict:
         """
@@ -1481,6 +1614,13 @@ class PlaywrightReActAgent:
         if name in ("browser_click", "browser_type", "browser_hover", "browser_select_option"):
             if "element" not in args or not args.get("element"):
                 args["element"] = args.get("ref", "target element")
+        if name == "browser_select_option":
+            # MCP requires `values` to be a LIST. llama often emits a bare string
+            # (e.g. "Test Client") → coerce it so the dropdown selection works.
+            v = args.get("values", args.get("value"))
+            if v is not None and not isinstance(v, list):
+                args["values"] = [v]
+            args.pop("value", None)
         return args
 
     @staticmethod
@@ -1497,7 +1637,8 @@ class PlaywrightReActAgent:
         msg = str(err)
         if "tool_use_failed" not in msg and "failed_generation" not in msg:
             return None
-        m = re.search(r"<function=(\w+)\s*(\{.*?\})", msg, re.DOTALL)
+        # Handle BOTH shapes llama emits:  <function=name{...}  AND  <function=name>{...}
+        m = re.search(r"<function=(\w+)>?\s*(\{.*?\})", msg, re.DOTALL)
         if not m:
             return None
         name = m.group(1)

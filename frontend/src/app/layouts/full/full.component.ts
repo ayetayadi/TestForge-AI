@@ -15,7 +15,6 @@ import { jwtDecode } from 'jwt-decode';
 import { HeaderComponent } from './header/header.component';
 import { SidebarComponent } from './sidebar/sidebar.component';
 import { AppNavItemComponent } from './sidebar/nav-item/nav-item.component';
-import { TastyComponent } from 'src/app/components/tasty/tasty.component';
 
 @Component({
   selector: 'app-full',
@@ -29,7 +28,6 @@ import { TastyComponent } from 'src/app/components/tasty/tasty.component';
     HeaderComponent,
     SidebarComponent,
     AppNavItemComponent,
-    TastyComponent,
   ],
   templateUrl: './full.component.html',
   styleUrls: ['./full.component.scss'],

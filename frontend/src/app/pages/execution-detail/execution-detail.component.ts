@@ -47,6 +47,9 @@ export class ExecutionDetailComponent implements OnInit {
   showCloseModal = signal(false);
   isClosing      = signal(false);
 
+  // ── Screenshot lightbox ─────────────────────────────────────────
+  screenshotLightbox = signal<{ src: string; name: string } | null>(null);
+
   // ── Derived ─────────────────────────────────────────────────────
   hasFailures = computed(() => {
     const ex = this.execution();
@@ -209,6 +212,43 @@ export class ExecutionDetailComponent implements OnInit {
         this.toast.error('Failed to reopen execution');
       },
     });
+  }
+
+  // ── Screenshot view / download ──────────────────────────────────
+  private _screenshotName(tcr: TestCaseResultDetail): string {
+    const raw = (tcr.tc_code || tcr.title || tcr.id || 'screenshot').toString();
+    return `screenshot_${raw.replace(/[^\w.-]+/g, '_')}.png`;
+  }
+
+  openScreenshot(tcr: TestCaseResultDetail): void {
+    if (!tcr.screenshot_b64) return;
+    this.screenshotLightbox.set({
+      src: 'data:image/png;base64,' + tcr.screenshot_b64,
+      name: this._screenshotName(tcr),
+    });
+  }
+
+  closeScreenshot(): void {
+    this.screenshotLightbox.set(null);
+  }
+
+  downloadScreenshot(tcr: TestCaseResultDetail): void {
+    if (!tcr.screenshot_b64) return;
+    this._triggerDownload('data:image/png;base64,' + tcr.screenshot_b64, this._screenshotName(tcr));
+  }
+
+  downloadFromLightbox(): void {
+    const lb = this.screenshotLightbox();
+    if (lb) this._triggerDownload(lb.src, lb.name);
+  }
+
+  private _triggerDownload(dataUrl: string, filename: string): void {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   // ── UI helpers ──────────────────────────────────────────────────

@@ -48,7 +48,7 @@
   <!-- ═══════════════════════════════════════════════════
        STATS BANNER
   ════════════════════════════════════════════════════ -->
-  <div class="stats-banner">
+  <!-- <div class="stats-banner">
     <div class="stat-card">
       <span class="stat-value">{{ stats().total }}</span>
       <span class="stat-label">Total Suites</span>
@@ -69,7 +69,7 @@
       <span class="stat-value">{{ stats().criticalSuites }}</span>
       <span class="stat-label">Critical Priority</span>
     </div>
-  </div>
+  </div> -->
 
   <!-- ═══════════════════════════════════════════════════
        GENERATE PANEL
@@ -138,32 +138,10 @@
       <span class="filters-bar__label">Filters</span>
     </div>
 
-    <div class="search-box">
-      <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input
-        type="text"
-        placeholder="Search suites, plans, projects..."
-        [ngModel]="searchTerm()"
-        (ngModelChange)="searchTerm.set($event)"
-        class="search-input"
-      />
-      @if (searchTerm()) {
-        <button class="search-clear" (click)="searchTerm.set('')">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      }
-    </div>
-
     <select class="filter-select" [ngModel]="selectedProject()" (ngModelChange)="selectedProject.set($event)">
       <option value="">All Projects</option>
       @for (p of uniqueProjects(); track p) {
         <option [value]="p">{{ p }}</option>
-      }
-    </select>
-
-    <select class="filter-select" [ngModel]="selectedType()" (ngModelChange)="selectedType.set($event)">
-      @for (t of suiteTypes; track t.value) {
-        <option [value]="t.value">{{ t.label }}</option>
       }
     </select>
 
@@ -172,15 +150,6 @@
       <option value="active">Active</option>
       <option value="draft">Draft</option>
       <option value="archived">Archived</option>
-      <option value="closed">Closed</option>
-    </select>
-
-    <select class="filter-select" [ngModel]="selectedPriority()" (ngModelChange)="selectedPriority.set($event)">
-      <option value="">All Priorities</option>
-      <option value="critical">Critical</option>
-      <option value="high">High</option>
-      <option value="medium">Medium</option>
-      <option value="low">Low</option>
     </select>
 
     <span class="results-count">

@@ -416,10 +416,25 @@
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fill-rule="evenodd" d="M1 8a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 018.07 3h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0016.07 6H17a2 2 0 012 2v7a2 2 0 01-2 2H3a2 2 0 01-2-2V8zm13.5 3a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM10 14a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" clip-rule="evenodd"/>
                         </svg>
-                        Screenshot at failure
+                        Screenshot
                       </div>
-                      <img [src]="'data:image/png;base64,' + fullReport()!.tc_result.screenshot_b64"
-                           alt="Screenshot at failure" class="failure-screenshot" />
+                      <div class="screenshot-actions">
+                        <button class="btn-screenshot" (click)="openScreenshot()">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                            <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                          </svg>
+                          View screenshot
+                        </button>
+                        <button class="btn-screenshot btn-screenshot--download" (click)="downloadScreenshot()">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v6.638l1.96-2.158a.75.75 0 111.08 1.04l-3.25 3.5a.75.75 0 01-1.08 0l-3.25-3.5a.75.75 0 111.08-1.04l1.96 2.158V3.75A.75.75 0 0110 3zm-6 11a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"/>
+                          </svg>
+                          Download
+                        </button>
+                      </div>
+                      <img class="screenshot-thumb" [src]="'data:image/png;base64,' + fullReport()!.tc_result.screenshot_b64"
+                           alt="screenshot preview" title="Click to enlarge" (click)="openScreenshot()" />
                     </div>
                   }
 
@@ -640,51 +655,115 @@
 <!-- ─── Email Dialog ──────────────────────────────────────────────────────── -->
 @if (showEmailDialog()) {
   <div class="dialog-overlay" (click)="closeEmailDialog()">
-    <div class="dialog" (click)="$event.stopPropagation()">
-      <div class="dialog-header">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
-          <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
-        </svg>
-        Send Execution Report
-        <button class="dialog-close" (click)="closeEmailDialog()">×</button>
+    <div class="dialog email-dialog" (click)="$event.stopPropagation()">
+
+      <!-- Gradient header — colour follows test status -->
+      <div class="email-dialog-header" [class]="'email-dialog-header--' + reportStatus()">
+        <div class="email-dialog-header__icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <path d="M2 7l10 7 10-7"/>
+          </svg>
+        </div>
+        <div class="email-dialog-header__content">
+          <div class="email-dialog-header__title">Send Execution Report</div>
+          <div class="email-dialog-header__meta">
+            <span class="email-tc-code">{{ fullReport()?.test_case?.tc_code }}</span>
+            <span class="email-status-pill" [class]="'email-status-pill--' + reportStatus()">
+              {{ getReportStatusLabel() }}
+            </span>
+            <span class="email-duration">{{ formatDuration(fullReport()?.tc_result?.duration ?? null) }}</span>
+          </div>
+        </div>
+        <button class="email-dialog-close" (click)="closeEmailDialog()" title="Close">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
+          </svg>
+        </button>
       </div>
 
-      <div class="dialog-body">
-        <div class="dialog-tc-summary">
-          <span class="tc-code-sm">{{ fullReport()?.test_case?.tc_code }}</span>
-          <span class="tc-status" [class]="'tc-status--' + reportStatus()">{{ getReportStatusLabel() }}</span>
-          <span class="tc-dur">{{ formatDuration(fullReport()?.tc_result?.duration ?? null) }}</span>
+      <!-- Body -->
+      <div class="email-dialog-body">
+
+        <!-- What's included -->
+        <div class="email-includes">
+          <p class="email-includes__label">This report will include</p>
+          <div class="email-includes__chips">
+            <span class="email-include-chip">
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 4a.75.75 0 00-1.5 0v3.25H4.5a.75.75 0 000 1.5H8a.75.75 0 00.75-.75V5z"/>
+              </svg>
+              Test Result &amp; Duration
+            </span>
+            <span class="email-include-chip">
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 2a1 1 0 011-1h10a1 1 0 011 1v2a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm0 5a1 1 0 011-1h10a1 1 0 011 1v2a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm1 4a1 1 0 000 2h6a1 1 0 000-2H3z"/>
+              </svg>
+              AI Reasoning
+            </span>
+            <span class="email-include-chip">
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path fill-rule="evenodd" d="M2 2.5A.5.5 0 012.5 2h11a.5.5 0 010 1h-11A.5.5 0 012 2.5zm0 3A.5.5 0 012.5 5h11a.5.5 0 010 1h-11A.5.5 0 012 5.5zm0 3A.5.5 0 012.5 8h8a.5.5 0 010 1h-8A.5.5 0 012 8.5z"/>
+              </svg>
+              Execution Steps
+            </span>
+            @if (fullReport()?.defect) {
+              <span class="email-include-chip email-include-chip--warning">
+                <svg viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm-.75 4.5a.75.75 0 011.5 0v3a.75.75 0 01-1.5 0v-3zm.75 6.25a.875.875 0 110-1.75.875.875 0 010 1.75z"/>
+                </svg>
+                Defect Info
+              </span>
+            }
+            @if (fullReport()?.tc_result?.screenshot_b64) {
+              <span class="email-include-chip email-include-chip--screenshot">
+                <svg viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M0 4.5A1.5 1.5 0 011.5 3h13A1.5 1.5 0 0116 4.5v7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 010 11.5v-7zm5.5 3a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0z"/>
+                </svg>
+                Screenshot (PNG attached)
+              </span>
+            }
+          </div>
         </div>
 
-        <p class="dialog-hint">The email will include: test result, AI reasoning, step details, defect info, and recommendations.</p>
-
-        <div class="form-field">
-          <label>Recipients <span class="label-hint">(comma, semicolon or newline separated)</span></label>
+        <!-- Recipients -->
+        <div class="email-recipient-field">
+          <label class="email-recipient-field__label">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
+              <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
+            </svg>
+            Recipients
+            <span class="email-recipient-field__hint">comma · semicolon · newline</span>
+          </label>
           <textarea
-            class="form-textarea"
-            rows="4"
+            class="email-recipient-textarea"
+            rows="3"
             placeholder="developer@company.com&#10;qa@company.com&#10;pm@company.com"
             [value]="emailRecipients()"
             (input)="emailRecipients.set($any($event.target).value)"
           ></textarea>
         </div>
+
       </div>
 
-      <div class="dialog-footer">
-        <button class="btn-cancel" (click)="closeEmailDialog()">Cancel</button>
-        <button class="btn-primary-action" (click)="sendEmail()" [disabled]="isSendingEmail() || !emailRecipients().trim()">
+      <!-- Footer -->
+      <div class="email-dialog-footer">
+        <button class="email-btn-cancel" (click)="closeEmailDialog()">Cancel</button>
+        <button class="email-btn-send" (click)="sendEmail()" [disabled]="isSendingEmail() || !emailRecipients().trim()">
           @if (isSendingEmail()) {
-            <div class="spinner-tiny"></div> Sending...
+            <div class="spinner-tiny"></div>
+            Sending…
           } @else {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z"/>
-              <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z"/>
+              <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z"/>
             </svg>
             Send Report
           }
         </button>
       </div>
+
     </div>
   </div>
 }
@@ -719,6 +798,29 @@
           </svg>
           Delete
         </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Screenshot Lightbox ──────────────────────────────────────────────── -->
+@if (screenshotLightbox(); as lb) {
+  <div class="modal-overlay" (click)="closeScreenshot()">
+    <div class="screenshot-lightbox" (click)="$event.stopPropagation()">
+      <div class="screenshot-lightbox__bar">
+        <span class="screenshot-lightbox__title">{{ lb.name }}</span>
+        <div class="screenshot-lightbox__actions">
+          <button class="btn-screenshot btn-screenshot--download" (click)="downloadFromLightbox()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v6.638l1.96-2.158a.75.75 0 111.08 1.04l-3.25 3.5a.75.75 0 01-1.08 0l-3.25-3.5a.75.75 0 111.08-1.04l1.96 2.158V3.75A.75.75 0 0110 3zm-6 11a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"/>
+            </svg>
+            Download
+          </button>
+          <button class="screenshot-lightbox__close" (click)="closeScreenshot()" title="Close">✕</button>
+        </div>
+      </div>
+      <div class="screenshot-lightbox__body">
+        <img [src]="lb.src" alt="screenshot enlarged" />
       </div>
     </div>
   </div>

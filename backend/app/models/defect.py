@@ -10,8 +10,6 @@ from app.core.database import Base
 from app.models.enums import DefectSeverity, DefectStatus
 
 if TYPE_CHECKING:
-    from app.models.user_story import UserStory
-    from app.models.user_story_version import UserStoryVersion
     from app.models.test_case import TestCase
 
 
@@ -28,21 +26,8 @@ class Defect(Base):
     # CLÉS ÉTRANGÈRES
     # ========================
 
-    user_story_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("user_stories.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
-    )
-
-    user_story_version_id: Mapped[Optional[str]] = mapped_column(
-        String(36),
-        ForeignKey("user_story_versions.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True
-    )
-
-    # Test case qui a révélé ce défaut (section 5.5)
+    # Test case qui a révélé ce défaut — LE seul lien du défaut. La user story
+    # se déduit via test_case.user_story_id (pas de lien direct, pas de triangle).
     test_case_id: Mapped[Optional[str]] = mapped_column(
         String(36),
         ForeignKey("test_cases.id", ondelete="SET NULL"),
@@ -92,9 +77,6 @@ class Defect(Base):
     # Logs bruts (section 5.5)
     logs: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Score au moment de la détection (pipeline IA)
-    initial_score: Mapped[Optional[float]] = mapped_column()
-
     # ========================
     # JIRA TICKET
     # ========================
@@ -121,18 +103,6 @@ class Defect(Base):
     # RELATIONS
     # ========================
 
-    user_story: Mapped["UserStory"] = relationship(
-        "UserStory",
-        back_populates="defects",
-        foreign_keys=[user_story_id]
-    )
-
-    user_story_version: Mapped[Optional["UserStoryVersion"]] = relationship(
-        "UserStoryVersion",
-        back_populates="defects",
-        foreign_keys=[user_story_version_id]
-    )
-
     test_case: Mapped[Optional["TestCase"]] = relationship(
         "TestCase",
         back_populates="defects",
@@ -143,7 +113,6 @@ class Defect(Base):
     # INDEXES
     # ========================
     __table_args__ = (
-        Index("idx_defect_user_story_id", "user_story_id"),
         Index("idx_defect_test_case_id", "test_case_id"),
         Index("idx_defect_status", "status"),
         Index("idx_defect_severity", "severity"),

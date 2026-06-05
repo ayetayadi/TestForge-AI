@@ -375,7 +375,7 @@ class TestSuiteService:
         
         if result.get("workflow_status") == "error":
             raise ValueError(f"Suite generation failed: {result.get('error')}")
-        
+
         # 5. Persist suites and link test cases
         created_suites = []
         tc_map = {tc.tc_code: tc for tc in test_cases}
@@ -387,12 +387,45 @@ class TestSuiteService:
         risk_result = await self.db.execute(risk_query)
         all_risks = list(risk_result.scalars().all())
         accepted_risk_ids = [r.id for r in all_risks]
-        
+
+        # Build structured title components from the test plan
+        _plan_project = project_name or ""
+        if not _plan_project and " — " in (plan.title or ""):
+            parts = plan.title.split(" — ")
+            _plan_project = parts[1].strip() if len(parts) >= 2 else plan.title
+        _scope_str = " - ".join(plan.scope_refs) if plan.scope_refs else ""
+        _TYPE_LABEL = {
+            "positive": "positive",
+            "negative": "negative",
+            "boundary": "boundary values",
+            "edge_case": "boundary values",
+            "edge": "boundary values",
+        }
+
+        # Collect titles already saved for this plan (to detect regeneration)
+        existing_titles_result = await self.db.execute(
+            select(TestSuite.title).where(TestSuite.test_plan_id == test_plan_id)
+        )
+        used_titles: set = {row[0] for row in existing_titles_result.all()}
+
         for suite_data in result["suites"]:
+            group_key = (suite_data.get("_group_key") or suite_data.get("suite_type") or "positive").lower()
+            type_label = _TYPE_LABEL.get(group_key, group_key)
+            if _scope_str:
+                base_title = f"Test Suite - {_plan_project} - {_scope_str} - {type_label}"
+            else:
+                base_title = f"Test Suite - {_plan_project} - {type_label}"
+            structured_title = base_title
+            counter = 2
+            while structured_title in used_titles:
+                structured_title = f"{base_title} - {counter}"
+                counter += 1
+            used_titles.add(structured_title)
+
             suite = TestSuite(
                 id=str(uuid4()),
                 test_plan_id=test_plan_id,
-                title=suite_data["title"],
+                title=structured_title,
                 description=suite_data.get("description", ""),
                 suite_type=suite_data.get("suite_type", "functional"),
                 priority=suite_data.get("priority", "medium"),

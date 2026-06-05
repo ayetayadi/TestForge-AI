@@ -128,6 +128,13 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
       );
     }
 
+    const typeFilter = filters['test_type'];
+    if (typeFilter?.length) {
+      items = items.filter(r =>
+        typeFilter.some(f => r.testCase.test_type === f)
+      );
+    }
+
     const orderMap = this.tcOrderMap();
     items = [...items].sort((a, b) => {
       const oa = orderMap.get(a.testCase.tc_code) ?? Infinity;
@@ -169,6 +176,16 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
           { value: 'failed',  label: 'Failed',  count: items.filter(r => r.lastRunStatus === 'failed').length },
           { value: 'error',   label: 'Error',   count: items.filter(r => r.lastRunStatus === 'error').length },
           { value: 'not_run', label: 'Not Run', count: items.filter(r => !r.lastRunStatus).length },
+        ],
+      },
+      {
+        key: 'test_type',
+        label: 'Test Type',
+        multiple: true,
+        options: [
+          { value: 'positive',  label: 'Positive',  count: items.filter(r => r.testCase.test_type === 'positive').length },
+          { value: 'negative',  label: 'Negative',  count: items.filter(r => r.testCase.test_type === 'negative').length },
+          { value: 'boundary',  label: 'Boundary',  count: items.filter(r => r.testCase.test_type === 'boundary').length },
         ],
       },
     ];
@@ -382,6 +399,15 @@ export class PlaywrightScriptsComponent implements OnInit, OnDestroy {
       case 'act':   return '⚡';
       case 'observe': return '👁️';
       default: return '•';
+    }
+  }
+
+  getTestTypeBadgeClass(type: string | null): string {
+    switch (type) {
+      case 'positive':  return 'badge-type-positive';
+      case 'negative':  return 'badge-type-negative';
+      case 'boundary':  return 'badge-type-boundary';
+      default:          return 'badge-secondary';
     }
   }
 

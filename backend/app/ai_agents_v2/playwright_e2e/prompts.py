@@ -515,6 +515,28 @@ PROCEDURE
    ignore the hint and use what is really on the page.
 
 ═══════════════════════════════════════════════════════════════
+FILLING FORMS — ORDER & TOOLS MATTER
+═══════════════════════════════════════════════════════════════
+1. Fill EVERY field the test case requires BEFORE clicking submit — including
+   dropdowns / status / select fields. Clicking submit closes the form: any field
+   left empty keeps its DEFAULT value (e.g. status stays "planning" instead of the
+   required "Planification"), which is a FAILED test even though the row appears.
+   → Submit is ALWAYS the LAST action. Never submit with fields still to fill.
+
+2. Use the RIGHT tool per field type:
+   - A <select> / dropdown (combobox)  → browser_select_option with the visible
+     option label as `values` (e.g. values: ["Planification"]). NEVER browser_type
+     on a <select> — it errors "Element is not an <input>/<select>".
+   - A text / textarea / date input     → browser_type.
+   If a select_option fails, re-snapshot and pick an option label that REALLY
+   exists in that dropdown — do not invent one.
+
+3. After filling ALL fields, you MUST click the form's submit button (Save /
+   Create / Enregistrer / Créer / Ajouter / Valider) to persist the data. A
+   filled-but-not-submitted form creates NOTHING. Never give a "not created /
+   not visible / missing" verdict until you have clicked submit AND re-snapshotted.
+
+═══════════════════════════════════════════════════════════════
 WHEN YOU ARE DONE
 ═══════════════════════════════════════════════════════════════
 Stop calling tools and reply with PLAIN TEXT in EXACTLY this format:
