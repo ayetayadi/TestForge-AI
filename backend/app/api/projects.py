@@ -16,7 +16,8 @@ from app.services.project_service import (
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
-@router.get("/", status_code=status.HTTP_200_OK)
+@router.get("", status_code=status.HTTP_200_OK)
+@router.get("/", status_code=status.HTTP_200_OK, include_in_schema=False)
 async def get_projects(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

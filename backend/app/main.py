@@ -197,7 +197,7 @@ _IS_DEV = settings.ENV in ("dev", "local", "development")
 app = FastAPI(
     title="TestForge AI Backend",
     lifespan=lifespan,
-    # Interactive API docs only in dev — hidden in production
+    redirect_slashes=False,
     docs_url="/docs" if _IS_DEV else None,
     redoc_url="/redoc" if _IS_DEV else None,
     openapi_url="/openapi.json" if _IS_DEV else None,

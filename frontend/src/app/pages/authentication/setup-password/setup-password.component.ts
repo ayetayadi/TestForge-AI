@@ -11,6 +11,7 @@ import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from 'src/app/material.module';
 import { HttpClient } from '@angular/common/http';
+import { environment } from 'src/environments/environment';
 
 /**
  * ✅ Validator propre (ne casse pas les autres erreurs)
@@ -92,7 +93,7 @@ export class SetupPasswordComponent implements OnInit {
     this.loading = true;
     this.errorMessage = '';
 
-    this.http.post('http://localhost:8000/auth/setup-password', {
+    this.http.post(`${environment.apiUrl}/auth/setup-password`, {
       token: this.token,
       password: this.f.password.value,
     }).subscribe({

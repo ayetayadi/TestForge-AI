@@ -31,12 +31,8 @@ router = APIRouter(prefix="/test-suites", tags=["Test Suites"])
 # LIST
 # ============================================================
 
-@router.get(
-    "/",
-    response_model=TestSuiteListResponse,
-    summary="List test suites",
-    description="All test suites, optionally filtered by plan, project, type or status.",
-)
+@router.get("", response_model=TestSuiteListResponse, summary="List test suites", description="All test suites, optionally filtered by plan, project, type or status.")
+@router.get("/", response_model=TestSuiteListResponse, include_in_schema=False)
 async def list_test_suites(
     plan_id: Optional[str] = Query(None, description="Filter by test plan ID"),
     project_id: Optional[str] = Query(None, description="Filter by project ID"),

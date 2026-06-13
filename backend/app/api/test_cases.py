@@ -49,7 +49,8 @@ router = APIRouter(prefix="/test-cases", tags=["Test Cases"])
 # CRUD ENDPOINTS
 # ============================================================
 
-@router.get("/", response_model=List[TestCaseResponse])
+@router.get("", response_model=List[TestCaseResponse])
+@router.get("/", response_model=List[TestCaseResponse], include_in_schema=False)
 async def get_all_test_cases(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -165,7 +166,8 @@ async def get_test_cases_by_test_plan(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/", response_model=TestCaseResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=TestCaseResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=TestCaseResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def create_test_case(
     request: CreateTestCaseRequest,
     db: AsyncSession = Depends(get_db)

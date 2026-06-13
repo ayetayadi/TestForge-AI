@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langfuse import observe
 from langfuse import get_client as get_langfuse_client
 
+from app.core.config import settings
 from app.core.observability import fire_evaluation, get_trace_callback
 from app.llm.llm_control import create_llm, create_llm_for_model
 from .tools import PlaywrightMCPClient
@@ -400,7 +401,7 @@ class PlaywrightReActAgent:
                     screenshot_b64 = self._extract_screenshot_b64(raw)
                     if screenshot_b64 and test_case_id:
                         import os, base64 as b64lib
-                        screenshot_dir = "screenshots"
+                        screenshot_dir = settings.SCREENSHOTS_DIR
                         os.makedirs(screenshot_dir, exist_ok=True)
                         ts = time.strftime("%Y%m%d-%H%M%S")
                         fname = f"{screenshot_dir}/test_{test_case_id}_{ts}.png"
@@ -660,7 +661,7 @@ class PlaywrightReActAgent:
                         
                         if test_case_id:
                             import os, base64
-                            screenshot_dir = "screenshots"
+                            screenshot_dir = settings.SCREENSHOTS_DIR
                             os.makedirs(screenshot_dir, exist_ok=True)
                             timestamp = time.strftime("%Y%m%d-%H%M%S")
                             filename = f"{screenshot_dir}/test_{test_case_id}_{timestamp}.png"
@@ -2519,7 +2520,9 @@ class PlaywrightReActAgent:
                     # dropping the dot made every screenshot file lookup fail (#4).
                     if item.get("type") == "text":
                         text = item.get("text", "")
+                        #path_match = re.search(r'\(([^\s)]+\.png)\)', text)
                         path_match = re.search(r'\((\.?[\w\-\/\\]+\.png)\)', text)
+
                         if path_match:
                             rel = path_match.group(1)
                             import os, base64
@@ -2528,7 +2531,8 @@ class PlaywrightReActAgent:
                             # ours. Try every plausible base dir + match by basename.
                             base_name = os.path.basename(rel)
                             candidates = [rel] if os.path.isabs(rel) else [
-                                os.path.join(os.getcwd(), rel),
+                                os.path.join(os.getcwd(), rel),          # /app/tmp/.playwright-mcp/...
+                                #os.path.join("/app", rel),               # explicit /app base (AKS backend cwd)
                                 os.path.join(os.path.expanduser("~"), rel),
                                 os.path.join(os.path.expanduser("~"), ".playwright-mcp", base_name),
                                 os.path.join(os.getcwd(), "backend", rel),
