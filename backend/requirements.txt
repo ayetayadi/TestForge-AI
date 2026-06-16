@@ -1,58 +1,58 @@
+# ─── Web framework ────────────────────────────────────────────────────────────
 fastapi
-uvicorn
-google-generativeai
+uvicorn[standard]
 python-dotenv
 pydantic
+pydantic-settings
 requests
-jira
-deepeval
-playwright
+
+# ─── Database ─────────────────────────────────────────────────────────────────
 sqlalchemy
-psycopg2-binary
-pydantic-settings
-alembic
-langchain
-langchain-community
-langchain-openai
-faiss-cpu
-pypdf
-langchain-text-splitters
-google-generativeai
-langchain-google-genai
-langchain-huggingface
-sentence-transformers
-pydantic-settings
-langchain_huggingface
-beautifulsoup4
-unstructured[pdf]
-redis
-langfuse
-langsmith
 asyncpg
+alembic
+psycopg[binary,pool]
+
+# ─── Auth / Security ──────────────────────────────────────────────────────────
 bcrypt==4.0.1
 passlib[bcrypt]
 python-jose[cryptography]
 cryptography
+
+# ─── HTTP / Mail ──────────────────────────────────────────────────────────────
 httpx
 fastapi-mail
+
+# ─── LangChain / LangGraph ────────────────────────────────────────────────────
+langchain
+langchain-openai
+langchain-groq
+langchain-mcp-adapters
 langgraph
 langgraph-checkpoint-postgres
-psycopg[binary,pool]
-langchain_openrouter
-langchain-mcp-adapters
-langchain-groq
+
+# ─── Observability ────────────────────────────────────────────────────────────
+langfuse
+langsmith
+deepeval
+
+# ─── ML / Embeddings ──────────────────────────────────────────────────────────
+# NOTE: torch (CPU-only) is installed separately in the Dockerfile BEFORE this
+# file to prevent pip from pulling the 2GB CUDA build transitively.
+sentence-transformers
+scikit-learn
+joblib
+numpy
+
+# ─── Playwright (E2E agent) ───────────────────────────────────────────────────
+playwright
+
+# ─── Integrations ─────────────────────────────────────────────────────────────
+jira
+
+# ─── Export (PDF / DOCX) ──────────────────────────────────────────────────────
 reportlab
 python-docx
 
-# Testing
-pytest
-pytest-asyncio
-aiosqlite
-
-# ML - Risk Analysis
-xgboost
-scikit-learn
-joblib
-openpyxl
-pandas
-numpy
+# ─── Utilities ────────────────────────────────────────────────────────────────
+beautifulsoup4
+redis

@@ -22,7 +22,6 @@ from app.schemas.risk_schema import (
 from app.ai_workflows.risk_analysis.ml.pipeline import (
     RiskAnalysisPipeline,
     get_pipeline,
-    analyse_stories_batch,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,14 +90,15 @@ class RiskService:
     
         risk = await self.repository.create(risk_create)
         await self.db.commit()
-    
+
+        # Return the highest-scoring risk for backward compatibility
+        primary = max(created_risks, key=lambda r: r.risk_score)
         logger.info(
-            f"[RISK SERVICE] Analysis complete for {issue_key}: "
-            f"P={risk.probability} I={risk.impact} Score={risk.risk_score} "
-            f"Level={risk.level} TestDepth={risk.test_depth}"
+            f"[RISK SERVICE] {issue_key}: {len(created_risks)} scenario(s) — "
+            f"highest P={primary.probability} I={primary.impact} "
+            f"Score={primary.risk_score} Level={primary.level}"
         )
-        
-        return RiskResponse.model_validate(risk)
+        return RiskResponse.model_validate(primary)
 
     async def analyze_user_stories_batch(
         self,
@@ -107,16 +107,13 @@ class RiskService:
         concurrency: int = 2,
     ) -> RiskBatchResponse:
         """
-        Analyze multiple User Stories in batch with LLM.
-        
+        Analyze multiple User Stories in batch (ISTQB Risk-Based Testing).
+        Creates one Risk record per identified scenario (1-3 per story).
+
         Args:
-            stories_data: List of dicts with keys:
-                - story (str): The user story text
-                - acceptance_criteria (List[str]): ACs
-                - user_story_id (str): DB ID
-                - issue_key (str): Jira key
-            test_plan_id: Optional test plan to link risks to
-            concurrency: Max parallel LLM calls (keep low to avoid rate limits)
+            stories_data: list of dicts with story, acceptance_criteria,
+                          user_story_id, issue_key
+            concurrency:  max parallel LLM calls (keep low to avoid rate limits)
         """
         pipeline = await get_pipeline()
 
@@ -136,6 +133,7 @@ class RiskService:
 
         for idx, item in enumerate(ai_results):
             result = item.get("risk_analysis", {})
+
             if result.get("workflow_status") == "error":
                 failed.append({
                     "index": idx,
@@ -177,7 +175,7 @@ class RiskService:
                 })
         
         await self.db.commit()
-        
+
         return RiskBatchResponse(
             created=[RiskResponse.model_validate(r) for r in created],
             failed=failed,

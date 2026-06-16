@@ -31,12 +31,8 @@ router = APIRouter(prefix="/test-suites", tags=["Test Suites"])
 # LIST
 # ============================================================
 
-@router.get(
-    "/",
-    response_model=TestSuiteListResponse,
-    summary="List test suites",
-    description="All test suites, optionally filtered by plan, project, type or status.",
-)
+@router.get("", response_model=TestSuiteListResponse, summary="List test suites", description="All test suites, optionally filtered by plan, project, type or status.")
+@router.get("/", response_model=TestSuiteListResponse, include_in_schema=False)
 async def list_test_suites(
     plan_id: Optional[str] = Query(None, description="Filter by test plan ID"),
     project_id: Optional[str] = Query(None, description="Filter by project ID"),
@@ -109,6 +105,7 @@ async def generate_test_suites(
         result = await service.generate_suites(
             test_plan_id=request.test_plan_id,
             project_name=request.project_name,
+            strategy=request.strategy,
         )
         return GenerateTestSuitesResponse(**result)
     except ValueError as exc:

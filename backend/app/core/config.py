@@ -108,11 +108,16 @@ class Settings(BaseSettings):
     MAIL_PASSWORD: str
     MAIL_FROM: str
     MAIL_FROM_NAME: str = "TestForge"
+    MAIL_SERVER: str = "smtp.gmail.com"
+    MAIL_PORT: int = 587
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
 
     # =========================
     # MCP / PLAYWRIGHT CONFIG
     # =========================
     TEST_APPLICATION_URL: str = "http://localhost:3000"
+    SCREENSHOTS_DIR: str = "screenshots"
     # Credentials used by the ReAct agent to auto-login before non-auth test cases
     TEST_USER_EMAIL: str = ""
     TEST_USER_PASSWORD: str = ""

@@ -106,6 +106,7 @@ async def status(
 # 4. PROJECTS
 # =========================
 @router.get("/projects")
+@router.get("/projects/", include_in_schema=False)
 async def projects(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),

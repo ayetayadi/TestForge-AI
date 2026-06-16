@@ -39,6 +39,7 @@ export class FullComponent implements OnInit, AfterViewInit, OnDestroy {
   sidebarOpened = true;
   isMobile = false;
   isCollapsed = false;
+  isAdmin = false;
   navItems: NavItem[] = [];
 
   private readonly COLLAPSED_KEY = 'sidebar_collapsed';
@@ -135,6 +136,8 @@ export class FullComponent implements OnInit, AfterViewInit, OnDestroy {
         isAdmin = decoded.is_admin === true;
       } catch {}
     }
+
+    this.isAdmin = isAdmin;
 
     this.navItems = navItems.filter(item => {
       if (item.adminOnly && !isAdmin) return false;

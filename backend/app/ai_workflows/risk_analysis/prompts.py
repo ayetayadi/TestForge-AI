@@ -1,17 +1,20 @@
 """
-LLM prompt for Risk Based Testing - Simple language.
-Scale P: 1-5, Scale I: 1-5, Score = P × I
+Compact ISTQB risk prompt — optimized for structured output with Groq.
+
+Token budget:
+  - Template ≈ 200 tokens
+  - Story + ACs ≈ 150-400 tokens (variable)
+  - Output ≈ 150-300 tokens (flat ints + two short strings per scenario)
+  Total: well within 800 max_tokens.
+
+P = round(avg(story_complexity, ac_complexity, dependencies, clarity))
+I = round(avg(users_affected, revenue, safety, reputation))
+Computed in Python — LLM only provides the raw 1-5 ratings.
 """
 
-RISK_ANALYSIS_PROMPT = """You are a test manager. Your job is to analyze risks in user stories like ISTQB.
+RISK_ANALYSIS_PROMPT = """You are a QA risk analyst. Identify 1-2 DISTINCT risk scenarios for this user story.
 
-Look at this user story and tell me:
-- What could go wrong?
-- How bad would it be?
-- What should the tester do?
-
-USER STORY:
-{story}
+STORY: {story}
 
 ACCEPTANCE CRITERIA:
 {acceptance_criteria}
@@ -189,3 +192,4 @@ IMPORTANT RULES
 - Risk Score = P × I
 - Critical = 20-25, High = 12-19, Medium = 6-11, Low = 1-5
 """
+

@@ -68,6 +68,7 @@ export class UserDashboardComponent implements OnInit {
         value: { show: true, fontSize: '22px', fontWeight: 800 },
         total: {
           show: true,
+
           fontSize: '10px',  // Remove the 'label: 'Taux de réussite'' line
           fontWeight: 600,
           color: '#6b7280',
@@ -75,6 +76,7 @@ export class UserDashboardComponent implements OnInit {
             const tot = w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0);
             const passed = w.globals.seriesTotals[0] ?? 0;
             return tot > 0 ? Math.round((passed / tot) * 100) + '%' : '0%';
+
           },
           label: 'Pass Rate',
         },

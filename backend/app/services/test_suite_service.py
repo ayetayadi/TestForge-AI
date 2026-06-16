@@ -35,7 +35,8 @@ from app.schemas.test_suite_schema import (
     TraceabilityMatrixSchema,
     TraceabilityStoryRow,
 )
-from app.ai_workflows.test_suite.pipeline import get_pipeline as get_suite_pipeline
+from app.ai_workflows.test_suite.pipeline import get_pipeline as get_suite_pipeline, TestSuitePipeline
+from app.ai_workflows.test_suite.suite_organizer import topological_sort_tcs
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +225,11 @@ class TestSuiteService:
             status=suite.status,
             execution_order=suite.execution_order,
             is_ai_generated=suite.is_ai_generated,
-            test_case_count=len(suite.test_cases) if suite.test_cases else 0,
+            test_case_count=(
+                len(suite.tc_snapshot)
+                if suite.tc_snapshot
+                else len(suite.test_cases) if suite.test_cases else 0
+            ),
             project_name=project.project_name if project else None,
             project_key=project.project_key if project else None,
             test_plan_title=plan.title if plan else None,
@@ -241,19 +246,20 @@ class TestSuiteService:
     async def generate_suites(
         self,
         test_plan_id: str,
-        strategy: str = "test_type",
+        strategy: str = "user_story",
         project_name: str = "",
     ) -> Dict[str, Any]:
-        """Generate test suites from existing test cases."""
-        # Grouping is always by scenario type: positive → negative → boundary
-        strategy = "test_type"
+        """Generate test suites from existing test cases.
+        strategy: 'user_story' (default) — one suite per User Story
+                  'test_type' — legacy grouping by positive/negative/boundary
+        """
 
         # 1. Verify Test Plan exists
         plan_repo = TestPlanRepository(self.db)
         plan = await plan_repo.get_by_id(test_plan_id)
         if not plan:
             raise ValueError(f"Test Plan {test_plan_id} not found")
-        
+
         # 2. Get test cases WITHOUT suite assignment
         result = await self.db.execute(
             select(TestCase).where(
@@ -262,10 +268,10 @@ class TestSuiteService:
             )
         )
         test_cases = list(result.scalars().all())
-        
+
         if not test_cases:
             raise ValueError("No unassigned test cases found.")
-        
+
         # ── 🔥 RÉCUPÉRER TOUTES LES US DU PLAN (pas seulement celles avec TCs) ──
         all_plan_stories_result = await self.db.execute(
             select(UserStory).where(
@@ -273,7 +279,7 @@ class TestSuiteService:
             )
         )
         all_plan_stories = all_plan_stories_result.scalars().all()
-        
+
         # 3. Convert to dicts with metadata
         tc_dicts = []
         for tc in test_cases:
@@ -285,14 +291,14 @@ class TestSuiteService:
                 "risk_level": tc.risk_level or "medium",
                 "user_story_id": tc.user_story_id,
             })
-        
+
         # ── 🔥 DÉTERMINER L'ORDRE DES FLUX AVEC TOUTES LES US ──
         pipeline = get_suite_pipeline()
-        
+
         # Collecter TOUTES les US pour le contexte LLM
         us_list = []
         seen_us = set()
-        
+
         # D'abord les US qui ont des TCs
         for tc in test_cases:
             if tc.user_story_id and tc.user_story_id not in seen_us:
@@ -305,7 +311,7 @@ class TestSuiteService:
                         "sprint": us.sprint,
                         "has_tests": True,
                     })
-        
+
         # Ensuite les US sans TCs (pour contexte complet)
         for us in all_plan_stories:
             if us.id not in seen_us:
@@ -316,13 +322,21 @@ class TestSuiteService:
                     "sprint": us.sprint,
                     "has_tests": False,
                 })
-        
+
+        # Build user_story_map for pipeline naming (user_story strategy)
+        user_story_map: Dict[str, Dict] = {}
+        for us in all_plan_stories:
+            user_story_map[us.id] = {
+                "title": us.title or "",
+                "issue_key": us.issue_key or "",
+            }
+
         logger.info(
             f"[SUITE GEN] Context for LLM: {len(us_list)} US "
             f"({sum(1 for u in us_list if u['has_tests'])} with tests, "
             f"{sum(1 for u in us_list if not u['has_tests'])} without)"
         )
-        
+
         # LLM détermine l'ordre des flux
         flow_order = None
         llm_tc_classifications = None
@@ -366,7 +380,7 @@ class TestSuiteService:
         except Exception as e:
             logger.warning(f"[SUITE GEN] LLM flow order failed: {e}")
             flow_order = _BUSINESS_FLOW_RANK
-        
+
         # 4. Run AI pipeline (naming + grouping + business-flow-aware ordering)
         result = await pipeline.run(
             test_cases=tc_dicts,
@@ -375,8 +389,9 @@ class TestSuiteService:
             strategy=strategy,
             tc_classifications=llm_tc_classifications if flow_order else None,
             flow_order=flow_order if flow_order else None,
+            user_story_map=user_story_map,
         )
-        
+
         if result.get("workflow_status") == "error":
             raise ValueError(f"Suite generation failed: {result.get('error')}")
 
@@ -439,7 +454,7 @@ class TestSuiteService:
             )
             self.db.add(suite)
             await self.db.flush()
-            
+
             linked_count = 0
             suite_tc_ids = []
             for tc_code in suite_data.get("_tc_codes", []):
@@ -448,38 +463,38 @@ class TestSuiteService:
                     tc.test_suite_id = suite.id
                     linked_count += 1
                     suite_tc_ids.append(tc.id)
-            
-            
+
+
             suite_risk_ids = [
-                r.id for r in all_risks 
+                r.id for r in all_risks
                 if r.user_story_id in [
-                    tc.user_story_id 
-                    for tc in test_cases 
+                    tc.user_story_id
+                    for tc in test_cases
                     if tc.id in suite_tc_ids and tc.user_story_id
                 ]
             ]
-            
+
             suite_covered = len(suite_risk_ids)
             suite_total = len(accepted_risk_ids)
             suite_risk_pct = suite_covered / suite_total if suite_total > 0 else 1.0
-            
+
             suite.risk_coverage_pct = suite_risk_pct
             suite.risk_coverage_uncovered = [
                 rid for rid in accepted_risk_ids if rid not in suite_risk_ids
             ]
-            
+
             if suite_risk_pct >= 1.0:
                 suite.mitigation_status = "fully_mitigated"
             elif suite_risk_pct >= 0.80:
                 suite.mitigation_status = "partially_mitigated"
             else:
                 suite.mitigation_status = "not_mitigated"
-            
+
             logger.info(
                 f"[SUITE GEN] Suite '{suite.title}' - "
                 f"Risk Coverage: {suite_risk_pct:.0%} ({suite.mitigation_status})"
             )
-            
+
             created_suites.append({
                 "id": suite.id,
                 "title": suite.title,
@@ -488,9 +503,9 @@ class TestSuiteService:
                 "risk_coverage_pct": suite_risk_pct,
                 "mitigation_status": suite.mitigation_status,
             })
-        
+
         await self.db.commit()
-        
+
         # ============================================================
         # CRÉER LES DÉPENDANCES ENTRE TCs
         # ============================================================
@@ -499,17 +514,21 @@ class TestSuiteService:
             result["suites"], tc_map, test_plan_id, risk_map,
             flow_order=flow_order,
             tc_classifications=llm_tc_classifications,
+            pipeline=pipeline,
+            project_name=project_name or plan.title or "Project",
         )
         logger.info(f"[SUITE GEN] Created {dependency_count} dependencies between TCs")
-        
+
+        await self.db.commit()
+
         return {
             "suites": created_suites,
             "count": len(created_suites),
             "strategy": strategy,
             "workflow_status": "success",
         }
-    
-    
+
+
     # ============================================================
     # CRÉER LES DÉPENDANCES
     # ============================================================
@@ -521,11 +540,14 @@ class TestSuiteService:
         risk_map: Dict[str, Risk],
         flow_order: Optional[Dict[str, int]] = None,
         tc_classifications: Optional[Dict[str, Any]] = None,
+        pipeline: Optional["TestSuitePipeline"] = None,
+        project_name: str = "",
     ) -> int:
         """
-        Crée des dépendances séquentielles DANS CHAQUE suite (par flux métier + risque).
-        1 suite = 1 graphe de dépendances indépendant.
-        Résultat: 1 à 3 graphes selon les types de scénarios (positive/negative/boundary).
+        Creates dependency edges within each suite using a two-step approach:
+          1. LLM identifies explicit data/state/session dependencies (if pipeline provided)
+          2. Kahn's topological sort orders TCs, with (entity_rank, action_rank, -risk_wt) as tiebreaker
+        tc.execution_order is written back to DB from the topological sort position.
         """
         dep_count = 0
 
@@ -539,8 +561,6 @@ class TestSuiteService:
         )
         await self.db.flush()
 
-        # Utiliser directement les paramètres passés (déjà calculés par generate_suites)
-        # pas de re-lecture DB — évite les problèmes de timing et de relations non chargées
         _flow_order: Dict[str, int] = flow_order or _BUSINESS_FLOW_RANK
         _tc_classifications: Dict[str, Any] = tc_classifications or {}
         seen_pairs: set = set()
@@ -554,53 +574,91 @@ class TestSuiteService:
             clf = _tc_classifications.get(tc.tc_code, {})
             return self._compute_order_key(tc, clf, _flow_order)
 
-        # Créer les dépendances DANS CHAQUE suite séparément
         for suite_data in suites_data:
             suite_tcs = [
                 tc_map[code]
                 for code in suite_data.get("_tc_codes", [])
                 if code in tc_map
             ]
+            suite_title = suite_data.get("title", "?")
 
             if len(suite_tcs) < 2:
                 logger.info(
-                    f"[DEP] Suite '{suite_data.get('title', '?')}': "
-                    f"{len(suite_tcs)} TC(s) — pas de dépendances à créer"
+                    f"[DEP] Suite '{suite_title}': {len(suite_tcs)} TC(s) — no deps needed"
                 )
+                if suite_tcs:
+                    suite_tcs[0].execution_order = 1
                 continue
 
-            sorted_suite_tcs = sorted(suite_tcs, key=_sort_key)
+            # Step 1: LLM-identified explicit dependency edges
+            dep_edges: List[Tuple[str, str]] = []
+            if pipeline:
+                tc_dicts_for_llm = []
+                for tc in suite_tcs:
+                    clf = _tc_classifications.get(tc.tc_code, {})
+                    tc_dicts_for_llm.append({
+                        "tc_code": tc.tc_code,
+                        "title": tc.title or "",
+                        "business_flow": clf.get("business_flow") or self._keyword_flow(tc.title or ""),
+                        "risk_level": clf.get("risk_level") or tc.risk_level or "medium",
+                        "test_type": tc.test_type or "positive",
+                    })
+                dep_edges = await pipeline._analyze_tc_dependencies(
+                    tc_dicts_for_llm, suite_title, project_name
+                )
 
-            # Mettre à jour execution_order selon l'ordre flux métier + risk level
+            # Step 2: Topological sort respecting explicit edges; tiebreak by entity/action/risk
+            sorted_suite_tcs = topological_sort_tcs(suite_tcs, dep_edges, _sort_key)
+
+            # Write execution_order back to DB
             for i, tc in enumerate(sorted_suite_tcs, start=1):
                 tc.execution_order = i
 
-            suite_title = suite_data.get("title", "?")
-            logger.info(
-                f"[DEP] Suite '{suite_title}': "
-                f"création de {len(sorted_suite_tcs) - 1} dépendances"
-            )
+            logger.info(f"[DEP] Suite '{suite_title}': {len(sorted_suite_tcs)} TCs ordered")
             for i, tc in enumerate(sorted_suite_tcs):
                 clf = _tc_classifications.get(tc.tc_code, {})
                 flow = clf.get("business_flow") or self._keyword_flow(tc.title or "")
                 risk_level = clf.get("risk_level") or tc.risk_level or "medium"
                 logger.info(f"  {i + 1}. {tc.tc_code} | flow={flow} | risk={risk_level}")
 
-            for i in range(1, len(sorted_suite_tcs)):
-                prev, curr = sorted_suite_tcs[i - 1], sorted_suite_tcs[i]
-                pair = (prev.id, curr.id)
-                if pair in seen_pairs:
-                    continue
-                seen_pairs.add(pair)
-                self.db.add(TestCaseDependency(
-                    id=str(uuid4()),
-                    test_plan_id=test_plan_id,
-                    source_test_case_id=prev.id,
-                    target_test_case_id=curr.id,
-                    dependency_type="requires",
-                    is_ai_generated=True,
-                ))
-                dep_count += 1
+            # Create dependency edges: prefer LLM-identified edges; fall back to sequential chain
+            if dep_edges:
+                id_map = {tc.tc_code: tc.id for tc in suite_tcs}
+                for src_code, tgt_code in dep_edges:
+                    src_id = id_map.get(src_code)
+                    tgt_id = id_map.get(tgt_code)
+                    if not src_id or not tgt_id:
+                        continue
+                    pair = (src_id, tgt_id)
+                    if pair in seen_pairs:
+                        continue
+                    seen_pairs.add(pair)
+                    self.db.add(TestCaseDependency(
+                        id=str(uuid4()),
+                        test_plan_id=test_plan_id,
+                        source_test_case_id=src_id,
+                        target_test_case_id=tgt_id,
+                        dependency_type="requires",
+                        is_ai_generated=True,
+                    ))
+                    dep_count += 1
+            else:
+                # Sequential chain fallback
+                for i in range(1, len(sorted_suite_tcs)):
+                    prev, curr = sorted_suite_tcs[i - 1], sorted_suite_tcs[i]
+                    pair = (prev.id, curr.id)
+                    if pair in seen_pairs:
+                        continue
+                    seen_pairs.add(pair)
+                    self.db.add(TestCaseDependency(
+                        id=str(uuid4()),
+                        test_plan_id=test_plan_id,
+                        source_test_case_id=prev.id,
+                        target_test_case_id=curr.id,
+                        dependency_type="requires",
+                        is_ai_generated=True,
+                    ))
+                    dep_count += 1
 
         if dep_count > 0:
             await self.db.commit()
@@ -608,9 +666,12 @@ class TestSuiteService:
                 select(TestCaseDependency).where(TestCaseDependency.test_plan_id == test_plan_id)
             )
             total_in_db = len(verify.scalars().all())
-            logger.info(f"[DEP] ✅ Committed {dep_count} dépendances (DB total: {total_in_db})")
+            logger.info(f"[DEP] ✅ Committed {dep_count} deps (DB total: {total_in_db})")
 
         return dep_count
+
+    async def _load_tcs_for_suite(self, suite: TestSuite) -> List[TestCase]:
+        return suite.test_cases or []
 
     # ============================================================
     # DETAIL
@@ -626,18 +687,19 @@ class TestSuiteService:
         risk_map: Dict[str, Risk] = {r.id: r for r in risks}
         story_map: Dict[str, UserStory] = {s.id: s for s in stories}
 
-        prioritized_cases = self._prioritize_cases_by_risk(suite.test_cases, risk_map)
-
+        # Cross-cutting suites store TCs in tc_snapshot instead of the FK relationship
+        effective_cases = await self._load_tcs_for_suite(suite)
         plan = suite.test_plan
+        prioritized_cases = self._prioritize_cases_by_risk(effective_cases, risk_map, plan=plan)
         project = plan.jira_project if plan else None
 
-        risk_coverage = self._compute_coverage(suite, risks, stories)
+        risk_coverage = self._compute_coverage(suite, risks, stories, effective_cases)
         us_ac_coverages = await self._compute_us_ac_coverages(suite, stories)
         matrix = self._build_traceability_matrix(prioritized_cases, story_map, suite)
-        graph = self._build_dependency_graph(suite.test_cases, dependencies)
-        lifecycle = self._build_lifecycle(suite, risks)
+        graph = self._build_dependency_graph(effective_cases, dependencies, plan=plan)
+        lifecycle = self._build_lifecycle(suite, risks, effective_cases)
         priority_reasoning = self._build_priority_reasoning(suite, risk_map, story_map)
-        
+
         # All suites in this plan for comparison
         all_suites = await self.repo.get_all(plan_id=suite.test_plan_id)
         all_suites_order = [
@@ -688,16 +750,16 @@ class TestSuiteService:
         suite_id: str,
     ) -> bool:
         """Manually assign a test case to a suite."""
-        
+
         tc = await self.db.get(TestCase, test_case_id)
         suite = await self.db.get(TestSuite, suite_id)
-        
+
         if not tc or not suite:
             return False
-        
+
         tc.test_suite_id = suite_id
         await self.db.commit()
-        
+
         logger.info(f"[SUITE] Assigned {tc.tc_code} to suite '{suite.title}'")
         return True
 
@@ -706,14 +768,14 @@ class TestSuiteService:
         test_case_id: str,
     ) -> bool:
         """Remove a test case from its suite."""
-        
+
         tc = await self.db.get(TestCase, test_case_id)
         if not tc:
             return False
-        
+
         tc.test_suite_id = None
         await self.db.commit()
-        
+
         logger.info(f"[SUITE] Unassigned {tc.tc_code} from suite")
         return True
 
@@ -738,7 +800,7 @@ class TestSuiteService:
         story_map: Dict[str, UserStory],
     ) -> PriorityReasoningSchema:
         """Build explanation of why this suite has its priority and execution order."""
-        
+
         risk_breakdown: Dict[str, int] = {}
         total_risk_weight = 0
         for tc in suite.test_cases:
@@ -749,7 +811,7 @@ class TestSuiteService:
                         level = risk.level
                         risk_breakdown[level] = risk_breakdown.get(level, 0) + 1
                         total_risk_weight += _RISK_WEIGHT.get(level, 0)
-        
+
         total_ac = 0
         covered_ac = 0
         for tc in suite.test_cases:
@@ -759,7 +821,7 @@ class TestSuiteService:
                 total_ac += ac_count
                 if tc.is_active:
                     covered_ac += ac_count
-        
+
         exec_order = suite.execution_order or 99
         if suite.suite_type == "smoke":
             order_reason = "Smoke tests always run first"
@@ -769,13 +831,13 @@ class TestSuiteService:
             order_reason = f"Moderate risk weight ({total_risk_weight})"
         else:
             order_reason = f"Lower risk weight ({total_risk_weight}) — runs later"
-        
+
         formula = (
             f"Priority Score = Risk Weight ({total_risk_weight}) + "
             f"Priority Bonus ({_PRIORITY_WEIGHT.get(suite.priority or '', 0)}) → "
             f"Order {exec_order}"
         )
-        
+
         return PriorityReasoningSchema(
             risk_weight=total_risk_weight,
             risk_breakdown=risk_breakdown,
@@ -847,16 +909,7 @@ class TestSuiteService:
         return "other"
 
     def _get_business_flow(self, tc: TestCase) -> str:
-        """
-        Priorité 1 : classification LLM stockée dans le TestPlan (relations chargées).
-        Priorité 2 : détection par mots-clés sur le titre.
-        """
-        if tc.test_suite and tc.test_suite.test_plan:
-            plan = tc.test_suite.test_plan
-            if plan.tc_classifications and tc.tc_code in plan.tc_classifications:
-                llm_flow = plan.tc_classifications[tc.tc_code].get("business_flow")
-                if llm_flow:
-                    return llm_flow
+        """Keyword-based flow detection (safe fallback — no lazy DB access)."""
         return self._keyword_flow(tc.title or "")
 
     @staticmethod
@@ -883,30 +936,26 @@ class TestSuiteService:
         self,
         cases: List[TestCase],
         risk_map: Dict[str, Risk],
+        plan=None,
     ) -> List[TestCase]:
         """
-        Priorise les TCs de manière HIÉRARCHIQUE.
-        🔥 Utilise les classifications LLM si disponibles.
+        Sort TCs by (entity_rank, action_rank, -risk_weight).
+        Accepts the plan object directly to avoid lazy-loading tc.test_suite.test_plan
+        in an async context (MissingGreenlet).
         """
-        
-        # ── Récupérer l'ordre LLM du plan ──
-        flow_order = _BUSINESS_FLOW_RANK  # Défaut
+        flow_order = _BUSINESS_FLOW_RANK
         tc_classifications = {}
-        
-        if cases:
-            first_tc = cases[0]
-            if first_tc.test_suite and first_tc.test_suite.test_plan:
-                plan = first_tc.test_suite.test_plan
-                if plan.business_flow_order:
-                    flow_order = plan.business_flow_order
-                if plan.tc_classifications:
-                    tc_classifications = plan.tc_classifications
-        
-        # ── Fonction de tri ──
+
+        if plan is not None:
+            if plan.business_flow_order:
+                flow_order = plan.business_flow_order
+            if plan.tc_classifications:
+                tc_classifications = plan.tc_classifications
+
         def _sort_key(tc: TestCase) -> Tuple[int, int, int]:
             clf = tc_classifications.get(tc.tc_code, {})
             return self._compute_order_key(tc, clf, flow_order)
-        
+
         return sorted(cases, key=_sort_key)
 
     def _compute_priority_score(
@@ -916,7 +965,7 @@ class TestSuiteService:
     ) -> int:
         """
         Calcule le score de priorité basé UNIQUEMENT sur le risque.
-        
+
         ISTQB §5.2.3 :
             "Priority score = Risk weight of the associated product risk"
         """
@@ -924,7 +973,7 @@ class TestSuiteService:
             for risk in risk_map.values():
                 if risk.user_story_id == tc.user_story_id and risk.level:
                     return _RISK_WEIGHT.get(risk.level, 0)
-        
+
         return _RISK_WEIGHT.get(tc.risk_level or "medium", 300)
 
     def _build_traceability_matrix(
@@ -933,36 +982,36 @@ class TestSuiteService:
             story_map: Dict[str, UserStory],
             suite: TestSuite,
         ) -> TraceabilityMatrixSchema:
-    
+
             by_story: Dict[str, List[TestCase]] = defaultdict(list)
             for tc in cases:
                 if tc.user_story_id:
                     by_story[tc.user_story_id].append(tc)
-    
+
             rows: List[TraceabilityStoryRow] = []
             total_ac = 0
             covered_ac = 0
-    
+
             for story_id, story_cases in by_story.items():
                 story = story_map.get(story_id)
                 if not story:
                     continue
-    
+
                 ac_list = story.acceptance_criteria or []
                 active_tcs = [tc for tc in story_cases if tc.is_active]
                 n_ac = len(ac_list)
                 n_tc = len(active_tcs)
-    
+
                 ac_rows: List[TraceabilityACRow] = []
                 story_covered_ac = 0
-    
+
                 for idx, ac_text in enumerate(ac_list):
                     covering_codes = []
                     for tc in active_tcs:
                         ac_indices = tc._covered_ac_indices or []
                         if idx in ac_indices:
                             covering_codes.append(tc.tc_code)
-                    
+
                     is_covered = len(covering_codes) > 0
                     ac_rows.append(TraceabilityACRow(
                         ac_index=idx,
@@ -974,7 +1023,7 @@ class TestSuiteService:
                     if is_covered:
                         covered_ac += 1
                         story_covered_ac += 1
-    
+
                 story_coverage_pct = (story_covered_ac / n_ac * 100) if n_ac > 0 else 0.0
                 rows.append(TraceabilityStoryRow(
                     user_story_id=story_id,
@@ -985,9 +1034,9 @@ class TestSuiteService:
                     total_ac=n_ac,
                     coverage_pct=round(story_coverage_pct, 1),
                 ))
-    
+
             global_pct = round(covered_ac / total_ac * 100, 1) if total_ac > 0 else 0.0
-    
+
             return TraceabilityMatrixSchema(
                 rows=rows,
                 total_stories=len(rows),
@@ -1002,26 +1051,23 @@ class TestSuiteService:
         self,
         cases: List[TestCase],
         dependencies: List[TestCaseDependency],
+        plan=None,
     ) -> DependencyGraphSchema:
         """
-        Construit le graphe de dépendances.
-        🔥 Utilise la classification LLM du plan.
+        Build the dependency graph. Accepts plan directly to avoid
+        lazy-loading tc.test_suite.test_plan in an async context.
         """
         tc_map: Dict[str, TestCase] = {tc.id: tc for tc in cases}
-        
-        # ── 🔥 RÉCUPÉRER L'ORDRE LLM ──
+
         flow_order = _BUSINESS_FLOW_RANK
         tc_classifications = {}
-        
-        if cases:
-            first_tc = cases[0]
-            if first_tc.test_suite and first_tc.test_suite.test_plan:
-                plan = first_tc.test_suite.test_plan
-                if plan.business_flow_order:
-                    flow_order = plan.business_flow_order
-                if plan.tc_classifications:
-                    tc_classifications = plan.tc_classifications
-        
+
+        if plan is not None:
+            if plan.business_flow_order:
+                flow_order = plan.business_flow_order
+            if plan.tc_classifications:
+                tc_classifications = plan.tc_classifications
+
         # ── Nœuds avec classification LLM ──
         flow_colors = {
             "authentication": "#FF4444",
@@ -1037,7 +1083,7 @@ class TestSuiteService:
             "testing": "#8B5CF6",
             "other": "#808080",
         }
-        
+
         nodes = []
         for tc in tc_map.values():   # tc_map déduplique par id
             flow = self._resolve_display_flow(tc, tc_classifications)
@@ -1058,11 +1104,11 @@ class TestSuiteService:
                 risk_weight=risk_wt,
                 status_color=flow_colors.get(flow, "#808080"),
             ))
-        
+
         # ── Arêtes ──
         suite_tc_ids = {tc.id for tc in cases}
         edges: List[DependencyEdge] = []
-        
+
         for dep in dependencies:
             if dep.source_test_case_id in suite_tc_ids and dep.target_test_case_id in suite_tc_ids:
                 src = tc_map.get(dep.source_test_case_id)
@@ -1076,16 +1122,20 @@ class TestSuiteService:
                         dependency_type=dep.dependency_type or "requires",
                         is_ai_generated=dep.is_ai_generated,
                     ))
-        
-        # ── Ordre d'exécution SIMPLE (pas de tri topologique) ──
-        sorted_nodes = sorted(nodes, key=lambda n: (n.flow_rank or 99, -(n.risk_weight or 0)))
+
+        # Sort by DB execution_order (set by topological sort during generation),
+        # falling back to flow_rank then risk_weight for nodes not yet assigned.
+        sorted_nodes = sorted(
+            nodes,
+            key=lambda n: (n.execution_order or 9999, n.flow_rank or 99, -(n.risk_weight or 0)),
+        )
         execution_order = [n.tc_code for n in sorted_nodes]
-        
+
         logger.info(
             f"[GRAPH] {len(nodes)} nodes, {len(edges)} edges, "
             f"order: {' → '.join(execution_order[:5])}..."
         )
-        
+
         return DependencyGraphSchema(
             nodes=nodes,
             edges=edges,
@@ -1097,44 +1147,42 @@ class TestSuiteService:
         suite: TestSuite,
         risks: List[Risk],
         stories: List[UserStory],
+        effective_cases: Optional[List[TestCase]] = None,
     ) -> Dict[str, Any]:
         """
         Calcule le Risk Coverage pour la TestSuite.
-        
-        Avec 1 US = 1 Risk :
-            Risk Coverage ≡ US Coverage (mathématiquement équivalent)
-            On garde le Risk Coverage car c'est la métrique de MITIGATION.
+        effective_cases: pre-loaded TCs (supports cross-cutting suites with tc_snapshot).
         """
-        cases = suite.test_cases or []
+        cases = effective_cases if effective_cases is not None else (suite.test_cases or [])
         active = [c for c in cases if c.is_active]
-    
+
         by_priority: Dict[str, int] = dict(Counter(c.risk_level for c in active if c.risk_level))
         by_type: Dict[str, int] = dict(Counter(c.test_type for c in active if c.test_type))
         has_gherkin = sum(1 for c in active if c.gherkin_source)
         has_steps = sum(1 for c in active if c.steps)
-    
+
         # ============================================================
         # RISK COVERAGE (seule métrique nécessaire)
         # ============================================================
         total_risks = len(risks)
-        
+
         if total_risks > 0:
             # Récupérer les US qui ont des tests actifs
             covered_us_ids = {tc.user_story_id for tc in active if tc.user_story_id}
-            
+
             # Un risque est couvert si SON US a des tests
             covered_risk_ids = {
-                risk.id for risk in risks 
+                risk.id for risk in risks
                 if risk.user_story_id in covered_us_ids
             }
-            
+
             risk_pct = round(len(covered_risk_ids) / total_risks * 100, 1)
             uncovered = [risk.id for risk in risks if risk.id not in covered_risk_ids]
         else:
             risk_pct = 100.0
             covered_risk_ids = set()
             uncovered = []
-    
+
         # Déterminer le statut de mitigation
         if risk_pct >= 100:
             mitigation_status = "fully_mitigated"
@@ -1142,12 +1190,12 @@ class TestSuiteService:
             mitigation_status = "partially_mitigated"
         else:
             mitigation_status = "not_mitigated"
-    
+
         # Sauvegarder dans la suite
         suite.risk_coverage_pct = risk_pct / 100  # Stocker en 0.0-1.0
         suite.risk_coverage_uncovered = uncovered
         suite.mitigation_status = mitigation_status
-    
+
         # ✅ Retourner un DICT (pas un objet Pydantic)
         return {
             "risk_coverage_pct": risk_pct,
@@ -1165,9 +1213,14 @@ class TestSuiteService:
         }
 
 
-    def _build_lifecycle(self, suite: TestSuite, risks: List[Risk]) -> Dict[str, Any]:
+    def _build_lifecycle(
+        self,
+        suite: TestSuite,
+        risks: List[Risk],
+        effective_cases: Optional[List[TestCase]] = None,
+    ) -> Dict[str, Any]:
         plan = suite.test_plan
-        cases = suite.test_cases or []
+        cases = effective_cases if effective_cases is not None else (suite.test_cases or [])
         risk_dist = dict(Counter(r.level for r in risks if r.level))
 
         return {
@@ -1215,7 +1268,7 @@ class TestSuiteService:
             end_date=str(plan.end_date) if plan.end_date else None,
             approved_at=plan.approved_at,
         )
-    
+
     def _embed_case(
         self,
         tc: TestCase,
@@ -1259,7 +1312,7 @@ class TestSuiteService:
             mitigation=risk.mitigation,
             is_accepted=risk.is_accepted,
         )
-    
+
     async def _compute_us_ac_coverages(
         self,
         suite: TestSuite,

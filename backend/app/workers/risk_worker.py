@@ -154,11 +154,13 @@ class RiskAnalysisWorker:
                 )
 
                 # ── STEP 3: Persist Risk ──
+
                 await self._notify(job_id, "risk_processing", {
                     "status": "persisting",
-                    "message": "Saving risk assessment to database...",
+                    "message": f"Saving {len(result.get('risks', []))} risk scenario(s)...",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
+
 
                 # test_depth is a plain string from the ML pipeline
                 valid_depths = ["comprehensive", "thorough", "standard", "smoke"]
@@ -187,18 +189,11 @@ class RiskAnalysisWorker:
                     source_acceptance_criteria=json.dumps(content["acceptance_criteria"]),
                 ))
                 await db.commit()
-
-                # Increment success counter
                 self.jobs_processed += 1
 
-                # ── LOG SUCCESS ──
                 logger.info(
-                    f"[WORKER-{self.worker_id}] ✅ Risk {risk.id} created "
-                    f"for {issue_key}: "
-                    f"P={risk.probability} I={risk.impact} "
-                    f"Score={risk.risk_score} Level={risk.level} "
-                    f"TestDepth={risk.test_depth} "
-                    f"Source={content['source']} "
+                    f"[WORKER-{self.worker_id}] ✅ {len(created_risks)} risk(s) created "
+                    f"for {issue_key} | Source={content['source']} "
                     f"(jobs: {self.jobs_processed} ok, {self.jobs_failed} failed)"
                 )
 
@@ -206,18 +201,22 @@ class RiskAnalysisWorker:
                 await self._notify(job_id, "risk_analyzed", {
                     "status": "completed",
                     "worker_id": self.worker_id,
-                    "risk_id": risk.id,
                     "user_story_id": user_story_id,
                     "issue_key": issue_key,
-                    "level": risk.level,
-                    "risk_score": risk.risk_score,
-                    "probability": risk.probability,
-                    "impact": risk.impact,
-                    "description": risk.description,
-                    "mitigation": risk.mitigation,
-                    "test_depth": risk.test_depth,
-                    "probability_factors": risk.probability_factors,
-                    "impact_factors": risk.impact_factors,
+                    "risk_count": len(created_risks),
+                    "risks": [
+                        {
+                            "risk_id": r.id,
+                            "level": r.level,
+                            "risk_score": r.risk_score,
+                            "probability": r.probability,
+                            "impact": r.impact,
+                            "description": r.description,
+                            "mitigation": r.mitigation,
+                            "test_depth": r.test_depth,
+                        }
+                        for r in created_risks
+                    ],
                     "source": content["source"],
                     "can_modify": True,
                     "timestamp": datetime.now(timezone.utc).isoformat(),

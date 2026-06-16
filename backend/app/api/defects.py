@@ -17,7 +17,8 @@ class StatusUpdateRequest(BaseModel):
     status: DefectStatus
 
 
-@router.get("/")
+@router.get("")
+@router.get("/", include_in_schema=False)
 async def list_defects(db: AsyncSession = Depends(get_db)):
     """Return all defects across all projects."""
     return await get_all_defects(db)

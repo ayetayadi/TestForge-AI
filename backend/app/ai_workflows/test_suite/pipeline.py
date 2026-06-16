@@ -17,13 +17,18 @@ from pydantic import BaseModel, Field
 
 from app.ai_workflows.test_suite.suite_organizer import (
     group_by_test_type,
+    group_by_user_story,
     assign_suite_order,
     build_suite_record,
 )
 from app.ai_workflows.test_suite.test_suite_coverage import (
     compute_suite_coverage,
 )
-from app.ai_workflows.test_suite.prompts import BUSINESS_FLOW_ORDERING_PROMPT, TEST_SUITE_NAMING_PROMPT
+from app.ai_workflows.test_suite.prompts import (
+    BUSINESS_FLOW_ORDERING_PROMPT,
+    TC_DEPENDENCY_ANALYSIS_PROMPT,
+    TEST_SUITE_NAMING_PROMPT,
+)
 from app.llm.llm_control import create_llm
 from .config import (
     LLM_TEMPERATURE, LLM_MODEL, LLM_MAX_TOKENS, LLM_TIMEOUT_SECONDS,
@@ -93,12 +98,32 @@ class BusinessFlowOrderingOutput(BaseModel):
         description="Brief summary of project context analyzed"
     )
 
+
+class TCDependencyEdge(BaseModel):
+    """A directed dependency edge: source must execute before target."""
+    source: str = Field(description="TC code that must run first")
+    target: str = Field(description="TC code that depends on source")
+    reason: str = Field(description="Why source must run before target (data/state/session)")
+
+
+class TCDependencyAnalysisOutput(BaseModel):
+    """LLM output: dependency edges within a suite."""
+    edges: List[TCDependencyEdge] = Field(
+        default_factory=list,
+        description="Explicit prerequisite edges between TCs"
+    )
+    reasoning: str = Field(
+        default="",
+        description="Overall reasoning for identified dependencies"
+    )
+
 # ============================================================
 # STRATEGY DISPATCHER
 # ============================================================
 
 _STRATEGY_MAP = {
     "test_type": group_by_test_type,
+    "user_story": group_by_user_story,
 }
 
 # ── Mots-clés pour la détection des flux ──
@@ -124,17 +149,21 @@ _FLOW_KEYWORDS: Dict[str, List[str]] = {
 class TestSuitePipeline:
     def __init__(self, temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL):
         logger.info("[TEST SUITE] Initializing pipeline...")
-        
+
         # LLM pour le naming des suites
         llm = create_llm(temperature=temperature, model=model, max_tokens=LLM_MAX_TOKENS)
         self._llm = llm.with_structured_output(SuiteNamingBatch)
-        
+
         # LLM pour l'ordering des flux métier
         ordering_llm = create_llm(temperature=0.2, model=model, max_tokens=2000)
         self._ordering_llm = ordering_llm.with_structured_output(BusinessFlowOrderingOutput)
-        
+
+        # LLM pour l'analyse des dépendances entre TCs dans une suite
+        dep_llm = create_llm(temperature=0.1, model=model, max_tokens=1500)
+        self._dependency_llm = dep_llm.with_structured_output(TCDependencyAnalysisOutput)
+
         logger.info("[TEST SUITE] Ready")
-    
+
     async def _emit(self, callback: Optional[Callable], event_type: str, data: dict) -> None:
         if callback is None:
             return
@@ -152,7 +181,7 @@ class TestSuitePipeline:
             if any(kw in text for kw in keywords):
                 return flow
         return "other"
-    
+
     def _get_default_flow_order(self) -> Dict[str, int]:
         """Fallback si le LLM échoue."""
         return {
@@ -161,12 +190,12 @@ class TestSuitePipeline:
             "reporting": 7, "monitoring": 8, "notifications": 9,
             "settings": 10, "api": 11, "testing": 12, "other": 99,
         }
-    
+
     def _get_default_classifications(self, test_cases: List[Dict]) -> Dict[str, Any]:
         """Fallback : classification par mots-clés."""
         tc_classifications = {}
         flow_order = self._get_default_flow_order()
-        
+
         for tc in test_cases:
             flow = self._detect_flow_from_tc(tc)
             tc_classifications[tc["tc_code"]] = {
@@ -174,7 +203,7 @@ class TestSuitePipeline:
                 "risk_level": tc.get("priority", "medium"),
                 "reasoning": "Auto-classified by keyword detection (LLM unavailable)",
             }
-        
+
         # Construire flow_details
         flow_details = {}
         for tc_code, c in tc_classifications.items():
@@ -184,7 +213,7 @@ class TestSuitePipeline:
             flow_details[flow]["tc_count"] += 1
             risk = c["risk_level"]
             flow_details[flow]["risk_breakdown"][risk] = flow_details[flow]["risk_breakdown"].get(risk, 0) + 1
-        
+
         return {
             "tc_classifications": tc_classifications,
             "flow_order": flow_order,
@@ -192,7 +221,49 @@ class TestSuitePipeline:
             "reasoning": "Default order (LLM unavailable)",
             "project_context_summary": "N/A",
         }
-    
+
+    async def _analyze_tc_dependencies(
+        self,
+        suite_tcs: List[Dict],
+        suite_title: str,
+        project_name: str,
+    ) -> List[tuple]:
+        """
+        LLM identifies explicit data/state/session dependencies within a suite.
+        Returns list of (source_tc_code, target_tc_code) tuples.
+        source must execute BEFORE target.
+        """
+        if len(suite_tcs) < 2:
+            return []
+
+        tc_list = "\n".join(
+            f"- {tc.get('tc_code', '?')}: {tc.get('title', '')[:100]} "
+            f"[flow: {tc.get('business_flow', 'other')}, risk: {tc.get('risk_level', 'medium')}, type: {tc.get('test_type', 'positive')}]"
+            for tc in suite_tcs
+        )
+
+        prompt = TC_DEPENDENCY_ANALYSIS_PROMPT.format(
+            suite_title=suite_title,
+            project_name=project_name,
+            tc_list=tc_list,
+        )
+
+        try:
+            result: TCDependencyAnalysisOutput = await asyncio.wait_for(
+                self._dependency_llm.ainvoke(prompt),
+                timeout=30,
+            )
+            edges = [(e.source, e.target) for e in result.edges]
+            logger.info(
+                f"[DEP ANALYSIS] Suite '{suite_title}': {len(edges)} dependency edges identified"
+            )
+            if result.reasoning:
+                logger.info(f"[DEP ANALYSIS] Reasoning: {result.reasoning[:200]}")
+            return edges
+        except Exception as e:
+            logger.warning(f"[DEP ANALYSIS] LLM failed for suite '{suite_title}': {e}")
+            return []
+
     async def _determine_business_flow_order(
         self,
         test_cases: List[Dict],
@@ -201,7 +272,7 @@ class TestSuitePipeline:
     ) -> Dict[str, Any]:
         """
         Le LLM classifie CHAQUE TC et détermine l'ordre des flux.
-        
+
         Returns:
             {
                 "tc_classifications": {tc_code: {flow, risk_level, reasoning}},
@@ -210,40 +281,40 @@ class TestSuitePipeline:
                 "reasoning": str
             }
         """
-        
+
         # ── Résumer pour le prompt ──
         us_with_tests = [u for u in user_stories if u.get('has_tests')]
         us_without_tests = [u for u in user_stories if not u.get('has_tests')]
-        
+
         us_summary = "USER STORIES WITH TEST CASES:\n"
         us_summary += "\n".join(
             f"- {us.get('issue_key', '?')}: {us.get('title', '')[:120]}"
             for us in us_with_tests[:15]
         )
-        
+
         if us_without_tests:
             us_summary += "\n\nUSER STORIES WITHOUT TEST CASES (for context):\n"
             us_summary += "\n".join(
                 f"- {us.get('issue_key', '?')}: {us.get('title', '')[:120]}"
                 for us in us_without_tests[:10]
             )
-        
+
         # Lister TOUS les TCs avec leur code pour le LLM
         tc_summary = "\n".join(
             f"{i+1}. {tc.get('tc_code', '?')}: {tc.get('title', '')[:100]} "
             f"[type: {tc.get('test_type', '?')}, priority: {tc.get('priority', '?')}]"
             for i, tc in enumerate(test_cases)
         )
-        
+
         prompt = BUSINESS_FLOW_ORDERING_PROMPT.format(
             project_name=project_name,
             user_stories_summary=us_summary,
             test_cases_summary=tc_summary,
         )
-        
+
         try:
             result: BusinessFlowOrderingOutput = await self._ordering_llm.ainvoke(prompt)
-            
+
             # ── Extraire les classifications par TC ──
             tc_classifications = {}
             for item in result.tc_classifications:
@@ -252,7 +323,7 @@ class TestSuitePipeline:
                     "risk_level": item.risk_level,
                     "reasoning": item.reasoning,
                 }
-            
+
             # ── Extraire l'ordre des flux ──
             flow_order = {}
             flow_details = {}
@@ -263,12 +334,12 @@ class TestSuitePipeline:
                     "risk_breakdown": item.risk_breakdown,
                     "reason": item.reason,
                 }
-            
+
             # ── VÉRIFIER que tous les TCs sont classifiés ──
             all_tc_codes = {tc.get("tc_code") for tc in test_cases}
             classified_codes = set(tc_classifications.keys())
             missing = all_tc_codes - classified_codes
-            
+
             if missing:
                 logger.warning(f"[FLOW ORDER] LLM missed {len(missing)} TCs: {missing}")
                 # Ajouter les TCs manquants avec "other"/"medium"
@@ -279,12 +350,12 @@ class TestSuitePipeline:
                         "reasoning": "Auto-assigned (LLM missed this TC)",
                     }
                     logger.info(f"[FLOW ORDER] Auto-assigned {tc_code} → other/medium")
-            
+
             # ── VÉRIFIER que tous les flux sont dans l'ordre ──
             all_flows = {c["business_flow"] for c in tc_classifications.values()}
             ordered_flows = set(flow_order.keys())
             missing_flows = all_flows - ordered_flows
-            
+
             if missing_flows:
                 logger.warning(f"[FLOW ORDER] LLM missed flows in order: {missing_flows}")
                 next_rank = max(flow_order.values()) + 1 if flow_order else 99
@@ -296,12 +367,12 @@ class TestSuitePipeline:
                         "reason": "Auto-assigned (LLM missed this flow in order)",
                     }
                     next_rank += 1
-            
+
             logger.info(f"[FLOW ORDER] Classified {len(tc_classifications)} TCs into {len(flow_order)} flows")
             logger.info(f"[FLOW ORDER] Flow order: {flow_order}")
             logger.info(f"[FLOW ORDER] Reasoning: {result.reasoning}")
             logger.info(f"[FLOW ORDER] Context: {result.project_context_summary}")
-            
+
             return {
                 "tc_classifications": tc_classifications,
                 "flow_order": flow_order,
@@ -309,11 +380,11 @@ class TestSuitePipeline:
                 "reasoning": result.reasoning,
                 "project_context_summary": result.project_context_summary,
             }
-            
+
         except Exception as e:
             logger.warning(f"[FLOW ORDER] LLM failed: {e}")
             return self._get_default_classifications(test_cases)
-    
+
 
     @traceable(name="test_suite_pipeline")
     async def run(
@@ -321,11 +392,12 @@ class TestSuitePipeline:
         test_cases: List[Dict[str, Any]],
         test_plan_id: str,
         project_name: str = "",
-        strategy: str = "test_type",
+        strategy: str = "user_story",
         accepted_risk_ids: List[str] = None,
         progress_callback: Optional[Callable] = None,
         tc_classifications: Optional[Dict[str, Any]] = None,
         flow_order: Optional[Dict[str, int]] = None,
+        user_story_map: Optional[Dict[str, Dict]] = None,
     ) -> Dict[str, Any]:
         """
         Organise les TCs en suites par type de scénario: positive → negative → boundary.
@@ -333,7 +405,7 @@ class TestSuitePipeline:
         l'exécution des suites est ordonnée par flux métier plutôt que par test_type.
         """
         accepted_risk_ids = accepted_risk_ids or []
-        
+
         logger.info(
             f"[TEST SUITE] Starting: plan={test_plan_id} "
             f"tc_count={len(test_cases)} strategy={strategy} "
@@ -367,7 +439,7 @@ class TestSuitePipeline:
 
             try:
                 naming = await asyncio.wait_for(
-                    self._call_llm(groups, project_name, strategy),
+                    self._call_llm(groups, project_name, strategy, user_story_map),
                     timeout=LLM_TIMEOUT_SECONDS,
                 )
                 names_by_key = {n.group_key: n for n in naming.suites}
@@ -398,13 +470,26 @@ class TestSuitePipeline:
             })
 
             raw_suites = []
+            _us_map = user_story_map or {}
             for group_key, tcs in groups.items():
                 name_info = names_by_key.get(group_key)
+
+                # Meaningful fallback title when LLM naming missed this group
+                if name_info:
+                    fallback_title = name_info.title
+                elif strategy == "user_story" and group_key in _us_map:
+                    us_info = _us_map[group_key]
+                    issue = us_info.get("issue_key", "")
+                    us_title = us_info.get("title", "User Story")
+                    fallback_title = f"{issue} — {us_title}" if issue else us_title
+                else:
+                    fallback_title = ""
+
                 record = build_suite_record(
                     group_key=group_key,
                     test_cases=tcs,
                     test_plan_id=test_plan_id,
-                    title=name_info.title if name_info else "",
+                    title=fallback_title,
                     description=name_info.description if name_info else "",
                     suite_type=name_info.suite_type if name_info else None,
                     priority=name_info.priority if name_info else None,
@@ -453,13 +538,25 @@ class TestSuitePipeline:
         groups: Dict[str, List[Dict[str, Any]]],
         project_name: str,
         strategy: str,
+        user_story_map: Optional[Dict[str, Dict]] = None,
     ) -> SuiteNamingBatch:
         """Appelle le LLM pour nommer les suites."""
+        user_story_map = user_story_map or {}
         groups_text_lines = []
         for key, tcs in groups.items():
             sample_titles = [tc.get("title", "")[:60] for tc in tcs[:3]]
+            if strategy == "user_story" and key in user_story_map:
+                us_info = user_story_map[key]
+                # Include UUID explicitly so the LLM can return it verbatim as group_key
+                us_label = (
+                    f'group_key: "{key}" '
+                    f'| Story: "{us_info.get("title", "Unknown Story")}" '
+                    f'({us_info.get("issue_key", "")})'
+                )
+            else:
+                us_label = f'group_key: "{key}"'
             groups_text_lines.append(
-                f'- group_key: "{key}" | {len(tcs)} test cases\n'
+                f'- {us_label} | {len(tcs)} test cases\n'
                 f'  Sample tests: {"; ".join(sample_titles)}'
             )
         groups_text = "\n".join(groups_text_lines)
@@ -472,8 +569,8 @@ class TestSuitePipeline:
         return await self._llm.ainvoke(prompt)
 
     def _log_summary(
-        self, 
-        test_plan_id: str, 
+        self,
+        test_plan_id: str,
         suites: List[Dict[str, Any]],
         risk_coverage: Dict[str, Any] = None,
     ) -> None:
@@ -484,13 +581,13 @@ class TestSuitePipeline:
                 f"type={s['suite_type']} order={s['execution_order']} "
                 f"tc_count={s['_tc_count']}"
             )
-        
+
         if risk_coverage:
             logger.info(
                 f"[RESULT] plan={test_plan_id} "
                 f"Risk Coverage={risk_coverage['risk_coverage_pct']:.0%} "
                 f"({risk_coverage['mitigation_status']})"
-            )    
+            )
 # ============================================================
 # SINGLETON
 # ============================================================

@@ -43,4 +43,8 @@
     </mat-sidenav-content>
   </mat-sidenav-container>
 
-</div>
+
+  <!-- Tasty AI Testing Assistant — hidden for admin users -->
+  @if (!isAdmin) {
+    <app-tasty></app-tasty>
+  }

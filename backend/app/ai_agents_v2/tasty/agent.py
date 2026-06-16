@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langgraph.prebuilt import create_react_agent
 
 from app.core.config import settings
@@ -19,15 +19,21 @@ logger = logging.getLogger(__name__)
 def create_tasty_agent(user_id: str):
     """
     Build the Tasty ReAct orchestrator for the given user.
-    Uses OpenRouter (gpt-4o-mini) for conversational quality + tool calling.
+    Uses Groq (llama-3.3-70b-versatile) — same as all other AI workflows in the project.
     """
-    if not settings.OPENROUTER_API_KEY:
-        raise RuntimeError("OPENROUTER_API_KEY is not configured.")
+    api_key = (
+        settings.GROQ_API_KEY_1
+        or settings.GROQ_API_KEY_2
+        or settings.GROQ_API_KEY_3
+        or settings.GROQ_API_KEY_4
+        or settings.GROQ_API_KEY_5
+    )
+    if not api_key:
+        raise RuntimeError("No GROQ_API_KEY configured.")
 
-    llm = ChatOpenAI(
-        model="openai/gpt-4o-mini",
-        api_key=settings.OPENROUTER_API_KEY,
-        base_url="https://openrouter.ai/api/v1",
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        api_key=api_key,
         temperature=0.3,
         max_tokens=1500,
         streaming=True,

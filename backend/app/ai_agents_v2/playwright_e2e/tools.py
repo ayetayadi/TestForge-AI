@@ -208,6 +208,9 @@ class PlaywrightMCPClient:
         logger.info("🔍 DEBUG: Starting stdio connection...")
 
         npx_cmd = "npx.cmd" if sys.platform == "win32" else "npx"
+
+        # ── LOCAL (default) ──────────────────────────────────────────────────────
+        # Uses Google Chrome installed on the machine. No --browser flag needed.
         client = MultiServerMCPClient(
             {
                 "playwright": {
@@ -217,6 +220,24 @@ class PlaywrightMCPClient:
                 }
             }
         )
+
+        # ── AKS / DOCKER DEPLOYMENT ──────────────────────────────────────────────
+        # The base playwright image has no Google Chrome. --browser chromium maps
+        # to "chrome-for-testing", which must be pre-installed in the sidecar image:
+        #   RUN npm install -g @playwright/mcp@latest && \
+        #       npx @playwright/mcp install-browser chrome-for-testing
+        # The sidecar runs as SSE (port 8931) so this stdio block is only a fallback,
+        # but keep it consistent with --browser chromium in case SSE fails mid-deploy.
+        #
+        # client = MultiServerMCPClient(
+        #     {
+        #         "playwright": {
+        #             "command": npx_cmd,
+        #             "args": ["--yes", "@playwright/mcp", "--browser", "chromium", "--headless"],
+        #             "transport": "stdio",
+        #         }
+        #     }
+        # )
 
         # Enter the session context — keeps the MCP connection alive for all tool calls
         self._session_ctx = client.session("playwright")

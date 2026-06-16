@@ -53,7 +53,14 @@ class TestSuite(Base):
         String(50), nullable=True, default="not_mitigated",
         comment="fully_mitigated | partially_mitigated | not_mitigated"
     )
-    
+
+    # For cross-cutting suites (smoke, regression, risk_based):
+    # TC IDs are stored here instead of via FK (a TC can appear in multiple cross-cutting suites).
+    tc_snapshot: Mapped[Optional[List[str]]] = mapped_column(
+        JSONB, nullable=True,
+        comment="TC IDs for smoke/regression/risk_based suites (not linked via FK)"
+    )
+
     status: Mapped[str] = mapped_column(
         String(20),
         default=TestSuiteStatus.DRAFT,

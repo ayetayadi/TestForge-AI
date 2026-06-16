@@ -13,13 +13,51 @@ SUITE GROUPS TO NAME:
 {suite_groups}
 
 RULES:
+- group_key: copy the exact group_key string from the input — do NOT change it
 - title: short, professional, max 80 chars
-  Examples: "Critical Authentication Tests", "Boundary Value Tests — User Registration"
+  - For test_type strategy: e.g. "Critical Authentication Tests", "Boundary Value Tests — User Registration"
+  - For user_story strategy: use the user story title/feature name as the basis, e.g. "User Registration — Positive Scenarios"
 - description: 1-2 sentences explaining what this suite covers and its purpose
-- suite_type: one of: positive | negative | boundary
+- suite_type: one of: positive | negative | boundary | feature
 - priority: one of: critical | high | medium | low (based on the risk level of included tests)
 
 Generate one entry per group in the list above.
+IMPORTANT: The group_key field must be copied exactly as-is from the input (it may be a UUID — return it unchanged).
+"""
+
+TC_DEPENDENCY_ANALYSIS_PROMPT = """You are a QA architect analyzing test execution dependencies within a single test suite.
+
+SUITE: {suite_title}
+PROJECT: {project_name}
+
+TEST CASES IN THIS SUITE:
+{tc_list}
+
+Your task: Identify REAL data/state/session dependencies between these test cases.
+
+A dependency edge (source → target) means: source MUST execute BEFORE target because:
+  • source creates data that target reads, updates, or deletes
+  • source establishes a session/token that target requires
+  • source sets up a system state that target's preconditions rely on
+
+EXAMPLES of REAL dependencies:
+  • "Create user" → "Login as user" (user must exist before login)
+  • "Login" → "Create project" (session token required to create)
+  • "Create project" → "View project details" (project must exist to display)
+  • "Create project" → "Delete project" (must exist before deleting)
+
+EXAMPLES of NON-dependencies (do NOT create these):
+  • Two independent read operations
+  • Two negative tests that do not share data
+  • Tests in unrelated features
+
+RULES:
+  1. Only include edges for REAL data/state dependencies — not just logical ordering preference
+  2. Avoid cycles (A requires B AND B requires A)
+  3. If no real dependency exists between two TCs, omit the edge
+  4. Logout / session cleanup MUST depend on all authenticated operations it finalizes
+
+If there are no real dependencies in this suite, return an empty edges list.
 """
 
 BUSINESS_FLOW_ORDERING_PROMPT = """You are a QA architect with ISTQB Advanced Test Manager certification.

@@ -14,7 +14,7 @@ LLM_TIMEOUT_SECONDS = 60
 # ============================================================
 # TYPES DE SUITE VALIDES (modèle TestSuite.suite_type)
 # ============================================================
-VALID_SUITE_TYPES = {"positive", "negative", "boundary", "feature"}
+VALID_SUITE_TYPES = {"positive", "negative", "boundary", "feature", "smoke", "regression", "risk_based"}
 
 # ============================================================
 # PRIORITÉ DES SUITES SELON LE NIVEAU DE RISQUE

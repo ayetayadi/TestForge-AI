@@ -15,7 +15,8 @@ from app.services.user_story_service import (
 
 router = APIRouter(prefix="/user-stories", tags=["user-stories"])
 
-@router.get("/")
+@router.get("")
+@router.get("/", include_in_schema=False)
 async def get_user_stories(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

@@ -1,14 +1,14 @@
 <mat-toolbar class="topbar">
-  
+
   <!-- À GAUCHE -->
   <div class="left-content">
-    <button 
-      mat-icon-button 
+    <button
+      mat-icon-button
       (click)="toggleSidebar.emit()"
       class="toggle-btn">
       <mat-icon>{{ isSidebarCollapsed ? 'menu' : 'chevron_left' }}</mat-icon>
     </button>
-    
+
     <div class="search-bar">
       <mat-icon>search</mat-icon>
       <input type="text" placeholder="Search...">
@@ -33,7 +33,7 @@
         </div>
       </div>
     </div>
-    
+
     <mat-menu #userMenu="matMenu" class="user-dropdown">
       <div class="dropdown-header">
         <div class="dropdown-avatar">
@@ -44,21 +44,21 @@
           <div class="dropdown-role">{{ role || 'Role' }}</div>
         </div>
       </div>
-      
+
       <mat-divider></mat-divider>
-      
+
       <button mat-menu-item routerLink="/profile">
         <mat-icon>person_outline</mat-icon>
         <span>Profile</span>
       </button>
-      
+
       <mat-divider></mat-divider>
-      
+
       <button mat-menu-item (click)="logout()" class="logout-btn">
         <mat-icon>logout</mat-icon>
         <span>Logout</span>
       </button>
     </mat-menu>
   </div>
-  
+
 </mat-toolbar>

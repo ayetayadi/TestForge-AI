@@ -970,8 +970,8 @@ reset(): void {
   this.discoveredLocatorsSubject.next([]);
   this.isExecutingSubject.next(false);
   this.currentScriptSubject.next(null);
-  this.scriptV2Subject.next(null); // Ajouter cette ligne
-  this.executionReportSubject.next(null); // Ajouter cette ligne
+  this.scriptV2Subject.next(null);
+  this.executionReportSubject.next(null);
   this.stopStreaming();
 }
 

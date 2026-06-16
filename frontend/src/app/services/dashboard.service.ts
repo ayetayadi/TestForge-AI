@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from 'src/environments/environment';
 
 export interface ProjectRow {
   project_id: string;
@@ -34,7 +35,7 @@ export interface DashboardStats {
 
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
-  private readonly base = 'http://localhost:8000/dashboard';
+  private readonly base = `${environment.apiUrl}/dashboard`;
 
   constructor(private http: HttpClient) {}
 
