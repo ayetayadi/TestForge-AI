@@ -104,12 +104,6 @@ class UserStoryVersion(Base):
         foreign_keys=[user_story_id]
     )
 
-    defects = relationship(
-        "Defect",
-        back_populates="user_story_version",
-        foreign_keys="Defect.user_story_version_id"
-    )
-
     # =========================
     # INDEX OPTIMISÉS
     # =========================

@@ -1,59 +1,74 @@
-<div class="page">
-  <header class="page-header">
-    <div class="header-content">
-      <div class="header-text">
-        <h1>Projects</h1>
-        <p>Import and manage user stories from your Jira projects</p>
+<div class="proj-page">
+
+  <!-- ══════════════════════════════════════════════
+       HEADER — gradient like risk page
+  ══════════════════════════════════════════════ -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+        </svg>
       </div>
-    
-      <button class="btn btn-primary" (click)="openImportModal()" *ngIf="(projects() ?? []).length > 0">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
+      <div>
+        <h1 class="page-title">Projects</h1>
+        <p class="page-subtitle">Import and manage user stories from your Jira projects</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-import" (click)="openImportModal()" *ngIf="(projects() ?? []).length > 0">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
           <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
           <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
         </svg>
         Import from Jira
       </button>
     </div>
-  </header>
+  </div>
 
-  <div class="page-content">
+  <!-- ══════════════════════════════════════════════
+       LOADING
+  ══════════════════════════════════════════════ -->
+  @if (loading()) {
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <span>Loading projects…</span>
+    </div>
+  } @else {
 
-    <!-- Loading -->
-    @if (loading()) {
-      <div class="loading-container">
-    <app-spinner text="Loading projects..." />
-      </div>
-    } @else {
-    
-      <!-- Error -->
-      @if (errorMessage()) {
-        <div class="error-state">
-      <p>{{ errorMessage() }}</p>
-      <button class="btn btn-secondary" (click)="loadProjects()">Retry</button>
+    <!-- ERROR -->
+    @if (errorMessage()) {
+      <div class="section-card error-card">
+        <div class="error-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
         </div>
-      }
-    
-      <!-- Empty -->
-      @else if ((projects() ?? []).length === 0) {
-        <div class="empty-hero">
-        <div class="empty-hero-icon">
+        <p>{{ errorMessage() }}</p>
+        <button class="btn-retry" (click)="loadProjects()">Retry</button>
+      </div>
+    }
+
+    <!-- EMPTY — no projects yet -->
+    @else if ((projects() ?? []).length === 0) {
+      <div class="section-card empty-card">
+        <div class="empty-icon">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
           </svg>
         </div>
-        <h2 class="empty-hero-title">No projects yet</h2>
-        <p class="empty-hero-desc">
-          Connect your Jira instance and import user stories to start analyzing and refining them with AI.
-        </p>
-        <button class="btn btn-primary btn-lg" (click)="openImportModal()">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
+        <h3>No projects yet</h3>
+        <p>Connect your Jira instance and import user stories to start analyzing and refining them with AI.</p>
+        <button class="btn-import btn-import--lg" (click)="openImportModal()">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
             <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
             <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
           </svg>
           Import from Jira
         </button>
 
-        <div class="empty-hero-steps">
+        <div class="empty-steps">
           <div class="step">
             <span class="step-num">1</span>
             <span class="step-text">Select a Jira project</span>
@@ -78,190 +93,183 @@
           </div>
         </div>
       </div>
-      }
+    }
 
-    <!-- Projects exist -->
+    <!-- PROJECTS EXIST -->
     @else {
-      <!-- Toolbar: search + filters -->
-      <div class="toolbar">
-        <app-search-bar
-          placeholder="Search projects by name or key..."
-          [debounce]="250"
-          (searchChange)="onSearchChange($event)"
-        />
+      <div class="section-card">
 
-        <app-filter-bar
-          [groups]="filterGroups"
-          [activeFilters]="activeFilters()"
-          (filtersChange)="onFiltersChange($event)"
-        />
-      </div>
-
-      <!-- View Toggle -->
-      <div class="view-toggle">
-        <div class="view-toggle-buttons">
-          <button 
-            class="view-btn" 
-            [class.active]="viewMode === 'grid'"
-            (click)="toggleViewMode('grid')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM13 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM13 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+        <!-- Register header -->
+        <div class="register-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/>
             </svg>
-            Grid
-          </button>
-          <button 
-            class="view-btn" 
-            [class.active]="viewMode === 'list'"
-            (click)="toggleViewMode('list')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M3 4.5A1.5 1.5 0 014.5 3h11A1.5 1.5 0 0117 4.5v1A1.5 1.5 0 0115.5 7h-11A1.5 1.5 0 013 5.5v-1zM3 10.5A1.5 1.5 0 014.5 9h11a1.5 1.5 0 011.5 1.5v1a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 11.5v-1zM3 16.5A1.5 1.5 0 014.5 15h11a1.5 1.5 0 011.5 1.5v1a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 17.5v-1z"/>
-            </svg>
-            List
-          </button>
-        </div>
-        <div class="results-count">
-          {{ filteredProjects().length }} project{{ filteredProjects().length !== 1 ? 's' : '' }}
-        </div>
-      </div>
+            Projects
+            <span class="register-count">{{ filteredProjects().length }}</span>
+          </h2>
 
-      <!-- No results after filtering -->
-      @if (filteredProjects().length === 0) {
-        <div class="no-results">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
-          </svg>
-          <p class="no-results-title">No projects match your search</p>
-          <p class="no-results-desc">Try different keywords or clear your filters.</p>
-          <button class="btn btn-secondary btn-sm" (click)="clearAllFilters()">
-            Clear all filters
-          </button>
-        </div>
-      } @else {
-        <!-- GRID VIEW -->
-        @if (viewMode === 'grid') {
-          <div class="projects-grid">
-            @for (project of paginatedProjects(); track project.id) {
-              <div class="project-card">
-                <div class="card-header">
-                  <div class="project-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                    </svg>
-                  </div>
-                  <div class="project-info">
-                    <h3 class="project-name">{{ project.project_name }}</h3>
-                    <span class="project-key">{{ project.project_key }}</span>
-                  </div>
-                </div>
-
-                <div class="card-stats">
-                  <div class="stat">
-                    <span class="stat-value">{{ project.story_count }}</span>
-                    <span class="stat-label">User Stories</span>
-                  </div>
-                </div>
-
-                <div class="card-actions">
-                  <button
-                    class="btn btn-secondary"
-                    [disabled]="project.story_count === 0"
-                    (click)="viewStories(project)">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
-                      <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
-                      <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
-                    </svg>
-                    View Stories
-                  </button>
-                  
-                  <button
-                    class="btn btn-danger"
-                    (click)="deleteProject(project)">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
-                      <path fill-rule="evenodd" d="M6 8a.75.75 0 011.5 0v6a.75.75 0 01-1.5 0V8zm5.25-.75a.75.75 0 00-1.5 0v6a.75.75 0 001.5 0v-6z" clip-rule="evenodd"/>
-                      <path fill-rule="evenodd" d="M4.5 5.75A.75.75 0 015.25 5h9.5a.75.75 0 010 1.5h-.568l-.528 9.25A2.25 2.25 0 0111.41 18H8.59a2.25 2.25 0 01-2.244-2.25L5.818 6.5H5.25a.75.75 0 01-.75-.75zM8 3.75A.75.75 0 018.75 3h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 018 3.75z" clip-rule="evenodd"/>
-                    </svg>
-                    Delete
-                  </button>
-                </div>
-              </div>
-            }
+          <div class="register-controls">
+            <app-search-bar
+              placeholder="Search by name or key…"
+              [debounce]="250"
+              (searchChange)="onSearchChange($event)"
+            />
+            <app-filter-bar
+              [groups]="filterGroups"
+              [activeFilters]="activeFilters()"
+              (filtersChange)="onFiltersChange($event)"
+            />
+            <!-- View toggle -->
+            <div class="view-toggle">
+              <button class="view-btn" [class.active]="viewMode === 'grid'" (click)="toggleViewMode('grid')" title="Grid view">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM13 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM13 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                </svg>
+              </button>
+              <button class="view-btn" [class.active]="viewMode === 'list'" (click)="toggleViewMode('list')" title="List view">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M3 4.5A1.5 1.5 0 014.5 3h11A1.5 1.5 0 0117 4.5v1A1.5 1.5 0 0115.5 7h-11A1.5 1.5 0 013 5.5v-1zM3 10.5A1.5 1.5 0 014.5 9h11a1.5 1.5 0 011.5 1.5v1a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 11.5v-1zM3 16.5A1.5 1.5 0 014.5 15h11a1.5 1.5 0 011.5 1.5v1a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 17.5v-1z"/>
+                </svg>
+              </button>
+            </div>
           </div>
-        }
+        </div>
 
-        <!-- LIST VIEW -->
-        @if (viewMode === 'list') {
-          <div class="projects-list">
-            <table class="projects-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Project Name</th>
-                  <th>Key</th>
-                  <th>Stories</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (project of paginatedProjects(); track project.id) {
+        <!-- No results after filtering -->
+        @if (filteredProjects().length === 0) {
+          <div class="list-empty">
+            <span>🔍</span>
+            <p>No projects match your current search or filter.</p>
+            <button class="btn-link" (click)="clearAllFilters()">Clear all filters</button>
+          </div>
+        } @else {
+
+          <!-- GRID VIEW -->
+          @if (viewMode === 'grid') {
+            <div class="projects-grid">
+              @for (project of paginatedProjects(); track project.id) {
+                <div class="project-card">
+                  <div class="card-top">
+                    <div class="project-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                      </svg>
+                    </div>
+                    <div class="project-info">
+                      <h3 class="project-name">{{ project.project_name }}</h3>
+                      <span class="project-key">{{ project.project_key }}</span>
+                    </div>
+                  </div>
+
+                  <div class="card-stats-row">
+                    <div class="card-stat">
+                      <span class="card-stat-value">{{ project.story_count }}</span>
+                      <span class="card-stat-label">User Stories</span>
+                    </div>
+                  </div>
+
+                  <div class="card-footer">
+                    <button
+                      class="btn-view"
+                      [disabled]="project.story_count === 0"
+                      (click)="viewStories(project)">
+                      <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                        <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
+                        <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                      </svg>
+                      View Stories
+                    </button>
+                    <button class="btn-delete-card" (click)="deleteProject(project)" title="Delete project">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- LIST VIEW -->
+          @if (viewMode === 'list') {
+            <div class="table-container">
+              <table class="projects-table">
+                <thead>
                   <tr>
-                    <td class="col-icon">
-                      <div class="list-project-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-                        </svg>
-                      </div>
-                    </td>
-                    <td class="col-project-name">
-                      <div class="list-project-name">{{ project.project_name }}</div>
-                    </td>
-                    <td class="col-project-key">
-                      <span class="list-project-key">{{ project.project_key }}</span>
-                    </td>
-                    <td class="col-stories">
-                      <span class="list-stat-value">{{ project.story_count }}</span>
-                      <span class="list-stat-label">stories</span>
-                    </td>
-                    <td class="col-actions">
-                      <button 
-                        class="btn-icon-only view" 
-                        (click)="viewStories(project)" 
-                        [disabled]="project.story_count === 0"
-                        title="View Stories">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
-                          <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                      <button 
-                        class="btn-icon-only delete" 
-                        (click)="deleteProject(project)"
-                        title="Delete Project">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M6 8a.75.75 0 011.5 0v6a.75.75 0 01-1.5 0V8zm5.25-.75a.75.75 0 00-1.5 0v6a.75.75 0 001.5 0v-6z" clip-rule="evenodd"/>
-                          <path fill-rule="evenodd" d="M4.5 5.75A.75.75 0 015.25 5h9.5a.75.75 0 010 1.5h-.568l-.528 9.25A2.25 2.25 0 0111.41 18H8.59a2.25 2.25 0 01-2.244-2.25L5.818 6.5H5.25a.75.75 0 01-.75-.75zM8 3.75A.75.75 0 018.75 3h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 018 3.75z" clip-rule="evenodd"/>
-                        </svg>
-                      </button>
-                    </td>
+                    <th class="col-icon"></th>
+                    <th>Project Name</th>
+                    <th>Key</th>
+                    <th>Stories</th>
+                    <th>Actions</th>
                   </tr>
-                }
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  @for (project of paginatedProjects(); track project.id) {
+                    <tr>
+                      <td class="col-icon">
+                        <div class="list-project-icon">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
+                          </svg>
+                        </div>
+                      </td>
+                      <td class="col-name">
+                        <span class="list-project-name">{{ project.project_name }}</span>
+                      </td>
+                      <td class="col-key">
+                        <span class="list-project-key">{{ project.project_key }}</span>
+                      </td>
+                      <td class="col-stories">
+                        <span class="list-stat-value">{{ project.story_count }}</span>
+                        <span class="list-stat-label">stories</span>
+                      </td>
+                      <td class="col-actions">
+                        <div class="action-buttons">
+                          <button
+                            class="btn-icon view"
+                            (click)="viewStories(project)"
+                            [disabled]="project.story_count === 0"
+                            title="View Stories">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
+                              <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                            </svg>
+                          </button>
+                          <button
+                            class="btn-icon delete"
+                            (click)="deleteProject(project)"
+                            title="Delete Project">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <!-- Pagination -->
+          <div class="pagination-wrap">
+            <app-pagination
+              [totalItems]="filteredProjects().length"
+              [currentPage]="page()"
+              [pageSize]="pageSize()"
+              [pageSizeOptions]="[6, 12, 24, 48]"
+              (pageChange)="onPageChange($event)"
+              (pageSizeChange)="onPageSizeChange($event)"
+            />
           </div>
         }
-
-        <!-- Pagination -->
-        <app-pagination
-          [totalItems]="filteredProjects().length"
-          [currentPage]="page()"
-          [pageSize]="pageSize()"
-          [pageSizeOptions]="[6, 12, 24, 48]"
-          (pageChange)="onPageChange($event)"
-          (pageSizeChange)="onPageSizeChange($event)"
-        />
-      }
+      </div>
     }
   }
-  </div>
+
 </div>
 
 <!-- Import Modal -->
@@ -281,5 +289,4 @@
   [variant]="confirmDialogData().variant"
   (confirmed)="confirmDialogData().onConfirm(); showConfirmDialog.set(false)"
   (cancelled)="showConfirmDialog.set(false)"
->
-</app-confirm-dialog>
+/>

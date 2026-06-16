@@ -787,6 +787,21 @@ async def notify_developer_endpoint(
 # EXECUTION — CLOSE / REOPEN
 # ============================================================
 
+@router.delete("/test-executions/{execution_id}")
+async def delete_test_execution_endpoint(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Supprime définitivement une TestExecution et ses résultats (cascade)."""
+    from app.repositories import playwright_repository as repo
+    deleted = await repo.delete_test_execution(db, execution_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+    await db.commit()
+    return {"deleted": True, "execution_id": execution_id}
+
+
 @router.post("/test-executions/{execution_id}/close")
 async def close_execution_endpoint(
     execution_id: str,

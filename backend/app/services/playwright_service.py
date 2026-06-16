@@ -372,8 +372,17 @@ async def generate_script_v1(
 # ============================================================
 
 def _map_exec_status_to_tc_result_status(exec_status: str, steps_failed: int) -> TestCaseResultStatus:
-    """Translate agent exec_result.execution_status into TestCaseResultStatus."""
-    if exec_status in ("passed", "completed") and steps_failed == 0:
+    """
+    Translate agent exec_result.execution_status into TestCaseResultStatus.
+
+    The ReAct agent's verdict IS the oracle: it already judged whether every
+    expected result was really met against the live page. exec_status is
+    "completed" only when that verdict was PASSED. We therefore trust it and do
+    NOT additionally require steps_failed == 0 — otherwise a single transient
+    tool hiccup (e.g. a stale [ref=eXX] the agent retried and recovered from)
+    would wrongly doom an otherwise-successful run to FAILED.
+    """
+    if exec_status in ("passed", "completed"):
         return TestCaseResultStatus.PASSED
     if exec_status == "error":
         return TestCaseResultStatus.ERROR
@@ -665,7 +674,7 @@ async def _persist_tc_result(
     )
     await repo.commit(db)
 
-    # Auto-defect on failure
+    # Auto-defect on failure / auto-resolve on pass
     defect_tc_id = tc_id or (script_version.test_case_id if script_version else None)
     if tc_status in (TestCaseResultStatus.FAILED, TestCaseResultStatus.ERROR) and defect_tc_id:
         try:
@@ -677,6 +686,14 @@ async def _persist_tc_result(
             await repo.commit(db)
         except Exception as e:
             logger.warning(f"Auto-defect creation failed (non-blocking): {e}")
+    elif tc_status == TestCaseResultStatus.PASSED and defect_tc_id:
+        # The test went green → any lingering open defect for it is now fixed.
+        try:
+            from app.services.execution_report_service import resolve_defects_on_pass
+            await resolve_defects_on_pass(db, test_case_id=defect_tc_id)
+            await repo.commit(db)
+        except Exception as e:
+            logger.warning(f"Defect auto-resolve failed (non-blocking): {e}")
 
 
 async def run_full_workflow(
@@ -1113,8 +1130,11 @@ async def run_suite_smart(
                         _saved_local_storage = captured
 
             raw_exec_status = exec_result.get("execution_status", "error")
-            steps_failed_count = exec_result.get("steps_failed", 0)
-            if raw_exec_status in ("passed", "completed") and steps_failed_count == 0:
+            # Trust the ReAct verdict — same rule as _map_exec_status_to_tc_result_status.
+            # steps_failed counts transient tool hiccups (e.g. a stale [ref=eXX] the
+            # agent retried/recovered from); it must NOT override a PASSED verdict, or
+            # the suite summary would contradict the persisted TC result status.
+            if raw_exec_status in ("passed", "completed"):
                 status = "passed"
                 passed += 1
             elif raw_exec_status == "error":

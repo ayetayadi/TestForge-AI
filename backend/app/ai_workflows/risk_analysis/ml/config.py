@@ -34,6 +34,15 @@ TEST_DEPTH = {
 # ML
 ML_CONFIDENCE_THRESHOLD = 0.50
 
+# Grille de k pour la sélection du KNN, PARTAGÉE entre train.py (modèle déployé)
+# et benchmark.py (courbe biais-variance), pour que la courbe reflète exactement
+# le modèle. weights="uniform" partout → la courbe de train reste informative
+# (diagnostic sur/sous-apprentissage), contrairement à "distance" (train plat à 1.0).
+# Ordre croissant ; la courbe l'affiche en décroissant (k↓ = complexité↑).
+# k=1 est volontairement exclu : c'est le point de surapprentissage maximal
+# (1 seul voisin), à éviter pour un modèle robuste.
+KNN_K_GRID = [3, 5, 7, 9, 11, 15, 21]
+
 # Embedding multilingue (français + anglais), 384 dims, ~120 Mo
 EMBED_MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 

@@ -29,7 +29,7 @@ def _get_key_semaphore(key_id: str) -> asyncio.Semaphore:
         _key_semaphores[key_id] = asyncio.Semaphore(1)
     return _key_semaphores[key_id]
 
-_MIN_CALL_INTERVAL = 10.0
+_MIN_CALL_INTERVAL = 4.0
 _last_call_times: dict[str, float] = {}
 
 _RETRY_DELAYS = [15, 30, 60]
@@ -76,9 +76,10 @@ def _available_openrouter_keys() -> list[str]:
 # ──────────────────────────────────────────────────────────────
 
 _ALL_KEY_ENV_NAMES = (
-    [f"GROQ_API_KEY_{i}" for i in range(1, 6)] +
+    [f"GROQ_API_KEY_{i}" for i in range(1, 9)] +
     ["OPENROUTER_API_KEY"] +
-    [f"OPENROUTER_API_KEY_{i}" for i in range(1, 7)]
+    [f"OPENROUTER_API_KEY_{i}" for i in range(1, 7)] +
+    ["AZURE_OPENAI_KEY_JUDGE"]
 )
 
 _KEY_NAME_MAP: dict[str, str] = {}
@@ -88,7 +89,7 @@ for _env_name in _ALL_KEY_ENV_NAMES:
         _KEY_NAME_MAP[_val] = _env_name
 
 _GROQ_KEYS: list[str] = [
-    k for k in (os.getenv(f"GROQ_API_KEY_{i}", "") for i in range(1, 6))
+    k for k in (os.getenv(f"GROQ_API_KEY_{i}", "") for i in range(1, 9))
     if k and len(k) > 10
 ]
 if not _GROQ_KEYS:
@@ -104,9 +105,19 @@ _OPENROUTER_KEYS: list[str] = [
     if k and len(k) > 10
 ]
 
+# ── Azure OpenAI (final fallback — gpt-4.1) ──────────────────────
+_AZURE_KEY: str = os.getenv("AZURE_OPENAI_KEY_JUDGE", "")
+_AZURE_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT_JUDGE", "")
+_AZURE_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_DEPLOYMENT_JUDGE", "gpt-4.1")
+_AZURE_API_VERSION: str = os.getenv("AZURE_OPENAI_API_VERSION_JUDGE", "2025-01-01-preview")
+_AZURE_ENABLED: bool = bool(_AZURE_KEY and _AZURE_ENDPOINT and len(_AZURE_KEY) > 10)
+if _AZURE_ENABLED:
+    _KEY_NAME_MAP[_AZURE_KEY] = "AZURE_OPENAI_KEY_JUDGE"
+
 logger.info(
     f"[LLM KEY] Groq pool: {[_KEY_NAME_MAP.get(k, k[:12]+'...') for k in _GROQ_KEYS]} | "
-    f"OpenRouter pool: {[_KEY_NAME_MAP.get(k, k[:12]+'...') for k in _OPENROUTER_KEYS]}"
+    f"OpenRouter pool: {[_KEY_NAME_MAP.get(k, k[:12]+'...') for k in _OPENROUTER_KEYS]} | "
+    f"Azure fallback: {'gpt-4.1 (' + _AZURE_DEPLOYMENT + ')' if _AZURE_ENABLED else 'OFF'}"
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -114,7 +125,7 @@ logger.info(
 # ──────────────────────────────────────────────────────────────
 
 _GROQ_TO_OPENROUTER: dict[str, str] = {
-    "llama-3.3-70b-versatile":   "meta-llama/llama-3.3-70b-instruct",
+    "openai/gpt-oss-120b":   "meta-llama/llama-3.3-70b-instruct",
     "llama-3.1-70b-versatile":   "meta-llama/llama-3.1-70b-instruct",
     "llama-3.1-8b-instant":      "meta-llama/llama-3.1-8b-instruct",
     "llama3-70b-8192":           "meta-llama/llama-3-70b-instruct",
@@ -195,7 +206,7 @@ async def _direct_groq_call(
     key: str, model: str, temperature: float, max_tokens: int, messages: list,
     tools: list | None = None, tool_choice=None,
 ) -> ChatResult:
-    client = _groq_lib.AsyncGroq(api_key=key)
+    client = _groq_lib.AsyncGroq(api_key=key, max_retries=0)
     params: dict = dict(
         model=model,
         messages=_messages_to_dicts(messages),
@@ -225,6 +236,34 @@ async def _direct_openrouter_call(
     )
     params: dict = dict(
         model=or_model,
+        messages=_messages_to_dicts(messages),
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    if tools:
+        params["tools"] = tools
+    if tool_choice is not None:
+        params["tool_choice"] = tool_choice
+    response = await client.chat.completions.create(**params)
+    msg = response.choices[0].message
+    content = msg.content or ""
+    additional_kwargs = _tool_calls_to_additional_kwargs(msg.tool_calls)
+    return ChatResult(generations=[ChatGeneration(message=AIMessage(content=content, additional_kwargs=additional_kwargs))])
+
+
+async def _direct_azure_call(
+    model: str, temperature: float, max_tokens: int, messages: list,
+    tools: list | None = None, tool_choice=None,
+) -> ChatResult:
+    """Call Azure OpenAI (gpt-4.1) directly. `model` arg is ignored — Azure
+    routes by deployment name, not model name."""
+    client = _openai_lib.AsyncAzureOpenAI(
+        api_key=_AZURE_KEY,
+        azure_endpoint=_AZURE_ENDPOINT,
+        api_version=_AZURE_API_VERSION,
+    )
+    params: dict = dict(
+        model=_AZURE_DEPLOYMENT,
         messages=_messages_to_dicts(messages),
         temperature=temperature,
         max_tokens=max_tokens,
@@ -352,6 +391,18 @@ class ControlledChatGroq(ChatGroq):
                     except GroqRateLimitError as exc:
                         last_exc = exc
                         should_retry, wait = _parse_rate_limit(exc, attempt)
+                        # IMMEDIATE ROTATION (Groq only): if another Groq key is
+                        # free, don't burn `wait` seconds sleeping on this one —
+                        # mark it exhausted for its cooldown and break straight to
+                        # Tier 2 so a fresh key handles this turn now. We only ever
+                        # sleep-and-retry the same key when it's the ONLY one left.
+                        if _available_groq_keys(exclude=key_id):
+                            _mark_exhausted(key_id, wait)
+                            logger.info(
+                                f"[LLM KEY] ↪ {key_preview} rate-limited — rotating "
+                                f"immediately to a free Groq key (skipping {wait:.0f}s wait)"
+                            )
+                            break
                         if not should_retry or attempt == len(_RETRY_DELAYS):
                             _mark_exhausted(key_id, wait)
                             break
@@ -392,49 +443,87 @@ class ControlledChatGroq(ChatGroq):
                     logger.error(f"[LLM ERROR] Groq fallback {fb_label}: {exc}")
                     raise
 
-        # ── Tier 3: available OpenRouter keys ────────────────────────────
-        available_or = _available_openrouter_keys()
-        if not available_or:
-            logger.error("[LLM KEY] All Groq AND OpenRouter keys exhausted")
-            raise last_exc or RuntimeError("All API keys exhausted")
-
-        logger.warning(
-            f"[LLM KEY] All Groq keys exhausted — switching to OpenRouter "
-            f"({len(available_or)}/{len(_OPENROUTER_KEYS)} keys available)"
-        )
-
-        for or_key in available_or:
-            or_label = _key_label(or_key)
-            or_sem = _get_key_semaphore(or_key)
-
-            last_call = _last_call_times.get(or_key, 0.0)
+        # ── Tier 3: Azure OpenAI (gpt-4.1) — preferred fallback ──────────
+        if _AZURE_ENABLED and _is_available(_AZURE_KEY):
+            last_call = _last_call_times.get(_AZURE_KEY, 0.0)
             gap = _MIN_CALL_INTERVAL - (time.monotonic() - last_call)
             if gap > 0:
                 await asyncio.sleep(gap)
+            try:
+                logger.warning(
+                    f"[LLM AZURE] All Groq keys exhausted — falling back to "
+                    f"Azure OpenAI ({_AZURE_DEPLOYMENT})"
+                )
+                _last_call_times[_AZURE_KEY] = time.monotonic()
+                result = await _direct_azure_call(
+                    self.model_name, self.temperature, self.max_tokens, messages,
+                    tools=tools, tool_choice=tool_choice,
+                )
+                logger.info(f"[LLM AZURE] ✅ Azure fallback success — {_AZURE_DEPLOYMENT}")
+                return result
+            except _openai_lib.RateLimitError as exc:
+                last_exc = exc
+                wait = _read_openrouter_retry_after(exc)
+                _mark_exhausted(_AZURE_KEY, wait)
+            except Exception as exc:
+                logger.error(f"[LLM AZURE] Azure fallback failed: {exc}")
+                last_exc = exc
 
-            async with or_sem:
-                try:
-                    logger.info(f"[LLM OR] 🔄 Trying OpenRouter key: {or_label}")
-                    _last_call_times[or_key] = time.monotonic()
-                    result = await _direct_openrouter_call(
-                        or_key, self.model_name, self.temperature, self.max_tokens, messages,
-                        tools=tools, tool_choice=tool_choice,
-                    )
-                    logger.info(f"[LLM OR] ✅ OpenRouter success — key: {or_label}")
-                    return result
+        # ── Tier 4: available OpenRouter keys — last resort ──────────────
+        available_or = _available_openrouter_keys()
+        if available_or:
+            logger.warning(
+                f"[LLM KEY] Groq + Azure exhausted — switching to OpenRouter "
+                f"({len(available_or)}/{len(_OPENROUTER_KEYS)} keys available)"
+            )
 
-                except _openai_lib.RateLimitError as exc:
-                    last_exc = exc
-                    wait = _read_openrouter_retry_after(exc)
-                    _mark_exhausted(or_key, wait)
-                    continue
+            for or_key in available_or:
+                or_label = _key_label(or_key)
+                or_sem = _get_key_semaphore(or_key)
 
-                except Exception as exc:
-                    logger.error(f"[LLM OR] OpenRouter call failed — key {or_label}: {exc}")
-                    raise
+                last_call = _last_call_times.get(or_key, 0.0)
+                gap = _MIN_CALL_INTERVAL - (time.monotonic() - last_call)
+                if gap > 0:
+                    await asyncio.sleep(gap)
 
-        logger.error("[LLM KEY] All Groq AND OpenRouter keys exhausted")
-        raise last_exc or RuntimeError("All Groq and OpenRouter API keys exhausted")
+                async with or_sem:
+                    try:
+                        logger.info(f"[LLM OR] 🔄 Trying OpenRouter key: {or_label}")
+                        _last_call_times[or_key] = time.monotonic()
+                        result = await _direct_openrouter_call(
+                            or_key, self.model_name, self.temperature, self.max_tokens, messages,
+                            tools=tools, tool_choice=tool_choice,
+                        )
+                        logger.info(f"[LLM OR] ✅ OpenRouter success — key: {or_label}")
+                        return result
+
+                    except _openai_lib.RateLimitError as exc:
+                        last_exc = exc
+                        wait = _read_openrouter_retry_after(exc)
+                        _mark_exhausted(or_key, wait)
+                        continue
+
+                    except _openai_lib.APIStatusError as exc:
+                        # 402 insufficient credits — mark exhausted, try next key
+                        if getattr(exc, "status_code", None) == 402:
+                            last_exc = exc
+                            logger.warning(
+                                f"[LLM OR] {or_label}: 402 insufficient credits — "
+                                "marking exhausted 24h, moving on"
+                            )
+                            _mark_exhausted(or_key, 86400.0)
+                            continue
+                        logger.error(f"[LLM OR] OpenRouter call failed — key {or_label}: {exc}")
+                        last_exc = exc
+                        break
+
+                    except Exception as exc:
+                        logger.error(f"[LLM OR] OpenRouter call failed — key {or_label}: {exc}")
+                        last_exc = exc
+                        break
+
+        logger.error("[LLM KEY] All Groq + Azure + OpenRouter keys exhausted")
+        raise last_exc or RuntimeError("All Groq, Azure and OpenRouter API keys exhausted")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -454,6 +543,7 @@ def create_llm(temperature: float, model: str, max_tokens: int) -> ControlledCha
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
+        max_retries=0,
     )
 
 
@@ -463,7 +553,7 @@ def create_llm(temperature: float, model: str, max_tokens: int) -> ControlledCha
 
 AVAILABLE_MODELS = [
     {
-        "id": "llama-3.3-70b-versatile",
+        "id": "openai/gpt-oss-120b",
         "label": "LLaMA 3.3 70B (Groq)",
         "provider": "groq",
         "description": "Fast structured output, best for locator resolution. Default.",
@@ -582,12 +672,12 @@ class ControlledOpenRouterLLM(ChatOpenAI):
         # → fall back to Groq LLaMA 3.3 70B so the request still succeeds
         logger.warning(
             f"[LLM OR] All OpenRouter keys exhausted for model={self.model_name}. "
-            "Falling back to Groq llama-3.3-70b-versatile."
+            "Falling back to Groq openai/gpt-oss-120b."
         )
         try:
             groq_llm = create_llm(
                 self.temperature,
-                "llama-3.3-70b-versatile",
+                "openai/gpt-oss-120b",
                 self.max_tokens,
             )
             result = await groq_llm._agenerate(*args, **kwargs)

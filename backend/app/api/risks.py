@@ -449,25 +449,6 @@ async def get_all_risks(
     )
 
 @router.get(
-    "/{risk_id}",
-    response_model=RiskResponse,
-    summary="Get a single risk by ID",
-)
-async def get_risk(
-    risk_id: str,
-    db: AsyncSession = Depends(deps.get_db),
-) -> RiskResponse:
-    """Get a single risk by its ID."""
-    service = RiskService(db)
-    risk = await service.get_risk(risk_id)
-    if not risk:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Risk {risk_id} not found",
-        )
-    return risk
-
-@router.get(
     "/project/{project_id}",
     response_model=List[RiskResponse],
     summary="Get all risks for a project",
@@ -657,6 +638,26 @@ async def list_risks(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get(
+    "/{risk_id}",
+    response_model=RiskResponse,
+    summary="Get a single risk by ID",
+)
+async def get_risk(
+    risk_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+) -> RiskResponse:
+    """Get a single risk by its ID."""
+    service = RiskService(db)
+    risk = await service.get_risk(risk_id)
+    if not risk:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Risk {risk_id} not found",
+        )
+    return risk
 
 
 # ============================================================

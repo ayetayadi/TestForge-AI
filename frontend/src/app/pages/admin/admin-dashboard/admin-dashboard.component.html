@@ -131,21 +131,6 @@
         </div>
       </div>
 
-      <div class="kpi-card kpi-card--danger">
-        <div class="kpi-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-        </div>
-        <div class="kpi-body">
-          <div class="kpi-value">{{ global?.total_defects ?? 0 }}</div>
-          <div class="kpi-label">Defects</div>
-          <div class="kpi-sub">Detected</div>
-        </div>
-      </div>
-
       <div class="kpi-card kpi-card--warn">
         <div class="kpi-icon-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -173,7 +158,7 @@
         <div class="chart-header">
           <div>
             <h3 class="chart-title">Testers Activity</h3>
-            <p class="chart-sub">User Stories · Test Cases · Defects per tester (top 8)</p>
+            <p class="chart-sub">User Stories · Test Cases · Risks per tester (top 8)</p>
           </div>
         </div>
         <apx-chart
@@ -331,11 +316,6 @@
               </div>
               <div class="metric-sep"></div>
               <div class="metric">
-                <span class="metric-val c-danger">{{ t.total_defects }}</span>
-                <span class="metric-lbl">Defects</span>
-              </div>
-              <div class="metric-sep"></div>
-              <div class="metric">
                 <span class="metric-val c-warn">{{ t.total_risks }}</span>
                 <span class="metric-lbl">Risks</span>
               </div>
@@ -372,7 +352,6 @@
                   <th class="ta-r">User Stories</th>
                   <th class="ta-r">Test Cases</th>
                   <th class="ta-r">Test Plans</th>
-                  <th class="ta-r">Defects</th>
                   <th class="ta-r">Risks</th>
                   <th>Story share</th>
                 </tr>
@@ -388,7 +367,6 @@
                   <td class="ta-r fw-600 c-teal">{{ p.story_count }}</td>
                   <td class="ta-r fw-600 c-sky">{{ p.test_case_count }}</td>
                   <td class="ta-r fw-600 c-purple">{{ p.test_plan_count }}</td>
-                  <td class="ta-r fw-600" [class.c-danger]="p.defect_count > 0" [class.c-muted]="p.defect_count === 0">{{ p.defect_count }}</td>
                   <td class="ta-r fw-600" [class.c-warn]="p.risk_count > 0" [class.c-muted]="p.risk_count === 0">{{ p.risk_count }}</td>
                   <td>
                     <div class="inline-bar">
@@ -453,7 +431,6 @@
                 <th class="ta-r">User Stories</th>
                 <th class="ta-r">Test Cases</th>
                 <th class="ta-r">Test Plans</th>
-                <th class="ta-r">Defects</th>
                 <th class="ta-r">Risks</th>
                 <th>Coverage</th>
               </tr>
@@ -475,11 +452,6 @@
                 <td class="ta-r"><span class="num c-sky">{{ p.test_case_count }}</span></td>
                 <td class="ta-r"><span class="num c-purple">{{ p.test_plan_count }}</span></td>
                 <td class="ta-r">
-                  <span class="num" [class.c-danger]="p.defect_count > 0" [class.c-muted]="p.defect_count === 0">
-                    {{ p.defect_count }}
-                  </span>
-                </td>
-                <td class="ta-r">
                   <span class="num" [class.c-warn]="p.risk_count > 0" [class.c-muted]="p.risk_count === 0">
                     {{ p.risk_count }}
                   </span>
@@ -500,7 +472,6 @@
                 <td class="ta-r fw-700 c-teal">{{ global?.total_stories ?? 0 }}</td>
                 <td class="ta-r fw-700 c-sky">{{ global?.total_test_cases ?? 0 }}</td>
                 <td class="ta-r fw-700 c-purple">{{ global?.total_test_plans ?? 0 }}</td>
-                <td class="ta-r fw-700 c-danger">{{ global?.total_defects ?? 0 }}</td>
                 <td class="ta-r fw-700 c-warn">{{ global?.total_risks ?? 0 }}</td>
                 <td></td>
               </tr>

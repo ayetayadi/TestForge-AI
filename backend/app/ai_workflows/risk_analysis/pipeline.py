@@ -59,6 +59,60 @@ class MultiRiskOutput(BaseModel):
 # PIPELINE
 # ============================================================
 
+def _normalize_llm_data(data: dict) -> dict:
+    """Map LLM shorthand keys to the expected RiskAnalysisOutput field names."""
+    # probability: accept P, prob, probability
+    if "probability" not in data:
+        for alias in ("P", "prob", "p"):
+            if alias in data:
+                data["probability"] = data.pop(alias)
+                break
+
+    # impact: accept I, imp, impact
+    if "impact" not in data:
+        for alias in ("I", "imp", "i"):
+            if alias in data:
+                data["impact"] = data.pop(alias)
+                break
+
+    # description: accept risk_description, risk_desc, risk
+    if "description" not in data:
+        for alias in ("risk_description", "risk_desc", "risk", "risk_summary"):
+            if alias in data:
+                data["description"] = data.pop(alias)
+                break
+
+    # reasoning: join if returned as a list
+    if "reasoning" in data and isinstance(data["reasoning"], list):
+        data["reasoning"] = "\n".join(str(line) for line in data["reasoning"])
+
+    # probability_reasoning / impact_reasoning: tolerate missing with fallback
+    if "probability_reasoning" not in data:
+        data["probability_reasoning"] = ""
+    if "impact_reasoning" not in data:
+        data["impact_reasoning"] = ""
+
+    # probability_factors / impact_factors: tolerate missing with defaults
+    if "probability_factors" not in data:
+        p = int(data.get("probability", 3))
+        data["probability_factors"] = {
+            "story_complexity": p, "ac_complexity": p,
+            "dependencies": p, "clarity": p,
+        }
+    if "impact_factors" not in data:
+        i = int(data.get("impact", 3))
+        data["impact_factors"] = {
+            "users_affected": i, "revenue": i,
+            "safety": i, "reputation": i,
+        }
+
+    # mitigation: tolerate missing
+    if "mitigation" not in data:
+        data["mitigation"] = data.get("recommendation", data.get("test_recommendation", ""))
+
+    return data
+
+
 class RiskAnalysisPipeline:
     """
     ISTQB Risk-Based Testing pipeline.
@@ -231,6 +285,69 @@ class RiskAnalysisPipeline:
                 "workflow_status": "error",
                 "error": str(exc),
             }
+
+    
+    async def _call_llm(
+        self,
+        story: str,
+        acceptance_criteria: List[str],
+        issue_key: str,
+    ) -> RiskAnalysisOutput:
+        import json
+        import re
+        
+        ac_text = "\n".join(f"- {ac}" for ac in acceptance_criteria) if acceptance_criteria else "(none)"
+        prompt = RISK_ANALYSIS_PROMPT.format(
+            story=story,
+            acceptance_criteria=ac_text,
+            issue_key=issue_key,
+        )
+        
+        prompt += "\n\nIMPORTANT: Respond with ONLY a valid JSON object. No other text before or after."
+        
+        try:
+            response = await self._llm.ainvoke(prompt)
+            content = response.content if hasattr(response, 'content') else str(response)
+            content = content.strip()
+            content = re.sub(r'^```(?:json)?\s*', '', content)
+            content = re.sub(r'\s*```$', '', content)
+            
+            data = json.loads(content)
+            data = _normalize_llm_data(data)
+            return RiskAnalysisOutput(**data)
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.error(f"[RISK ANALYSIS] JSON parse failed for {issue_key}: {content[:300]}")
+            raise RuntimeError(f"Failed to parse LLM response: {str(e)}")
+        except Exception as e:
+            logger.error(f"[RISK ANALYSIS] LLM call failed for {issue_key}: {str(e)}")
+            raise
+
+# ============================================================
+# BATCH HELPER
+# ============================================================
+
+async def analyse_stories_batch(
+    pipeline: RiskAnalysisPipeline,
+    stories: List[Dict[str, Any]],
+    test_plan_id: Optional[str] = None,
+    concurrency: int = 3,
+) -> List[Dict[str, Any]]:
+    """Run risk analysis on multiple user stories concurrently."""
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def _run_one(story_data: Dict[str, Any]) -> Dict[str, Any]:
+        async with semaphore:
+            return await pipeline.run(
+                story=story_data.get("story", ""),
+                acceptance_criteria=story_data.get("acceptance_criteria", []),
+                issue_key=story_data.get("issue_key", "?"),
+                user_story_id=story_data.get("user_story_id"),
+                test_plan_id=test_plan_id,
+            )
+
+    results = await asyncio.gather(*[_run_one(s) for s in stories], return_exceptions=False)
+    return list(results)
+
 
 
 # ============================================================

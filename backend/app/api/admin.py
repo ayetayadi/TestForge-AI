@@ -10,7 +10,6 @@ from app.models.jira_project import JiraProject
 from app.models.user_story import UserStory
 from app.models.test_plan import TestPlan
 from app.models.test_case import TestCase
-from app.models.defect import Defect
 from app.models.risk import Risk
 from app.schemas.user_schema import UserCreate, UserRead, UserUpdate
 from app.api.deps import get_current_admin
@@ -174,13 +173,12 @@ async def get_admin_analytics(
     g_stories    = (await db.execute(select(func.count()).select_from(UserStory))).scalar() or 0
     g_tc         = (await db.execute(select(func.count()).select_from(TestCase))).scalar() or 0
     g_tp         = (await db.execute(select(func.count()).select_from(TestPlan))).scalar() or 0
-    g_defects    = (await db.execute(select(func.count()).select_from(Defect))).scalar() or 0
     g_risks      = (await db.execute(select(func.count()).select_from(Risk))).scalar() or 0
 
     testers_data = []
     for user in testers:
         projects_data = []
-        t_stories = t_tc = t_tp = t_defects = t_risks = 0
+        t_stories = t_tc = t_tp = t_risks = 0
 
         if user.jira_connection:
             for proj in user.jira_connection.jira_projects:
@@ -195,15 +193,11 @@ async def get_admin_analytics(
                     select(UserStory.id).where(UserStory.project_id == pid)
                 )).scalars().all()
 
-                tc_count = def_count = risk_count = 0
+                tc_count = risk_count = 0
                 if sid_rows:
                     tc_count = (await db.execute(
                         select(func.count()).select_from(TestCase)
                         .where(TestCase.user_story_id.in_(sid_rows))
-                    )).scalar() or 0
-                    def_count = (await db.execute(
-                        select(func.count()).select_from(Defect)
-                        .where(Defect.user_story_id.in_(sid_rows))
                     )).scalar() or 0
                     risk_count = (await db.execute(
                         select(func.count()).select_from(Risk)
@@ -218,7 +212,6 @@ async def get_admin_analytics(
                 t_stories  += s_count
                 t_tc       += tc_count
                 t_tp       += tp_count
-                t_defects  += def_count
                 t_risks    += risk_count
 
                 projects_data.append({
@@ -228,7 +221,6 @@ async def get_admin_analytics(
                     "story_count": s_count,
                     "test_case_count": tc_count,
                     "test_plan_count": tp_count,
-                    "defect_count": def_count,
                     "risk_count": risk_count,
                 })
 
@@ -242,7 +234,6 @@ async def get_admin_analytics(
             "total_stories": t_stories,
             "total_test_cases": t_tc,
             "total_test_plans": t_tp,
-            "total_defects": t_defects,
             "total_risks": t_risks,
             "projects": projects_data,
         })
@@ -254,7 +245,6 @@ async def get_admin_analytics(
             "total_stories": g_stories,
             "total_test_cases": g_tc,
             "total_test_plans": g_tp,
-            "total_defects": g_defects,
             "total_risks": g_risks,
         },
         "testers": testers_data,

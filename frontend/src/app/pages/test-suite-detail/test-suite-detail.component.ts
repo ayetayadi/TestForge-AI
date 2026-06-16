@@ -7,6 +7,7 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
 
 import { PlaywrightE2EService, SuiteSmartRunRequest, SuiteSSEEvent, SuiteScriptStatus, AvailableModel } from '../../services/playwright-e2e.service';
 import { TestomatService } from '../../services/testomat.service';
+import { PaginationComponent } from '../../components/pagination/pagination.component';
 
 import { TestSuiteService } from '../../services/test-suite.service';
 import { ToastService } from '../../services/toast.service';
@@ -24,7 +25,7 @@ import {
   UsAcCoverage,
 } from '../../models/test-suite.model';
 
-type DetailTab = 'overview' | 'cases' | 'traceability' | 'graph';
+type DetailTab = 'cases' | 'traceability' | 'graph';
 
 // ── Graph layout interfaces ──────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ interface SuiteLogEntry {
 @Component({
   selector: 'app-test-suite-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, DragDropModule],
+  imports: [CommonModule, RouterModule, FormsModule, DragDropModule, PaginationComponent],
   templateUrl: './test-suite-detail.component.html',
   styleUrl: './test-suite-detail.component.scss',
 })
@@ -92,7 +93,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   // ── State ─────────────────────────────────────────────────────
   suite = signal<TestSuiteDetail | null>(null);
   isLoading = signal(true);
-  activeTab = signal<DetailTab>('overview');
+  activeTab = signal<DetailTab>('cases');
   expandedCase = signal<string | null>(null);
 
   // ── Suite Playwright Run ─────────────────────────────────────
@@ -102,7 +103,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   suiteRunBrowser     = signal('chromium');
   suiteRunHeadless    = signal(true);
   suiteRunStopOnFail  = signal(false);
-  suiteRunModel       = signal('llama-3.3-70b-versatile');
+  suiteRunModel       = signal('openai/gpt-oss-120b');
   availableModels     = signal<AvailableModel[]>([]);
   suiteRunModelDescription = computed(() =>
     this.availableModels().find(m => m.id === this.suiteRunModel())?.description ?? ''
@@ -130,6 +131,18 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   localSuites = signal<import('../../models/test-suite.model').SuiteOrderEntry[]>([]);
   isSavingTcOrder = signal(false);
   isSavingSuiteOrder = signal(false);
+
+  // ── Execution Plan pagination (reuses shared <app-pagination>) ──
+  // currentPage is 1-based to match PaginationComponent.
+  execPage = signal(1);
+  execPageSize = signal(8);
+  /** 0-based index of the first row on the current page (used to keep
+   *  drag-drop indices and position badges absolute across pages). */
+  execPageStart = computed(() => (this.execPage() - 1) * this.execPageSize());
+  /** The slice of localTcs() shown on the current page. */
+  pagedLocalTcs = computed(() =>
+    this.localTcs().slice(this.execPageStart(), this.execPageStart() + this.execPageSize())
+  );
 
   // ── Test Cases — Filters & Pagination ────────────────────────
   tcSearch = signal('');
@@ -173,8 +186,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   readonly MITIGATION_STATUS_CONFIG = MITIGATION_STATUS_CONFIG;  // 🆕
 
   readonly tabs: { id: DetailTab; label: string }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'cases', label: 'Execution Plan' },
+    { id: 'cases', label: 'Test Cases' },
     { id: 'traceability', label: 'Traceability Matrix' },
     { id: 'graph', label: 'Dependency Graph' },
   ];
@@ -216,6 +228,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
             (a, b) => (a.execution_order ?? 999) - (b.execution_order ?? 999)
           )
         );
+        this.execPage.set(1);
         this.localSuites.set([...(detail.all_suites_order ?? [])]);
       }
     } catch (err) {
@@ -236,6 +249,11 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
         const exec = data.items[0];
         this.playwrightService.getTestExecutionDetail(exec.id).subscribe({
           next: (detail) => {
+            // Guard again here: this detail fetch is async, so a run the user
+            // just started could already be in progress by the time it resolves.
+            // Without this, the restored (stale) statuses would overwrite the
+            // live 'pending'/'running' rows — making a fresh run show "passed".
+            if (this.isSuiteRunning()) return;
             this.suiteLogEntries.set(
               detail.test_case_results.map(r => ({
                 tc_id: r.test_case_id,
@@ -313,9 +331,21 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   }
 
   dropTc(event: CdkDragDrop<EmbeddedTestCase[]>): void {
+    // Indices are page-relative — offset them so the move applies to the full list.
+    const offset = this.execPageStart();
     const list = [...this.localTcs()];
-    moveItemInArray(list, event.previousIndex, event.currentIndex);
+    moveItemInArray(list, offset + event.previousIndex, offset + event.currentIndex);
     this.localTcs.set(list);
+  }
+
+  // ── Execution Plan pagination handlers ────────────────────────
+  onExecPageChange(page: number): void {
+    this.execPage.set(page);
+  }
+
+  onExecPageSizeChange(size: number): void {
+    this.execPageSize.set(size);
+    this.execPage.set(1);
   }
 
   moveTcUp(tc: EmbeddedTestCase): void {
@@ -455,7 +485,21 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
     this.showSuiteRunModal.set(false);
     this.isSuiteRunning.set(true);
     this.showSuitePanel.set(true);
-    this.suiteLogEntries.set([]);
+    // Pre-populate the panel as 'pending' RIGHT NOW from the test cases that will
+    // run — so we never keep showing the previous run's restored status (e.g. a
+    // stale "passed") while waiting for the first SSE event, which can be buffered
+    // server-side before this client subscribes ("buffered, no listeners").
+    const toRun = this.getTestCases()
+      .filter(tc => tc.is_active && !tc.excluded_from_run)
+      .sort((a, b) => (a.execution_order ?? 0) - (b.execution_order ?? 0));
+    this.suiteLogEntries.set(
+      toRun.map(tc => ({
+        tc_id: tc.id,
+        tc_code: tc.tc_code ?? '?',
+        title: tc.title ?? tc.id,
+        status: 'pending' as SuiteLogEntry['status'],
+      }))
+    );
     this.suiteRunSummary.set(null);
 
     this._suiteSub?.unsubscribe();
@@ -569,6 +613,37 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
 
   suiteStatusLabel(status: SuiteLogEntry['status']): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  exportCsv(): void {
+    const items = this.localTcs();
+    if (!items.length) {
+      this.toast.error('No test cases', 'This suite has no test cases to export');
+      return;
+    }
+    const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
+    const headers = [
+      'Execution Order', 'TC Code', 'Title', 'Type', 'Priority', 'Status',
+      'Tags', 'Preconditions', 'Steps', 'Expected Results', 'Gherkin',
+    ];
+    const rows = items.map((tc, i) => [
+      esc(tc.excluded_from_run ? '' : String(i + 1)),
+      esc(tc.tc_code),
+      esc(tc.title),
+      esc(tc.test_type ?? ''),
+      esc(tc.risk_level ?? ''),
+      esc(tc.excluded_from_run ? 'excluded' : (tc.is_active ? 'active' : 'archived')),
+      esc((tc.tags ?? []).join('; ')),
+      esc((tc.preconditions ?? []).join(' | ')),
+      esc((tc.steps ?? []).map(s => `${s.order}. ${s.action}${s.expected ? ' → ' + s.expected : ''}`).join(' | ')),
+      esc((tc.expected_results ?? []).join(' | ')),
+      esc(tc.gherkin_source ?? ''),
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const safe = (this.suite()?.title ?? 'suite').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+    this._triggerDownload(URL.createObjectURL(blob), `test_cases_${safe}.csv`);
+    this.toast.success('Exported', `${items.length} test case(s) exported to CSV`);
   }
 
   pushSuiteToTestomat(): void {
@@ -1114,7 +1189,7 @@ buildGraphLayout(): GraphLayoutData | null {
   if (!graph || graph.nodes.length === 0) return null;
 
   const NODE_W  = 160;
-  const NODE_H  = 60;
+  const NODE_H  = 64;   // must match the rendered <rect height="64"> in the template
   const H_GAP   = 36;
   const V_GAP   = 80;
   const PAD_X   = 16;
@@ -1225,12 +1300,18 @@ buildGraphLayout(): GraphLayoutData | null {
     laneMap[flow].push(node);
   }
 
-  // Trier dans chaque lane par risque (Critical d'abord)
+  // Trier dans chaque lane selon l'ordre d'exécution sauvegardé (la chaîne de
+  // dépendances) pour que les arêtes aillent de gauche à droite sans croisement.
+  // Le risque ne sert que de fallback si un TC n'est pas dans l'ordre d'exécution.
+  const laneExecOrder = this.localTcs().map(tc => tc.tc_code);
   for (const flow of FLOW_ORDER) {
     if (laneMap[flow]) {
-      laneMap[flow].sort((a, b) => 
-        (RISK_RANK[a.priority ?? 'low'] ?? 3) - (RISK_RANK[b.priority ?? 'low'] ?? 3)
-      );
+      laneMap[flow].sort((a, b) => {
+        const ia = laneExecOrder.indexOf(a.tc_code);
+        const ib = laneExecOrder.indexOf(b.tc_code);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        return (RISK_RANK[a.priority ?? 'low'] ?? 3) - (RISK_RANK[b.priority ?? 'low'] ?? 3);
+      });
     }
   }
 

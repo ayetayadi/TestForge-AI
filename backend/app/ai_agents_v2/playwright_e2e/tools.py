@@ -170,7 +170,12 @@ class PlaywrightMCPClient:
                     "url": f"{MCP_PLAYWRIGHT_SERVER_URL}/sse",
                     "transport": "sse",
                     "timeout": 30,
-                    "sse_read_timeout": 60,
+                    # A whole suite (multiple TCs, ReAct loops, LLM pacing) shares ONE
+                    # MCP connection. 60s was far too short — the channel went idle
+                    # during LLM waits and the SSE read timed out, killing the browser
+                    # mid-suite so every later tool call returned "unknown error".
+                    # 10 min covers a full suite run with margin.
+                    "sse_read_timeout": 600,
                 }
             }
         )

@@ -59,29 +59,31 @@ export class UserDashboardComponent implements OnInit {
   donutChart = { type: 'donut' as const, height: 280, toolbar: { show: false }, fontFamily: 'inherit' };
   donutDataLabels = { enabled: false };
   donutPlotOptions = {
-    pie: {
-      donut: {
-        size: '70%',
-        labels: {
+  pie: {
+    donut: {
+      size: '70%',
+      labels: {
+        show: true,
+        name: { show: true, fontSize: '11px', fontWeight: 600 },
+        value: { show: true, fontSize: '22px', fontWeight: 800 },
+        total: {
           show: true,
-          name: { show: true, fontSize: '11px', fontWeight: 600 },
-          value: { show: true, fontSize: '22px', fontWeight: 800 },
-          total: {
-            show: true,
-            label: 'Pass Rate',
-            fontSize: '10px',
-            fontWeight: 600,
-            color: '#6b7280',
-            formatter: (w: any) => {
-              const tot = w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0);
-              const passed = w.globals.seriesTotals[0] ?? 0;
-              return tot > 0 ? Math.round((passed / tot) * 100) + '%' : '0%';
-            },
+
+          fontSize: '10px',  // Remove the 'label: 'Taux de réussite'' line
+          fontWeight: 600,
+          color: '#6b7280',
+          formatter: (w: any) => {
+            const tot = w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0);
+            const passed = w.globals.seriesTotals[0] ?? 0;
+            return tot > 0 ? Math.round((passed / tot) * 100) + '%' : '0%';
+
           },
+          label: 'Pass Rate',
         },
       },
     },
-  };
+  },
+};
   donutLegend = { position: 'bottom' as const, fontSize: '11px', fontWeight: 600 };
   donutTooltip = { y: { formatter: (v: number) => v.toLocaleString() } };
   donutResponsive = [{ breakpoint: 480, options: { chart: { height: 240 } } }];

@@ -177,6 +177,12 @@ filterGroups: FilterGroup[] = [
     result = result.filter(s => filters['sprint'].includes(s.sprint ?? ''));
   }
 
+    result = [...result].sort((a, b) => {
+      const numA = parseInt(a.issue_key.replace(/^[^-]+-/, ''), 10);
+      const numB = parseInt(b.issue_key.replace(/^[^-]+-/, ''), 10);
+      return numA - numB;
+    });
+
     return result;
   });
 

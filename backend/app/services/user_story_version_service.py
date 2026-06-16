@@ -91,6 +91,14 @@ async def start_version(
     raw_story = raw_story.strip()
 
     # ============================================================
+    # Guard: acceptance criteria must not be empty
+    # ============================================================
+    if not acceptance_criteria:
+        raise ValueError(
+            f"Story {user_story.issue_key} has no acceptance criteria — the PO must define them in Jira before running the pipeline"
+        )
+
+    # ============================================================
     # Générer ID mais NE PAS créer en DB
     # ============================================================
     version_id = str(uuid.uuid4())

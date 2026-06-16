@@ -237,10 +237,12 @@ async def send_test_plan_email_with_attachment(
         # Corps HTML
         msg.attach(MIMEText(html_body, "html", "utf-8"))
         
-        # Pièces jointes PDF
+        # Pièces jointes (PDF, PNG, etc.)
         if attachments:
             for attachment in attachments:
-                part = MIMEBase("application", "pdf")
+                mimetype = attachment.get("mimetype", "application/pdf")
+                maintype, subtype = mimetype.split("/", 1)
+                part = MIMEBase(maintype, subtype)
                 part.set_payload(attachment["content"])
                 encoders.encode_base64(part)
                 part.add_header(

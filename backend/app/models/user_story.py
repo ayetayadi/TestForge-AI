@@ -105,11 +105,11 @@ class UserStory(Base):
         passive_deletes=True
     )
 
-    # Défauts détectés sur cette User Story
-    defects = relationship(
-        "Defect",
+    # Alertes qualité (story incomplète/ambiguë) détectées sur cette User Story
+    notifications = relationship(
+        "Notification",
         back_populates="user_story",
-        foreign_keys="Defect.user_story_id",
+        foreign_keys="Notification.user_story_id",
         passive_deletes=True
     )
 

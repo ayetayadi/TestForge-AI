@@ -69,7 +69,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   appUrl = signal('');
   browser = signal<'chromium' | 'firefox' | 'webkit'>('chromium');
   headless = signal(true);
-  selectedModel = signal<string>('llama-3.3-70b-versatile');
+  selectedModel = signal<string>('openai/gpt-oss-120b');
 
   // Available models (loaded from API)
   availableModels = signal<AvailableModel[]>([]);
@@ -118,6 +118,9 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
 
   // ── Defect creation ───────────────────────────────────────────────────────
   isCreatingDefect = signal(false);
+
+  // ── Screenshot lightbox ───────────────────────────────────────────────────
+  screenshotLightbox = signal<{ src: string; name: string } | null>(null);
 
   // ── Report tab sections ───────────────────────────────────────────────────
   showReasoningSection = signal(true);
@@ -748,6 +751,38 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   reasoningParagraphs(): string[] {
     const r = this.fullReport()?.llm_reasoning || '';
     return r.split('\n---\n').map(p => p.trim()).filter(p => p.length > 10);
+  }
+
+  openScreenshot(): void {
+    const b64 = this.fullReport()?.tc_result?.screenshot_b64;
+    if (!b64) return;
+    const code = this.testCaseCode() || 'screenshot';
+    this.screenshotLightbox.set({ src: 'data:image/png;base64,' + b64, name: `screenshot_${code}.png` });
+  }
+
+  closeScreenshot(): void {
+    this.screenshotLightbox.set(null);
+  }
+
+  downloadScreenshot(): void {
+    const b64 = this.fullReport()?.tc_result?.screenshot_b64;
+    if (!b64) return;
+    const code = this.testCaseCode() || 'screenshot';
+    this._triggerDownload('data:image/png;base64,' + b64, `screenshot_${code}.png`);
+  }
+
+  downloadFromLightbox(): void {
+    const lb = this.screenshotLightbox();
+    if (lb) this._triggerDownload(lb.src, lb.name);
+  }
+
+  private _triggerDownload(dataUrl: string, filename: string): void {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   private scrollToBottom(): void {

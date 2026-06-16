@@ -25,7 +25,7 @@ from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 
-from .config import EMBED_MODEL_NAME
+from .config import EMBED_MODEL_NAME, KNN_K_GRID
 from .nb_embed import _encode
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -91,7 +91,7 @@ def _train_knn(X_train, y_train, label: str):
     Sélectionne k optimal par GridSearchCV (5-fold stratifié, scoring=f1_macro).
     weights='uniform' : vote majoritaire simple — pas d'artefact sur le train.
     """
-    param_grid = {"n_neighbors": [3, 5, 7, 11]}
+    param_grid = {"n_neighbors": KNN_K_GRID}
     grid = GridSearchCV(
         KNeighborsClassifier(weights="uniform", metric="cosine", algorithm="brute"),
         param_grid=param_grid,
@@ -230,9 +230,23 @@ def _plot_knn_evaluation(model_P, model_I, X_test, y_test_P, y_test_I):
 
 def _plot_knn_curve(X_train, y_train_P, y_train_I):
     """
-    Génère 2 images séparées :
-      - curve_knn_error.png : Erreur (1 - Accuracy) train vs CV selon k
-      - curve_knn_f1.png    : F1 Macro train vs CV selon k
+    Courbe biais-variance (train vs CV) reproduisant la sélection de GridSearchCV.
+
+    Même config que le modèle déployé (train.py) : weights="uniform", grille
+    partagée KNN_K_GRID, scoring F1 macro. Pour chaque cible (P, I) on trace
+    DEUX courbes selon k :
+      - score sur le TRAIN
+      - score en VALIDATION CROISÉE (5 folds)
+    La ligne verticale verte = le k retenu (max F1 macro CV = ce que choisit
+    GridSearchCV dans train.py).
+
+    En uniform, la courbe de train est INFORMATIVE : à petit k (gauche) le modèle
+    colle au train (faible biais, surapprentissage possible si l'écart CV est
+    grand) ; à grand k (droite) il lisse trop (biais élevé, sous-apprentissage).
+    Le bon k = celui qui maximise la validation croisée. 2 sous-graphes (P | I).
+
+      - curve_knn_error.png     : Erreur (1 - F1 Macro) — train vs CV selon k
+      - curve_knn_acc_error.png : Erreur (1 - Accuracy) — train vs CV selon k
     """
     try:
         import matplotlib
@@ -243,142 +257,87 @@ def _plot_knn_curve(X_train, y_train_P, y_train_I):
 
     from sklearn.model_selection import cross_val_score
 
-    ks = [21, 15, 11, 9, 7, 5, 3, 1]
-    train_errors,     cv_errors     = [], []
-    train_acc_errors, cv_acc_errors = [], []
-    train_f1s,        cv_f1s        = [], []
+    # Grille d'AFFICHAGE = grille de sélection + k=1, pour montrer la remontée du U
+    # à droite (k=1 = surapprentissage). k=1 n'est PAS dans la grille de sélection,
+    # donc il est tracé mais jamais retenu comme k optimal.
+    ks = sorted(set(KNN_K_GRID) | {1}, reverse=True)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    cv  = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    n   = len(ks)
-    idx3 = ks.index(3)
+    def _scores(y):
+        """Pour une cible : scores F1 et Accuracy, en train ET en CV, selon k."""
+        tr_f1, cv_f1, tr_acc, cv_acc = [], [], [], []
+        for k in ks:
+            # weights="uniform" = même config que le modèle déployé (train.py)
+            knn = KNeighborsClassifier(n_neighbors=k, weights="uniform",
+                                       metric="cosine", algorithm="brute")
+            knn.fit(X_train, y)
+            pred_tr = knn.predict(X_train)
+            tr_f1.append(f1_score(y, pred_tr, average="macro", zero_division=0))
+            tr_acc.append(accuracy_score(y, pred_tr))
+            cv_f1.append(cross_val_score(knn, X_train, y, cv=cv,
+                                         scoring="f1_macro", n_jobs=-1).mean())
+            cv_acc.append(cross_val_score(knn, X_train, y, cv=cv,
+                                          scoring="accuracy", n_jobs=-1).mean())
+        return tr_f1, cv_f1, tr_acc, cv_acc
 
-    for k in ks:
-        knn_P = KNeighborsClassifier(n_neighbors=k, weights="uniform",
-                                     metric="cosine", algorithm="brute")
-        knn_I = KNeighborsClassifier(n_neighbors=k, weights="uniform",
-                                     metric="cosine", algorithm="brute")
-        knn_P.fit(X_train, y_train_P)
-        knn_I.fit(X_train, y_train_I)
-        pred_tr_P = knn_P.predict(X_train)
-        pred_tr_I = knn_I.predict(X_train)
+    trf_P, cvf_P, tra_P, cva_P = _scores(y_train_P)
+    trf_I, cvf_I, tra_I, cva_I = _scores(y_train_I)
 
-        # F1 train
-        f1_tr_P = f1_score(y_train_P, pred_tr_P, average="macro", zero_division=0)
-        f1_tr_I = f1_score(y_train_I, pred_tr_I, average="macro", zero_division=0)
-        train_f1s.append((f1_tr_P + f1_tr_I) / 2)
-        train_errors.append(1 - (f1_tr_P + f1_tr_I) / 2)
-
-        # Accuracy train
-        acc_tr_P = accuracy_score(y_train_P, pred_tr_P)
-        acc_tr_I = accuracy_score(y_train_I, pred_tr_I)
-        train_acc_errors.append(1 - (acc_tr_P + acc_tr_I) / 2)
-
-        knn_base = KNeighborsClassifier(n_neighbors=k, weights="uniform",
-                                        metric="cosine", algorithm="brute")
-        # F1 CV
-        cv_f1_P = cross_val_score(knn_base, X_train, y_train_P,
-                                  cv=cv, scoring="f1_macro", n_jobs=-1).mean()
-        cv_f1_I = cross_val_score(knn_base, X_train, y_train_I,
-                                  cv=cv, scoring="f1_macro", n_jobs=-1).mean()
-        cv_f1 = (cv_f1_P + cv_f1_I) / 2
-        cv_f1s.append(cv_f1)
-        cv_errors.append(1 - cv_f1)
-
-        # Accuracy CV
-        cv_acc_P = cross_val_score(knn_base, X_train, y_train_P,
-                                   cv=cv, scoring="accuracy", n_jobs=-1).mean()
-        cv_acc_I = cross_val_score(knn_base, X_train, y_train_I,
-                                   cv=cv, scoring="accuracy", n_jobs=-1).mean()
-        cv_acc_errors.append(1 - (cv_acc_P + cv_acc_I) / 2)
-
-    x_pos = list(range(n))
+    x_pos = list(range(len(ks)))
+    # k retenu = max F1 macro CV, restreint à la grille de SÉLECTION (k=1 exclu) —
+    # exactement ce que choisit GridSearchCV dans train.py.
+    sel = [i for i, k in enumerate(ks) if k in KNN_K_GRID]
+    idx_P = max(sel, key=lambda i: cvf_P[i])
+    idx_I = max(sel, key=lambda i: cvf_I[i])
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    # ── Image 1 : Erreur (1 - Accuracy) ──────────────────────────────────────
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(x_pos, train_acc_errors, "o-",  color="steelblue", linewidth=2,
-            label="Erreur Train  (1 - Accuracy)")
-    ax.plot(x_pos, cv_acc_errors,    "s--", color="tomato",    linewidth=2,
-            label="Erreur Validation croisée  (1 - Accuracy)")
+    def _two_subplots(series_P, series_I, ylabel, suptitle, path, ylim):
+        """Figure 2 sous-graphes (P | I), chacun avec courbe train + courbe CV."""
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        fig.suptitle(suptitle, fontsize=12, fontweight="bold")
+        panels = [("Probabilité (P)", series_P, idx_P),
+                  ("Impact (I)",      series_I, idx_I)]
+        for ax, (title, (tr, cvv), idx) in zip(axes, panels):
+            ax.plot(x_pos, tr,  "o-",  color="steelblue", linewidth=2, label="Train")
+            ax.plot(x_pos, cvv, "s--", color="tomato",    linewidth=2,
+                    label="Validation croisée")
+            ax.axvline(x=idx, color="#27ae60", linestyle=":", linewidth=1.8, alpha=0.9)
+            ax.annotate(f"k={ks[idx]} retenu", xy=(idx, cvv[idx]),
+                        xytext=(idx + 0.2, cvv[idx]), fontsize=9, color="#27ae60",
+                        arrowprops=dict(arrowstyle="->", color="#27ae60", lw=1.2))
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels([f"k={k}" for k in ks], fontsize=9)
+            ax.set_xlabel("Complexité  (k décroissant → complexité croissante)", fontsize=10)
+            ax.set_ylabel(ylabel, fontsize=10)
+            ax.set_ylim(*ylim)
+            ax.set_title(f"{title} — k retenu = {ks[idx]}", fontsize=11, fontweight="bold")
+            ax.legend(fontsize=9)
+            ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(path, dpi=130, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"Courbe sauvegardee : {path}")
 
-    ax.axvline(x=idx3, color="#27ae60", linestyle=":", linewidth=1.8, alpha=0.9)
-    ax.annotate(f"k={ks[idx3]} retenu",
-                xy=(idx3, cv_acc_errors[idx3]),
-                xytext=(idx3 + 0.5, cv_acc_errors[idx3] + 0.015),
-                fontsize=9, color="#27ae60",
-                arrowprops=dict(arrowstyle="->", color="#27ae60", lw=1.2))
+    def _err(vals):
+        return [1 - v for v in vals]
 
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels([f"k={k}" for k in ks], fontsize=10)
-    ax.set_xlabel("Complexité du modèle  (k décroissant → complexité croissante)", fontsize=11)
-    ax.set_ylabel("Erreur moyenne (1 - Accuracy)", fontsize=11)
-    ax.set_ylim(0, max(max(train_acc_errors), max(cv_acc_errors)) * 1.4)
-    ax.set_title("KNN — Courbe biais-variance  (1 - Accuracy)", fontsize=11, fontweight="bold")
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    path_acc = f"{RESULTS_DIR}/curve_knn_acc_error.png"
-    fig.savefig(path_acc, dpi=130, bbox_inches="tight")
-    plt.close(fig)
-    logger.info(f"Courbe accuracy error sauvegardee : {path_acc}")
+    # ── Image 1 : Erreur (1 - F1 Macro) ───────────────────────────────────────
+    max_f1_err = max(max(_err(cvf_P)), max(_err(cvf_I))) * 1.4
+    _two_subplots(
+        (_err(trf_P), _err(cvf_P)), (_err(trf_I), _err(cvf_I)),
+        "Erreur (1 - F1 Macro)",
+        "KNN — Courbe biais-variance 1-F1 (train vs CV)  |  weights=uniform",
+        f"{RESULTS_DIR}/curve_knn_error.png", (0, max_f1_err),
+    )
 
-    # ── Image 2 : Erreur (1 - F1 Macro) ──────────────────────────────────────
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(x_pos, train_errors, "o-",  color="steelblue", linewidth=2,
-            label="Erreur Train  (1 - F1)")
-    ax.plot(x_pos, cv_errors,    "s--", color="tomato",    linewidth=2,
-            label="Erreur Validation croisée  (1 - F1)")
-
-    ax.axvline(x=idx3, color="#27ae60", linestyle=":", linewidth=1.8, alpha=0.9)
-    ax.annotate(f"k={ks[idx3]} retenu",
-                xy=(idx3, cv_errors[idx3]),
-                xytext=(idx3 + 0.5, cv_errors[idx3] + 0.015),
-                fontsize=9, color="#27ae60",
-                arrowprops=dict(arrowstyle="->", color="#27ae60", lw=1.2))
-
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels([f"k={k}" for k in ks], fontsize=10)
-    ax.set_xlabel("Complexité du modèle  (k décroissant → complexité croissante)", fontsize=11)
-    ax.set_ylabel("Erreur moyenne (1 - F1 Macro)", fontsize=11)
-    ax.set_ylim(0, max(max(train_errors), max(cv_errors)) * 1.4)
-    ax.set_title("KNN — Courbe biais-variance  (1 - F1 Macro)", fontsize=11, fontweight="bold")
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    path_err = f"{RESULTS_DIR}/curve_knn_error.png"
-    fig.savefig(path_err, dpi=130, bbox_inches="tight")
-    plt.close(fig)
-    logger.info(f"Courbe erreur sauvegardee : {path_err}")
-
-    # ── Image 2 : F1 Macro ────────────────────────────────────────────────────
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(x_pos, train_f1s, "o-",  color="steelblue", linewidth=2,
-            label="F1 Train")
-    ax.plot(x_pos, cv_f1s,    "s--", color="tomato",    linewidth=2,
-            label="F1 Validation croisée")
-
-    ax.axhline(y=0.80, color="#e74c3c", linestyle="--", linewidth=1,
-               alpha=0.6, label="Seuil F1 = 0.80")
-    ax.axvline(x=idx3, color="#27ae60", linestyle=":", linewidth=1.8, alpha=0.9)
-    ax.annotate(f"k={ks[idx3]} retenu",
-                xy=(idx3, cv_f1s[idx3]),
-                xytext=(idx3 + 0.5, cv_f1s[idx3] - 0.05),
-                fontsize=9, color="#27ae60",
-                arrowprops=dict(arrowstyle="->", color="#27ae60", lw=1.2))
-
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels([f"k={k}" for k in ks], fontsize=10)
-    ax.set_xlabel("Complexité du modèle  (k décroissant → complexité croissante)", fontsize=11)
-    ax.set_ylabel("F1 Macro moyen", fontsize=11)
-    ax.set_ylim(0, 1.15)
-    ax.set_title("KNN — Courbe biais-variance  (F1 Macro)", fontsize=11, fontweight="bold")
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    path_f1 = f"{RESULTS_DIR}/curve_knn_f1.png"
-    fig.savefig(path_f1, dpi=130, bbox_inches="tight")
-    plt.close(fig)
-    logger.info(f"Courbe F1 sauvegardee : {path_f1}")
+    # ── Image 2 : Erreur (1 - Accuracy) ───────────────────────────────────────
+    max_acc_err = max(max(_err(cva_P)), max(_err(cva_I))) * 1.4
+    _two_subplots(
+        (_err(tra_P), _err(cva_P)), (_err(tra_I), _err(cva_I)),
+        "Erreur (1 - Accuracy)",
+        "KNN — Courbe biais-variance 1-Accuracy (train vs CV)  |  weights=uniform",
+        f"{RESULTS_DIR}/curve_knn_acc_error.png", (0, max_acc_err),
+    )
 
 
 # ── Benchmark principal ────────────────────────────────────────────────────────
@@ -416,7 +375,7 @@ def run_benchmark():
 
     # ── Étape 4 : GridSearchCV pour k ─────────────────────────────────────
     logger.info("Etape 4 : Selection de k par GridSearchCV (5-fold, f1_macro)...")
-    logger.info("  Valeurs testees : k = [3, 5, 7, 11] | weights=uniform")
+    logger.info(f"  Valeurs testees : k = {KNN_K_GRID} | weights=uniform")
     t0 = time.time()
     knn_P, best_k_P, cv_f1_P = _train_knn(X_train, y_tr_P, "Probabilite (P)")
     knn_I, best_k_I, cv_f1_I = _train_knn(X_train, y_tr_I, "Impact (I)")
@@ -483,7 +442,6 @@ def run_benchmark():
     logger.info("  knn_evaluation.png       — Metriques globales (P et I, test 20%)")
     logger.info("  curve_knn_acc_error.png  — Courbe biais-variance (1 - Accuracy)")
     logger.info("  curve_knn_error.png      — Courbe biais-variance (1 - F1 Macro)")
-    logger.info("  curve_knn_f1.png         — Courbe biais-variance (F1 Macro)")
     logger.info(f"  benchmark_report.txt")
 
 

@@ -565,6 +565,16 @@ export class PlaywrightE2EService {
   }
 
   /**
+   * Delete a TestExecution permanently.
+   * DELETE /playwright/test-executions/{id}
+   */
+  deleteExecution(executionId: string): Observable<{ deleted: boolean }> {
+    return this.http.delete<{ deleted: boolean }>(
+      `${this.apiUrl}/test-executions/${executionId}`
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
    * Full detail of a TestExecution with all TCResults + steps.
    * GET /playwright/test-executions/{id}
    */

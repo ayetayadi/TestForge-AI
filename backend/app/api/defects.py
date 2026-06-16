@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.models.enums import DefectStatus
 from app.services.defect_service import (
     get_all_defects,
-    get_defects_by_story,
+    get_notifications_by_story,
     update_defect_status,
 )
 
@@ -25,9 +25,13 @@ async def list_defects(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/by-story/{user_story_id}")
-async def list_defects_by_story(user_story_id: str, db: AsyncSession = Depends(get_db)):
-    """Return all defects for a specific user story."""
-    return await get_defects_by_story(db, user_story_id)
+async def list_notifications_by_story(user_story_id: str, db: AsyncSession = Depends(get_db)):
+    """Return all quality notifications for a specific user story.
+
+    Defects are now tied to test cases, not user stories. Story-level quality
+    alerts live in the notifications table, so this endpoint returns those.
+    """
+    return await get_notifications_by_story(db, user_story_id)
 
 
 @router.patch("/{defect_id}/status")

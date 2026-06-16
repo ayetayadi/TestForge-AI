@@ -127,7 +127,7 @@ def init_deepeval() -> None:
 
         _deepeval_configured = True
         logger.info(
-            "[DEEPEVAL] Ready — eval model: groq/llama-3.3-70b-versatile "
+            "[DEEPEVAL] Ready — eval model: groq/openai/gpt-oss-120b "
             "(%d key(s) available)", len(_GROQ_KEYS)
         )
     except ImportError:
@@ -161,7 +161,7 @@ def _get_groq_eval_model():
         def __init__(self):
             self._chat = ChatGroq(
                 groq_api_key=eval_key,
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 temperature=0.0,
                 max_tokens=1024,
             )
@@ -177,7 +177,7 @@ def _get_groq_eval_model():
             return response.content
 
         def get_model_name(self) -> str:
-            return "groq/llama-3.3-70b-versatile"
+            return "groq/openai/gpt-oss-120b"
 
     _groq_eval_model = _GroqEvalModel()
     return _groq_eval_model

@@ -332,8 +332,12 @@ matrixCells = computed((): RiskMatrixCell[][] =>
   }
 
 loadRisksByProject(projectId: string): void {
+  if (!projectId) {
+    this.loadAllRisks();
+    return;
+  }
   this.loadingRisks.set(true);
-  
+
   // Charger les risques
   this.riskService.getRisksByProject(projectId).subscribe({
     next: risks => {

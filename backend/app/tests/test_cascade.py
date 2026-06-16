@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     UserStory, UserStoryVersion, Risk, Defect,
-    TestPlan, TestSuite, TestCase, TcCoverage, Job,
+    TestPlan, TestSuite, TestCase, TcCoverage,
 )
 
 
@@ -118,7 +118,6 @@ async def test_delete_test_case_preserves_defect_with_null(db: AsyncSession, tes
     """Deleting a TestCase must SET NULL on Defect.test_case_id (ISTQB §6.5 — defect history)."""
     defect = Defect(
         id="def-1",
-        user_story_id=user_story.id,
         test_case_id=test_case.id,
         title="Login button not clickable",
         severity="high",
@@ -132,33 +131,3 @@ async def test_delete_test_case_preserves_defect_with_null(db: AsyncSession, tes
 
     await db.refresh(defect)
     assert defect.test_case_id is None, "Defect must survive with test_case_id=NULL"
-    assert defect.user_story_id == user_story.id, "Defect must keep its UserStory link"
-
-
-# ─── Job model ───────────────────────────────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_job_model_persists_and_updates(db: AsyncSession):
-    """Job records must persist across DB operations and support status transitions."""
-    job = Job(
-        id="job-1",
-        job_type="tc_generation",
-        status="pending",
-        payload={"test_plan_id": "plan-1"},
-        sse_job_id="sse-abc123",
-    )
-    db.add(job)
-    await db.commit()
-
-    result = await db.execute(select(Job).where(Job.id == "job-1"))
-    saved = result.scalar_one()
-    assert saved.status == "pending"
-    assert saved.payload == {"test_plan_id": "plan-1"}
-
-    saved.status = "completed"
-    saved.result_summary = {"tc_count": 12, "coverage_pct": 0.83}
-    await db.commit()
-
-    await db.refresh(saved)
-    assert saved.status == "completed"
-    assert saved.result_summary["tc_count"] == 12

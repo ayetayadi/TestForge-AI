@@ -13,6 +13,7 @@ import json
 import logging
 import math
 import re
+from datetime import date
 from typing import Any, Callable, Dict, List, Literal, Optional
 
 from langfuse import observe
@@ -30,6 +31,11 @@ from app.ai_workflows.test_case.test_case_builder import (
 from app.ai_workflows.test_case.coverage_checker import (
     validate_ac_coverage,
     suggest_hints,
+)
+from app.ai_workflows.test_case.test_data_repair import (
+    repair_test_data,
+    drop_optional_field_negatives,
+    bva_eligible_indices,
 )
 from app.ai_workflows.test_case.prompts import (
     TEST_CASE_GENERATION_PROMPT,
@@ -164,6 +170,40 @@ def _has_negative_signals(tc: dict) -> bool:
     return any(p in results_lower for p in _ERROR_RESULT_PATTERNS)
 
 
+# Success phrases (EN + FR) that betray a POSITIVE outcome leaking into a NEGATIVE batch.
+# Covers entity CRUD success ("is created/removed/..."), auth success ("logged in/out"),
+# and the empty-state success after deleting the last item ("list is empty").
+_SUCCESS_RESULT_PATTERNS = (
+    "is created", "is updated", "is deleted", "is modified", "is added", "is removed",
+    "is logged in", "is logged out", "logged out", "successfully", "is authenticated",
+    "list is empty", "indicates it is empty",
+    "a été créé", "a été modifié", "a été supprimé", "a été mis à jour", "a été ajouté",
+    "avec succès", "est créé", "est modifié", "est supprimé",
+)
+# Error / rejection markers (EN + FR): their presence means a success phrase is actually
+# negated ("is NOT created", "n'a PAS été supprimé") or the TC is a genuine error case.
+# NOTE: bare "no "/"ne " are intentionally EXCLUDED — an empty-state success message such as
+# "Empty list message 'No projects'" contains "no " and would wrongly suppress detection.
+# Negation is matched only when it is glued to a CRUD verb ("not created", "is not", ...).
+_ERROR_MARKERS = (
+    "cannot", "n't", "refus", "reject", "error", "fail", "invalid", "denied",
+    "erreur", "invalide", "impossible", "must not", "should not",
+    "not created", "not updated", "not modified", "not deleted", "not added", "not saved",
+    "is not", "are not", "remains unchanged", "remains in",
+    "n'a pas", "n'est pas", "pas créé", "pas modifié", "pas supprimé", "aucun",
+)
+
+
+def _has_positive_leak(tc: dict) -> bool:
+    """True when a test case asserts a (non-negated) SUCCESS — i.e. it is really a POSITIVE
+    test that leaked into a negative batch. Language-agnostic (EN + FR). Used to drop the
+    success form of a success-only AC the LLM should not have turned into a negative."""
+    text = (tc.get("title", "") + " " + " ".join(tc.get("expected_results", []))).lower()
+    if not any(p in text for p in _SUCCESS_RESULT_PATTERNS):
+        return False
+    return not any(m in text for m in _ERROR_MARKERS)
+
+
 # ============================================================
 # PIPELINE
 # ============================================================
@@ -280,10 +320,18 @@ class TestCasePipeline:
             })
 
             raw_tcs = self._repair_gherkin(raw_tcs)
+            # BVA only applies to ACs that actually carry a bound. For boundary, coverage
+            # is measured ONLY over those ACs (None for positive/negative → all ACs count).
+            bound_indices = (
+                bva_eligible_indices(acceptance_criteria)
+                if scenario_type == "boundary" else None
+            )
             # Fix 3: compute coverage on filtered TCs (same filters as _finalize)
             # so the correction loop knows the real post-filter coverage
             ac_coverage = validate_ac_coverage(
-                self._filter_for_coverage(raw_tcs, scenario_type), acceptance_criteria
+                self._filter_for_coverage(raw_tcs, scenario_type, bound_indices),
+                acceptance_criteria,
+                eligible_indices=bound_indices,
             )
 
             # ── STEP 6: CORRECTION LOOP ───────────────────
@@ -326,7 +374,9 @@ class TestCasePipeline:
                 extra_tcs = self._repair_gherkin(extra_tcs)
                 raw_tcs.extend(extra_tcs)
                 ac_coverage = validate_ac_coverage(
-                    self._filter_for_coverage(raw_tcs, scenario_type), acceptance_criteria
+                    self._filter_for_coverage(raw_tcs, scenario_type, bound_indices),
+                    acceptance_criteria,
+                    eligible_indices=bound_indices,
                 )
 
             # ── STEP 7: FINALIZE ─────────────────────────
@@ -335,7 +385,14 @@ class TestCasePipeline:
                 "message": "Assigning TC codes and building feature Gherkin...",
             })
 
-            finalized = self._finalize(raw_tcs, user_story_id, tc_start_index, scenario_type, risk_level)
+            # Deterministic post-gen guard: enforce AC enums + date constraints on test_data (no LLM call)
+            raw_tcs = repair_test_data(raw_tcs, acceptance_criteria)
+            if scenario_type == "negative":
+                raw_tcs = drop_optional_field_negatives(raw_tcs, acceptance_criteria)
+
+            finalized = self._finalize(
+                raw_tcs, user_story_id, tc_start_index, scenario_type, risk_level, bound_indices
+            )
             tcs_generated = len(finalized)
             feature_gherkin = self._build_feature_gherkin(story, finalized)
 
@@ -461,6 +518,7 @@ class TestCasePipeline:
             story_count=story_count,
             story_count_minus_1=story_count - 1,
             stories_block=stories_block,
+            current_date=date.today().isoformat(),
         )
 
         try:
@@ -509,8 +567,14 @@ class TestCasePipeline:
                 self._remap_risk_ids(raw_tcs, risk_label_map)
                 raw_tcs = self._repair_gherkin(raw_tcs)
 
+            bound_indices = (
+                bva_eligible_indices(acceptance_criteria)
+                if scenario_type == "boundary" else None
+            )
             ac_coverage = validate_ac_coverage(
-                self._filter_for_coverage(raw_tcs, scenario_type), acceptance_criteria
+                self._filter_for_coverage(raw_tcs, scenario_type, bound_indices),
+                acceptance_criteria,
+                eligible_indices=bound_indices,
             )
             story_risk_level = story_data.get("risk_level") or risk_level
 
@@ -537,15 +601,23 @@ class TestCasePipeline:
                     extra_tcs = self._repair_gherkin(extra_tcs)
                     raw_tcs.extend(extra_tcs)
                     ac_coverage = validate_ac_coverage(
-                        self._filter_for_coverage(raw_tcs, scenario_type), acceptance_criteria
+                        self._filter_for_coverage(raw_tcs, scenario_type, bound_indices),
+                        acceptance_criteria,
+                        eligible_indices=bound_indices,
                     )
                 except Exception as e:
                     logger.warning(
                         f"[TC BATCH] Correction failed for {story_data.get('issue_key')}: {e}"
                     )
 
+            # Deterministic post-gen guard: enforce AC enums + date constraints on test_data (no LLM call)
+            raw_tcs = repair_test_data(raw_tcs, acceptance_criteria)
+            if scenario_type == "negative":
+                raw_tcs = drop_optional_field_negatives(raw_tcs, acceptance_criteria)
+
             finalized = self._finalize(
-                raw_tcs, story_data.get("user_story_id"), 1, scenario_type, story_risk_level
+                raw_tcs, story_data.get("user_story_id"), 1, scenario_type,
+                story_risk_level, bound_indices,
             )
             feature_gherkin = self._build_feature_gherkin(story_data["story"], finalized)
 
@@ -666,6 +738,7 @@ class TestCasePipeline:
             risk_mitigation=risk_mitigation or "N/A",
             risk_ids_list=risk_ids_list,
             scenario_type=scenario_type,
+            current_date=date.today().isoformat(),
         )
         typed_llm = self._base_llm.with_structured_output(_make_typed_batch(scenario_type), method="json_mode")
         return await typed_llm.ainvoke(prompt)
@@ -705,6 +778,7 @@ class TestCasePipeline:
             risk_ids_list=risk_ids_list,
             scenario_type=scenario_type,
             count=count,
+            current_date=date.today().isoformat(),
         )
         # Use raw LLM + manual JSON repair — Groq json_mode ignores schema structure
         # in correction calls (omits `order`, returns bare TC instead of {"test_cases": [...]})
@@ -802,7 +876,73 @@ class TestCasePipeline:
                 if label in risk_label_map
             ]
 
-    def _filter_for_coverage(self, test_cases: List[Dict[str, Any]], scenario_type: str) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _dedup_by_scenario(test_cases: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Drop TCs that describe the EXACT same scenario under a different title.
+
+        A scenario is identified by (outcome_type, covered ACs, test_data values).
+        Two negatives/boundaries that probe the SAME ACs with DIFFERENT data keep
+        distinct signatures and are both preserved — only literal repeats are removed.
+        Applies to every scenario type (positive, negative, boundary)."""
+        seen: set = set()
+        kept: List[Dict[str, Any]] = []
+        for tc in test_cases:
+            td = tc.get("test_data") or {}
+            data_sig = tuple(sorted(
+                (str(k).lower().strip(), str(v).lower().strip()) for k, v in td.items()
+            )) if isinstance(td, dict) else ()
+            ac_sig = tuple(sorted(
+                i for i in tc.get("covered_ac_indices", []) if isinstance(i, int)
+            ))
+            sig = (tc.get("outcome_type", "success"), ac_sig, data_sig)
+            if sig in seen:
+                logger.warning(
+                    f"[TEST CASE] Duplicate scenario removed: '{tc.get('title')}'"
+                )
+                continue
+            seen.add(sig)
+            kept.append(tc)
+        return kept
+
+    @staticmethod
+    def _semantic_dedup_positive(test_cases: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Drop positive TCs whose AC coverage is a subset of another kept TC AND that are
+        not a 'lighter' optional-field variant (RULE D). Catches semantically duplicate
+        happy-paths that slip past title-based dedup (different title, same flow), e.g.
+        'Login successfully' vs 'Login with valid email and password'.
+
+        A TC with strictly FEWER test_data keys than the broader one is treated as an
+        intentional optional-field-omitted variant and is preserved.
+        """
+        # Process broader-coverage / more-detailed TCs first so they are the ones kept.
+        ordered = sorted(
+            test_cases,
+            key=lambda t: (len(set(t.get("covered_ac_indices", []))), len(t.get("steps", []))),
+            reverse=True,
+        )
+        kept: List[Dict[str, Any]] = []
+        for tc in ordered:
+            cov = set(tc.get("covered_ac_indices", []))
+            keys = set((tc.get("test_data") or {}).keys())
+            is_redundant = False
+            for k in kept:
+                kcov = set(k.get("covered_ac_indices", []))
+                kkeys = set((k.get("test_data") or {}).keys())
+                # Redundant: covers no AC the kept TC doesn't already cover, and is not a
+                # lighter variant (fewer test_data fields → intentional optional variant → keep).
+                if cov and cov <= kcov and len(keys) >= len(kkeys):
+                    is_redundant = True
+                    break
+            if not is_redundant:
+                kept.append(tc)
+        return kept
+
+    def _filter_for_coverage(
+        self,
+        test_cases: List[Dict[str, Any]],
+        scenario_type: str,
+        bound_indices: Optional[set] = None,
+    ) -> List[Dict[str, Any]]:
         """Apply the same type/content filters as _finalize (without dedup/sort) to estimate post-filter coverage."""
         filtered = [tc for tc in test_cases if tc.get("test_type", "").lower().strip() == scenario_type]
         if scenario_type != "boundary":
@@ -813,6 +953,19 @@ class TestCasePipeline:
             content_ok = [tc for tc in filtered if not _has_negative_signals(tc)]
             if content_ok:  # mirror _finalize: only remove negative TCs if positive TCs still exist
                 filtered = content_ok
+        if scenario_type == "negative":
+            content_ok = [tc for tc in filtered if not _has_positive_leak(tc)]
+            if content_ok:  # mirror _finalize: only remove positive-leak TCs if real negatives remain
+                filtered = content_ok
+        if scenario_type == "boundary":
+            # A boundary TC is valid ONLY if it targets an AC that actually has a bound.
+            # Drop unconditionally (no "keep if some remain" safety): a boundary test on a
+            # bound-less AC is hallucinated and must not count toward coverage.
+            bidx = bound_indices or set()
+            filtered = [
+                tc for tc in filtered
+                if set(tc.get("covered_ac_indices", [])) & bidx
+            ]
         return filtered
 
     @staticmethod
@@ -875,6 +1028,7 @@ class TestCasePipeline:
         start_index: int,
         scenario_type: str = "positive",
         risk_level: str = "medium",
+        bound_indices: Optional[set] = None,
     ) -> List[Dict[str, Any]]:
         # Filter 1: keep only TCs matching the requested type field
         type_filtered = [
@@ -914,6 +1068,42 @@ class TestCasePipeline:
                     )
                 type_filtered = content_ok
 
+        # Filter 4: reject positive-leak TCs when negative was requested
+        # (LLM sometimes generates the SUCCESS form of a success-only AC, in EN or FR)
+        if scenario_type == "negative":
+            content_ok = [tc for tc in type_filtered if not _has_positive_leak(tc)]
+            if content_ok:
+                removed = len(type_filtered) - len(content_ok)
+                if removed:
+                    logger.warning(
+                        f"[TEST CASE] Removed {removed} positive-leak TC(s) "
+                        f"from 'negative' batch."
+                    )
+                type_filtered = content_ok
+
+        # Filter 5: boundary TCs must target an AC that actually has a bound.
+        # Drop unconditionally — a boundary test on a bound-less AC is hallucinated.
+        # If the story has no bounded AC at all, this yields ZERO boundary TCs (intended:
+        # BVA only applies where a bound exists; coverage < 80% is acceptable here).
+        if scenario_type == "boundary":
+            bidx = bound_indices or set()
+            on_bound = [
+                tc for tc in type_filtered
+                if set(tc.get("covered_ac_indices", [])) & bidx
+            ]
+            removed = len(type_filtered) - len(on_bound)
+            if removed:
+                logger.warning(
+                    f"[TEST CASE] Removed {removed} boundary TC(s) not targeting a bounded AC."
+                )
+            type_filtered = on_bound
+            if not type_filtered:
+                logger.info(
+                    "[TEST CASE] No boundary TC targets a bounded AC — returning empty "
+                    "(story has no bound-bearing acceptance criteria)."
+                )
+                return []
+
         # Deduplicate by normalized title (keeps first occurrence)
         seen_titles: set = set()
         deduped = []
@@ -924,6 +1114,30 @@ class TestCasePipeline:
                 continue
             seen_titles.add(norm_title)
             deduped.append(tc)
+
+        # Scenario-signature dedup (ALL types): drop TCs that repeat the exact same
+        # scenario (same outcome + same covered ACs + same test_data) under a different
+        # title — these are pure duplicates regardless of wording. Conservative: two
+        # negatives/boundaries with DIFFERENT invalid/limit values keep distinct data,
+        # so they are NOT merged.
+        before = len(deduped)
+        deduped = self._dedup_by_scenario(deduped)
+        if len(deduped) < before:
+            logger.warning(
+                f"[TEST CASE] Scenario dedup removed {before - len(deduped)} "
+                f"duplicate {scenario_type} TC(s)."
+            )
+
+        # Semantic dedup (positive only): merge happy-paths that title-dedup missed.
+        # Negative/boundary are skipped — multiple invalid inputs may share the same AC.
+        if scenario_type == "positive":
+            before = len(deduped)
+            deduped = self._semantic_dedup_positive(deduped)
+            if len(deduped) < before:
+                logger.warning(
+                    f"[TEST CASE] Semantic dedup removed {before - len(deduped)} "
+                    f"redundant positive TC(s)."
+                )
 
         # Sort: by type order first, then by coverage count descending (main TC first)
         sorted_tcs = sorted(

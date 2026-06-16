@@ -39,11 +39,8 @@ export class TestSuitesComponent implements OnInit {
   isLoading = signal(false);
 
   // ── Filters ───────────────────────────────────────────────────
-  searchTerm = signal('');
   selectedProject = signal('');
-  selectedType = signal('');
   selectedStatus = signal('');
-  selectedPriority = signal('');
   viewMode = signal<'grid' | 'list'>('grid');
 
   // ── Generation ────────────────────────────────────────────────
@@ -63,42 +60,14 @@ export class TestSuitesComponent implements OnInit {
   readonly SUITE_STATUS_CONFIG = SUITE_STATUS_CONFIG;
   readonly PRIORITY_CONFIG = PRIORITY_CONFIG;
 
-  readonly suiteTypes: { value: string; label: string }[] = [
-    { value: '', label: 'All Types' },
-    { value: 'feature', label: 'Feature' },
-    { value: 'epic', label: 'Epic' },
-    { value: 'sprint', label: 'Sprint' },
-    { value: 'smoke', label: 'Smoke' },
-    { value: 'regression', label: 'Regression' },
-    { value: 'negative', label: 'Negative' },
-    { value: 'security', label: 'Security' },
-    { value: 'performance', label: 'Performance' },
-    { value: 'e2e', label: 'E2E' },
-  ];
-
-  readonly priorities = ['', 'critical', 'high', 'medium', 'low'];
-
   // ── Computed ──────────────────────────────────────────────────
   filteredSuites = computed(() => {
     let suites = this.allSuites();
-    const q = this.searchTerm().toLowerCase().trim();
     const proj = this.selectedProject();
-    const type = this.selectedType();
     const status = this.selectedStatus();
-    const prio = this.selectedPriority();
 
-    if (q) {
-      suites = suites.filter(s =>
-        s.title.toLowerCase().includes(q) ||
-        (s.description?.toLowerCase() || '').includes(q) ||
-        (s.project_name?.toLowerCase() || '').includes(q) ||
-        (s.test_plan_title?.toLowerCase() || '').includes(q)
-      );
-    }
     if (proj) suites = suites.filter(s => s.project_name === proj);
-    if (type) suites = suites.filter(s => s.suite_type === type);
     if (status) suites = suites.filter(s => s.status === status);
-    if (prio) suites = suites.filter(s => s.priority === prio);
 
     return suites;
   });

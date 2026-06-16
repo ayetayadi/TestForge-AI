@@ -67,9 +67,11 @@ async def build_full_report(db: AsyncSession, tc_result_id: str) -> Dict[str, An
             "user_story_id":    test_case.user_story_id,
         }
 
-    # Defect
+    # Defect — only relevant for a NON-passed result. A passed test must not
+    # carry a defect: any prior defect is auto-resolved on pass (see
+    # resolve_defects_on_pass), so showing one here would be stale/contradictory.
     defect_data = None
-    if test_case_data:
+    if test_case_data and tc_result.status.value != "passed":
         defect = await _get_defect_for_tc_result(db, tc_result_id, test_case_data["id"])
         if defect:
             defect_data = _serialize_defect(defect)
@@ -185,17 +187,11 @@ async def create_defect_from_execution(
 ) -> Optional[Dict[str, Any]]:
     """
     Create a Defect record from a failed TestCaseResult.
-    Returns None if test case has no user_story_id (required FK).
+    The defect is tied ONLY to the test case (no user_story link).
     """
     test_case = await repo.get_test_case(db, test_case_id)
     if not test_case:
         logger.warning(f"[DEFECT] Test case {test_case_id} not found, skipping defect creation")
-        return None
-
-    if not test_case.user_story_id:
-        logger.warning(
-            f"[DEFECT] Test case {test_case_id} has no user_story_id — defect creation skipped."
-        )
         return None
 
     tc_result = await repo.get_tc_result(db, tc_result_id)
@@ -266,9 +262,47 @@ async def create_defect_from_execution(
         ])
     )
 
+    # ── DEDUPLICATION ────────────────────────────────────────────────
+    # One defect per test case — NOT one per failed run. If a defect already
+    # exists for this test, we refresh its evidence instead of creating a
+    # duplicate row. This also means the execution-time call and a later
+    # "Notify Developer" call converge on the SAME defect (and the SAME Jira
+    # ticket), instead of spawning two.
+    existing = (await db.execute(
+        select(Defect)
+        .where(Defect.test_case_id == test_case_id)
+        .order_by(sql_desc(Defect.created_at))
+        .limit(1)
+    )).scalar_one_or_none()
+
+    if existing:
+        # Refresh with the latest run's evidence (keep the Jira link intact).
+        existing.title               = title
+        existing.description         = description
+        existing.severity            = severity
+        existing.correction_priority = test_case.risk_level or "medium"
+        existing.reproduction_steps  = reproduction_steps
+        existing.screenshot_b64      = screenshot
+        existing.logs                = logs_text[:10000]
+        existing.detected_issues     = [error_msg[:300]] if error_msg else []
+        # Bug previously marked fixed but the test fails again → regression.
+        if existing.status in (DefectStatus.RESOLVED, DefectStatus.CLOSED):
+            existing.status = DefectStatus.REOPENED
+            logger.info(
+                f"[DEFECT] Reopened defect {existing.id} (regression) "
+                f"for test case {test_case.tc_code}"
+            )
+        else:
+            logger.info(
+                f"[DEFECT] Reused existing defect {existing.id} "
+                f"for test case {test_case.tc_code} (no duplicate created)"
+            )
+        await db.flush()
+        return _serialize_defect(existing)
+
+    # ── No existing defect → create a fresh one ──────────────────────
     defect = Defect(
         id=str(uuid.uuid4()),
-        user_story_id=test_case.user_story_id,
         test_case_id=test_case_id,
         title=title,
         description=description,
@@ -292,6 +326,36 @@ async def create_defect_from_execution(
     return _serialize_defect(defect)
 
 
+async def resolve_defects_on_pass(db: AsyncSession, test_case_id: str) -> int:
+    """When a test PASSES, mark any still-open defect for that test case as RESOLVED.
+
+    Symmetric counterpart to the reopen-on-regression logic in
+    create_defect_from_execution: a bug is considered fixed the moment its test
+    goes green, so the defect should not keep lingering as OPEN. Returns the
+    number of defects resolved.
+    """
+    result = await db.execute(
+        select(Defect).where(
+            Defect.test_case_id == test_case_id,
+            Defect.status.in_([
+                DefectStatus.OPEN,
+                DefectStatus.IN_PROGRESS,
+                DefectStatus.REOPENED,
+            ]),
+        )
+    )
+    defects = result.scalars().all()
+    for d in defects:
+        d.status = DefectStatus.RESOLVED
+    if defects:
+        await db.flush()
+        logger.info(
+            f"[DEFECT] Resolved {len(defects)} defect(s) for test case {test_case_id} "
+            f"(test passed → bug considered fixed)"
+        )
+    return len(defects)
+
+
 # ============================================================
 # EMAIL — EXECUTION REPORT
 # ============================================================
@@ -301,8 +365,6 @@ async def send_execution_report_email(
     recipients: List[str],
 ) -> None:
     """Build and send a rich HTML execution report email."""
-    from app.services.mail_service import send_test_plan_email
-
     tc        = report.get("test_case") or {}
     tc_result = report.get("tc_result") or {}
     execution = report.get("execution") or {}
@@ -356,24 +418,28 @@ async def send_execution_report_email(
                 f'{p[:600]}</p>'
             )
 
-    # Defect section
-    defect_html = ""
-    if defect:
-        sev_color = {
-            "critical": "#dc2626", "high": "#ea580c",
-            "medium":   "#d97706", "low":  "#16a34a",
-        }.get(defect.get("severity", "high"), "#6b7280")
-        jira_html = (
-            f'&nbsp;|&nbsp; Jira: <strong>{defect.get("jira_issue_key")}</strong>'
-            if defect.get("jira_issue_key") else ""
-        )
-        defect_html = f"""
-        <div style="margin:24px 0;padding:16px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;">
-            <h3 style="margin:0 0 8px 0;color:#dc2626;font-size:14px;">🐛 Defect Created</h3>
-            <p style="margin:0 0 6px 0;font-size:13px;"><strong>{defect.get("title","")}</strong></p>
-            <p style="margin:0;font-size:12px;color:#6b7280;">
-                Severity: <span style="color:{sev_color};font-weight:600;">{(defect.get("severity") or "").upper()}</span>
-                &nbsp;|&nbsp; Status: {defect.get("status","open").upper()}{jira_html}
+    # Screenshot
+    screenshot_b64 = tc_result.get("screenshot_b64") or ""
+    screenshot_html = ""
+    if screenshot_b64:
+        if status == "passed":
+            scr_border = "#bbf7d0"
+            scr_bg = "#f0fdf4"
+            scr_title_color = "#16a34a"
+            scr_label = "📸 Screenshot — Test Passed"
+        else:
+            scr_border = "#fecaca"
+            scr_bg = "#fef2f2"
+            scr_title_color = "#dc2626"
+            scr_label = "📸 Failure Screenshot"
+        screenshot_html = f"""
+        <div style="margin-bottom:24px;padding:16px;background:{scr_bg};border-radius:8px;border:1px solid {scr_border};">
+            <h3 style="margin:0 0 12px 0;color:{scr_title_color};font-size:14px;">{scr_label}</h3>
+            <img src="data:image/png;base64,{screenshot_b64}"
+                 alt="Execution screenshot"
+                 style="max-width:100%;max-height:400px;border-radius:6px;border:1px solid {scr_border};display:block;" />
+            <p style="margin:8px 0 0 0;color:#6b7280;font-size:11px;">
+                Screenshot also attached as PNG file.
             </p>
         </div>"""
 
@@ -385,6 +451,24 @@ async def send_execution_report_email(
         <div style="margin:16px 0;padding:14px;background:#fef2f2;border-radius:6px;border:1px solid #fecaca;">
             <h4 style="margin:0 0 8px 0;color:#dc2626;font-size:13px;">Error Details</h4>
             <pre style="margin:0;font-size:12px;color:#374151;white-space:pre-wrap;font-family:monospace;">{err[:800]}</pre>
+        </div>"""
+
+    # Defect section
+    defect_html = ""
+    if defect:
+        jira_ref = (
+            f' · Jira: <strong>{defect["jira_issue_key"]}</strong>'
+            if defect.get("jira_issue_key") else ""
+        )
+        defect_html = f"""
+        <div style="margin-bottom:24px;padding:16px;background:#fef9c3;border-radius:8px;border:1px solid #fef08a;">
+            <h3 style="margin:0 0 10px 0;color:#92400e;font-size:14px;">🐛 Linked Defect</h3>
+            <p style="margin:0 0 4px 0;font-size:13px;font-weight:600;color:#1e293b;">{defect.get("title","")}</p>
+            <p style="margin:0;font-size:12px;color:#64748b;">
+                Severity: <strong>{(defect.get("severity") or "").upper()}</strong>
+                &nbsp;·&nbsp; Status: <strong>{(defect.get("status") or "").upper()}</strong>
+                {jira_ref}
+            </p>
         </div>"""
 
     html = f"""
@@ -460,6 +544,8 @@ async def send_execution_report_email(
             </div>
             ''' if steps_html else ''}
 
+            {screenshot_html}
+
             {defect_html}
 
             {f'''
@@ -479,7 +565,25 @@ async def send_execution_report_email(
 
     tc_code = tc.get("tc_code", "N/A")
     subject = f"[TestForge] {status_icon} {tc_code} — Playwright Report: {status.upper()}"
-    await send_test_plan_email(recipients=recipients, subject=subject, html_body=html)
+
+    if screenshot_b64:
+        from app.services.mail_service import send_test_plan_email_with_attachment
+        import base64
+        png_bytes = base64.b64decode(screenshot_b64)
+        await send_test_plan_email_with_attachment(
+            recipients=recipients,
+            subject=subject,
+            html_body=html,
+            attachments=[{
+                "content": png_bytes,
+                "filename": f"screenshot_{tc_code}.png",
+                "mimetype": "image/png",
+            }],
+        )
+    else:
+        from app.services.mail_service import send_test_plan_email
+        await send_test_plan_email(recipients=recipients, subject=subject, html_body=html)
+
     logger.info(
         f"Execution report email sent to {recipients} for tc_result "
         f"{tc_result.get('id')}"

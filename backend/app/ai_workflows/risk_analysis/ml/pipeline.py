@@ -2,7 +2,7 @@
 Pipeline Risk Analysis — Orchestration complète.
 
 Flux :
-  1. NaiveBayesEmbedModel → P (1-5), I (1-5), confiance
+  1. KNNEmbedModel → P (1-5), I (1-5), confiance
   2. Calculator → Score, Priorité, Effort, Techniques
   3. LLM Explainer → Description, Mitigation, Reasoning
   4. Assemblage → RiskAnalysisResult
@@ -94,7 +94,7 @@ class RiskAnalysisPipeline:
         if not self._llm:
             return LLMExplanation(
                 description=f"Risk score: {risk_score}/25 ({priority})",
-                mitigation="Validate with unit and integration tests",
+                mitigation="Cover the critical user journeys with automated E2E tests",
                 reasoning=f"P={probability}, I={impact} → Score={risk_score} ({priority})",
             )
 
@@ -114,7 +114,7 @@ class RiskAnalysisPipeline:
             logger.error("LLM timeout")
             return LLMExplanation(
                 description=f"Risk score: {risk_score}/25 ({priority})",
-                mitigation="Run standard test suite",
+                mitigation="Cover the critical user journeys with automated E2E tests",
                 reasoning=f"P={probability}, I={impact} → {risk_score}/25",
             )
 
@@ -158,6 +158,10 @@ class RiskAnalysisPipeline:
                 description=explanation.description,
                 mitigation=explanation.mitigation,
                 reasoning=explanation.reasoning,
+                probability_factors=explanation.probability_factors or None,
+                impact_factors=explanation.impact_factors or None,
+                probability_reasoning=explanation.probability_reasoning or None,
+                impact_reasoning=explanation.impact_reasoning or None,
                 is_ai_generated=True,
                 is_accepted=None,
                 ml_confidence=prediction.confidence,

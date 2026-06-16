@@ -249,7 +249,11 @@ _VERIFIABLE = re.compile(
     r"creat(?:e|er)|cré(?:e|er)|delet(?:e|er)|supprim(?:e|er)|updat(?:e|er)|modifi(?:e|er)|"
     r"validat(?:e|er)|valid(?:e|er)|verif(?:y|ier)|vérifi(?:e|er)|check|contrôl(?:e|er)|"
     r"generat(?:e|er)|génér(?:e|er)|select|sélectionn(?:e|er)|"
-    r"accept(?:e|er)|rejet(?:te|er)|reject)\b",
+    r"accept(?:e|er)|rejet(?:te|er)|reject|"
+    # rejection patterns for NEGATIVE-type criteria
+    r"refus(?:e|er|é)|bloqu(?:e|er|é)|interdit|échou(?:e|er|é)|"
+    r"error|erreur|invalid(?:e|er)|incorrect|"
+    r"est refusé|est bloqué|est invalide|n'est pas autorisé|not allowed)\b",
     re.IGNORECASE,
 )
 

@@ -43,8 +43,11 @@ ACCEPTED RISK IDs LINKED TO THIS USER STORY:
 
 SELECTED SCENARIO TYPE: {scenario_type}
 
-The tester selected: "{scenario_type}"
-Generate test cases of type "{scenario_type}" ONLY.
+The tester selected "{scenario_type}" via a radio button. Generate ONLY "{scenario_type}" test cases.
+  • If "positive": EVERY test uses VALID inputs and expects SUCCESS — output ZERO negative and ZERO boundary tests.
+  • If "negative": EVERY test uses INVALID/forbidden inputs and expects an ERROR — output ZERO positive and ZERO boundary tests.
+  • If "boundary": EVERY test probes a LIMIT value (min/max/edge) — output ZERO plain-positive and ZERO plain-negative tests.
+Mixing types in the output is a CRITICAL error: the tester asked for one type only and will not execute the others.
 
 STEP 1 — ANALYZE AND GROUP:
   Read ALL acceptance criteria above as a whole.
@@ -274,7 +277,13 @@ RULES:
 - If similar tests exist, use DIFFERENT data or test DIFFERENT aspects
 - Generate the MINIMUM number of TCs needed to cover ALL ACs — one TC per distinct execution flow
 - Steps must be atomic (one user action per step)
-- All field values must be in English
+- CONSISTENT test_data KEYS: use the SAME snake_case key names for the same entity across ALL test cases (e.g. always 'client_name', 'client_email', 'project_status' — NEVER mix 'clientName' and 'name' for the same field).
+- PRECONDITIONS vs STEPS: every prerequisite (user already logged in, an entity already exists) goes in `preconditions`. The `steps` MUST start with the first real action of the flow under test — NEVER write 'Login' / 'Connect to the application' as a step when it is a precondition.
+- Presentation fields (title, steps, gherkin_scenario, reasoning, expected_results, preconditions, postconditions) must be written in English
+- LANGUAGE IS NON-NEGOTIABLE: even when the user story and acceptance criteria are written in another language (e.g. French), ALL presentation fields MUST still be written in English. Translate the meaning — never copy the AC's language into titles, steps or assertions. Mixing English and French across test cases is forbidden.
+- EXCEPTION — VALUES TYPED INTO THE APPLICATION: any test_data value whose allowed values are enumerated in an acceptance criterion (status, priority, category, etc.) MUST be copied VERBATIM from that acceptance criterion — keep the ORIGINAL language and accents (e.g. French 'Planification', NEVER the English 'Planning'). Translating these values makes the test fail because the application only accepts the original values.
+- ENUM CONFORMANCE: when an acceptance criterion restricts a field to values written in braces, e.g. "statut must be in {{Planification, En cours, Terminé, En pause}}", the test_data value for that field MUST be exactly one of those values, copied verbatim. For NEGATIVE tests, deliberately use a value that is NOT in the set.
+- DATE FIELDS: today's date is {current_date}. When an acceptance criterion requires a date not to be in the past (a deadline / échéance >= today), POSITIVE tests (and the accepted side of a boundary test) MUST use a date >= {current_date}. Only NEGATIVE tests (or the rejected side of a boundary test) may use a past date. NEVER hard-code an arbitrary past date such as '2024-09-20'.
 - All test_data values must be LITERAL strings, not code expressions
 - Output ONLY a JSON object with the key "test_cases" containing an array of test case objects:
   {{"test_cases": [{{...}}, {{...}}]}}
@@ -294,6 +303,39 @@ STRICT CONSTRAINTS — ANY VIOLATION MAKES THE OUTPUT INVALID:
      • Has a title containing words like: reject, invalid, error, fail, refuse, deny, wrong, missing,
          empty, no client, no user, without client
    These are NEGATIVE tests — do NOT include them in a positive batch.
+   ONE HAPPY PATH PER STORY: Generate AT MOST ONE main positive test per user story (all valid fields filled).
+   Add a further positive test ONLY for a genuinely different DATA PATH (e.g. the RULE D optional-field-omitted variant).
+   It is FORBIDDEN to output two positive tests that both verify the same successful action with full valid data,
+   even if their titles differ — e.g. 'Login successfully' + 'Login with valid email and password' are ONE test, merge them.
+2b. NEGATIVE TYPE CONTENT RULE (applies when scenario_type = "negative"):
+   A negative test MUST use INVALID or forbidden inputs and MUST expect an ERROR / rejection.
+   Generate a negative test ONLY for an acceptance criterion that defines a VIOLABLE constraint
+   (required field, format like email, enum / allowed-values set, numeric or length range, date-in-the-past, uniqueness).
+   An AC that ONLY describes a SUCCESS has NO negative counterpart — e.g. "item is created when an optional field is omitted",
+   "deletion succeeds after confirmation", "a default value is applied", "on success the item appears in the list".
+   For such success-only ACs: DO NOT invent a negative.
+   STRICTLY FORBIDDEN in a negative batch:
+     • A test whose inputs are fully VALID and whose outcome is a SUCCESS (that is a POSITIVE test).
+     • A fabricated failure with no supporting AC (e.g. valid data that "fails authentication") — this is a hallucination.
+     • A negative claiming an OPTIONAL field is "required". If an AC says a field "can be omitted" / "is optional"
+       (e.g. telephone, company, email, description, due date), omitting it is a VALID path — it can NEVER be an error.
+     • A negative that invents a field or rule absent from the ACs (e.g. an 'update_format' field, an 'invalid session').
+     • Cancelling a form filled with valid inputs (it simply produces no change) — that is a positive/alternate flow, not a negative.
+   If a user story has NO violable constraint at all (e.g. logout always succeeds), output ZERO negative tests for it
+   rather than inventing failures.
+   Every negative test's expected outcome must be an error/rejection traceable to a specific AC constraint.
+2c. BOUNDARY TYPE CONTENT RULE (applies when scenario_type = "boundary"):
+   A boundary test MUST probe the LIMIT of a measurable range that an acceptance criterion explicitly defines:
+   a length range (min/max characters), a numeric range (min/max value), a count, or a date threshold (e.g. >= today).
+   Generate a boundary test ONLY for an AC that contains such a bound. The exact value tested MUST sit ON the limit
+   (e.g. exactly the min/max, the min-1 / max+1 just outside, the empty/zero edge, the threshold date and the day before).
+   STRICTLY FORBIDDEN in a boundary batch:
+     • A boundary test for an AC that defines NO measurable bound — a required field, an enum choice
+       (status / category / priority from a fixed set), a uniqueness rule, or a plain action (login, create, delete, select)
+       has NO boundary. Do NOT fabricate a limit ("boundary login", "boundary client selection") — skip that AC entirely.
+     • A plain happy-path or plain error test relabelled as "boundary": every boundary test MUST reference an explicit limit value.
+   COVERAGE IS NOT REQUIRED HERE: if only a few ACs (or none) define a bound, output only those few (or an EMPTY
+   test_cases array). Do NOT add boundary tests just to raise AC coverage — covering a bound-less AC is a critical error.
 3. NO DUPLICATE TITLES: Every test case must have a unique title.
    If two scenarios test similar behavior, either merge them or give them clearly distinct titles targeting different conditions.
 4. NO DUPLICATE SCENARIOS: No two test cases may execute the same steps on the same data.
@@ -352,6 +394,22 @@ TYPE CONSTRAINTS:
   negative → invalid inputs, error outcome,   outcome_type = "error"
   boundary → limit values, outcome_type = "success" if accepted, "error" if rejected
   Every test case MUST have test_type = "{scenario_type}".
+  TYPE PURITY: the tester selected "{scenario_type}" ONLY. Output ZERO test cases of any other type.
+    positive → no negative/boundary cases | negative → no positive/boundary cases | boundary → no plain positive/negative cases.
+  NEGATIVE = VIOLATED CONSTRAINT: generate a negative test ONLY for an AC that defines a violable constraint (required/format/enum/range/date/uniqueness).
+    A success-only AC ("created when optional field omitted", "deletion succeeds after confirmation", "default applied") has NO negative — do NOT invent one.
+    NEVER output, in a negative batch, a test with fully VALID inputs and a SUCCESS outcome, nor a fabricated failure unsupported by any AC.
+    NEVER claim an OPTIONAL field ("can be omitted") is required; NEVER invent a field/rule absent from the ACs; a cancelled form with valid inputs is positive, not negative.
+    If a story has no violable constraint (e.g. logout), output ZERO negatives for it rather than inventing failures.
+  BOUNDARY = EXPLICIT LIMIT: generate a boundary test ONLY for an AC that defines a measurable bound (length range, numeric range, count, or date threshold), with the value sitting ON the limit (min, max, min-1, max+1, empty/zero edge, threshold date).
+    An AC with no measurable bound (required field, enum choice, uniqueness, plain action like login/create/delete) has NO boundary — skip it, NEVER fabricate a limit.
+    Coverage is NOT required for boundary: output only the bounded ACs (or an EMPTY list if the story has none). Adding a boundary test to raise coverage on a bound-less AC is forbidden.
+  LANGUAGE: all presentation fields in English even if the stories/ACs are in French (translate the meaning); only enumerated test_data values keep the AC's original language.
+
+DATA CONFORMANCE (apply per story):
+  • Values typed into the app (status, priority, category, etc.) MUST be copied VERBATIM from the acceptance criteria — keep the original language and accents (French 'Planification', NEVER the English 'Planning'). Translating them makes the test fail.
+  • When an AC restricts a field to values written in braces {{A, B, C}}, test_data MUST use one of those exact values (negative tests: a value OUTSIDE the set).
+  • Today's date is {current_date}. Date fields constrained to be "not in the past" MUST use a date >= {current_date} for positive tests; NEVER hard-code an arbitrary past date.
 
 PRIORITY per story:
   critical → TC with the MOST covered_ac_indices (main happy path, all fields)
@@ -360,6 +418,12 @@ PRIORITY per story:
 DEDUPLICATION per story:
   No two TCs may execute identical steps on the same data — merge them.
   Every AC index must appear in at least one covered_ac_indices for that story.
+  For POSITIVE type: AT MOST ONE main happy-path TC (all valid fields) per story; a second positive TC only for a
+  genuinely different data path (RULE D variant). Never output two positives verifying the same successful action.
+
+CONSISTENCY (apply to every story):
+  • Use the SAME snake_case test_data keys for the same entity across all TCs (always 'client_name', never mix 'clientName'/'name').
+  • Put prerequisites (logged in, entity exists) in preconditions — steps start at the first real action, never 'Login'/'Connect' as a step.
 
 FIELDS FOR EACH TEST CASE:
   title              Short imperative sentence (max 100 chars)
@@ -471,6 +535,9 @@ steps             Structured list mirroring the Gherkin scenario step by step.
                      {{"order": 2, "action": "Enter email 'user@example.com' in the Email field", "expected": ""}},
                      {{"order": 3, "action": "Click the 'Login' button", "expected": "Error message 'Invalid credentials' is displayed below the Email field"}}]
 test_data         JSON object with concrete values. Double quotes for JSON, single for inner values.
+                  Values typed into the app (status, priority, category) MUST be copied VERBATIM from the acceptance criteria — keep the original language/accents (French 'Planification', NEVER 'Planning').
+                  When an AC restricts a field to braces {{A, B, C}}, use one of those exact values (negative test: a value OUTSIDE the set).
+                  Today is {current_date}: date fields that must not be in the past use a date >= {current_date} for positive/accepted tests; a past date only for rejections.
 expected_results  List of final assertions — use single quotes ' for values.
 covered_ac_indices  0-based indices of ACs this TC covers (from the UNCOVERED ACs above).
 reasoning         One sentence explaining what this TC verifies.
@@ -485,8 +552,13 @@ CRITICAL JSON FORMATTING: single quotes inside strings, double quotes only as JS
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRICT CONSTRAINTS:
-1. Every test case MUST have test_type = "{scenario_type}" — no exceptions.
+1. Every test case MUST have test_type = "{scenario_type}" — no exceptions (no other type may appear).
 2. Each new test case must have a title distinct from all previously generated test cases.
 3. No two new test cases may test the same condition or use identical steps + data.
+4. Do NOT re-test an already-covered successful action with different wording — only add a TC that covers a genuinely UNCOVERED AC.
+5. Reuse the SAME snake_case test_data keys as the existing test cases (e.g. 'client_name', never 'clientName'/'name').
+6. Put prerequisites (logged in, entity exists) in preconditions — steps start at the first real action, never 'Login'/'Connect' as a step.
+7. All presentation fields in English even if the user story/ACs are in French (translate the meaning); only enumerated test_data values keep the original language.
+8. If "{scenario_type}" = negative: an uncovered AC that only describes a SUCCESS has NO negative counterpart — skip it, do NOT fabricate a failure. Never output a negative TC with valid inputs and a success outcome.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """

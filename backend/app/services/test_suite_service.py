@@ -62,7 +62,8 @@ _PRIORITY_WEIGHT: Dict[str, int] = {
 # ISTQB §5.2.4: "Business-critical paths shall be tested before secondary flows."
 _BUSINESS_FLOW_KEYWORDS: Dict[str, List[str]] = {
     "authentication": [
-        "auth", "login", "logout", "register", "signup", "sign-in",
+        "auth", "login", "logout", "disconnect", "register", "signup", "sign-in",
+        "account", "compte", "sign up", "registration", "inscription",
         "password", "credential", "session", "token", "jwt", "oauth", "sso",
         "2fa", "mfa", "verification", "forgot password", "reset password",
     ],
@@ -117,7 +118,7 @@ _ENTITY_RANK: Dict[str, int] = {
 
 _ENTITY_KEYWORDS: Dict[str, List[str]] = {
     "auth": [
-        "auth", "login", "logout", "connexion", "déconnexion", "compte",
+        "auth", "login", "logout", "disconnect", "connexion", "déconnexion", "compte",
         "account", "register", "inscription", "password", "mot de passe",
         "session", "token", "jwt", "sign in", "sign out", "sign up",
     ],
@@ -158,7 +159,8 @@ _ACTION_KEYWORDS: Dict[str, List[str]] = {
 # ── Critère 3 : Auth encadre tout ───────────────────────────────────────────
 # Création de compte → position 1, Connexion → position 2, Déconnexion → dernière
 _ACCOUNT_CREATE_KEYWORDS: List[str] = [
-    "create account", "créer compte", "créer un compte", "register",
+    "create account", "create a new account", "create an account", "new account", "an account",
+    "créer compte", "créer un compte", "register",
     "inscription", "sign up", "s'inscrire", "enregistrement",
 ]
 
@@ -168,7 +170,9 @@ _LOGIN_KEYWORDS: List[str] = [
 ]
 
 _LOGOUT_KEYWORDS: List[str] = [
-    "logout", "déconnexion", "sign out", "logoff", "se déconnecter", "déconnecter",
+    "logout", "log out", "déconnexion", "sign out", "logoff", "se déconnecter", "déconnecter",
+    # English presentation enforced for test cases → titles say "Disconnect ..."
+    "disconnect", "disconnection",
 ]
 
 
@@ -403,11 +407,44 @@ class TestSuiteService:
         all_risks = list(risk_result.scalars().all())
         accepted_risk_ids = [r.id for r in all_risks]
 
+        # Build structured title components from the test plan
+        _plan_project = project_name or ""
+        if not _plan_project and " — " in (plan.title or ""):
+            parts = plan.title.split(" — ")
+            _plan_project = parts[1].strip() if len(parts) >= 2 else plan.title
+        _scope_str = " - ".join(plan.scope_refs) if plan.scope_refs else ""
+        _TYPE_LABEL = {
+            "positive": "positive",
+            "negative": "negative",
+            "boundary": "boundary values",
+            "edge_case": "boundary values",
+            "edge": "boundary values",
+        }
+
+        # Collect titles already saved for this plan (to detect regeneration)
+        existing_titles_result = await self.db.execute(
+            select(TestSuite.title).where(TestSuite.test_plan_id == test_plan_id)
+        )
+        used_titles: set = {row[0] for row in existing_titles_result.all()}
+
         for suite_data in result["suites"]:
+            group_key = (suite_data.get("_group_key") or suite_data.get("suite_type") or "positive").lower()
+            type_label = _TYPE_LABEL.get(group_key, group_key)
+            if _scope_str:
+                base_title = f"Test Suite - {_plan_project} - {_scope_str} - {type_label}"
+            else:
+                base_title = f"Test Suite - {_plan_project} - {type_label}"
+            structured_title = base_title
+            counter = 2
+            while structured_title in used_titles:
+                structured_title = f"{base_title} - {counter}"
+                counter += 1
+            used_titles.add(structured_title)
+
             suite = TestSuite(
                 id=str(uuid4()),
                 test_plan_id=test_plan_id,
-                title=suite_data["title"],
+                title=structured_title,
                 description=suite_data.get("description", ""),
                 suite_type=suite_data.get("suite_type", "functional"),
                 priority=suite_data.get("priority", "medium"),
@@ -875,6 +912,26 @@ class TestSuiteService:
         """Keyword-based flow detection (safe fallback — no lazy DB access)."""
         return self._keyword_flow(tc.title or "")
 
+    @staticmethod
+    def _is_auth_title(title: str) -> bool:
+        """A title that unambiguously belongs to authentication (account / login / logout)."""
+        t = (title or "").lower()
+        return (
+            any(kw in t for kw in _LOGOUT_KEYWORDS)
+            or any(kw in t for kw in _LOGIN_KEYWORDS)
+            or any(kw in t for kw in _ACCOUNT_CREATE_KEYWORDS)
+        )
+
+    def _resolve_display_flow(self, tc: TestCase, tc_classifications: Dict[str, Any]) -> str:
+        """Business flow used for the dependency graph. Deterministic AUTH override first:
+        account creation / login / logout are ALWAYS 'authentication' even if the LLM labelled
+        them 'crud' (a 'Create a new account' is auth, not a CRUD create)."""
+        if self._is_auth_title(tc.title or ""):
+            return "authentication"
+        if tc.tc_code in tc_classifications:
+            return tc_classifications[tc.tc_code].get("business_flow", "other")
+        return self._get_business_flow(tc)
+
     def _prioritize_cases_by_risk(
         self,
         cases: List[TestCase],
@@ -1029,10 +1086,7 @@ class TestSuiteService:
 
         nodes = []
         for tc in tc_map.values():   # tc_map déduplique par id
-            if tc.tc_code in tc_classifications:
-                flow = tc_classifications[tc.tc_code].get("business_flow", "other")
-            else:
-                flow = self._get_business_flow(tc)
+            flow = self._resolve_display_flow(tc, tc_classifications)
             risk = tc.risk_level or "medium"
             flow_rank = flow_order.get(flow, 99)
             risk_wt = _RISK_WEIGHT.get(risk, 300)

@@ -171,11 +171,11 @@
       "fetched_at": "2026-05-21T21:22:35.915011"
     },
     {
-      "id": "llama-3.3-70b-versatile",
+      "id": "openai/gpt-oss-120b",
       "owned_by": "Meta",
       "context_window": 131072,
       "raw_api_data": {
-        "id": "llama-3.3-70b-versatile",
+        "id": "openai/gpt-oss-120b",
         "object": "model",
         "created": 1733447754,
         "owned_by": "Meta",
@@ -186,7 +186,7 @@
       },
       "provider": "Meta",
       "model_family": "Meta",
-      "model_name": "llama-3.3-70b-versatile",
+      "model_name": "openai/gpt-oss-120b",
       "estimated_parameters": "70B",
       "is_chat_model": false,
       "is_reasoning_model": false,

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.defect import Defect
+from app.models.notification import Notification
 from app.models.enums import DefectSeverity, DefectStatus
 from app.models.user_story import UserStory
 
@@ -57,7 +58,7 @@ def _build_jira_description(
     return paragraphs
 
 
-async def create_defect(
+async def create_notification(
     db: AsyncSession,
     user_story: UserStory,
     version_id: Optional[str],
@@ -65,37 +66,34 @@ async def create_defect(
     initial_score: float,
     workflow_status: str,
     jira_client=None,
-) -> Defect:
+) -> Notification:
     """
-    Create a Defect record in DB and optionally a Bug ticket in Jira.
+    Create a Notification record (story quality issue) in DB and optionally a
+    Jira ticket. The story-quality alert is rattachée À LA USER STORY (pas à un
+    test), d'où la table Notification distincte du Defect.
     Jira creation is best-effort: failures are logged but never propagate.
     """
+    # severity & project_key are computed locally only — used for the Jira
+    # ticket priority/routing, NOT stored on the minimal Notification row.
     severity = _severity_from_result(workflow_status, initial_score)
     project_key = user_story.issue_key.rsplit("-", 1)[0] if "-" in user_story.issue_key else None
 
     title = (
-        f"[DEFECT] {user_story.issue_key} — User story quality too low to process"
+        f"[STORY] {user_story.issue_key} — User story quality too low to process"
     )
-    description = (
-        f"Story '{user_story.issue_key}' scored {initial_score:.1f}/100 "
-        f"(status: {workflow_status}). "
-        f"Issues: {', '.join(detected_issues) if detected_issues else 'No details available.'}"
+    message = (
+        f"Story '{user_story.issue_key}' is too ambiguous/incomplete "
+        f"(quality score {initial_score:.1f}/100, status: {workflow_status})."
     )
 
-    defect = Defect(
+    notification = Notification(
         id=str(uuid.uuid4()),
         user_story_id=user_story.id,
-        user_story_version_id=version_id,
-        title=title,
-        description=description,
-        severity=severity,
-        status=DefectStatus.OPEN,
+        message=message,
         detected_issues=detected_issues,
-        initial_score=initial_score,
-        jira_project_key=project_key,
     )
 
-    db.add(defect)
+    db.add(notification)
     await db.flush()
 
     # ── Jira ticket creation (best-effort) ──────────────────────────
@@ -115,33 +113,33 @@ async def create_defect(
                 description_paragraphs=paragraphs,
                 issue_type="Bug",
                 priority=jira_priority,
-                labels=["testforge-ai", "auto-detected", "quality-defect"],
+                labels=["testforge-ai", "auto-detected", "quality-issue"],
             )
-            defect.jira_issue_key = result.get("key")
+            notification.jira_issue_key = result.get("key")
             logger.info(
-                f"[DEFECT] Jira ticket created: {defect.jira_issue_key} "
+                f"[NOTIF] Jira ticket created: {notification.jira_issue_key} "
                 f"for story {user_story.issue_key}"
             )
         except Exception as exc:
             logger.warning(
-                f"[DEFECT] Jira ticket creation failed for {user_story.issue_key}: {exc}"
+                f"[NOTIF] Jira ticket creation failed for {user_story.issue_key}: {exc}"
             )
 
     logger.info(
-        f"[DEFECT] Saved defect {defect.id} for story {user_story.issue_key} "
-        f"(severity={severity.value}, jira={defect.jira_issue_key})"
+        f"[NOTIF] Saved notification {notification.id} for story {user_story.issue_key} "
+        f"(severity={severity.value}, jira={notification.jira_issue_key})"
     )
-    return defect
+    return notification
 
 
-async def get_defects_by_story(db: AsyncSession, user_story_id: str) -> List[Dict[str, Any]]:
+async def get_notifications_by_story(db: AsyncSession, user_story_id: str) -> List[Dict[str, Any]]:
     result = await db.execute(
-        select(Defect)
-        .where(Defect.user_story_id == user_story_id)
-        .order_by(Defect.created_at.desc())
+        select(Notification)
+        .where(Notification.user_story_id == user_story_id)
+        .order_by(Notification.created_at.desc())
     )
-    defects = result.scalars().all()
-    return [_serialize(d) for d in defects]
+    notifications = result.scalars().all()
+    return [_serialize_notification(n) for n in notifications]
 
 
 async def get_all_defects(db: AsyncSession) -> List[Dict[str, Any]]:
@@ -149,7 +147,7 @@ async def get_all_defects(db: AsyncSession) -> List[Dict[str, Any]]:
         select(Defect).order_by(Defect.created_at.desc())
     )
     defects = result.scalars().all()
-    return [_serialize(d) for d in defects]
+    return [_serialize_defect(d) for d in defects]
 
 
 async def update_defect_status(
@@ -162,22 +160,31 @@ async def update_defect_status(
     defect.status = status
     await db.commit()
     await db.refresh(defect)
-    return _serialize(defect)
+    return _serialize_defect(defect)
 
 
-def _serialize(defect: Defect) -> Dict[str, Any]:
+def _serialize_defect(defect: Defect) -> Dict[str, Any]:
     return {
         "id": defect.id,
-        "user_story_id": defect.user_story_id,
-        "user_story_version_id": defect.user_story_version_id,
+        "test_case_id": defect.test_case_id,
         "title": defect.title,
         "description": defect.description,
         "severity": defect.severity.value,
         "status": defect.status.value,
         "detected_issues": defect.detected_issues or [],
-        "initial_score": defect.initial_score,
         "jira_issue_key": defect.jira_issue_key,
         "jira_project_key": defect.jira_project_key,
         "created_at": defect.created_at.isoformat() if defect.created_at else None,
         "updated_at": defect.updated_at.isoformat() if defect.updated_at else None,
+    }
+
+
+def _serialize_notification(n: Notification) -> Dict[str, Any]:
+    return {
+        "id": n.id,
+        "user_story_id": n.user_story_id,
+        "message": n.message,
+        "detected_issues": n.detected_issues or [],
+        "jira_issue_key": n.jira_issue_key,
+        "created_at": n.created_at.isoformat() if n.created_at else None,
     }

@@ -1453,14 +1453,21 @@ $gray:   #9ca3af;
 
 .epr-type-badge {
   font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
+  font-weight: 700;
+  padding: 2px 9px;
   border-radius: 100px;
   background: #f3f4f6;
   color: $text-secondary;
   text-transform: capitalize;
   border: 1px solid #e5e7eb;
   white-space: nowrap;
+  letter-spacing: 0.02em;
+
+  &[data-type="positive"]  { background: #dcfce7; color: #15803d; border-color: #86efac; }
+  &[data-type="negative"]  { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+  &[data-type="boundary"]  { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; }
+  &[data-type="performance"] { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  &[data-type="security"]    { background: #fce7f3; color: #9d174d; border-color: #f9a8d4; }
 }
 
 .epr-skip-badge {
@@ -2596,6 +2603,14 @@ $gray:   #9ca3af;
   border-color: #a78bfa;
   color: #5b21b6;
   &:hover:not(:disabled) { background: #ddd6fe; }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+.tsd-header-actions .btn-export {
+  background: #ecfdf5;
+  border-color: #34d399;
+  color: #047857;
+  &:hover:not(:disabled) { background: #d1fae5; }
   &:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 

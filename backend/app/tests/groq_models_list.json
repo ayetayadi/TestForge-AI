@@ -123,7 +123,7 @@
       "max_completion_tokens": 131072
     },
     {
-      "id": "llama-3.3-70b-versatile",
+      "id": "openai/gpt-oss-120b",
       "object": "model",
       "created": 1733447754,
       "owned_by": "Meta",

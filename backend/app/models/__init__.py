@@ -14,6 +14,7 @@ from .enums import (
     DependencyType,
 )
 from .defect import Defect
+from .notification import Notification
 from .test_case import TestCase
 from .playwright_script_version import PlaywrightScriptVersion
 from .test_execution import TestExecution
@@ -23,8 +24,6 @@ from .risk import Risk
 from .test_suite import TestSuite
 from .test_case_dependency import TestCaseDependency
 from .tc_coverage import TcCoverage
-from .job import Job
-
 __all__ = [
     "User",
     "JiraProject",
@@ -46,6 +45,7 @@ __all__ = [
     "DefectSeverity",
     "DefectStatus",
     "Defect",
+    "Notification",
 
     "TestCase",
     "PlaywrightScriptVersion",
@@ -58,5 +58,4 @@ __all__ = [
     "TestSuite",
     "TestCaseDependency",
     "TcCoverage",
-    "Job",
 ]
