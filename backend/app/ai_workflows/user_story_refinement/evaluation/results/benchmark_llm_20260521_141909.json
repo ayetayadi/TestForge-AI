@@ -1,0 +1,177 @@
+{
+  "timestamp": "20260521_141909",
+  "models_tested": [
+    "Llama-3.1-8B"
+  ],
+  "n_stories": 8,
+  "ranking": [
+    {
+      "model": "Llama-3.1-8B",
+      "composite": 33.85,
+      "success_rate_%": 100.0,
+      "error_rate_%": 0.0,
+      "parse_error_rate_%": 0.0,
+      "latency_mean_s": 1.49,
+      "latency_p95_s": 6.86,
+      "latency_min_s": 0.56,
+      "latency_max_s": 6.86,
+      "improvement_rate_%": 87.5,
+      "violation_rate_%": 37.5,
+      "score_delta_mean": 0.271,
+      "final_score_mean": 0.883,
+      "deepeval_score_mean": 0.183,
+      "deepeval_n_evaluated": 6,
+      "second_pass_rate_%": 0.0,
+      "n_total": 8,
+      "n_success": 8,
+      "n_failed": 0,
+      "n_parse_err": 0,
+      "n_improved": 7,
+      "n_violated": 3,
+      "n_retried": 0,
+      "rank": 1
+    }
+  ],
+  "raw_results": {
+    "Llama-3.1-8B": [
+      {
+        "story_id": "BAD-EN-01",
+        "category": "bad",
+        "language": "en",
+        "success": true,
+        "parse_error": false,
+        "retried": false,
+        "latency_s": 0.86,
+        "initial_score": 0.469,
+        "final_score": 0.904,
+        "score_delta": 0.435,
+        "violations": [
+          "Actor changed: 'I' → 'As'",
+          "Story too verbose: 24 words vs 13 original (limit ×1.8)"
+        ],
+        "deepeval_score": 0.2,
+        "improved_story": "As a user, I want the system to respond within [SPECIFY TIME] and display the results clearly, afin de ensure a better user experience.",
+        "reasoning": "The original story was missing business value, vague terms, and acceptance criteria. We added a 'so that' clause to express the business value, replaced vague terms with measurable conditions, and defined three acceptance criteria that start with action verbs and include measurable conditions. We also removed implementation technology prescriptions and external dependencies, and kept the core business intent."
+      },
+      {
+        "story_id": "BAD-EN-02",
+        "category": "bad",
+        "language": "en",
+        "success": true,
+        "parse_error": false,
+        "retried": false,
+        "latency_s": 0.83,
+        "initial_score": 0.526,
+        "final_score": 0.768,
+        "score_delta": 0.242,
+        "violations": [],
+        "deepeval_score": 0.2,
+        "improved_story": "As a developer, I want to implement user authentication so that users can log in.",
+        "reasoning": "The original story had no acceptance criteria. The story was improved by removing implementation technology prescriptions and adding action verbs and measurable conditions to the acceptance criteria. The core business intent was kept, and the story now satisfies the INVEST framework."
+      },
+      {
+        "story_id": "BAD-FR-01",
+        "category": "bad",
+        "language": "fr",
+        "success": true,
+        "parse_error": false,
+        "retried": false,
+        "latency_s": 0.56,
+        "initial_score": 0.469,
+        "final_score": 0.909,
+        "score_delta": 0.44,
+        "violations": [
+          "Story too verbose: 22 words vs 11 original (limit ×1.8)"
+        ],
+        "deepeval_score": 0.2,
+        "improved_story": "En tant qu'administrateur, je veux que l'application soit rapide et intuitive afin de réduire les temps de chargement et améliorer l'expérience utilisateur.",
+        "reasoning": "Le résumé des modifications apportées est le suivant : - Ajout d'un 'so that' clause pour exprimer la valeur ajoutée de l'application - Remplacement des termes vagues par des conditions mesurables - Ajout de critères d'acceptation concrets et vérifiables - Précision du périmètre de l'application"
+      },
+      {
+        "story_id": "MED-EN-01",
+        "category": "medium",
+        "language": "en",
+        "success": true,
+        "parse_error": false,
+        "retried": false,
+        "latency_s": 0.56,
+        "initial_score": 0.526,
+        "final_score": 0.698,
+        "score_delta": 0.172,
+        "violations": [
+          "Language changed: en → fr",
+          "Actor changed: 'I' → 'je'",
+          "Intent drift — word overlap too low: 0% (minimum 40%)",
+          "Similarity too low: 60.5% (minimum 70.0%)"
+        ],
+        "deepeval_score": 0.1,
+        "improved_story": "En tant que utilisateur enregistré, je veux me connecter à mon compte afin de pouvoir accéder à mon tableau de bord personnel.",
+        "reasoning": "Les critères d'acceptation ont été ajoutés pour satisfaire les exigences INVEST. Les critères sont spécifiques, mesurables et testables. Le story est indépendant, négociable, estimable, petit et testable."
+      },
+      {
+        "story_id": "MED-EN-02",
+        "category": "medium",
+        "language": "en",
+        "success": true,
+        "parse_error": false,
+        "retried": false,
+        "latency_s": 0.73,
+        "initial_score": 0.719,
+        "final_score": 0.955,
+        "score_delta": 0.236,
+        "violations": [],
+        "deepeval_score": null,
+        "improved_story": "As a customer, I want to view my order history so that I can track my past purchases.",
+        "reasoning": "The original story had few acceptance criteria and no measurable conditions. We added more criteria and measurable conditions to make it testable. We kept the exact same language and actor/role. We kept the core business intent and targeted a testability score >= 0.8. We rewrote each criterion to start with an action verb and added measurable conditions. We removed implementation technology prescriptions and external dependencies."
+      },
+      {
+        "story_id": "MED-FR-01",
+        "category": "medium",
+        "language": "fr",
+        "success": true,
+        "parse_error": false,
+        "retried": false,
+        "latency_s": 0.75,
+        "initial_score": 0.526,
+        "final_score": 0.917,
+        "score_delta": 0.391,
+        "violations": [],
+        "deepeval_score": 0.2,
+        "improved_story": "En tant qu'utilisateur, je veux pouvoir réinitialiser mon mot de passe afin d'accéder à mon compte si je l'oublie, afin de pouvoir me reconnecter rapidement.",
+        "reasoning": "Les critères d'acceptation ont été ajoutés pour garantir que le système répond aux attentes de l'utilisateur. Les critères sont testables et mesurables, ce qui permettra d'évaluer la qualité du système."
+      },
+      {
+        "story_id": "MED-FR-02",
+        "category": "medium",
+        "language": "fr",
+        "success": true,
+        "parse_error": false,
+        "retried": false,
+        "latency_s": 6.86,
+        "initial_score": 0.713,
+        "final_score": 0.968,
+        "score_delta": 0.255,
+        "violations": [],
+        "deepeval_score": 0.2,
+        "improved_story": "En tant que responsable RH, je veux consulter les candidatures reçues afin de sélectionner les meilleurs profils pour un entretien en moins de 2 minutes, afin de réduire le temps de sélection.",
+        "reasoning": "Les critères d'acceptance ont été améliorés pour inclure des conditions mesurables, tels que le temps de chargement et la quantité de caractères. Les critères ont également été réécrits pour inclure des verbes d'action et des conditions mesurables. La clause \"afin de\" a été ajoutée pour exprimer la valeur commerciale de la fonctionnalité."
+      },
+      {
+        "story_id": "GOOD-EN-01",
+        "category": "good",
+        "language": "en",
+        "success": true,
+        "parse_error": false,
+        "retried": false,
+        "latency_s": 0.75,
+        "initial_score": 0.949,
+        "final_score": 0.948,
+        "score_delta": -0.001,
+        "violations": [],
+        "deepeval_score": null,
+        "improved_story": "As a registered user, I want to reset my password via email so that I can regain access to my account when I forget my credentials.",
+        "reasoning": "The original story already contained a clear 'so that' clause expressing business value. To improve testability, each acceptance criterion was rewritten to include action verbs and measurable conditions. The system's response time and the reset link's expiration time were left unspecified to ensure the story remains flexible and adaptable to the team's implementation choices. The new password's length and the number of required characters were also left unspecified to avoid imposing specific technology or implementation choices."
+      }
+    ]
+  }
+}

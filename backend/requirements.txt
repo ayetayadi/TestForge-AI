@@ -50,3 +50,8 @@ joblib
 openpyxl
 pandas
 numpy
+
+#LLM as a judge
+root-signals
+langsmith
+

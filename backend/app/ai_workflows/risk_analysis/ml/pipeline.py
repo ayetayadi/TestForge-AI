@@ -203,7 +203,7 @@ class RiskAnalysisPipeline:
     # FLUX PRINCIPAL
     # ============================================================
 
-    @traceable(name="risk_analysis_pipeline")
+    @traceable(name="risk_analysis_workflow")
     async def run(
         self,
         user_story: str,

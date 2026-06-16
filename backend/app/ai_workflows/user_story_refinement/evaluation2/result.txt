@@ -1,0 +1,886 @@
+
+(venv) C:\Users\ayeta\Desktop\TestForge-AI\backend>python -m app.ai_workflows.user_story_refinement.evaluation2.benchmark
+[DEBUG] Imports OK
+[OK] CONFIDENT_API_KEY detectee
+[OK] 5 clés API disponibles
+[DATA] 10 stories chargées
+[MODELS] ['Llama-3.3-70B', 'Llama-3.1-8B', 'GPT-OSS-120B']
+[DEBUG] Création du juge...
+[DEBUG] Judge loaded with 5 keys
+[DEBUG] Judge loaded with 10 keys
+[DEBUG] Métrique créée
+[DEBUG] Démarrage du benchmark...
+
+============================================================
+PHASE 1 - RAFFINEMENT
+============================================================
+
+============================================================
+[TEST] Llama-3.3-70B - Raffinement
+============================================================
+  [1/10] BAD-EN-01...
+      OK - Role: user, Langue: anglais
+  [2/10] BAD-EN-02...
+      OK - Role: developer, Langue: anglais
+  [3/10] BAD-FR-01...
+      OK - Role: utilisateur, Langue: francais
+  [4/10] MED-EN-01...
+      OK - Role: registered user, Langue: anglais
+  [5/10] MED-EN-02...
+      OK - Role: customer, Langue: anglais
+  [6/10] MED-EN-03...
+      OK - Role: manager, Langue: anglais
+  [7/10] MED-FR-01...
+      OK - Role: utilisateur, Langue: francais
+  [8/10] MED-FR-02...
+      OK - Role: responsable RH, Langue: francais
+  [9/10] GOOD-EN-01...
+      OK - Role: registered user, Langue: anglais
+  [10/10] GOOD-FR-01...
+      OK - Role: utilisateur, Langue: francais
+
+  [PAUSE] 20s avant le prochain modèle...
+
+============================================================
+[TEST] Llama-3.1-8B - Raffinement
+============================================================
+  [1/10] BAD-EN-01...
+      OK - Role: user, Langue: anglais
+  [2/10] BAD-EN-02...
+      OK - Role: developer, Langue: anglais
+  [3/10] BAD-FR-01...
+      OK - Role: utilisateur, Langue: francais
+  [4/10] MED-EN-01...
+      OK - Role: registered user, Langue: anglais
+  [5/10] MED-EN-02...
+      OK - Role: customer, Langue: anglais
+  [6/10] MED-EN-03...
+      OK - Role: manager, Langue: anglais
+  [7/10] MED-FR-01...
+      OK - Role: utilisateur, Langue: francais
+  [8/10] MED-FR-02...
+      OK - Role: responsable RH, Langue: francais
+  [9/10] GOOD-EN-01...
+      OK - Role: registered user, Langue: anglais
+  [10/10] GOOD-FR-01...
+      OK - Role: utilisateur, Langue: francais
+
+  [PAUSE] 20s avant le prochain modèle...
+
+============================================================
+[TEST] GPT-OSS-120B - Raffinement
+============================================================
+  [1/10] BAD-EN-01...
+      OK - Role: user, Langue: anglais
+  [2/10] BAD-EN-02...
+      OK - Role: developer, Langue: anglais
+  [3/10] BAD-FR-01...
+      OK - Role: utilisateur, Langue: francais
+  [4/10] MED-EN-01...
+      OK - Role: registered user, Langue: anglais
+  [5/10] MED-EN-02...
+      OK - Role: customer, Langue: anglais
+  [6/10] MED-EN-03...
+      OK - Role: manager, Langue: anglais
+  [7/10] MED-FR-01...
+      OK - Role: utilisateur, Langue: francais
+  [8/10] MED-FR-02...
+      OK - Role: responsable RH, Langue: francais
+  [9/10] GOOD-EN-01...
+      OK - Role: registered user, Langue: anglais
+  [10/10] GOOD-FR-01...
+      OK - Role: utilisateur, Langue: francais
+
+[OK] Raffinement terminé pour tous les modèles
+
+============================================================
+PHASE 2 - EVALUATION G-EVAL (Test Runs Confident AI)
+============================================================
+
+[EVAL] Llama-3.3-70B (10 stories)...
+✨ You're running DeepEval's latest INVEST Quality [GEval] Metric! (using qwen/qwen3-32b, strict=False, async_mode=True)...
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 1.0, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: The user story follows the correct format, replaces vague terms with measurable conditions (e.g., 99.9% uptime, 2-second response time), includes three acceptance criteria with action verbs, satisfies INVEST criteria (Independent, Negotiable, Valuable, Estimable, Testable), and maintains the original actor (developer), feature (authentication module), and goal (users can log in)., error: None)
+
+For test case:
+
+  - input: As a developer I want to build the authentication module using React and PostgreSQL so that users can log in.
+  - actual output: As a developer, I want to design and implement a secure authentication module using React for the frontend and PostgreSQL as the backend database, so that users can log in seamlessly and access authorized features.
+
+Acceptance Criteria:
+1. The authentication module must successfully integrate with the PostgreSQL database to store and retrieve user credentials, with a minimum of 99.9% uptime.
+2. The React-based frontend must handle user input validation, password hashing, and error handling for authentication attempts, with a maximum response time of 2 seconds for a successful login.
+3. The module must implement role-based access control, allowing administrators to assign and manage user roles, with at least three distinct roles (e.g., admin, moderator, user) and corresponding permissions.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Okay, let's start by going through each evaluation step to assess the response.
+
+First, Step 1 is checking the user story format. The original input is "As a registered user I want to log in t, error: None)
+
+For test case:
+
+  - input: As a registered user I want to log in to my account so that I can access my personal dashboard.
+  - actual output: As a registered user, I want to log in to my account securely using my credentials, so that I can access my personal dashboard and view my personalized information.
+
+Acceptance Criteria:
+1. The system must authenticate the user's login credentials correctly, allowing access to the dashboard only when the correct username and password are entered.
+2. The system must redirect the user to their personal dashboard after a successful login, displaying their name, profile picture, and relevant account information.
+3. The system must handle incorrect login attempts by displaying an error message and allowing the user to retry, with a maximum of 5 attempts before temporarily locking the account for security purposes.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Okay, let's start by going through each evaluation step to assess the response.
+
+First, Step 1 is checking the user story format. The original input is "As a customer I want to view my order h, error: None)
+
+For test case:
+
+  - input: As a customer I want to view my order history so that I can track my past purchases.
+  - actual output: As a customer, I want to view my order history, including order dates, product details, and total costs, so that I can track my past purchases and make informed decisions about future buys.
+
+Acceptance Criteria:
+1. The system displays a comprehensive list of all my past orders, including the order date, product name, quantity, and total cost.
+2. The order history page allows me to filter orders by date range, product category, or order status, making it easier for me to find specific orders.
+3. The system provides a detailed view of each order, including product descriptions, pricing, and any applicable discounts or promotions, giving me a clear understanding of my purchase history.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Alright, let's break this down. The user provided a test case where they want to evaluate a user story based on specific steps. The input is a user story, and the actual output is the refined , error: None)
+
+For test case:
+
+  - input: As a manager I want to export the monthly report so that I can share it with stakeholders.
+  - actual output: As a manager, I want to export the monthly report in a customizable format, so that I can share it with stakeholders and ensure they have access to the most relevant and up-to-date information.
+
+Acceptance Criteria:
+1. The system allows me to select the report format from a variety of options, including PDF, CSV, and Excel.
+2. The exported report includes all the key performance indicators (KPIs) and metrics that are relevant to the stakeholders, such as sales figures, customer engagement, and team productivity.
+3. The report export feature includes an option to automatically generate a summary or overview of the report, highlighting the most important trends and insights.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 1.0, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: The user story follows the correct format, replaces vague terms with measurable conditions (e.g., 'within 5 minutes', 'valid for 30 minutes'), includes three acceptance criteria with action verbs, satisfies INVEST criteria through testable conditions, and maintains the original actor, feature, and goal. All evaluation steps are met with clear alignment., error: None)
+
+For test case:
+
+  - input: As a registered user I want to reset my password via email so that I can regain access to my account when I forget my credentials.
+  - actual output: As a registered user, I want to reset my password via email, so that I can regain access to my account when I forget my credentials.
+
+Acceptance Criteria:
+1. The system sends a password reset link to the user's registered email address within 5 minutes of requesting a password reset.
+2. The password reset link is valid for a limited time period (e.g., 30 minutes) and can only be used once to ensure account security.
+3. The user is required to create a new, unique password that meets the system's password complexity requirements (e.g., minimum length, special characters, etc.) during the password reset process.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Alright, let's break this down. The user wants me to evaluate the response based on the given steps. First, I need to check if the user story follows the correct format. The original input is , error: None)
+
+For test case:
+
+  - input: En tant qu'utilisateur je veux pouvoir réinitialiser mon mot de passe afin d'accéder à mon compte si je l'oublie.
+  - actual output: En tant qu'utilisateur, je veux pouvoir réinitialiser mon mot de passe de manière sécurisée, afin d'accéder à mon compte si je l'oublie.
+
+Critères d'acceptation :
+1. Le système doit envoyer un lien de réinitialisation de mot de passe à l'adresse e-mail associée au compte utilisateur.
+2. Le lien de réinitialisation de mot de passe doit être valide pendant une durée limitée (par exemple, 30 minutes) et ne doit pas être réutilisable.
+3. Le système doit demander à l'utilisateur de saisir son adresse e-mail et de confirmer son identité avant de réinitialiser le mot de passe.
+4. Le système doit générer un nouveau mot de passe temporaire et le communiquer à l'utilisateur, qui devra le modifier lors de sa prochaine connexion.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The response follows the correct user story format (Step 1), includes measurable conditions in acceptance criteria (e.g., real-time updates, filtering by specific skills) (Step 2), pr, error: None)
+
+For test case:
+
+  - input: En tant que responsable RH je veux consulter les candidatures reçues afin de sélectionner les meilleurs profils pour un entretien.
+  - actual output: En tant que responsable RH, je veux consulter les candidatures reçues et avoir accès à leurs informations détaillées, afin de sélectionner les meilleurs profils pour un entretien et améliorer l'efficacité de notre processus de recrutement.
+
+Critères d'acceptation :
+1. La liste des candidatures reçues doit être mise à jour en temps réel pour refléter les dernières soumissions.
+2. Chaque candidature doit inclure les informations suivantes : nom, prénom, adresse e-mail, téléphone, CV et lettre de motivation, pour faciliter l'évaluation et la comparaison des profils.
+3. Le système doit permettre de filtrer les candidatures en fonction de critères spécifiques tels que les compétences, l'expérience professionnelle et les qualifications, pour accélérer le processus de sélection.
+4. Un système de notation ou de classement doit être mis en place pour évaluer les candidatures et faciliter la prise de décision pour les entretiens.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The user story follows, error: None)
+
+For test case:
+
+  - input: As a user I want the system to work well and be fast.
+  - actual output: As a user, I want the system to respond quickly and efficiently, so that I can complete my tasks in a timely manner.
+
+Acceptance Criteria:
+1. The system shall load all pages within 2 seconds of a user's request.
+2. The system shall process user inputs and display results within 1 second of submission.
+3. The system shall maintain a minimum uptime of 99.9% to ensure consistent availability.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The user story follows the correct format and includes measurable conditions like 'sauvegarder plusieurs adresses de livraison.' It has four acceptance criteria with action verbs (mod, error: None)
+
+For test case:
+
+  - input: En tant qu'utilisateur connecté je veux pouvoir modifier mon adresse de livraison afin de recevoir mes commandes à l'adresse correcte.
+  - actual output: En tant qu'utilisateur connecté, je veux pouvoir modifier mon adresse de livraison afin de recevoir mes commandes à l'adresse correcte, tout en ayant la possibilité de sauvegarder plusieurs adresses de livraison pour plus de flexibilité.
+
+Critères d'acceptation :
+1. L'utilisateur doit pouvoir modifier son adresse de livraison actuelle avec succès.
+2. Le système doit permettre à l'utilisateur de sauvegarder au moins deux adresses de livraison différentes.
+3. L'utilisateur doit pouvoir sélectionner l'adresse de livraison souhaitée lors de la passation d'une commande.
+4. Le système doit afficher un message de confirmation après la modification ou l'ajout d'une adresse de livraison.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The user story follows the correct format with a clear actor, feature, and benefit. Vague terms like 'rapide' and 'intuitive' are replaced, error: None)
+
+For test case:
+
+  - input: En tant qu'administrateur je veux que l'application soit rapide et intuitive.
+  - actual output: En tant qu'administrateur, je veux que l'application soit rapide et intuitive, afin de gérer efficacement les tâches et de réduire les erreurs.
+
+Critères d'acceptation :
+1. Le temps de chargement de l'application ne doit pas dépasser 2 secondes.
+2. L'application doit disposer d'un système de navigation clair et simple, permettant aux utilisateurs de trouver les fonctionnalités principales en moins de 3 clics.
+3. L'application doit être compatible avec les principaux navigateurs web (Google Chrome, Mozilla Firefox, Safari) et les appareils mobiles (Android, iOS).
+4. L'application doit afficher des messages d'erreur clairs et des suggestions de correction en cas de problème, afin de faciliter la résolution des problèmes.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Overall Metric Pass Rates
+
+INVEST Quality [GEval]: 100.00% pass rate
+
+======================================================================
+
+
+⚠ WARNING: No hyperparameters logged.
+» Log hyperparameters to attribute prompts and models to your test runs.
+
+================================================================================
+✓ Done 🎉! View results on https://app.confident-ai.com/project/cmp9aedne004xuy13i5n5xr5r/test-runs/cmpg53e6z000ypc133z7bfhxn/regression-testing
+    Score: 1.00 - The user story follows the correct format, replaces vague te
+    Score: 0.50 - <think>
+Okay, let's start by going through each evaluation s
+    Score: 0.50 - <think>
+Okay, let's start by going through each evaluation s
+    Score: 0.50 - <think>
+Alright, let's break this down. The user provided a 
+    Score: 1.00 - The user story follows the correct format, replaces vague te
+    Score: 0.50 - <think>
+Alright, let's break this down. The user wants me to
+    Score: 0.50 - {
+    "reason": "The response follows the correct user story
+    Score: 0.50 - {
+    "reason": "The user story follows
+    Score: 0.50 - {
+    "reason": "The user story follows the correct format a
+    Score: 0.50 - {
+    "reason": "The user story follows the correct format w
+  [SCORE] Moyenne: 0.600 (10 evaluations)
+
+[EVAL] Llama-3.1-8B (10 stories)...
+✨ You're running DeepEval's latest INVEST Quality [GEval] Metric! (using qwen/qwen3-32b, strict=False, async_mode=True)...
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The user story follows the correct format, replaces vague terms with measurable conditions in the acceptance criteria, includes two action-verb-based criteria, satisfies INVEST criter, error: None)
+
+For test case:
+
+  - input: As a user I want the system to work well and be fast.
+  - actual output: As a user, I want the system to respond quickly and efficiently, so that I can complete tasks and access information without unnecessary delays.
+
+Acceptance Criteria:
+
+1. The system should load the main dashboard within 3 seconds of login.
+2. The system should display search results within 1 second of entering a query.
+
+This improved user story is more specific and provides clear expectations for the system's performance.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Okay, let's start by going through each evaluation step to assess the given response.
+
+First, Step 1 is checking the user story format. The original input is "As a customer I want to view my o, error: None)
+
+For test case:
+
+  - input: As a customer I want to view my order history so that I can track my past purchases.
+  - actual output: As a customer, I want to view a comprehensive and easily accessible history of my past orders, so that I can track my purchases, identify any issues or discrepancies, and make more informed purchasing decisions in the future.
+
+Acceptance Criteria:
+
+1. The order history page displays a list of all my past orders, including order date, order number, and total cost.
+2. Each order in the history list includes a summary of the items purchased, including product name, quantity, and price, and allows me to view the full order details with a single click.
+3. The order history page includes filters and sorting options to enable me to quickly find specific orders or view my orders by date, product, or total cost.
+4. The order history page displays any relevant order status updates, such as shipping confirmation, delivery, or cancellation.
+5. The order history page is accessible from my account dashboard and can be viewed on both desktop and mobile devices.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Okay, let's start by going through each evaluation step to assess the response.
+
+First, Step 1 is checking the user story format. The original input is "As a registered user I want to log in t, error: None)
+
+For test case:
+
+  - input: As a registered user I want to log in to my account so that I can access my personal dashboard.
+  - actual output: As a registered user, I want to log in to my account securely with my credentials, so that I can access my personalized dashboard and manage my account settings.
+
+Acceptance Criteria:
+
+1. The system requires a valid username and password combination to log in successfully.
+2. After logging in, the system redirects the user to their personalized dashboard, displaying their account information and recent activity.
+
+Note: I've added more detail to the user story to make it more specific and clear, and also included two acceptance criteria to ensure that the feature meets the required functionality.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The response follows the correct user story format, replaces vague terms with measurable conditions (e.g., 24-hour validity, 8, error: None)
+
+For test case:
+
+  - input: En tant qu'utilisateur je veux pouvoir réinitialiser mon mot de passe afin d'accéder à mon compte si je l'oublie.
+  - actual output: En tant qu'utilisateur, je veux pouvoir réinitialiser mon mot de passe de manière sécurisée et rapide, afin d'accéder à mon compte si je l'oublie.
+
+Critères d'acceptation :
+
+1. Le processus de réinitialisation du mot de passe doit être accessible depuis n'importe quel appareil et n'importe où, en utilisant un navigateur web ou une application mobile.
+2. Le système doit envoyer un lien de réinitialisation du mot de passe à l'adresse e-mail associée à mon compte, avec un délai de validité de 24 heures.
+3. Le nouveau mot de passe doit être composé de 8 caractères minimum, avec au moins une majuscule, une minuscule, un chiffre et un caractère spécial.
+4. Le système doit bloquer les tentatives de réinitialisation du mot de passe après 3 essais échoués, avec une attente de 30 minutes avant la possibilité de réessayer.
+
+Cette amélioration ajoute des critères d'acceptation pour garantir la sécurité et la facilité d'utilisation du processus de réinitialisation du mot de passe.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Alright, let's start by looking at the evaluation steps provided. The first step is to check if the user story follows the correct format. The input is in French, so I need to make sure the st, error: None)
+
+For test case:
+
+  - input: En tant que responsable RH je veux consulter les candidatures reçues afin de sélectionner les meilleurs profils pour un entretien.
+  - actual output: En tant que responsable RH, je veux disposer d'un outil de gestion des candidatures qui me permet de consulter les dossiers de candidature reçus, de les trier et de sélectionner les meilleurs profils pour un entretien, afin de réduire le temps de traitement et d'améliorer la qualité des recrutements.
+
+Critères d'acceptation :
+
+1. L'outil de gestion des candidatures doit permettre de stocker et de consulter les dossiers de candidature sous forme numérique, y compris les CV, les lettres de motivation et les coordonnées des candidats.
+2. L'outil doit permettre de trier les candidatures en fonction de critères tels que la pertinence du profil, la qualité des documents soumis et la disponibilité du candidat pour un entretien.
+3. L'outil doit permettre de sélectionner les candidats les plus prometteurs pour un entretien, en fonction des critères de sélection définis par l'équipe RH.
+4. L'outil doit permettre d'envoyer des notifications aux candidats sélectionnés pour un entretien, ainsi qu'à l'équipe RH pour les informations sur les entretiens à venir.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 1.0, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: The user story follows the correct format, replaces vague terms with measurable conditions (e.g., 'éviter les erreurs de livraison'), includes four acceptance criteria with action verbs (e.g., 'peut modifier', 'reçoit un message'), satisfies INVEST criteria (specific, testable), and maintains the original actor, feature, and goal. All evaluation steps are met with clear alignment., error: None)
+
+For test case:
+
+  - input: En tant qu'utilisateur connecté je veux pouvoir modifier mon adresse de livraison afin de recevoir mes commandes à l'adresse correcte.
+  - actual output: En tant qu'utilisateur connecté, je veux pouvoir modifier mon adresse de livraison, afin de recevoir mes commandes à l'adresse correcte et éviter les erreurs de livraison.
+
+Critères d'acceptation :
+
+1. L'utilisateur connecté peut modifier son adresse de livraison en saisissant les informations de livraison (adresse, code postal, ville, etc.) dans un formulaire de saisie.
+2. La modification de l'adresse de livraison est prise en compte immédiatement, et les commandes futures sont livrées à l'adresse modifiée.
+3. L'utilisateur connecté reçoit un message de confirmation de modification de l'adresse de livraison après avoir validé les modifications.
+4. L'adresse de livraison modifiée est affichée dans le profil de l'utilisateur connecté pour une consultation facile.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The user story follows the correct format with a clear actor, feature, and goal. Vague terms like 'regain access' are replaced with, error: None)
+
+For test case:
+
+  - input: As a registered user I want to reset my password via email so that I can regain access to my account when I forget my credentials.
+  - actual output: As a registered user, I want to be able to reset my password via email, so that I can quickly regain access to my account when I forget my login credentials, minimizing downtime and ensuring continued use of the platform.
+
+Acceptance Criteria:
+
+1. When I click on the "Forgot Password" link on the login page, I am redirected to a password reset form where I can enter my registered email address.
+2. After submitting my email address, I receive an email with a password reset link that allows me to create a new password, and I am able to log in to my account with the new password.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The actual output follows the correct user story format with a clear role, action, and benefit, error: None)
+
+For test case:
+
+  - input: As a developer I want to build the authentication module using React and PostgreSQL so that users can log in.
+  - actual output: As a developer, I want to build a robust authentication module using React and PostgreSQL, so that users can securely log in and access their personalized dashboards.
+
+Acceptance Criteria:
+
+1. The authentication module must allow users to register with a unique username and password, which will be stored securely in the PostgreSQL database.
+2. Upon successful login, the user will be redirected to their personalized dashboard, displaying their profile information and a list of their previously completed tasks.
+
+Note: I have improved the user story by providing more context and clarity on the expected outcome. I have also added two acceptance criteria to ensure that the feature meets the required specifications.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Alright, let's break this down. The user story was originally from an administrator, but the actual output changed the actor to "utilisateur" (user). The evaluation steps require that the acto, error: None)
+
+For test case:
+
+  - input: En tant qu'administrateur je veux que l'application soit rapide et intuitive.
+  - actual output: Voici l'amélioration de l'user story :
+
+En tant qu'utilisateur, je veux que l'application soit rapide et intuitive, afin de pouvoir accéder rapidement aux fonctionnalités essentielles et de réduire le temps de navigation.
+
+Critères d'acceptation :
+
+1. L'application doit charger les pages en moins de 3 secondes sur un réseau de faible débit.
+2. L'utilisateur doit pouvoir naviguer dans l'application en moins de 5 clics pour atteindre n'importe quelle fonctionnalité principale.
+3. Les éléments de navigation et les boutons doivent être clairement visibles et faciles à utiliser, même pour les utilisateurs non avertis.
+4. L'application doit être compatible avec les dernières versions des navigateurs web les plus courants.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The user story follows the correct format with a clear actor, feature, and goal. Vague terms like 'export the monthly report' are replaced with measurable conditions (e.g., customizab, error: None)
+
+For test case:
+
+  - input: As a manager I want to export the monthly report so that I can share it with stakeholders.
+  - actual output: As a manager, I want to export the monthly report in a customizable format (e.g., CSV, Excel, PDF) and schedule automatic exports on a recurring basis, so that I can easily share it with stakeholders and maintain a historical record of our team's performance.
+
+Acceptance Criteria:
+
+1. The exported report includes all relevant data points, such as key performance indicators (KPIs), sales figures, and project milestones.
+2. The report can be exported in multiple formats (e.g., CSV, Excel, PDF) and can be customized to include or exclude specific data fields.
+3. The system allows me to schedule automatic exports on a recurring basis (e.g., daily, weekly, monthly) to ensure timely delivery of the report to stakeholders.
+4. The exported report includes a clear and concise summary of the data, making it easy for stakeholders to quickly understand our team's performance.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Overall Metric Pass Rates
+
+INVEST Quality [GEval]: 100.00% pass rate
+
+======================================================================
+
+
+⚠ WARNING: No hyperparameters logged.
+» Log hyperparameters to attribute prompts and models to your test runs.
+
+================================================================================
+✓ Done 🎉! View results on https://app.confident-ai.com/project/cmp9aedne004xuy13i5n5xr5r/test-runs/cmpg53ja4000qp6130tag0icb/regression-testing
+    Score: 0.50 - {
+    "reason": "The user story follows the correct format, 
+    Score: 0.50 - <think>
+Okay, let's start by going through each evaluation s
+    Score: 0.50 - <think>
+Okay, let's start by going through each evaluation s
+    Score: 0.50 - {
+    "reason": "The response follows the correct user story
+    Score: 0.50 - <think>
+Alright, let's start by looking at the evaluation st
+    Score: 1.00 - The user story follows the correct format, replaces vague te
+    Score: 0.50 - {
+    "reason": "The user story follows the correct format w
+    Score: 0.50 - {
+    "reason": "The actual output follows the correct user 
+    Score: 0.50 - <think>
+Alright, let's break this down. The user story was o
+    Score: 0.50 - {
+    "reason": "The user story follows the correct format w
+  [SCORE] Moyenne: 0.550 (10 evaluations)
+
+[EVAL] GPT-OSS-120B (10 stories)...
+✨ You're running DeepEval's latest INVEST Quality [GEval] Metric! (using qwen/qwen3-32b, strict=False, async_mode=True)...
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 1.0, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: The user story follows the correct format, replaces vague terms with measurable conditions (e.g., 'secure authentication' with JWT and bcrypt), includes four acceptance criteria with action verbs, satisfies INVEST criteria through testable and specific requirements, and maintains the original actor (developer), feature (authentication module), and goal (users can log in)., error: None)
+
+For test case:
+
+  - input: As a developer I want to build the authentication module using React and PostgreSQL so that users can log in.
+  - actual output: **User Story**  
+As a **developer**, I want to implement a secure authentication module with a React front‑end, a PostgreSQL back‑end, and JWT‑based session handling, so that users can log in safely, maintain their session across the app, and have their credentials protected against common attacks.
+
+**Acceptance Criteria**  
+1. **Login Flow** – When a user submits a valid email and password, the system authenticates against the PostgreSQL user table, returns a signed JWT, stores it securely (e.g., HttpOnly cookie or local storage with appropriate safeguards), and redirects the user to the protected dashboard.  
+2. **Error Handling** – Invalid credentials, locked accounts, or server errors display a clear, user‑friendly error message without exposing stack traces or sensitive information.  
+3. **Session Persistence** – The JWT is validated on each protected route request; if the token is expired or missing, the user is automatically redirected to the login page.  
+4. **Security Measures** – Passwords are hashed with bcrypt (or Argon2) before storage, rate limiting is applied to the login endpoint, and CSRF protection is enabled for state‑changing requests.  
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Okay, let's start by going through each evaluation step to assess the actual output.
+
+First, Step 1 is checking the user story format. The original input was "As a customer I want to view my o, error: None)
+
+For test case:
+
+  - input: As a customer I want to view my order history so that I can track my past purchases.
+  - actual output: **User Story**  
+As a **customer**, I want to view a searchable and filterable order history with detailed information for each purchase, so that I can easily track, verify, and manage my past transactions.
+
+**Acceptance Criteria**  
+1. The order history page lists all orders placed by the logged‑in customer in reverse chronological order, displaying order number, purchase date, total amount, and current status.  
+2. The customer can filter the list by date range, order status, and product name, and can sort the results by date or amount.  
+3. Selecting an order opens a detailed view that includes line‑item details, shipping address, payment method, and any available tracking links.  
+4. The list is paginated (10 orders per page) and loads within 2 seconds on a standard broadband connection.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: No reason provided, error: None)
+
+For test case:
+
+  - input: As a registered user I want to log in to my account so that I can access my personal dashboard.
+  - actual output: **User Story**  
+As a **registered user**, I want to **log in to my account using my email/username and password (with optional multi‑factor authentication)**, so that **I can securely access my personalized dashboard and all of my saved settings and data**.
+
+**Acceptance Criteria**
+
+1. **Successful Login**  
+   - When the user enters a valid email/username and password (and completes MFA if enabled), they are authenticated and redirected to their personal dashboard within 2 seconds.  
+   - The session is created with a secure, HttpOnly cookie that expires after the configured inactivity timeout.
+
+2. **Error Handling**  
+   - If the credentials are incorrect, an error message “Invalid email/username or password” is displayed without revealing which field is wrong.  
+   - After 5 consecutive failed attempts, the account is temporarily locked for 15 minutes and the user receives a notification about the lockout.
+
+3. **Remember Me / Session Persistence**  
+   - When the user selects “Remember me”, the authentication token persists for 30 days; otherwise, the session expires after the standard inactivity period (e.g., 30 minutes).  
+
+4. **Security Checks**  
+   - All login requests are transmitted over HTTPS.  
+   - Passwords are never stored or logged in plain text; they are compared using a salted hash.  
+
+5. **Logout**  
+   - The user can log out from the dashboard, which immediately invalidates the session token and redirects to the login page.  
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 1.0, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: The user story follows the correct format, replaces vague terms with measurable conditions (e.g., 'time-limited email link', '60-minute expiration'), includes three acceptance criteria with action verbs (e.g., 'click', 'enter', 'update'), satisfies INVEST criteria with clear testability, and maintains the original actor (registered user), feature (password reset), and goal (regain access)., error: None)
+
+For test case:
+
+  - input: As a registered user I want to reset my password via email so that I can regain access to my account when I forget my credentials.
+  - actual output: **User Story**  
+As a **registered user**, I want to securely reset my password through a time‑limited email link, so that I can quickly regain access to my account when I forget my credentials while keeping my account protected.
+
+**Acceptance Criteria**
+
+1. **Forgot‑Password Flow**  
+   - Given I am on the login page, when I click the “Forgot password?” link and submit my registered email address, then the system sends me an email containing a single‑use password‑reset link that expires after 60 minutes.  
+
+2. **Reset Link Validation**  
+   - Given I click the password‑reset link within its validity period, when I enter and confirm a new password that meets the password policy, then my password is updated, I receive a confirmation message, and I can log in with the new password.  
+
+3. **Security & Error Handling**  
+   - If I submit an unregistered email address, the system displays a generic message (“If an account exists for this email, a reset link has been sent”) without revealing whether the email is registered.  
+   - If I attempt to use an expired or already‑used reset link, the system shows an error message and prompts me to request a new password‑reset email.  
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Okay, let's start by going through each evaluation step to assess the given response.
+
+First, Step 1 is checking the user story format. The original input was a simple statement, but the actua, error: None)
+
+For test case:
+
+  - input: As a user I want the system to work well and be fast.
+  - actual output: As a **user**, I want the system to **respond quickly and operate reliably**, so that I can **complete my tasks efficiently without delays or errors**.
+
+**Acceptance Criteria**
+1. The system processes any user request and returns a response within **2 seconds** for 95% of all interactions under normal load.
+2. The system maintains an **uptime of 99.9%** per month, with automatic retries and clear error messages for any failures that do occur.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 1.0, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: The user story follows the correct format with clear sections. Vague terms like 'monthly report' are replaced with measurable conditions (e.g., '5 seconds for reports up to 10,000 rows'). Four acceptance criteria are provided, all starting with action verbs. The INVEST criteria are met (Independent, Valuable, Testable). The actor (manager), feature (export report), and goal (share with stakeholders) align with the original input., error: None)
+
+For test case:
+
+  - input: As a manager I want to export the monthly report so that I can share it with stakeholders.
+  - actual output: **User Story**  
+As a **manager**, I want to **export the monthly performance report in PDF and CSV formats with customizable date range and visual summaries**, so that I can **quickly share accurate, stakeholder‑ready insights with executives, clients, and other interested parties**.
+
+**Acceptance Criteria**  
+1. The system provides an “Export Report” button on the monthly report page that allows the manager to select either PDF or CSV format before downloading.  
+2. The exported file includes all data rows for the selected month, a summary section with key metrics, and any embedded charts (PDF only) that appear in the on‑screen report.  
+3. The export process completes within 5 seconds for reports up to 10,000 rows and the file size does not exceed 5 MB for PDF and 2 MB for CSV.  
+4. The downloaded file is correctly named using the pattern `Monthly_Report_YYYY_MM.<extension>` and opens without errors in standard PDF viewers or spreadsheet applications.  
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.7, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: The user story follows the correct format (step 1) and replaces vague terms with measurable conditions (step 2). It includes three acceptance criteria with action verbs (step 3) and meets INVEST criteria (step 4). However, the actor was changed from 'administrateur' to 'utilisateur' in the output, violating step 5's requirement to retain the original actor, feature, and goal., error: None)
+
+For test case:
+
+  - input: En tant qu'administrateur je veux que l'application soit rapide et intuitive.
+  - actual output: En tant qu'utilisateur, je veux que l'application soit rapide (temps de chargement ≤ 2 secondes) et intuitive (navigation claire et logique), afin de pouvoir accomplir mes tâches efficacement et sans frustration.  
+
+**Critères d'acceptation**  
+1. **Performance** : 95 % des pages se chargent en moins de 2 secondes sur un réseau 4G standard.  
+2. **Navigation** : Tout parcours utilisateur clé (connexion, recherche, création d’un élément) peut être réalisé en maximum 3 clics depuis la page d’accueil.  
+3. **Expérience** : Le score du questionnaire System Usability Scale (SUS) obtenu auprès d’un panel d’utilisateurs doit être d’au moins 80.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: <think>
+Alright, let's break this down. The user wants me to evaluate the given user story based on the provided steps. First, I need to check each evaluation step one by one.
+
+Starting with Step 1: C, error: None)
+
+For test case:
+
+  - input: En tant qu'utilisateur connecté je veux pouvoir modifier mon adresse de livraison afin de recevoir mes commandes à l'adresse correcte.
+  - actual output: En tant qu’**utilisateur** connecté, je veux **modifier facilement mon adresse de livraison depuis mon compte**, afin de **recevoir toutes mes commandes à l’adresse exacte et à jour**.  
+
+**Critères d’acceptation**  
+1. L’interface d’édition d’adresse doit afficher les champs obligatoires (rue, code postal, ville, pays) pré‑remplis avec les informations actuelles et permettre leur mise à jour en un seul clic.  
+2. Après validation, le système doit afficher un message de confirmation indiquant que l’adresse a bien été enregistrée et mettre à jour immédiatement toutes les futures commandes avec la nouvelle adresse.  
+3. Si l’utilisateur saisit une adresse invalide (ex. : code postal non conforme au pays sélectionné), un message d’erreur clair doit être affiché et l’enregistrement doit être bloqué jusqu’à correction.  
+4. L’historique des adresses précédentes doit être conservé pendant 12 mois et accessible en lecture seule depuis la page de gestion du compte.
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: {
+    "reason": "The improved user story follows the correct format, replaces vague terms with measurable conditions (e.g., 30-minute validity, 12-character password rules), includes four acceptance c, error: None)
+
+For test case:
+
+  - input: En tant qu'utilisateur je veux pouvoir réinitialiser mon mot de passe afin d'accéder à mon compte si je l'oublie.
+  - actual output: **User story améliorée**  
+En tant qu'utilisateur, je veux pouvoir réinitialiser mon mot de passe via un processus sécurisé (email de vérification ou code SMS), afin de retrouver rapidement l’accès à mon compte en cas d’oubli, tout en garantissant la protection de mes données personnelles.  
+
+**Critères d'acceptation**  
+1. **Vérification d’identité** : lorsqu’un utilisateur demande la réinitialisation, un lien unique valable 30 minutes ou un code à usage unique est envoyé à son adresse e‑mail ou à son numéro de téléphone enregistré.  
+2. **Complexité du nouveau mot de passe** : le nouveau mot de passe doit respecter les règles de sécurité (minimum 12 caractères, au moins une majuscule, une minuscule, un chiffre et un caractère spécial).  
+3. **Confirmation de la mise à jour** : après la saisie du nouveau mot de passe, l’utilisateur reçoit une notification (e‑mail ou SMS) confirmant que son mot de passe a été modifié avec succès.  
+4. **Gestion des tentatives** : après 5 tentatives infructueuses de réinitialisation, le compte est temporairement bloqué et l’utilisateur doit contacter le support pour le déverrouiller.  
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Metrics Summary
+
+  - ✅ INVEST Quality [GEval] (score: 0.5, threshold: 0.5, strict: False, evaluation model: qwen/qwen3-32b, reason: No reason provided, error: None)
+
+For test case:
+
+  - input: En tant que responsable RH je veux consulter les candidatures reçues afin de sélectionner les meilleurs profils pour un entretien.
+  - actual output: **User story améliorée**  
+En tant que **responsable RH**, je veux **consulter, filtrer et trier les candidatures reçues via une interface centralisée**, afin de **sélectionner rapidement les meilleurs profils et planifier leurs entretiens**.  
+
+**Critères d'acceptation**  
+
+1. L’interface affiche la liste des candidatures avec, pour chaque candidat : nom, poste visé, date de réception, statut de la candidature et indicateur de correspondance aux critères du poste.  
+2. Le responsable RH peut **filtrer** les candidatures par poste, niveau d’expérience, compétences clés, localisation et statut (nouvelle, en cours, à interviewer, rejetée).  
+3. Le responsable RH peut **trier** la liste par date de réception, pertinence (score de correspondance), ou ordre alphabétique du nom.  
+4. En cliquant sur une candidature, le responsable RH accède immédiatement au CV, à la lettre de motivation et aux réponses aux questions pré‑sélectionnées.  
+5. Le responsable RH peut marquer un candidat comme « à interviewer » et déclencher l’envoi automatique d’un email de convocation contenant un lien de prise de rendez‑vous.  
+  - expected output: None
+  - context: None
+  - retrieval context: None
+
+======================================================================
+
+Overall Metric Pass Rates
+
+INVEST Quality [GEval]: 100.00% pass rate
+
+======================================================================
+
+
+⚠ WARNING: No hyperparameters logged.
+» Log hyperparameters to attribute prompts and models to your test runs.
+
+================================================================================
+✓ Done 🎉! View results on https://app.confident-ai.com/project/cmp9aedne004xuy13i5n5xr5r/test-runs/cmpg53sop0013np136njclbn7/regression-testing
+    Score: 1.00 - The user story follows the correct format, replaces vague te
+    Score: 0.50 - <think>
+Okay, let's start by going through each evaluation s
+    Score: 0.50 - No reason provided
+    Score: 1.00 - The user story follows the correct format, replaces vague te
+    Score: 0.50 - <think>
+Okay, let's start by going through each evaluation s
+    Score: 1.00 - The user story follows the correct format with clear section
+    Score: 0.70 - The user story follows the correct format (step 1) and repla
+    Score: 0.50 - <think>
+Alright, let's break this down. The user wants me to
+    Score: 0.50 - {
+    "reason": "The improved user story follows the correct
+    Score: 0.50 - No reason provided
+  [SCORE] Moyenne: 0.670 (10 evaluations)
+
+============================================================
+CLASSEMENT FINAL
+============================================================
+  [1] GPT-OSS-120B         0.670  (10 evals)
+  [2] Llama-3.3-70B        0.600  (10 evals)
+  [3] Llama-3.1-8B         0.550  (10 evals)
+============================================================
+
+[OK] Resultats visibles sur https://app.confident-ai.com
+
+(venv) C:\Users\ayeta\Desktop\TestForge-AI\backend>

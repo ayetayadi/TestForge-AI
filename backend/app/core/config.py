@@ -120,11 +120,12 @@ class Settings(BaseSettings):
     TESTOMATIO_API_KEY: str | None = None
 
     # =========================
-    # LANGFUSE CONFIG
+    # LANGSMITH CONFIG
     # =========================
-    LANGFUSE_PUBLIC_KEY: str | None = None
-    LANGFUSE_SECRET_KEY: str | None = None
-    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
+    LANGSMITH_API_KEY: str | None = None
+    LANGSMITH_PROJECT: str = "TestForge-Eval"
+    LANGSMITH_TRACING: str = "false"
+    LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
 
 
 settings = Settings()

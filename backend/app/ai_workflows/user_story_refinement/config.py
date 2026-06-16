@@ -20,7 +20,7 @@ MAX_ITERATIONS = 2
 MIN_SCORE_THRESHOLD = 0.8
 
 # ============================================================
-# MIN_SIMILARITY_THRESHOLD = 0.70
+MIN_SIMILARITY_THRESHOLD = 0.70
 # ============================================================
 # Seuil de similarité cosinus pour vérifier que la user story
 # améliorée ne dérive pas sémantiquement de l'originale.
@@ -52,7 +52,8 @@ MIN_SCORE_THRESHOLD = 0.8
 #     exact (0.90), car nous autorisons des reformulations
 #     légitimes qui améliorent la qualité
 # ============================================================
-MIN_SIMILARITY_THRESHOLD = 0.70
+
+
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2000"))
 
 # ============================================================
