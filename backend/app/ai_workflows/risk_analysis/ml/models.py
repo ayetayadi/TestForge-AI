@@ -2,7 +2,7 @@
 Modèles Pydantic pour le pipeline Risk Analysis.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -14,9 +14,23 @@ class MLPrediction(BaseModel):
 
 
 class LLMExplanation(BaseModel):
-    description: str
-    mitigation: str
-    reasoning: str
+    description: str = Field(description="One concise description of the risk (2-3 sentences)")
+    mitigation: str = Field(description="Concrete testing actions to reduce the risk")
+    reasoning: str = Field(description="Brief reasoning: why this P and this I, and the P×I calculation")
+
+    # The KNN gives the P/I numbers; the LLM justifies them with a factor breakdown.
+    probability_factors: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Probability sub-factors, each rated 1-5: "
+                    "{story_complexity, ac_complexity, dependencies, clarity}",
+    )
+    impact_factors: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Impact sub-factors, each rated 1-5: "
+                    "{users_affected, revenue, safety, reputation}",
+    )
+    probability_reasoning: str = Field(default="", description="One sentence explaining the probability")
+    impact_reasoning: str = Field(default="", description="One sentence explaining the impact")
 
 
 class RiskAnalysisInput(BaseModel):
@@ -41,6 +55,12 @@ class RiskAnalysisResult(BaseModel):
     description: str
     mitigation: str
     reasoning: str
+
+    # LLM-produced justification of the KNN P/I scores
+    probability_factors: Optional[dict] = None
+    impact_factors: Optional[dict] = None
+    probability_reasoning: Optional[str] = None
+    impact_reasoning: Optional[str] = None
 
     is_ai_generated: bool = True
     is_accepted: Optional[bool] = None

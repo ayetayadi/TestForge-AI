@@ -238,24 +238,6 @@
           </svg>
           Impact Factors
         </div>
-        <div class="factors-grid">
-          <div class="factor-item" *ngIf="risk.impact_factors.users_affected">
-            <span class="factor-label">Users Affected</span>
-            <span class="factor-value">{{ risk.impact_factors.users_affected }}/5</span>
-          </div>
-          <div class="factor-item" *ngIf="risk.impact_factors.revenue">
-            <span class="factor-label">Revenue</span>
-            <span class="factor-value">{{ risk.impact_factors.revenue }}/5</span>
-          </div>
-          <div class="factor-item" *ngIf="risk.impact_factors.safety">
-            <span class="factor-label">Safety</span>
-            <span class="factor-value">{{ risk.impact_factors.safety }}/5</span>
-          </div>
-          <div class="factor-item" *ngIf="risk.impact_factors.reputation">
-            <span class="factor-label">Reputation</span>
-            <span class="factor-value">{{ risk.impact_factors.reputation }}/5</span>
-          </div>
-        </div>
         <div class="factor-reasoning" *ngIf="risk.impact_reasoning">
           {{ risk.impact_reasoning }}
         </div>

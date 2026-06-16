@@ -33,12 +33,11 @@ from app.repositories.user_story_repository import get_user_story_by_id
 from app.repositories.user_story_version_repository import get_approved_version_for_risk
 from app.repositories.risk_repository import RiskRepository
 from app.schemas.risk_schema import RiskCreate
-from app.ai_workflows.risk_analysis.pipeline import (
+from app.ai_workflows.risk_analysis.ml.pipeline import (
     RiskAnalysisPipeline,
     get_pipeline,
 )
 from app.streaming.sse_manager import push_event
-from app.ai_workflows.risk_analysis.config import LLM_TEMPERATURE
 from .risk_queue import risk_job_queue
 from app.core.config import settings
 from app.llm.llm_control import set_worker_api_key
@@ -72,12 +71,12 @@ class RiskAnalysisWorker:
         self.started_at: Optional[datetime] = None
     
     async def initialize(self) -> None:
-        """Initialize the worker's own LLM pipeline."""
-        self.pipeline = get_pipeline(temperature=LLM_TEMPERATURE)
+        """Initialize the worker's ML risk pipeline (KNN + LLM explainer)."""
+        self.pipeline = await get_pipeline()
         self.started_at = datetime.now(timezone.utc)
         logger.info(
-            f"[WORKER-{self.worker_id}] Initialized with own LLM pipeline "
-            f"(model={self.pipeline._llm.__class__.__name__ if self.pipeline else 'pending'})"
+            f"[WORKER-{self.worker_id}] Initialized with ML risk pipeline "
+            f"(ml_trained={self.pipeline.ml_model.is_trained if self.pipeline else False})"
         )
     
     async def process_job(self, job: Dict[str, Any]) -> None:
@@ -127,30 +126,32 @@ class RiskAnalysisWorker:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
 
-                # ── STEP 2: Run LLM Pipeline ──
+                # ── STEP 2: Run ML Pipeline (KNN for P/I + LLM explainer) ──
                 try:
                     result = await asyncio.wait_for(
                         self.pipeline.run(
-                            story=content["story"],
+                            user_story=content["story"],
                             acceptance_criteria=content["acceptance_criteria"],
-                            issue_key=issue_key,
                             user_story_id=user_story_id,
                             test_plan_id=test_plan_id,
-                            progress_callback=lambda event, data: self._notify(
-                                job_id, f"risk_{event}", data
-                            ),
                         ),
                         timeout=RISK_WORKER_TIMEOUT,
                     )
                 except asyncio.TimeoutError:
                     raise RuntimeError(
-                        f"LLM pipeline timed out after {RISK_WORKER_TIMEOUT}s"
+                        f"Risk pipeline timed out after {RISK_WORKER_TIMEOUT}s"
                     )
 
-                if result.get("workflow_status") == "error":
+                if result.workflow_status == "error":
                     raise RuntimeError(
-                        result.get("error", "LLM pipeline returned error")
+                        result.error or "Risk pipeline returned error"
                     )
+
+                logger.info(
+                    f"[WORKER-{self.worker_id}] {issue_key} → "
+                    f"P={result.probability} I={result.impact} "
+                    f"src={result.source} conf={result.ml_confidence}"
+                )
 
                 # ── STEP 3: Persist Risk ──
                 await self._notify(job_id, "risk_processing", {
@@ -159,29 +160,24 @@ class RiskAnalysisWorker:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
 
-                # Extract test_depth from LLM result
-                test_depth_raw = result.get("test_depth")
-                if isinstance(test_depth_raw, dict):
-                    test_depth_value = test_depth_raw.get("depth", "standard")
-                else:
-                    test_depth_value = test_depth_raw or "standard"
-                
+                # test_depth is a plain string from the ML pipeline
                 valid_depths = ["comprehensive", "thorough", "standard", "smoke"]
+                test_depth_value = result.test_depth or "standard"
                 test_depth_value = test_depth_value if test_depth_value in valid_depths else "standard"
 
                 repo = RiskRepository(db)
                 risk = await repo.create(RiskCreate(
                     user_story_id=user_story_id,
                     test_plan_id=test_plan_id,
-                    description=result["description"],
-                    mitigation=result.get("mitigation", ""),
-                    reasoning=result.get("reasoning", ""),
-                    probability=result["probability"],          # 1-5
-                    impact=result["impact"],                    # 1-5
-                    probability_factors=result.get("probability_factors"),
-                    impact_factors=result.get("impact_factors"),
-                    probability_reasoning=result.get("probability_reasoning"),
-                    impact_reasoning=result.get("impact_reasoning"),
+                    description=result.description,
+                    mitigation=result.mitigation,
+                    reasoning=result.reasoning,
+                    probability=result.probability,          # 1-5 (KNN)
+                    impact=result.impact,                    # 1-5 (KNN)
+                    probability_factors=result.probability_factors,
+                    impact_factors=result.impact_factors,
+                    probability_reasoning=result.probability_reasoning,
+                    impact_reasoning=result.impact_reasoning,
                     test_depth=test_depth_value,
                     is_ai_generated=True,
                     is_accepted=None,

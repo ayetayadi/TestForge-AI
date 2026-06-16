@@ -44,6 +44,14 @@
 
       <!-- Actions -->
       <div class="tsd-header-actions">
+        <!-- Export CSV -->
+        <button class="btn-action btn-export" [disabled]="!getTestCases().length" (click)="exportCsv()" title="Export test cases to CSV">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v7.69l2.72-2.72a.75.75 0 111.06 1.06l-4 4a.75.75 0 01-1.06 0l-4-4a.75.75 0 111.06-1.06l2.72 2.72V3.75A.75.75 0 0110 3zM3.75 15a.75.75 0 000 1.5h12.5a.75.75 0 000-1.5H3.75z" clip-rule="evenodd"/>
+          </svg>
+          Export CSV
+        </button>
+
         <!-- Push to Testomat -->
         <button class="btn-action btn-testomat" [disabled]="isPushingToTestomat()" (click)="pushSuiteToTestomat()">
           @if (isPushingToTestomat()) {
@@ -51,16 +59,6 @@
           } @else {
             <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
             Push to Testomat
-          }
-        </button>
-
-        <!-- Run on Playwright -->
-        <button class="btn-action btn-playwright" [disabled]="isSuiteRunning()" (click)="openSuiteRunModal()">
-          @if (isSuiteRunning()) {
-            <span class="spinner-xs"></span> Running…
-          } @else {
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>
-            Run on Playwright
           }
         </button>
         @if (suite.status === 'draft' || suite.status === 'archived') {
@@ -274,9 +272,6 @@
     <div class="tab-nav">
       @for (tab of tabs; track tab.id) {
         <button class="tab-btn" [class.active]="activeTab() === tab.id" (click)="onTabChange(tab.id)">
-          @if (tab.id === 'overview') {
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          }
           @if (tab.id === 'cases') {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
           }
@@ -296,201 +291,6 @@
         </button>
       }
     </div>
-
-    <!-- ══════════════════════════════════════════════════════════════════════ -->
-    <!-- TAB: OVERVIEW                                                            -->
-    <!-- ══════════════════════════════════════════════════════════════════════ -->
-    @if (activeTab() === 'overview') {
-      <div class="tab-panel">
-
-        <!-- Section: Lifecycle ─────────────────────────────────────────────── -->
-        @if (getLifecycle(); as lifecycle) {
-          <div class="panel-section">
-            <div class="panel-section-header" (click)="toggleLifecycle()" role="button">
-              <div class="panel-section-title">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                <h3>Lifecycle Summary</h3>
-              </div>
-              <span class="section-chevron" [class.open]="lifecycleOpen()">▾</span>
-            </div>
-            @if (lifecycleOpen()) {
-              <div class="panel-section-body">
-                <div class="lifecycle-grid">
-                  <div class="lifecycle-col">
-                    <div class="lifecycle-col-header">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                      Risk Analysis
-                    </div>
-                    <div class="lifecycle-stats">
-                      <div class="lifecycle-stat">
-                        <span class="lifecycle-stat-val">{{ lifecycle.risk_analysis.total_risks }}</span>
-                        <span class="lifecycle-stat-lbl">Total Risks</span>
-                      </div>
-                      <div class="lifecycle-stat">
-                        <span class="lifecycle-stat-val">{{ lifecycle.risk_analysis.accepted_count }}</span>
-                        <span class="lifecycle-stat-lbl">Accepted</span>
-                      </div>
-                    </div>
-                    <div class="risk-dist">
-                      @for (level of ['critical', 'high', 'medium', 'low']; track level) {
-                        @if (lifecycle.risk_analysis.distribution[level]) {
-                          <span class="risk-tag"
-                                [style.background]="getRiskLevelBg(level)"
-                                [style.color]="getRiskLevelColor(level)">
-                            {{ level }}: {{ lifecycle.risk_analysis.distribution[level] }}
-                          </span>
-                        }
-                      }
-                    </div>
-                  </div>
-                  <div class="lifecycle-col">
-                    <div class="lifecycle-col-header">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-                      Test Cases
-                    </div>
-                    <div class="lifecycle-stats">
-                      <div class="lifecycle-stat">
-                        <span class="lifecycle-stat-val">{{ lifecycle.test_cases.total }}</span>
-                        <span class="lifecycle-stat-lbl">Total</span>
-                      </div>
-                      <div class="lifecycle-stat">
-                        <span class="lifecycle-stat-val">{{ lifecycle.test_cases.active }}</span>
-                        <span class="lifecycle-stat-lbl">Active</span>
-                      </div>
-                      <div class="lifecycle-stat">
-                        <span class="lifecycle-stat-val">{{ lifecycle.test_cases.with_gherkin }}</span>
-                        <span class="lifecycle-stat-lbl">With Gherkin</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            }
-          </div>
-        }
-
-        <!-- Section: Execution Strategy ────────────────────────────────────── -->
-        <div class="panel-section">
-          <div class="panel-section-header" (click)="toggleExecStrategy()" role="button">
-            <div class="panel-section-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-              <h3>Execution Strategy</h3>
-            </div>
-            <span class="section-chevron" [class.open]="execStrategyOpen()">▾</span>
-          </div>
-          @if (execStrategyOpen()) {
-            <div class="panel-section-body">
-              <div class="exec-rules">
-                <div class="exec-rule">
-                  <span class="exec-rule-num">1</span>
-                  <span class="exec-rule-key">Business Flow</span>
-                  <span class="exec-rule-desc">Group and order by functional area</span>
-                </div>
-                <div class="exec-rule">
-                  <span class="exec-rule-num">2</span>
-                  <span class="exec-rule-key">Risk Level</span>
-                  <span class="exec-rule-chain">Critical → High → Medium → Low</span>
-                </div>
-              </div>
-              <!-- @if (getBusinessFlowGroups().length > 0) {
-                <div class="exec-flow-grid">
-                  @for (group of getBusinessFlowGroups(); track group.flow) {
-                    <div class="exec-flow-card">
-                      <div class="exec-flow-top">
-                        <span class="exec-flow-badge"
-                              [style.background]="group.bg_color"
-                              [style.color]="group.text_color">
-                          {{ group.label }}
-                        </span>
-                        <span class="exec-flow-count">{{ group.count }} TC(s)</span>
-                      </div>
-                      <div class="exec-flow-risks">
-                        @for (level of ['critical', 'high', 'medium', 'low']; track level) {
-                          @if (group.by_risk[level]) {
-                            <span class="exec-risk-tag"
-                                  [style.background]="getRiskLevelBg(level)"
-                                  [style.color]="getRiskLevelColor(level)">
-                              {{ level }}: {{ group.by_risk[level] }}
-                            </span>
-                          }
-                        }
-                      </div>
-                    </div>
-                  }
-                </div>
-              } -->
-            </div>
-          }
-        </div>
-
-        <!-- Section: Execution Order ─────────────────────────────────────── -->
-        <!-- @if (getAllSuitesOrder().length > 0) {
-          <div class="panel-section">
-            <div class="panel-section-header" (click)="toggleExecOrder()" role="button">
-              <div class="panel-section-title">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                <h3>Execution Order</h3>
-                <span class="section-badge">{{ getAllSuitesOrder().length }} suites</span>
-              </div>
-              <span class="section-chevron" [class.open]="execOrderOpen()">▾</span>
-            </div>
-            @if (execOrderOpen()) {
-              <div class="panel-section-body">
-                <div class="exec-drag-list"
-                     cdkDropList
-                     [cdkDropListData]="localSuites()"
-                     (cdkDropListDropped)="dropSuite($event)">
-                  @for (s of localSuites(); track s.id; let i = $index) {
-                    <div class="exec-drag-item"
-                         [class.exec-drag-item--current]="s.id === suite.id"
-                         cdkDrag
-                         [cdkDragDisabled]="isSavingSuiteOrder()">
-                      <div class="drag-handle" cdkDragHandle title="Drag to reorder">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/>
-                          <circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/>
-                          <circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/>
-                        </svg>
-                      </div>
-                      <span class="exec-pos-badge">{{ i + 1 }}</span>
-                      <div class="exec-tc-info">
-                        <span class="exec-tc-title">{{ s.title }}</span>
-                        @if (s.id === suite.id) {
-                          <span class="order-current-badge">Current</span>
-                        }
-                      </div>
-                      <span class="order-count">{{ s.test_case_count }} TCs</span>
-                      <div class="exec-arrows">
-                        <button class="arrow-btn" [disabled]="i === 0 || isSavingSuiteOrder()"
-                                (click)="moveSuiteUp(s.id); $event.stopPropagation()" title="Move up">▲</button>
-                        <button class="arrow-btn" [disabled]="i === localSuites().length - 1 || isSavingSuiteOrder()"
-                                (click)="moveSuiteDown(s.id); $event.stopPropagation()" title="Move down">▼</button>
-                      </div>
-                      <div class="exec-drag-placeholder" *cdkDragPlaceholder></div>
-                    </div>
-                  }
-                </div>
-                <div class="exec-order-footer">
-                  <span class="exec-order-footer-hint">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    Drag rows or use ▲▼ to reorder
-                  </span>
-                  <button class="btn-save-order" [disabled]="isSavingSuiteOrder()" (click)="saveSuiteOrder()">
-                    @if (isSavingSuiteOrder()) {
-                      <span class="spinner-xs-dark"></span> Saving…
-                    } @else {
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                      Save order
-                    }
-                  </button>
-                </div>
-              </div>
-            }
-          </div>
-        } -->
-
-      </div>
-    }
 
     <!-- ══════════════════════════════════════════════════════════════════════ -->
     <!-- TAB: EXECUTION PLAN                                                       -->
@@ -519,26 +319,15 @@
               <strong>Exclude</strong> skips a case without deleting it
             </p>
           </div>
-          <button class="btn-save-order" [disabled]="isSavingTcOrder()" (click)="saveTcOrder()">
-            @if (isSavingTcOrder()) {
-              <span class="spinner-xs-dark"></span> Saving…
-            } @else {
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-              </svg>
-              Save Order
-            }
-          </button>
         </div>
 
         <!-- Execution plan list ──────────────────────────────────────────────── -->
         <div class="exec-plan-list"
              cdkDropList
-             [cdkDropListData]="localTcs()"
+             [cdkDropListData]="pagedLocalTcs()"
              (cdkDropListDropped)="dropTc($event)">
 
-          @for (tc of localTcs(); track tc.id; let i = $index) {
+          @for (tc of pagedLocalTcs(); track tc.id; let i = $index) {
             <div class="epr-row"
                  [class.epr-row--excluded]="tc.excluded_from_run"
                  [class.epr-row--expanded]="isCaseExpanded(tc.id)"
@@ -554,9 +343,9 @@
                 </svg>
               </div>
 
-              <!-- Position badge -->
+              <!-- Position badge (absolute across pages) -->
               <span class="exec-pos-badge" [class.exec-pos-badge--excluded]="tc.excluded_from_run">
-                {{ tc.excluded_from_run ? '—' : (i + 1) }}
+                {{ tc.excluded_from_run ? '—' : (execPageStart() + i + 1) }}
               </span>
 
               <!-- Main (clickable to expand) -->
@@ -567,6 +356,7 @@
                 </div>
                 <div class="epr-badges">
                   @if (tc.risk_level) {
+                    <span class="tc-meta-label">Risk Level</span>
                     <span class="exec-tc-risk-badge"
                           [style.background]="getRiskLevelBg(tc.risk_level)"
                           [style.color]="getRiskLevelColor(tc.risk_level)">
@@ -574,7 +364,8 @@
                     </span>
                   }
                   @if (tc.test_type) {
-                    <span class="epr-type-badge">{{ tc.test_type }}</span>
+                    <span class="tc-meta-label">Test Type</span>
+                    <span class="epr-type-badge" [attr.data-type]="tc.test_type | lowercase">{{ tc.test_type }}</span>
                   }
                   @if (tc.excluded_from_run) {
                     <span class="epr-skip-badge">skip</span>
@@ -585,9 +376,9 @@
               <!-- Controls: reorder + exclude + expand -->
               <div class="epr-controls">
                 <div class="exec-arrows">
-                  <button class="arrow-btn" [disabled]="i === 0 || isSavingTcOrder()"
+                  <button class="arrow-btn" [disabled]="execPageStart() + i === 0 || isSavingTcOrder()"
                           (click)="moveTcUp(tc); $event.stopPropagation()" title="Move up">▲</button>
-                  <button class="arrow-btn" [disabled]="i === localTcs().length - 1 || isSavingTcOrder()"
+                  <button class="arrow-btn" [disabled]="execPageStart() + i === localTcs().length - 1 || isSavingTcOrder()"
                           (click)="moveTcDown(tc); $event.stopPropagation()" title="Move down">▼</button>
                 </div>
 
@@ -623,47 +414,6 @@
               <!-- Inline detail panel -->
               @if (isCaseExpanded(tc.id)) {
                 <div class="epr-detail">
-                  <div class="epr-detail-meta">
-                    @if (tc.risk_level) {
-                      <div class="tc-meta-item">
-                        <span class="tc-meta-label">Risk Level</span>
-                        <span class="tc-meta-val" [style.color]="getRiskLevelColor(tc.risk_level)">{{ tc.risk_level }}</span>
-                      </div>
-                    }
-                    @if (tc.risk_ids.length) {
-                      <div class="tc-meta-item">
-                        <span class="tc-meta-label">Risks covered</span>
-                        <span class="tc-meta-val">{{ tc.risk_ids.length }}</span>
-                      </div>
-                    }
-                    @if (tc.tags.length) {
-                      <div class="tc-meta-item">
-                        <span class="tc-meta-label">Tags</span>
-                        <div class="tc-tags">
-                          @for (tag of tc.tags; track tag) {
-                            <span class="tc-tag">{{ tag }}</span>
-                          }
-                        </div>
-                      </div>
-                    }
-                  </div>
-
-                  @if (tc.gherkin_source) {
-                    <div class="tc-gherkin-wrap">
-                      <div class="tc-gherkin-label">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#89b4fa" stroke-width="2">
-                          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-                        </svg>
-                        Gherkin Scenario
-                      </div>
-                      <div class="gherkin-block">
-                        @for (line of gherkinLines(tc.gherkin_source); track $index) {
-                          <div class="gh-line" [class]="'gh-' + line.type">{{ line.text || ' ' }}</div>
-                        }
-                      </div>
-                    </div>
-                  }
-
                   <div class="tc-detail-actions">
                     <button class="btn-open-tc" (click)="openTestCase(tc.id)">
                       Open Full Detail
@@ -688,6 +438,18 @@
             </div>
           }
         </div>
+
+        <!-- Pagination (shared component) ────────────────────────────────────── -->
+        @if (localTcs().length > 0) {
+          <app-pagination
+            [totalItems]="localTcs().length"
+            [currentPage]="execPage()"
+            [pageSize]="execPageSize()"
+            [pageSizeOptions]="[8, 16, 24, 50]"
+            (pageChange)="onExecPageChange($event)"
+            (pageSizeChange)="onExecPageSizeChange($event)"
+          />
+        }
 
         <!-- Footer ─────────────────────────────────────────────────────────── -->
         <div class="exec-order-footer">
@@ -981,74 +743,6 @@
         }
       </div>
     }
-
-    <!-- ══════════════════════════════════════════════════════════════════════ -->
-    <!-- SUITE EXECUTION LIVE PANEL                                              -->
-    <!-- ══════════════════════════════════════════════════════════════════════ -->
-    @if (showSuitePanel()) {
-      <div class="spr-panel">
-        <div class="spr-panel-header">
-          <div class="spr-panel-title">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>
-            Suite Execution
-            @if (isSuiteRunning()) {
-              <span class="spr-running-badge">Running</span>
-            }
-          </div>
-          @if (!isSuiteRunning()) {
-            <button class="spr-panel-close" (click)="showSuitePanel.set(false)">×</button>
-          }
-        </div>
-
-        <div class="spr-panel-body">
-          @for (entry of suiteLogEntries(); track entry.tc_id) {
-            <div class="spr-tc-row spr-tc-row--{{ entry.status }}">
-              <span class="spr-dot spr-dot--{{ entry.status }}"></span>
-              <span class="spr-tc-code">{{ entry.tc_code }}</span>
-              <span class="spr-tc-title">{{ entry.title }}</span>
-              <span class="spr-tc-status">{{ suiteStatusLabel(entry.status) }}</span>
-            </div>
-          }
-          @if (suiteLogEntries().length === 0 && isSuiteRunning()) {
-            <div class="spr-loading-row">
-              <span class="spinner-xs"></span> Initialising…
-            </div>
-          }
-        </div>
-
-        @if (suiteRunSummary()) {
-          <div class="spr-summary">
-            <div class="spr-summary-stat">
-              <span class="spr-summary-val passed">{{ suiteRunSummary()!.passed }}</span>
-              <span class="spr-summary-lbl">Passed</span>
-            </div>
-            <div class="spr-summary-stat">
-              <span class="spr-summary-val failed">{{ suiteRunSummary()!.failed }}</span>
-              <span class="spr-summary-lbl">Failed</span>
-            </div>
-            <div class="spr-summary-stat">
-              <span class="spr-summary-val skipped">{{ suiteRunSummary()!.skipped }}</span>
-              <span class="spr-summary-lbl">Skipped</span>
-            </div>
-            <div class="spr-summary-stat">
-              <span class="spr-summary-val">{{ suiteRunSummary()!.duration | number:'1.0-1' }}s</span>
-              <span class="spr-summary-lbl">Duration</span>
-            </div>
-          </div>
-          <div class="spr-report-row">
-            <button class="spr-btn-download" [disabled]="isDownloadingReport()" (click)="downloadSuiteReport()">
-              @if (isDownloadingReport()) {
-                <span class="spinner-xs"></span> Generating…
-              } @else {
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Download Report
-              }
-            </button>
-          </div>
-        }
-      </div>
-    }
-
   }
 
   <!-- ── Suite Run Modal ─────────────────────────────────────────────────── -->

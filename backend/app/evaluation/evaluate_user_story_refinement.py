@@ -1,30 +1,3 @@
-"""
-LangSmith evaluation for the TestForge user story refinement pipeline.
-
-4 métriques issues de la littérature :
-  1. semantic_similarity — similarité sémantique SBERT original→amélioré    (Reimers & Gurevych, 2019)
-  2. invest_compliance   — respect du framework INVEST                       (Wake, 2003 ; Cohn, 2004)
-  3. verifiability       — ACs vérifiables et mesurables (IEEE 830)          (Azure gpt-4.1 / G-Eval)
-  4. aqusa_quality       — qualité AQUSA : format, clarté, atomicité         (Lucassen et al., 2016)
-
-Le raffineur utilise Groq llama-3.3-70b.
-Le juge utilise Azure gpt-4.1 (modèle différent → évaluation non biaisée).
-
-Usage (depuis backend/) :
-  python evaluate_user_story_refinement.py
-
-Prérequis dans backend/.env :
-  LANGSMITH_API_KEY=ls__...
-  LANGSMITH_TRACING=true
-  LANGSMITH_ENDPOINT=https://api.smith.langchain.com
-  LANGCHAIN_PROJECT=TestForge-Eval
-  GROQ_API_KEY_1=...
-  AZURE_OPENAI_ENDPOINT_JUDGE=https://...
-  AZURE_OPENAI_KEY_JUDGE=...
-  AZURE_OPENAI_DEPLOYMENT_JUDGE=gpt-4.1
-  AZURE_OPENAI_API_VERSION_JUDGE=2025-01-01-preview
-"""
-
 import asyncio
 import logging
 import os
@@ -32,7 +5,7 @@ import sys
 
 # ── 1. Charger le .env avant tout import de l'app ────────────────────────────
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".env"))
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s — %(message)s")
 logger = logging.getLogger(__name__)

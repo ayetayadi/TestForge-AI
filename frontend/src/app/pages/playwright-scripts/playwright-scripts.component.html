@@ -34,43 +34,48 @@
     </div>
 
     <div class="setup-filters-row">
-      <!-- Search -->
-      <div class="setup-field setup-field--search">
-        <app-search-bar
-          placeholder="Search by code, title or story..."
-          [debounce]="300"
-          (searchChange)="onSearchChange($event)"
-        />
+      <!-- Filters (left) ─────────────────────────────────────── -->
+      <div class="setup-filters-group">
+        <!-- Row 1: Search -->
+        <div class="setup-filters-line setup-filters-line--search">
+          <div class="setup-field setup-field--search">
+            <app-search-bar
+              placeholder="Search by code, title or story..."
+              [debounce]="300"
+              (searchChange)="onSearchChange($event)"
+            />
+          </div>
+        </div>
+        <!-- Row 2: Project + Advanced filters -->
+        <div class="setup-filters-line">
+          <div class="setup-field">
+            <select class="filter-select" [value]="selectedProjectId()" (change)="onProjectChange($event)">
+              <option value="">All Projects</option>
+              @for (project of projects(); track project.id) {
+                <option [value]="project.id">{{ project.project_name }}</option>
+              }
+            </select>
+          </div>
+          <div class="setup-field">
+            <app-filter-bar
+              [groups]="filterGroups()"
+              [activeFilters]="activeFilters()"
+              (filtersChange)="onFiltersChange($event)"
+            />
+          </div>
+        </div>
       </div>
-      <!-- Project -->
-      <div class="setup-field">
-        <select class="filter-select" [value]="selectedProjectId()" (change)="onProjectChange($event)">
-          <option value="">All Projects</option>
-          @for (project of projects(); track project.id) {
-            <option [value]="project.id">{{ project.project_name }}</option>
-          }
-        </select>
-      </div>
-      <!-- Suite -->
-      <!-- Advanced filters -->
-      <div class="setup-field">
-        <app-filter-bar
-          [groups]="filterGroups()"
-          [activeFilters]="activeFilters()"
-          (filtersChange)="onFiltersChange($event)"
-        />
-      </div>
-      <!-- Go to Execution -->
-      <div class="setup-field setup-field--cta">
+
+      <!-- Actions (right) ────────────────────────────────────── -->
+      <div class="setup-actions-group">
+        <!-- Go to Execution -->
         <a class="btn-run-analysis" routerLink="/test-execution">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
             <path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/>
           </svg>
           Go to Execution
         </a>
-      </div>
-      <!-- Refresh -->
-      <div class="setup-field setup-field--cta">
+        <!-- Refresh -->
         <button class="btn-refresh" (click)="loadData()">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
             <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39z" clip-rule="evenodd"/>

@@ -125,7 +125,7 @@ logger.info(
 # ──────────────────────────────────────────────────────────────
 
 _GROQ_TO_OPENROUTER: dict[str, str] = {
-    "llama-3.3-70b-versatile":   "meta-llama/llama-3.3-70b-instruct",
+    "openai/gpt-oss-120b":   "meta-llama/llama-3.3-70b-instruct",
     "llama-3.1-70b-versatile":   "meta-llama/llama-3.1-70b-instruct",
     "llama-3.1-8b-instant":      "meta-llama/llama-3.1-8b-instruct",
     "llama3-70b-8192":           "meta-llama/llama-3-70b-instruct",
@@ -553,7 +553,7 @@ def create_llm(temperature: float, model: str, max_tokens: int) -> ControlledCha
 
 AVAILABLE_MODELS = [
     {
-        "id": "llama-3.3-70b-versatile",
+        "id": "openai/gpt-oss-120b",
         "label": "LLaMA 3.3 70B (Groq)",
         "provider": "groq",
         "description": "Fast structured output, best for locator resolution. Default.",
@@ -672,12 +672,12 @@ class ControlledOpenRouterLLM(ChatOpenAI):
         # → fall back to Groq LLaMA 3.3 70B so the request still succeeds
         logger.warning(
             f"[LLM OR] All OpenRouter keys exhausted for model={self.model_name}. "
-            "Falling back to Groq llama-3.3-70b-versatile."
+            "Falling back to Groq openai/gpt-oss-120b."
         )
         try:
             groq_llm = create_llm(
                 self.temperature,
-                "llama-3.3-70b-versatile",
+                "openai/gpt-oss-120b",
                 self.max_tokens,
             )
             result = await groq_llm._agenerate(*args, **kwargs)

@@ -10,7 +10,10 @@ Workflow (4 fixed steps — no agent loop):
 
 import asyncio
 import logging
+import re
 from typing import Any, Callable, Dict, List, Optional
+
+_AC_TAG_RE = re.compile(r'^\s*\[(POSITIVE|NEGATIVE|BOUNDARY)\]\s*', re.IGNORECASE)
 
 from langfuse import observe
 from langfuse import get_client as get_langfuse_client
@@ -146,7 +149,7 @@ class UserStoryRefinementPipeline:
                 logger.error("[PIPELINE] LLM call timed out after 60s")
                 raise RuntimeError("LLM call timed out")
             improved_story = improvement.improved_story or clean_story
-            improved_ac = improvement.acceptance_criteria or ac
+            improved_ac = [_AC_TAG_RE.sub('', a).strip() for a in (improvement.acceptance_criteria or ac)]
             reasoning = improvement.reasoning
             iterations = 1
 
@@ -194,7 +197,7 @@ class UserStoryRefinementPipeline:
                 })
                 improvement2 = await self._call_llm(improved_story, improved_ac, final, language=language)
                 candidate_story = improvement2.improved_story or improved_story
-                candidate_ac = improvement2.acceptance_criteria or improved_ac
+                candidate_ac = [_AC_TAG_RE.sub('', a).strip() for a in (improvement2.acceptance_criteria or improved_ac)]
 
                 validation2 = await validate_constraints(clean_story, candidate_story, candidate_ac)
                 if validation2.get("is_safe"):

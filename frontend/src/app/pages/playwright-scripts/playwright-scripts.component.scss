@@ -175,8 +175,40 @@ $warn-bd:   #fde68a;
 .setup-filters-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+// Filters grow and fill the left side — stacked in two rows
+.setup-filters-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+// Each filter row inside the group
+.setup-filters-line {
+  display: flex;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  width: 100%;
+
+  &--search {
+    .setup-field { flex: 1 1 100%; }
+  }
+}
+
+// Actions stay grouped on the right
+.setup-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .setup-field {
@@ -1743,8 +1775,17 @@ $warn-bd:   #fde68a;
   .setup-filters-row {
     flex-direction: column;
     align-items: stretch;
-    .setup-field--search { width: 100%; }
-    .filter-select { width: 100%; }
-    .btn-run-analysis, .btn-refresh { width: 100%; justify-content: center; }
   }
+  .setup-filters-group,
+  .setup-actions-group {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    margin-left: 0;
+  }
+  .setup-filters-group .setup-field { width: 100%; }
+  .setup-filters-line { flex-direction: column; }
+  .setup-field--search { width: 100%; }
+  .filter-select { width: 100%; }
+  .btn-run-analysis, .btn-refresh { width: 100%; justify-content: center; }
 }

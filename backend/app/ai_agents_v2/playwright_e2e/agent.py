@@ -1178,9 +1178,6 @@ class PlaywrightReActAgent:
                     f"   content={_preview!r}"
                 )
             except Exception as e:
-                # llama-3.3 on Groq sometimes emits a malformed tool call →
-                # Groq returns `tool_use_failed`. Recover the intended call from
-                # the error payload instead of aborting the whole test.
                 recovered = self._recover_tool_call_from_error(e)
                 if recovered:
                     logger.info(f"ReAct: recovered malformed tool call → {recovered['name']}")
@@ -1232,8 +1229,6 @@ class PlaywrightReActAgent:
                 logger.info(f"🧠 ReAct verdict received at turn {turn}")
                 break
 
-            # Some models (llama-3.3) emit a VERDICT in content AND a tool_call
-            # simultaneously. Capture the verdict and stop — don't execute the tool.
             if content and re.search(r"VERDICT\s*:\s*(PASSED|FAILED)", content, re.IGNORECASE):
                 verdict_text = content.strip()
                 logger.info(f"🧠 ReAct verdict in content alongside tool_call — captured at turn {turn}")
@@ -1615,8 +1610,6 @@ class PlaywrightReActAgent:
             if "element" not in args or not args.get("element"):
                 args["element"] = args.get("ref", "target element")
         if name == "browser_select_option":
-            # MCP requires `values` to be a LIST. llama often emits a bare string
-            # (e.g. "Test Client") → coerce it so the dropdown selection works.
             v = args.get("values", args.get("value"))
             if v is not None and not isinstance(v, list):
                 args["values"] = [v]
@@ -1625,19 +1618,9 @@ class PlaywrightReActAgent:
 
     @staticmethod
     def _recover_tool_call_from_error(err: Exception) -> Optional[dict]:
-        """
-        Groq returns `tool_use_failed` with the raw text the model meant to emit,
-        e.g.  <function=browser_click{"target": "e37"}</function>
-        Parse it back into a {name, args, id} tool call so a single malformed
-        generation does not abort the whole verification run.
-
-        Groq/llama-3.3 also emits \' inside JSON strings (e.g. French labels like
-        "Nom d\'utilisateur") which is invalid JSON. Sanitize before parsing.
-        """
         msg = str(err)
         if "tool_use_failed" not in msg and "failed_generation" not in msg:
             return None
-        # Handle BOTH shapes llama emits:  <function=name{...}  AND  <function=name>{...}
         m = re.search(r"<function=(\w+)>?\s*(\{.*?\})", msg, re.DOTALL)
         if not m:
             return None

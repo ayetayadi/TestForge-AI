@@ -28,6 +28,7 @@ from .nb_embed import (
     KNNEmbedModel, MODEL_PATH_KNN,
     DecisionTreeEmbedModel, MODEL_PATH_DT,
 )
+from .config import KNN_K_GRID
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -164,19 +165,18 @@ def main_gnb():
 # ── KNN ────────────────────────────────────────────────────────────────────────
 
 def _best_knn(X_train, y_train, label: str) -> KNeighborsClassifier:
-    param_grid = {
-        "n_neighbors": [7, 9, 11, 15, 21, 31, 41],
-        "weights": ["uniform", "distance"],
-    }
+    # weights="uniform" fixe (cohérent avec la courbe biais-variance) ;
+    # on ne tune que k, sur la grille partagée KNN_K_GRID.
+    param_grid = {"n_neighbors": KNN_K_GRID}
     grid = GridSearchCV(
-        KNeighborsClassifier(metric="cosine", algorithm="brute"),
+        KNeighborsClassifier(weights="uniform", metric="cosine", algorithm="brute"),
         param_grid=param_grid,
         cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
         scoring="f1_macro", n_jobs=-1,
     )
     grid.fit(X_train, y_train)
     logger.info(f"  {label} → k={grid.best_params_['n_neighbors']}, "
-                f"weights={grid.best_params_['weights']} | CV={grid.best_score_:.3f}")
+                f"weights=uniform | CV={grid.best_score_:.3f}")
     return grid.best_estimator_
 
 

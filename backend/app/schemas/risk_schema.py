@@ -81,8 +81,8 @@ class RiskBase(BaseModel):
     )
     source: Optional[str] = Field(
         "llm",
-        pattern="^(llm|original|approved_version|human_modified|manual)$",
-        description="Source of the risk analysis"
+        pattern="^(ml|llm|original|approved_version|human_modified|manual)$",
+        description="Source of the risk analysis (ml = P/I predicted by the KNN model)"
     )
     
     @field_validator("probability")
@@ -308,7 +308,7 @@ class RiskFilters(BaseModel):
     )
     source: Optional[str] = Field(
         None,
-        pattern="^(llm|original|approved_version|human_modified|manual)$",
+        pattern="^(ml|llm|original|approved_version|human_modified|manual)$",
         description="Filter by source"
     )
 

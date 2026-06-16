@@ -72,17 +72,22 @@ def _ac_is_covered(ac: str, test_cases: List[Dict[str, Any]]) -> bool:
 def validate_ac_coverage(
     test_cases: List[Dict[str, Any]],
     acceptance_criteria: List[str],
+    eligible_indices: set = None,
 ) -> Dict[str, Any]:
     """
     AC Coverage pour UNE User Story.
-    
+
     Formule ISTQB §4.3.2:
         (ACs avec au moins 1 TC / Total ACs) × 100
-    
+
     Args:
         test_cases: Liste des TCs générés pour cette US
         acceptance_criteria: Liste des ACs de cette US
-    
+        eligible_indices: Sous-ensemble d'indices d'AC qui DOIVENT être couverts
+            pour ce type de scénario (ex: en BVA, seulement les AC qui ont une
+            borne). Si None → tous les AC comptent. Si fourni mais vide → la
+            couverture est jugée suffisante (aucun AC à couvrir pour ce type).
+
     Returns:
         {
             "is_sufficient": bool,
@@ -94,6 +99,25 @@ def validate_ac_coverage(
         }
     """
     if not acceptance_criteria:
+        return {
+            "is_sufficient": True,
+            "coverage_pct": 1.0,
+            "covered_count": 0,
+            "total_count": 0,
+            "uncovered": [],
+            "uncovered_indices": [],
+        }
+
+    all_indices = set(range(len(acceptance_criteria)))
+    # Denominator: only the eligible ACs (BVA → bounded ACs only). None → all ACs.
+    if eligible_indices is None:
+        eligible = all_indices
+    else:
+        eligible = set(eligible_indices) & all_indices
+
+    # No AC is eligible for this scenario type (e.g. BVA on a story with no bound)
+    # → nothing to cover, coverage is trivially sufficient (do NOT force generation).
+    if not eligible:
         return {
             "is_sufficient": True,
             "coverage_pct": 1.0,
@@ -119,10 +143,12 @@ def validate_ac_coverage(
             if _ac_is_covered(ac, tcs_without_indices):
                 covered_indices.add(i)
 
-    uncovered_indices = [i for i in range(len(acceptance_criteria)) if i not in covered_indices]
+    # Restrict to the eligible ACs only.
+    covered_eligible = covered_indices & eligible
+    uncovered_indices = sorted(eligible - covered_eligible)
     uncovered_acs = [acceptance_criteria[i] for i in uncovered_indices]
-    total = len(acceptance_criteria)
-    covered = total - len(uncovered_acs)
+    total = len(eligible)
+    covered = len(covered_eligible)
     pct = covered / total if total > 0 else 1.0
 
     logger.info(f"[AC COVERAGE] {covered}/{total} = {pct:.0%} (seuil={MIN_AC_COVERAGE:.0%})")

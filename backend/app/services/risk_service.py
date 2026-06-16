@@ -19,7 +19,7 @@ from app.schemas.risk_schema import (
     RiskListResponse,
     RiskBatchResponse,
 )
-from app.ai_workflows.risk_analysis.pipeline import (
+from app.ai_workflows.risk_analysis.ml.pipeline import (
     RiskAnalysisPipeline,
     get_pipeline,
     analyse_stories_batch,
@@ -47,45 +47,44 @@ class RiskService:
         test_plan_id: Optional[str] = None,
     ) -> RiskResponse:
         """
-        Analyze a User Story with LLM for risk assessment.
-        
-        Pipeline (aligned with Risk Based Testing document):
-          1. LLM analyzes story + ACs
-          2. Returns P (1-5), I (1-5), description, mitigation, reasoning
-          3. Calculates Score = P × I
-          4. Classifies level: Critical (20+) / High (12-19) / Medium (6-11) / Low (1-5)
-          5. Recommends test depth
+        Analyze a User Story for risk assessment (ML-powered).
+
+        Pipeline (app.ai_workflows.risk_analysis.ml.pipeline):
+          1. KNN predicts P (1-5) and I (1-5) from the story embedding,
+             with a confidence threshold (LLM fallback if confidence is low)
+          2. LLM writes description, mitigation, reasoning
+          3. Repository computes Score = P × I, level and test depth
         """
-        pipeline = get_pipeline()
-        
+        pipeline = await get_pipeline()
+
         result = await pipeline.run(
-            story=story,
+            user_story=story,
             acceptance_criteria=acceptance_criteria,
-            issue_key=issue_key,
             user_story_id=user_story_id,
             test_plan_id=test_plan_id,
         )
-        
-        if result.get("workflow_status") == "error":
-            logger.error(f"Risk analysis failed: {result.get('error')}")
-            raise ValueError(f"Risk analysis failed: {result.get('error')}")
-        
+
+        if result.workflow_status == "error":
+            logger.error(f"Risk analysis failed: {result.error}")
+            raise ValueError(f"Risk analysis failed: {result.error}")
+
+        # P and I come from the KNN; the factor breakdown / reasoning come from the LLM.
         risk_create = RiskCreate(
             user_story_id=user_story_id,
             test_plan_id=test_plan_id,
-            description=result["description"],
-            mitigation=result.get("mitigation", ""),
-            reasoning=result.get("reasoning", ""),
-            probability=result["probability"],          # 1-5
-            impact=result["impact"],                    # 1-5
-            probability_factors=result.get("probability_factors"),
-            impact_factors=result.get("impact_factors"),
-            probability_reasoning=result.get("probability_reasoning"),
-            impact_reasoning=result.get("impact_reasoning"),
-            test_depth=result.get("test_depth", "standard"),
+            description=result.description,
+            mitigation=result.mitigation,
+            reasoning=result.reasoning,
+            probability=result.probability,          # 1-5 (KNN)
+            impact=result.impact,                    # 1-5 (KNN)
+            probability_factors=result.probability_factors,
+            impact_factors=result.impact_factors,
+            probability_reasoning=result.probability_reasoning,
+            impact_reasoning=result.impact_reasoning,
+            test_depth=result.test_depth or "standard",
             is_ai_generated=True,
             is_accepted=None,
-            source="llm",
+            source=self._map_source(result.source),
             source_story_text=story,
             source_acceptance_criteria=acceptance_criteria,
         )
@@ -119,32 +118,35 @@ class RiskService:
             test_plan_id: Optional test plan to link risks to
             concurrency: Max parallel LLM calls (keep low to avoid rate limits)
         """
-        pipeline = get_pipeline()
-        
-        # Run batch analysis via pipeline
+        pipeline = await get_pipeline()
+
+        # Run batch analysis via pipeline.
+        # Each item is the original story dict with the prediction nested
+        # under "risk_analysis" (see ml.pipeline.analyse_stories_batch).
         ai_results = await analyse_stories_batch(
             pipeline=pipeline,
             stories=stories_data,
             test_plan_id=test_plan_id,
             concurrency=concurrency,
         )
-        
+
         # Transform each result into a persisted risk
         created = []
         failed = []
-        
-        for idx, result in enumerate(ai_results):
+
+        for idx, item in enumerate(ai_results):
+            result = item.get("risk_analysis", {})
             if result.get("workflow_status") == "error":
                 failed.append({
                     "index": idx,
                     "error": result.get("error", "Unknown error"),
-                    "issue_key": result.get("issue_key", "?"),
+                    "issue_key": item.get("issue_key", "?"),
                 })
                 continue
-            
+
             try:
                 risk_create = RiskCreate(
-                    user_story_id=result.get("user_story_id"),
+                    user_story_id=item.get("user_story_id"),
                     test_plan_id=test_plan_id,
                     description=result["description"],
                     mitigation=result.get("mitigation", ""),
@@ -158,20 +160,20 @@ class RiskService:
                     test_depth=result.get("test_depth", "standard"),
                     is_ai_generated=True,
                     is_accepted=None,
-                    source="llm",
-                    source_story_text=result.get("source_story_text", ""),
-                    source_acceptance_criteria=result.get("source_acceptance_criteria", []),
+                    source=self._map_source(result.get("source", "")),
+                    source_story_text=item.get("story", ""),
+                    source_acceptance_criteria=item.get("acceptance_criteria", []),
                 )
-                
+
                 risk = await self.repository.create(risk_create)
                 created.append(risk)
-                
+
             except Exception as e:
-                logger.error(f"Failed to persist risk for {result.get('issue_key')}: {e}")
+                logger.error(f"Failed to persist risk for {item.get('issue_key')}: {e}")
                 failed.append({
                     "index": idx,
                     "error": str(e),
-                    "issue_key": result.get("issue_key", "?"),
+                    "issue_key": item.get("issue_key", "?"),
                 })
         
         await self.db.commit()
@@ -520,31 +522,31 @@ class RiskService:
         if not risk:
             return None
         
-        pipeline = get_pipeline()
+        pipeline = await get_pipeline()
         result = await pipeline.run(
-            story=story,
+            user_story=story,
             acceptance_criteria=acceptance_criteria,
-            issue_key=risk.user_story_key or "?",
             user_story_id=risk.user_story_id,
             test_plan_id=risk.test_plan_id,
         )
-        
-        if result.get("workflow_status") == "error":
-            raise ValueError(f"Re-analysis failed: {result.get('error')}")
-        
-        # Update risk with new LLM results
-        risk.probability = result["probability"]
-        risk.impact = result["impact"]
-        risk.risk_score = result["risk_score"]
-        risk.level = result["level"]
-        risk.description = result["description"]
-        risk.mitigation = result.get("mitigation", "")
-        risk.reasoning = result.get("reasoning", "")
-        risk.probability_factors = result.get("probability_factors")
-        risk.impact_factors = result.get("impact_factors")
-        risk.probability_reasoning = result.get("probability_reasoning")
-        risk.impact_reasoning = result.get("impact_reasoning")
-        risk.test_depth = result.get("test_depth", risk.test_depth)
+
+        if result.workflow_status == "error":
+            raise ValueError(f"Re-analysis failed: {result.error}")
+
+        # Update risk with new ML results (KNN for P/I + LLM explanation/factors).
+        risk.probability = result.probability
+        risk.impact = result.impact
+        risk.risk_score = result.risk_score
+        risk.level = result.priority
+        risk.description = result.description
+        risk.mitigation = result.mitigation
+        risk.reasoning = result.reasoning
+        risk.probability_factors = result.probability_factors
+        risk.impact_factors = result.impact_factors
+        risk.probability_reasoning = result.probability_reasoning
+        risk.impact_reasoning = result.impact_reasoning
+        risk.test_depth = result.test_depth or risk.test_depth
+        risk.source = self._map_source(result.source)
         risk.is_ai_generated = True
         risk.is_accepted = None
         
@@ -576,6 +578,20 @@ class RiskService:
     # PRIVATE HELPERS
     # ============================================================
     
+    @staticmethod
+    def _map_source(ml_source: str) -> str:
+        """
+        Map the ML pipeline's internal source to an allowed RiskCreate source.
+
+        ml.pipeline sets:
+          - "knn_embed"     → P/I predicted by the KNN model        → "ml"
+          - "llm_fallback"  → KNN confidence too low, LLM gave P/I  → "llm"
+          - "default"       → no predictor available                → "llm"
+        """
+        if ml_source and ml_source.startswith("knn"):
+            return "ml"
+        return "llm"
+
     @staticmethod
     def _get_test_depth(level: str) -> str:
         """Get test depth based on risk level."""

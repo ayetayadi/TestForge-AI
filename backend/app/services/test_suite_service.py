@@ -61,7 +61,8 @@ _PRIORITY_WEIGHT: Dict[str, int] = {
 # ISTQB §5.2.4: "Business-critical paths shall be tested before secondary flows."
 _BUSINESS_FLOW_KEYWORDS: Dict[str, List[str]] = {
     "authentication": [
-        "auth", "login", "logout", "register", "signup", "sign-in",
+        "auth", "login", "logout", "disconnect", "register", "signup", "sign-in",
+        "account", "compte", "sign up", "registration", "inscription",
         "password", "credential", "session", "token", "jwt", "oauth", "sso",
         "2fa", "mfa", "verification", "forgot password", "reset password",
     ],
@@ -116,7 +117,7 @@ _ENTITY_RANK: Dict[str, int] = {
 
 _ENTITY_KEYWORDS: Dict[str, List[str]] = {
     "auth": [
-        "auth", "login", "logout", "connexion", "déconnexion", "compte",
+        "auth", "login", "logout", "disconnect", "connexion", "déconnexion", "compte",
         "account", "register", "inscription", "password", "mot de passe",
         "session", "token", "jwt", "sign in", "sign out", "sign up",
     ],
@@ -157,7 +158,8 @@ _ACTION_KEYWORDS: Dict[str, List[str]] = {
 # ── Critère 3 : Auth encadre tout ───────────────────────────────────────────
 # Création de compte → position 1, Connexion → position 2, Déconnexion → dernière
 _ACCOUNT_CREATE_KEYWORDS: List[str] = [
-    "create account", "créer compte", "créer un compte", "register",
+    "create account", "create a new account", "create an account", "new account", "an account",
+    "créer compte", "créer un compte", "register",
     "inscription", "sign up", "s'inscrire", "enregistrement",
 ]
 
@@ -167,7 +169,9 @@ _LOGIN_KEYWORDS: List[str] = [
 ]
 
 _LOGOUT_KEYWORDS: List[str] = [
-    "logout", "déconnexion", "sign out", "logoff", "se déconnecter", "déconnecter",
+    "logout", "log out", "déconnexion", "sign out", "logoff", "se déconnecter", "déconnecter",
+    # English presentation enforced for test cases → titles say "Disconnect ..."
+    "disconnect", "disconnection",
 ]
 
 
@@ -855,6 +859,26 @@ class TestSuiteService:
                     return llm_flow
         return self._keyword_flow(tc.title or "")
 
+    @staticmethod
+    def _is_auth_title(title: str) -> bool:
+        """A title that unambiguously belongs to authentication (account / login / logout)."""
+        t = (title or "").lower()
+        return (
+            any(kw in t for kw in _LOGOUT_KEYWORDS)
+            or any(kw in t for kw in _LOGIN_KEYWORDS)
+            or any(kw in t for kw in _ACCOUNT_CREATE_KEYWORDS)
+        )
+
+    def _resolve_display_flow(self, tc: TestCase, tc_classifications: Dict[str, Any]) -> str:
+        """Business flow used for the dependency graph. Deterministic AUTH override first:
+        account creation / login / logout are ALWAYS 'authentication' even if the LLM labelled
+        them 'crud' (a 'Create a new account' is auth, not a CRUD create)."""
+        if self._is_auth_title(tc.title or ""):
+            return "authentication"
+        if tc.tc_code in tc_classifications:
+            return tc_classifications[tc.tc_code].get("business_flow", "other")
+        return self._get_business_flow(tc)
+
     def _prioritize_cases_by_risk(
         self,
         cases: List[TestCase],
@@ -1016,10 +1040,7 @@ class TestSuiteService:
         
         nodes = []
         for tc in tc_map.values():   # tc_map déduplique par id
-            if tc.tc_code in tc_classifications:
-                flow = tc_classifications[tc.tc_code].get("business_flow", "other")
-            else:
-                flow = self._get_business_flow(tc)
+            flow = self._resolve_display_flow(tc, tc_classifications)
             risk = tc.risk_level or "medium"
             flow_rank = flow_order.get(flow, 99)
             risk_wt = _RISK_WEIGHT.get(risk, 300)
