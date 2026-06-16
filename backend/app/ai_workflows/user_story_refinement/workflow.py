@@ -195,33 +195,36 @@ class UserStoryRefinementPipeline:
                     "phase": "improving",
                     "message": "🔄 Refining story further (second pass)...",
                 })
-                improvement2 = await self._call_llm(improved_story, improved_ac, final, language=language)
-                candidate_story = improvement2.improved_story or improved_story
-                candidate_ac = [_AC_TAG_RE.sub('', a).strip() for a in (improvement2.acceptance_criteria or improved_ac)]
+                try:
+                    improvement2 = await self._call_llm(improved_story, improved_ac, final, language=language)
+                    candidate_story = improvement2.improved_story or improved_story
+                    candidate_ac = [_AC_TAG_RE.sub('', a).strip() for a in (improvement2.acceptance_criteria or improved_ac)]
 
-                validation2 = await validate_constraints(clean_story, candidate_story, candidate_ac)
-                if validation2.get("is_safe"):
-                    final2, similarity2 = await asyncio.gather(
-                        score_story(candidate_story, candidate_ac),
-                        compare_similarity(clean_story, candidate_story),
-                    )
-                    if final2.get("final_score", 0) > final.get("final_score", 0):
-                        improved_story = candidate_story
-                        improved_ac = candidate_ac
-                        final = final2
-                        similarity = similarity2
-                        reasoning = improvement2.reasoning
-                        iterations = 2
-                        status = (
-                            "success"
-                            if final.get("is_testable") and final.get("final_score", 0) >= MIN_SCORE_THRESHOLD
-                            else "best_effort"
+                    validation2 = await validate_constraints(clean_story, candidate_story, candidate_ac)
+                    if validation2.get("is_safe"):
+                        final2, similarity2 = await asyncio.gather(
+                            score_story(candidate_story, candidate_ac),
+                            compare_similarity(clean_story, candidate_story),
                         )
-                        logger.info(f"[PIPELINE] Second pass improved score to {final['final_score']:.3f}")
+                        if final2.get("final_score", 0) > final.get("final_score", 0):
+                            improved_story = candidate_story
+                            improved_ac = candidate_ac
+                            final = final2
+                            similarity = similarity2
+                            reasoning = improvement2.reasoning
+                            iterations = 2
+                            status = (
+                                "success"
+                                if final.get("is_testable") and final.get("final_score", 0) >= MIN_SCORE_THRESHOLD
+                                else "best_effort"
+                            )
+                            logger.info(f"[PIPELINE] Second pass improved score to {final['final_score']:.3f}")
+                        else:
+                            logger.info("[PIPELINE] Second pass did not improve — keeping first result")
                     else:
-                        logger.info("[PIPELINE] Second pass did not improve — keeping first result")
-                else:
-                    logger.warning(f"[PIPELINE] Second pass failed constraints — keeping first result")
+                        logger.warning(f"[PIPELINE] Second pass failed constraints — keeping first result")
+                except Exception as e2:
+                    logger.warning(f"[PIPELINE] Second pass LLM failed — keeping first result: {e2}")
 
             await self._emit(progress_callback, "phase", {
                 "phase": "done",
