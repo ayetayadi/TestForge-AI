@@ -157,7 +157,7 @@ class RiskAnalysisWorker:
 
                 await self._notify(job_id, "risk_processing", {
                     "status": "persisting",
-                    "message": f"Saving {len(result.get('risks', []))} risk scenario(s)...",
+                    "message": "Saving risk scenario...",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
 
@@ -192,7 +192,7 @@ class RiskAnalysisWorker:
                 self.jobs_processed += 1
 
                 logger.info(
-                    f"[WORKER-{self.worker_id}] ✅ {len(created_risks)} risk(s) created "
+                    f"[WORKER-{self.worker_id}] ✅ 1 risk created "
                     f"for {issue_key} | Source={content['source']} "
                     f"(jobs: {self.jobs_processed} ok, {self.jobs_failed} failed)"
                 )
@@ -203,19 +203,18 @@ class RiskAnalysisWorker:
                     "worker_id": self.worker_id,
                     "user_story_id": user_story_id,
                     "issue_key": issue_key,
-                    "risk_count": len(created_risks),
+                    "risk_count": 1,
                     "risks": [
                         {
-                            "risk_id": r.id,
-                            "level": r.level,
-                            "risk_score": r.risk_score,
-                            "probability": r.probability,
-                            "impact": r.impact,
-                            "description": r.description,
-                            "mitigation": r.mitigation,
-                            "test_depth": r.test_depth,
+                            "risk_id": risk.id,
+                            "level": risk.level,
+                            "risk_score": risk.risk_score,
+                            "probability": risk.probability,
+                            "impact": risk.impact,
+                            "description": risk.description,
+                            "mitigation": risk.mitigation,
+                            "test_depth": risk.test_depth,
                         }
-                        for r in created_risks
                     ],
                     "source": content["source"],
                     "can_modify": True,

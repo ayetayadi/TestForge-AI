@@ -81,7 +81,7 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
   runModalBrowser    = signal<'chromium' | 'firefox' | 'webkit'>('chromium');
   runModalHeadless   = signal(true);
   runModalStopOnFail = signal(false);
-  runModalModel      = signal('openai/gpt-oss-120b');
+  runModalModel      = signal('llama-3.3-70b-versatile');
   runModalTcs        = signal<ModalTcRow[]>([]);
   isLoadingModalTcs  = signal(false);
   isSavingOrder      = signal(false);

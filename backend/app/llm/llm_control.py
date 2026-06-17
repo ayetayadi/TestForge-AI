@@ -553,7 +553,7 @@ def create_llm(temperature: float, model: str, max_tokens: int) -> ControlledCha
 
 AVAILABLE_MODELS = [
     {
-        "id": "openai/gpt-oss-120b",
+        "id": "llama-3.3-70b-versatile",
         "label": "LLaMA 3.3 70B (Groq)",
         "provider": "groq",
         "description": "Fast structured output, best for locator resolution. Default.",
