@@ -112,6 +112,7 @@ $info-bd:   #bae6fd;
   gap: 10px;
 }
 
+.btn-download-report,
 .btn-notify,
 .btn-close-suite,
 .btn-reopen {
@@ -132,6 +133,13 @@ $info-bd:   #bae6fd;
 
   &:disabled { opacity: 0.5; cursor: not-allowed; }
   &:hover:not(:disabled) { transform: translateY(-1px); }
+}
+
+.btn-download-report {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  &:hover:not(:disabled) { background: rgba(255, 255, 255, 0.25); }
 }
 
 .btn-notify {

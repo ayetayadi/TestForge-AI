@@ -575,14 +575,20 @@
     </button>
   </div>
               </div>
-              @if (testCase.expected_results && testCase.expected_results.length > 0) {
-                <ul class="expected-list">
-                  @for (r of testCase.expected_results; track $index) {
-                    <li>{{ r }}</li>
-                  }
-                </ul>
+              @if (!isEditing) {
+                @if (testCase.expected_results && testCase.expected_results.length > 0) {
+                  <ul class="expected-list">
+                    @for (r of testCase.expected_results; track $index) {
+                      <li>{{ r }}</li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="section-empty">No expected results defined.</p>
+                }
               } @else {
-                <p class="section-empty">No expected results defined.</p>
+                <textarea class="code-editor" formControlName="expected_results" rows="5"
+                  placeholder='["User is redirected to dashboard", "Welcome message is shown"]'
+                  (change)="parseJson($event, 'expected_results')"></textarea>
               }
             </div>
 

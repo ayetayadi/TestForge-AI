@@ -25,6 +25,23 @@
 
     <div class="header-actions">
       <button
+        class="btn-download-report"
+        (click)="downloadReport()"
+        [disabled]="!execution() || isDownloadingReport()"
+        title="Download a detailed PDF log report of this execution"
+      >
+        @if (isDownloadingReport()) {
+          <span class="spinner-inline"></span>
+          Generating…
+        } @else {
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v6.638l1.96-2.158a.75.75 0 111.08 1.04l-3.25 3.5a.75.75 0 01-1.08 0l-3.25-3.5a.75.75 0 111.08-1.04l1.96 2.158V3.75A.75.75 0 0110 3zm-6 11a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"/>
+          </svg>
+          Download Report (PDF)
+        }
+      </button>
+
+      <button
         class="btn-notify"
         (click)="openNotifyModal()"
         [disabled]="!execution() || isClosed()"

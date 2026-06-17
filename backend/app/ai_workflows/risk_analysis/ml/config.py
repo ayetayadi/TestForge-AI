@@ -48,6 +48,6 @@ EMBED_MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 
 # LLM
 LLM_TEMPERATURE = 0.1
-LLM_MODEL = "openai/gpt-oss-120b"
+LLM_MODEL = "llama-3.3-70b-versatile"
 LLM_MAX_TOKENS = 2000
 LLM_TIMEOUT_SECONDS = 90

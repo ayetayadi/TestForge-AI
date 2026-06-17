@@ -251,6 +251,35 @@ export class ExecutionDetailComponent implements OnInit {
     document.body.removeChild(a);
   }
 
+  // ── Execution log report (styled PDF) ───────────────────────────
+  isDownloadingReport = signal(false);
+
+  /**
+   * Télécharge un rapport PDF stylé de l'exécution : pour chaque cas de test,
+   * tous les steps exécutés (réussis ou échoués) et, pour les échecs, le
+   * raisonnement (justification) + le message d'erreur. Généré côté backend.
+   */
+  downloadReport(): void {
+    const ex = this.execution();
+    if (!ex) return;
+
+    this.isDownloadingReport.set(true);
+    this.playwrightSrv.exportExecutionReportPdf(ex.id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const safe = (ex.suite_title || 'execution').replace(/[^\w.-]+/g, '_');
+        this._triggerDownload(url, `report_${safe}_${ex.id.slice(0, 8)}.pdf`);
+        URL.revokeObjectURL(url);
+        this.isDownloadingReport.set(false);
+        this.toast.success('Report downloaded');
+      },
+      error: () => {
+        this.isDownloadingReport.set(false);
+        this.toast.error('Failed to generate PDF report');
+      },
+    });
+  }
+
   // ── UI helpers ──────────────────────────────────────────────────
   getStatusClass(status: string): string {
     switch (status) {

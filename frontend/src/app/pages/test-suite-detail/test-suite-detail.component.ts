@@ -503,16 +503,12 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
     this.suiteRunSummary.set(null);
 
     this._suiteSub?.unsubscribe();
-    this._suiteSub = this.playwrightService.connectSuiteStream(suiteId).subscribe({
-      next: (event) => this._handleSuiteEvent(event),
-      error: (err) => {
-        console.error('[SUITE SSE] Error:', err);
-        this.isSuiteRunning.set(false);
-        this.toast.error('Execution stream disconnected');
-      },
-      complete: () => this.isSuiteRunning.set(false),
-    });
-
+    // Fire the run FIRST. The execute-smart endpoint clears the previous run's
+    // SSE buffer before returning, so we connect to the stream only AFTER the
+    // POST succeeds — otherwise the stream replays the OLD run's `completed`
+    // event and closes immediately (stale verdict shown, live panel never
+    // updates until a manual refresh). Events emitted between the POST and the
+    // connection are buffered and replayed on connect, so nothing is missed.
     this.playwrightService.executeSuiteSmart(suiteId, {
       app_url:          this.suiteRunAppUrl(),
       browser:          this.suiteRunBrowser(),
@@ -520,6 +516,17 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
       stop_on_failure:  this.suiteRunStopOnFail(),
       model_id:         this.suiteRunModel(),
     }).subscribe({
+      next: () => {
+        this._suiteSub = this.playwrightService.connectSuiteStream(suiteId).subscribe({
+          next: (event) => this._handleSuiteEvent(event),
+          error: (err) => {
+            console.error('[SUITE SSE] Error:', err);
+            this.isSuiteRunning.set(false);
+            this.toast.error('Execution stream disconnected');
+          },
+          complete: () => this.isSuiteRunning.set(false),
+        });
+      },
       error: (err) => {
         console.error('[SUITE RUN] Start error:', err);
         this.isSuiteRunning.set(false);
