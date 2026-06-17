@@ -324,10 +324,7 @@
             <div class="form-group form-group--half">
               <label class="form-label">Options</label>
               <div class="toggle-list">
-                <label class="toggle-row">
-                  <input type="checkbox" [checked]="runModalHeadless()" (change)="runModalHeadless.set(!runModalHeadless())" />
-                  <span class="toggle-label">Headless mode</span>
-                </label>
+                <p class="form-hint">Runs in headless mode by default.</p>
                 <label class="toggle-row">
                   <input type="checkbox" [checked]="runModalStopOnFail()" (change)="runModalStopOnFail.set(!runModalStopOnFail())" />
                   <span class="toggle-label">Stop on failure</span>

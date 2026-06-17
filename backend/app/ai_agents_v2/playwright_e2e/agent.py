@@ -31,6 +31,16 @@ _DOM_KEYWORDS = (
     "placeholder", "name=", "value=", "textbox",
     # Dynamic feedback elements (error messages, toasts)
     "alert", "status",
+    # Plain visible-text nodes — validation/error/success/helper messages are
+    # often rendered as bare `text:`/`paragraph`/`generic` nodes with NO ARIA
+    # role and NO English keyword (e.g. FR "L'échéance ne peut pas être une date
+    # passée"). Without these, the agent is blind to the very message a negative
+    # test must detect, and wrongly reports "no error → feature broken".
+    "text", "paragraph", "generic", "caption", "note", "log",
+    # Bilingual EN/FR feedback words — belt-and-suspenders so a feedback line is
+    # kept even if its node type ever changes.
+    "error", "erreur", "invalid", "valid", "required", "obligatoire", "requis",
+    "success", "succès", "warning", "attention", "échéance", "date",
     # Custom ARIA roles found in component libraries
     "combobox", "listbox", "option", "menuitem", "menubar",
     "tab", "tablist", "tabpanel",
@@ -1605,8 +1615,24 @@ class PlaywrightReActAgent:
         """
         args = dict(args)
         tgt = args.get("target")
-        if "ref" not in args and isinstance(tgt, str) and re.match(r"^e\d+$", tgt.strip()):
-            args["ref"] = tgt.strip()
+        # Models emit the element ref in several shapes: "e156", "[ref=e156]",
+        # "ref=e156", "[e156]". The old check only matched the BARE form, so the
+        # bracketed form fell through with no `ref` set → the MCP tool received
+        # "[ref=e156]" literally → "does not match any elements" and the field was
+        # never filled. Extract the bare eXX from any of these shapes.
+        if isinstance(tgt, str):
+            m = re.match(r"^\s*\[?\s*(?:ref\s*=\s*)?(e\d+)\s*\]?\s*$", tgt)
+            if m:
+                bare = m.group(1)
+                args["target"] = bare
+                if "ref" not in args or not str(args.get("ref", "")).strip():
+                    args["ref"] = bare
+        # Same normalization if the model put the bracketed form directly in `ref`.
+        rf = args.get("ref")
+        if isinstance(rf, str):
+            m = re.match(r"^\s*\[?\s*(?:ref\s*=\s*)?(e\d+)\s*\]?\s*$", rf)
+            if m:
+                args["ref"] = m.group(1)
         if name in ("browser_click", "browser_type", "browser_hover", "browser_select_option"):
             if "element" not in args or not args.get("element"):
                 args["element"] = args.get("ref", "target element")

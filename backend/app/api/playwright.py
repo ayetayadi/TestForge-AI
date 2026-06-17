@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
@@ -10,6 +12,8 @@ from app.streaming.sse_manager import event_generator, event_buffer
 from app.api.deps import get_current_user, get_user_project_ids
 from app.models.user import User
 from app.models.enums import TestExecutionStatus
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/playwright", tags=["Playwright E2E"])
 
@@ -689,6 +693,82 @@ async def get_test_execution_detail_endpoint(
     }
 
 
+@router.get(
+    "/test-executions/{execution_id}/export/pdf",
+    summary="Export execution log report as a styled PDF",
+    responses={200: {"content": {"application/pdf": {}}, "description": "PDF report download"}},
+)
+async def export_execution_report_pdf_endpoint(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Detailed, styled PDF log report of a single execution.
+
+    For every test case it lists all executed steps (passed or failed); for
+    failed/error cases the LLM reasoning (justification) and step errors are
+    included so a developer can diagnose without re-running.
+    """
+    from app.repositories import playwright_repository as repo
+    from app.models.test_suite import TestSuite
+    from app.models.test_case import TestCase
+    from app.services.test_plan_export_service import SuiteReportExportService
+
+    ex = await repo.get_test_execution(db, execution_id)
+    if not ex:
+        raise HTTPException(status_code=404, detail=f"TestExecution {execution_id} not found")
+
+    suite_row = await db.get(TestSuite, ex.suite_id)
+    tc_results = await repo.list_tc_results_for_execution(db, execution_id)
+
+    entries: List[Dict[str, Any]] = []
+    run_details: Dict[str, Any] = {}
+    for r in tc_results:
+        tc_row = await db.get(TestCase, r.test_case_id)
+        entries.append({
+            "tc_result_id": r.id,
+            "tc_code": (tc_row.tc_code if tc_row else None) or "?",
+            "title":   (tc_row.title if tc_row else None) or "Untitled",
+            "status":  r.status.value,
+        })
+        run_details[r.id] = {
+            "tc_result": {
+                "justification": r.justification,
+                "error_message": r.error_message,
+                "duration":      r.duration,
+            },
+            "execution": {"browser": ex.browser},
+            "steps": r.steps or [],
+        }
+
+    summary = {
+        "passed":   ex.passed_count,
+        "failed":   ex.failed_count + ex.error_count,
+        "skipped":  ex.skipped_count,
+        "duration": ex.duration or 0,
+    }
+
+    try:
+        exporter = SuiteReportExportService()
+        pdf_bytes = exporter.export_pdf(
+            suite_name=(suite_row.title if suite_row else None) or "Test Suite",
+            summary=summary,
+            entries=entries,
+            run_details=run_details,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"[API] Execution report PDF failed for {execution_id}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="PDF generation failed.")
+
+    filename = f"execution_report_{execution_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ============================================================
 # EXECUTION — NOTIFY DEVELOPER (suite-level report)
 # ============================================================
@@ -846,6 +926,14 @@ async def execute_suite_smart_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     """Launch the full suite execution in background. Stream via /suite/{id}/stream."""
+    # Clear any stale SSE events from a PREVIOUS run of this suite. The buffer is
+    # replayed to every new stream connection; without this, clicking "Relancer"
+    # replays the previous run's old `completed` / `tc_completed` events — the
+    # frontend shows the OLD verdict and closes the stream before the new run's
+    # events arrive ("buffered, no listeners"), so the live panel never updates
+    # and no new execution row appears until a manual page refresh.
+    event_buffer.pop(f"suite_{suite_id}", None)
+
     background_tasks.add_task(
         _suite_smart_run_background,
         suite_id,

@@ -585,6 +585,17 @@ export class PlaywrightE2EService {
   }
 
   /**
+   * Download a styled PDF log report for an execution (all steps + reasoning).
+   * GET /playwright/test-executions/{id}/export/pdf
+   */
+  exportExecutionReportPdf(executionId: string): Observable<Blob> {
+    return this.http.get(
+      `${this.apiUrl}/test-executions/${executionId}/export/pdf`,
+      { responseType: 'blob' },
+    ).pipe(catchError(this.handleError));
+  }
+
+  /**
    * Send a full execution report to the developer (email and/or Jira).
    * POST /playwright/test-executions/{id}/notify-developer
    */

@@ -357,16 +357,24 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
     this.currentExecutionId.set(null);
 
     this.suiteSub?.unsubscribe();
-    this.suiteSub = this.playwrightService.connectSuiteStream(suiteId).subscribe({
-      next: (event) => this._handleSuiteEvent(event),
-      error: () => {
-        this.isSuiteRunning.set(false);
-        this.toastService.error('Execution stream disconnected');
-      },
-      complete: () => this.isSuiteRunning.set(false),
-    });
-
+    // Fire the run FIRST. The execute-smart endpoint clears the previous run's
+    // SSE buffer before returning, so we must connect to the stream only AFTER
+    // the POST succeeds — otherwise the stream would replay the OLD run's
+    // `completed` event and close immediately (stale FAILED shown, live panel
+    // never updates, no new row until a manual refresh). Any events emitted
+    // between the POST and the connection are buffered and replayed on connect,
+    // so nothing is missed.
     this.playwrightService.executeSuiteSmart(suiteId, opts).subscribe({
+      next: () => {
+        this.suiteSub = this.playwrightService.connectSuiteStream(suiteId).subscribe({
+          next: (event) => this._handleSuiteEvent(event),
+          error: () => {
+            this.isSuiteRunning.set(false);
+            this.toastService.error('Execution stream disconnected');
+          },
+          complete: () => this.isSuiteRunning.set(false),
+        });
+      },
       error: () => {
         this.isSuiteRunning.set(false);
         this.toastService.error('Failed to start suite execution');

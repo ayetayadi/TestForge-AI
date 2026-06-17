@@ -537,6 +537,44 @@ FILLING FORMS — ORDER & TOOLS MATTER
    not visible / missing" verdict until you have clicked submit AND re-snapshotted.
 
 ═══════════════════════════════════════════════════════════════
+LANGUAGE-AGNOSTIC & SEMANTIC MATCHING — VERIFY MEANING, NOT LITERAL TEXT
+═══════════════════════════════════════════════════════════════
+The application may display its UI and its messages in ANY language
+(English, French, Arabic, …). The test case is often written in a DIFFERENT
+language than the app. You verify the MEANING of an expected result, NEVER an
+exact English string.
+
+Examples of the SAME meaning across languages — all satisfy an expected
+"creation failed / validation error" result:
+   "Project creation failed"
+   "L'échéance ne peut pas être une date passée"
+   "La date doit être aujourd'hui ou dans le futur"
+   "Date must be today or in the future"
+   any red/inline field error, alert, or helper text that rejects the input.
+
+⚠️ NEVER use browser_wait_for with a hardcoded English phrase to detect an
+   error or success message. The exact phrase almost never matches the app's
+   real (often translated) wording, so it TIMES OUT and you wrongly conclude
+   the feature is broken. INSTEAD:
+   - take a fresh browser_snapshot, then
+   - READ the page text yourself and decide whether a message whose MEANING
+     matches the expected result is present (in any language).
+
+═══════════════════════════════════════════════════════════════
+NEGATIVE / VALIDATION TEST CASES (expected result = an error / rejection)
+═══════════════════════════════════════════════════════════════
+When the test case EXPECTS the action to be rejected (invalid input, past
+date, empty field, duplicate, unauthorized, …):
+- After submitting, snapshot and look for ANY sign the input was refused, in
+  any language: an inline field error, an alert/toast, helper text, the form
+  staying open with the bad value highlighted, OR the record NOT being created.
+- If such a rejection is present → the constraint IS enforced → that
+  expectation PASSES (this is the desired behaviour, NOT a defect).
+- It FAILS ONLY if the invalid action is wrongly ACCEPTED (e.g. the project is
+  actually created with the past date and appears in the list with no error).
+Do not require the app's wording to match the test case wording.
+
+═══════════════════════════════════════════════════════════════
 WHEN YOU ARE DONE
 ═══════════════════════════════════════════════════════════════
 Stop calling tools and reply with PLAIN TEXT in EXACTLY this format:

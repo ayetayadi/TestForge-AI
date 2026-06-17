@@ -492,9 +492,11 @@ class SuiteReportExportService:
             exec_info     = detail.get("execution") or {}
             exec_steps    = detail.get("steps") or []
             justification = tc_result.get("justification") or ""
+            error_message = tc_result.get("error_message") or ""
 
-            browser  = exec_info.get("browser") or ""
-            duration = tc_result.get("duration")
+            browser   = exec_info.get("browser") or ""
+            duration  = tc_result.get("duration")
+            is_failure = status in ("failed", "error")
 
             if status == "passed":
                 icon_char  = "✓"
@@ -543,7 +545,15 @@ class SuiteReportExportService:
             if duration is not None:
                 meta_rows.append([Paragraph("Duration", _ml), Paragraph(f"{duration:.1f}s", _mv)])
             if justification:
-                meta_rows.append([Paragraph("Result", _ml), Paragraph(justification[:300], _mv)])
+                # For failed/error cases this is the diagnostic reasoning.
+                label = "Reasoning" if is_failure else "Result"
+                _val = _style("reason", fontSize=8, textColor=(RED if is_failure else DARK), leading=11)
+                meta_rows.append([Paragraph(label, _ml), Paragraph(justification[:600], _val)])
+            if is_failure and error_message:
+                meta_rows.append([
+                    Paragraph("Error", _ml),
+                    Paragraph(error_message[:400], _style("emsg", fontSize=8, textColor=RED, leading=11)),
+                ])
 
             meta_tbl = Table(meta_rows, colWidths=[25 * mm, W - 25 * mm], hAlign="LEFT")
             meta_tbl.setStyle(TableStyle([
