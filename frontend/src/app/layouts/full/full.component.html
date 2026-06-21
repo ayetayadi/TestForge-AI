@@ -1,7 +1,7 @@
 <div class="blue_theme light-theme" dir="ltr">
   <mat-sidenav-container autosize>
     <!-- Sidebar -->
-    <mat-sidenav 
+    <mat-sidenav
       #sidenav
       [mode]="isMobile ? 'over' : 'side'"
       [opened]="sidebarOpened"
@@ -9,16 +9,16 @@
       [fixedTopGap]="0"
       [class.sidebarNav-collapsed]="!isMobile && isCollapsed"
       class="sidebarNav">
-      
+
       <div class="flex-layout">
         <app-sidebar [isCollapsed]="!isMobile && isCollapsed"></app-sidebar>
-        
+
         <!-- Remplacer ng-scrollbar par une div simple -->
         <div class="sidebar-scroll-container">
           <mat-nav-list class="sidebar-list">
             @for(item of navItems; track item) {
-              <app-nav-item 
-                [item]="item" 
+              <app-nav-item
+                [item]="item"
                 [isCollapsed]="!isMobile && isCollapsed"
                 (notify)="closeSidebarOnMobile()">
               </app-nav-item>
@@ -30,7 +30,7 @@
 
     <!-- Main Content -->
     <mat-sidenav-content class="contentWrapper">
-      <app-header 
+      <app-header
         [isSidebarCollapsed]="!isMobile && isCollapsed"
         (toggleSidebar)="toggleSidebar()">
       </app-header>

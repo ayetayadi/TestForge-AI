@@ -233,7 +233,7 @@ def make_query_tools(user_id: str) -> List:
             return f"No test cases found matching **\"{query}\"**."
 
         rows = [
-            f"- **{tc.tc_code}** (ID: `{tc.id}`) [{tc.priority or 'Medium'}]: {tc.title[:80]}"
+            f"- **{tc.tc_code}** (ID: `{tc.id}`): {tc.title[:80]}"
             for tc in results
         ]
         return (

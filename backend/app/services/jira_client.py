@@ -354,6 +354,36 @@ class JiraClient:
         data = await self._request("POST", url, json=body)
         return {"id": data.get("id")}
 
+    async def get_project_issue_types(self, project_key: str) -> list[dict]:
+        """Return issue types available for a project (id + name)."""
+        url = f"{ATLASSIAN_API_URL}/ex/jira/{self.cloud_id}/rest/api/3/project/{project_key}/statuses"
+        data = await self._request("GET", url)
+        seen: dict[str, str] = {}
+        for item in data:
+            seen[item["id"]] = item["name"]
+        return [{"id": k, "name": v} for k, v in seen.items()]
+
+    async def _resolve_issue_type(self, project_key: str, desired: str) -> str:
+        """Map a desired issue type name to one the project actually supports."""
+        try:
+            types = await self.get_project_issue_types(project_key)
+            names = [t["name"] for t in types]
+            # Exact match (case-insensitive)
+            for n in names:
+                if n.lower() == desired.lower():
+                    return n
+            # Substring match (handles "Bogue" ↔ "Bug", "Défaut" ↔ "Defect")
+            bug_keywords = ["bug", "defect", "défaut", "bogue", "erreur", "error", "anomalie"]
+            for n in names:
+                if any(kw in n.lower() for kw in bug_keywords):
+                    return n
+            # Last resort: first available type
+            if names:
+                return names[0]
+        except Exception:
+            pass
+        return desired
+
     async def create_issue(
         self,
         project_key: str,
@@ -364,13 +394,14 @@ class JiraClient:
         labels: list[str] | None = None,
     ) -> dict:
         """Create a Jira issue and return its key and id."""
+        resolved_type = await self._resolve_issue_type(project_key, issue_type)
         url = f"{ATLASSIAN_API_URL}/ex/jira/{self.cloud_id}/rest/api/3/issue"
         body: dict = {
             "fields": {
                 "project": {"key": project_key},
                 "summary": summary,
                 "description": self._build_adf(description_paragraphs),
-                "issuetype": {"name": issue_type},
+                "issuetype": {"name": resolved_type},
                 "priority": {"name": priority},
             }
         }

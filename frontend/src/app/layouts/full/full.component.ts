@@ -37,7 +37,7 @@ import { TastyComponent } from 'src/app/components/tasty/tasty.component';
 })
 export class FullComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('sidenav') sidenav!: MatSidenav;
-  
+
   sidebarOpened = true;
   isMobile = false;
   isCollapsed = false;
@@ -59,7 +59,7 @@ export class FullComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.breakpointObserver.observe(['(max-width: 768px)']).subscribe(result => {
       this.isMobile = result.matches;
-      
+
       if (this.isMobile) {
         this.sidebarOpened = false;
         this.isCollapsed = false;
@@ -94,7 +94,7 @@ export class FullComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.removeBackdrop();
-    
+
     // CORRECTION: Utiliser openedStart et _animationFinished ou simplement setTimeout
     if (this.sidenav) {
       // Écouter l'ouverture
@@ -103,7 +103,7 @@ export class FullComponent implements OnInit, AfterViewInit, OnDestroy {
           setTimeout(() => this.removeBackdrop(), 10);
         })
       );
-      
+
       // Écouter la fermeture via openedChange (false = fermé)
       this.subscriptions.push(
         this.sidenav.openedChange.subscribe((isOpen) => {
@@ -150,7 +150,7 @@ export class FullComponent implements OnInit, AfterViewInit, OnDestroy {
 
   toggleSidebar(): void {
     this.removeBackdrop();
-    
+
     if (this.isMobile) {
       if (this.sidebarOpened) {
         this.sidenav.close();

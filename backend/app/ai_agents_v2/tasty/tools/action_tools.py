@@ -54,7 +54,7 @@ def make_action_tools(user_id: str) -> List:
             user_story_id: The UUID of the user story to refine
         """
         from app.services.user_story_version_service import start_version
-        from app.workers.asyncio_workers import submit_version
+        from app.workers.us_worker import submit_version
 
         async with async_session_maker() as db:
             story: UserStory | None = await db.get(UserStory, user_story_id)
@@ -101,7 +101,7 @@ def make_action_tools(user_id: str) -> List:
         Args:
             user_story_id: The UUID of the user story to generate test cases for
         """
-        from app.ai_agents_v2.test_case_generator.runner import run_test_case_agent
+        from app.ai_workflows.test_case import get_pipeline
         from app.services import test_case_service
 
         async with async_session_maker() as db:
@@ -121,9 +121,12 @@ def make_action_tools(user_id: str) -> List:
         logger.info("[Tasty] Generating test cases for story=%s", issue_key)
 
         try:
-            result = await run_test_case_agent(
-                user_story=story_text,
+            pipeline = get_pipeline()
+            result = await pipeline.run(
+                story=story_text,
                 acceptance_criteria=acceptance_criteria,
+                user_story_id=user_story_id,
+                issue_key=issue_key,
             )
         except Exception as exc:
             logger.exception("[Tasty] TestCaseGenerator failed: %s", exc)

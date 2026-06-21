@@ -6,6 +6,7 @@ import { MaterialModule } from 'src/app/material.module';
 import { AdminService, UserRead } from '../../../services/admin.service';
 import { signal, computed } from '@angular/core';
 import { PaginationComponent } from '../../../components/pagination/pagination.component';
+import {MatDialog} from "@angular/material/dialog";
 
 
 @Component({
@@ -59,7 +60,7 @@ confirmDialogData = signal<{
   onConfirm: () => {},
 });
 
-  constructor(private adminService: AdminService) {}
+  constructor(private adminService: AdminService , private dialog: MatDialog) {}
 
   get f() { return this.form.controls; }
 
@@ -129,25 +130,16 @@ confirmDialogData = signal<{
     }
   }
 
-deleteUser(id: string): void {
-  this.confirmDialogData.set({
-    title: 'Delete User',
-    message: 'Delete this user?\n\nThis action cannot be undone.',
-    icon: '🗑️',
-    confirmText: 'Delete',
-    cancelText: 'Cancel',
-    variant: 'danger',
-    onConfirm: () => {
-      this.adminService.deleteUser(id).subscribe({
-        next: () => this.loadUsers(),
-        error: (err) => {
-          this.errorMessage = err?.error?.detail || 'Failed to delete user';
-        }
-      });
-    }
-  });
-  this.showConfirmDialog.set(true);
-}
+  deleteUser(id: string): void {
+    if (!confirm('Delete this user? This action cannot be undone.')) return;
+
+    this.adminService.deleteUser(id).subscribe({
+      next: () => this.loadUsers(),
+      error: (err) => {
+        this.errorMessage = err?.error?.detail || 'Failed to delete user';
+      }
+    });
+  }
 
   editUser(user: UserRead): void {
     this.isEditMode = true;

@@ -6,7 +6,7 @@ import { TastyComponent } from './components/tasty/tasty.component';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, ToastContainerComponent, TastyComponent],
+  imports: [RouterOutlet, ToastContainerComponent],
   templateUrl: './app.component.html'
 })
 export class AppComponent {
