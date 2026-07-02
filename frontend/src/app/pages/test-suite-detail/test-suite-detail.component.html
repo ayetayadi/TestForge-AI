@@ -628,9 +628,11 @@
         @if (getGraph(); as graph) {
 
           <div class="graph-algo-box">
-            <span class="graph-algo-rule"><strong>1st key — Business Flow</strong></span>
-            <span class="graph-algo-sep"> | </span>
-            <span class="graph-algo-rule"><strong>2nd key — Risk Level</strong></span>
+            <span class="graph-algo-rule"><strong>Lanes (rows)</strong> = business flow</span>
+            <span class="graph-algo-sep"> · </span>
+            <span class="graph-algo-rule"><strong>Numbered badge</strong> = execution order (run step)</span>
+            <span class="graph-algo-sep"> · </span>
+            <span class="graph-algo-rule"><strong>arrows</strong> = run sequence (1→2→…→N)</span>
           </div>
 
           @if (getGraphExecutionOrder().length > 0) {
@@ -727,8 +729,8 @@
                     <rect width="160" height="64" rx="10" [attr.fill]="getNodeFill(node.priority)" [attr.stroke]="getNodeStroke(node.priority)" stroke-width="2" filter="url(#node-shadow)"/>
                     <rect width="160" height="6" rx="10" [attr.fill]="getNodeStroke(node.priority)"/>
                     <rect x="0" y="3" width="160" height="3" [attr.fill]="getNodeStroke(node.priority)"/>
-                    <circle cx="148" cy="18" r="12" [attr.fill]="getNodeStroke(node.priority)"/>
-                    <text x="148" y="22" text-anchor="middle" font-size="9" font-weight="700" fill="white">#{{ node.exec_pos }}</text>
+                    <circle cx="18" cy="18" r="15" fill="#111827" stroke="white" stroke-width="2"/>
+                    <text x="18" y="23" text-anchor="middle" font-size="14" font-weight="800" fill="white">{{ node.exec_pos }}</text>
                     <text x="76" y="28" text-anchor="middle" font-size="11" font-weight="700" [attr.fill]="getNodeStroke(node.priority)">{{ node.tc_code }}</text>
                     <text x="76" y="44" text-anchor="middle" font-size="10" fill="#374151">{{ node.title }}</text>
                     <text x="76" y="57" text-anchor="middle" font-size="9" fill="#9ca3af">{{ node.test_type ?? '' }}</text>

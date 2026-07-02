@@ -125,7 +125,7 @@ logger.info(
 # ──────────────────────────────────────────────────────────────
 
 _GROQ_TO_OPENROUTER: dict[str, str] = {
-    "openai/gpt-oss-120b":   "meta-llama/llama-3.3-70b-instruct",
+    "openai/gpt-oss-120b":   "openai/gpt-oss-120b",
     "llama-3.1-70b-versatile":   "meta-llama/llama-3.1-70b-instruct",
     "llama-3.1-8b-instant":      "meta-llama/llama-3.1-8b-instruct",
     "llama3-70b-8192":           "meta-llama/llama-3-70b-instruct",

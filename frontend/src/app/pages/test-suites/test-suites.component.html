@@ -209,18 +209,10 @@
                 </div>
               }
               <div class="card-actions">
-                @if (confirmDeleteId() === suite.id) {
-                  <button class="card-delete-confirm-btn" [disabled]="isDeletingId() === suite.id"
-                          (click)="executeDelete(suite.id, $event)">
-                    @if (isDeletingId() === suite.id) { … } @else { Confirm }
-                  </button>
-                  <button class="card-delete-cancel-btn" (click)="cancelDelete($event)">✕</button>
-                } @else {
-                  <button class="card-delete-btn" title="Delete suite"
-                          (click)="requestDelete(suite.id, $event)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
-                  </button>
-                }
+                <button class="card-delete-btn" title="Delete suite"
+                        (click)="requestDelete(suite.id, $event)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
               </div>
             </div>
             <h3 class="card-title">{{ suite.title }}</h3>
@@ -347,5 +339,20 @@
       }
     </div>
   }
+
+  <!-- ═══════════════════════════════════════════════════
+       DELETE CONFIRMATION DIALOG
+  ════════════════════════════════════════════════════ -->
+  <app-confirm-dialog
+    [visible]="confirmDeleteId() !== null"
+    icon="🗑️"
+    variant="danger"
+    title="Delete test suite?"
+    [message]="'This will permanently delete ' + (suitePendingDelete()?.title ?? 'this suite') + ' and all of its test cases. This action cannot be undone.'"
+    [confirmText]="isDeletingId() ? 'Deleting…' : 'Delete'"
+    cancelText="Cancel"
+    (confirmed)="executeDelete()"
+    (cancelled)="cancelDelete()">
+  </app-confirm-dialog>
 
 </div>

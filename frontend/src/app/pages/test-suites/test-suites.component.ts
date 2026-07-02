@@ -17,11 +17,12 @@ import {
 } from '../../models/test-suite.model';
 import { Project } from '../../models/user_story.model';
 import { TestCaseService } from 'src/app/services/test-case.service';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-test-suites',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, ConfirmDialogComponent],
   templateUrl: './test-suites.component.html',
   styleUrl: './test-suites.component.scss',
 })
@@ -191,8 +192,14 @@ async loadPlans() {
     this.confirmDeleteId.set(null);
   }
 
-  async executeDelete(id: string, event: Event) {
-    event.stopPropagation();
+  /** Suite currently pending deletion (drives the confirm dialog). */
+  suitePendingDelete = computed(() =>
+    this.allSuites().find(s => s.id === this.confirmDeleteId()) ?? null
+  );
+
+  async executeDelete() {
+    const id = this.confirmDeleteId();
+    if (!id) return;
     this.isDeletingId.set(id);
     try {
       await lastValueFrom(this.suiteService.delete(id));

@@ -43,7 +43,7 @@ class TestPlanDraft(BaseModel):
     constraints: str = Field(description="2-3 real constraints (timeline, resources, tools)")
     reasoning: str = Field(description="Brief explanation of main choices")
     stakeholders: str = Field(description="Roles: QA Engineer, Developer, PO, Tech Lead with responsibilities")
-    communication: str = Field(description="Communication: daily standup, progress reports, channels")
+    communication: str = Field(default="", description="Communication: daily standup, progress reports, channels")
     
 # ============================================================
 # PIPELINE

@@ -66,9 +66,16 @@ class UserStoryRefinementPipeline:
 
     def __init__(self, temperature: float = LLM_TEMPERATURE, model: str = LLM_MODEL):
         logger.info("[PIPELINE] Initializing...")
+        self._temperature = temperature
+        self._model = model
         llm = create_llm(temperature=temperature, model=model, max_tokens=LLM_MAX_TOKENS)
         self._llm = llm.with_structured_output(ImprovementResult)
         logger.info("[PIPELINE] Ready")
+
+    def _make_llm(self, max_tokens: int):
+        """Build a structured-output LLM with a specific token budget (for retries)."""
+        llm = create_llm(temperature=self._temperature, model=self._model, max_tokens=max_tokens)
+        return llm.with_structured_output(ImprovementResult)
 
     async def _emit(self, callback: Optional[Callable], event_type: str, data: dict) -> None:
         if callback is None:
@@ -181,7 +188,30 @@ class UserStoryRefinementPipeline:
                 score_story(improved_story, improved_ac),
                 compare_similarity(clean_story, improved_story),
             )
-    
+
+            # ── NO-REGRESSION GUARD ─────────────────────────────
+            # Never return a story that scores lower than the original.
+            # The LLM occasionally degrades an already-decent story; in that
+            # case we revert to the original instead of shipping a worse one.
+            if final.get("final_score", 0) < initial.get("final_score", 0):
+                logger.info(
+                    f"[PIPELINE] Improved score {final.get('final_score', 0):.3f} < "
+                    f"initial {initial.get('final_score', 0):.3f} — reverting to original"
+                )
+                await self._emit(progress_callback, "phase", {
+                    "phase": "done",
+                    "message": "Improvement lowered the score — keeping the original story",
+                    "score": initial.get("final_score", 0),
+                    "similarity": 1.0,
+                })
+                return self._build_result(
+                    story=clean_story, ac=ac,
+                    initial=initial, final=initial,
+                    similarity=1.0, iterations=iterations, status="no_improvement",
+                    reasoning=reasoning,
+                    jira_id=jira_id, original_actor=original_actor,
+                )
+
             status = (
                 "success"
                 if final.get("is_testable") and final.get("final_score", 0) >= MIN_SCORE_THRESHOLD
@@ -261,14 +291,16 @@ class UserStoryRefinementPipeline:
             )
 
             # Fire DeepEval evaluation in background — does not block the response
-            if result.get("is_improved"):
-                trace_id = lf.get_current_trace_id()
-                asyncio.create_task(fire_evaluation(
-                    metric="user_story_quality",
-                    input_text=clean_story,
-                    output_text=result["improved_story"],
-                    trace_id=trace_id,
-                ))
+            # DISABLED: background user_story_quality DeepEval judge turned off on request.
+            # Re-enable by uncommenting the block below.
+            # if result.get("is_improved"):
+            #     trace_id = lf.get_current_trace_id()
+            #     asyncio.create_task(fire_evaluation(
+            #         metric="user_story_quality",
+            #         input_text=clean_story,
+            #         output_text=result["improved_story"],
+            #         trace_id=trace_id,
+            #     ))
 
             return result
     
@@ -325,11 +357,21 @@ class UserStoryRefinementPipeline:
             return await self._llm.ainvoke(prompt, config=invoke_config)
         except Exception as e:
             # Groq returns 400 when max_tokens cuts the JSON mid-stream.
-            # Fall back: trim reasoning to force a shorter response.
+            # The acceptance-criteria list is what usually blows the budget, so
+            # retry with a larger token budget AND a hint to stay concise.
             if "tool_use_failed" in str(e) or "Failed to parse" in str(e):
-                logger.warning("[PIPELINE] JSON parse error from Groq — retrying with shorter reasoning hint")
-                short_prompt = prompt + "\n\nIMPORTANT: Keep the reasoning field under 80 words."
-                return await self._llm.ainvoke(short_prompt, config=invoke_config)
+                retry_tokens = LLM_MAX_TOKENS * 2
+                logger.warning(
+                    f"[PIPELINE] Tool-call/JSON error from Groq — retrying with "
+                    f"max_tokens={retry_tokens} and a conciseness hint"
+                )
+                short_prompt = (
+                    prompt
+                    + "\n\nIMPORTANT: Keep each acceptance criterion to a single concise "
+                    "sentence and the reasoning field under 80 words. Return valid JSON."
+                )
+                retry_llm = self._make_llm(retry_tokens)
+                return await retry_llm.ainvoke(short_prompt, config=invoke_config)
             raise
 
     def _build_result(

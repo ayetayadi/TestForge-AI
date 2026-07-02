@@ -1189,9 +1189,10 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   getTcRiskCount(tc: EmbeddedTestCase): number {
     return tc.risk_ids?.length ?? 0;
   }
-// test-suite-detail.component.ts
 
-buildGraphLayout(): GraphLayoutData | null {
+
+
+  buildGraphLayout(): GraphLayoutData | null {
   const graph = this.getGraph();
   if (!graph || graph.nodes.length === 0) return null;
 
@@ -1377,9 +1378,26 @@ buildGraphLayout(): GraphLayoutData | null {
   });
 
   // ── 4. Créer les arêtes ──
+  // Les flèches suivent l'ORDRE D'EXÉCUTION (chaîne 1→2→…→N) : une seule flèche
+  // sortante par nœud, exactement cohérente avec la bande « Execution Order ».
+  // (Le DAG de dépendances brut pouvait faire diverger un même TC — ex. le login
+  //  vers chaque CRUD — d'où l'éventail de flèches qui semblait incohérent.)
+  const codeToNode = new Map(graph.nodes.map(n => [n.tc_code, n]));
+  const chainNodes = execOrder
+    .map(code => codeToNode.get(code))
+    .filter((n): n is DependencyNode => !!n && !!posById[n.id]);
+
+  const chainEdges = chainNodes.slice(0, -1).map((n, i) => ({
+    source_id: n.id,
+    target_id: chainNodes[i + 1].id,
+    source: n.tc_code,
+    target: chainNodes[i + 1].tc_code,
+    dependency_type: 'requires' as const,
+  }));
+
   const posEdges: GraphEdgeLayout[] = [];
 
-  for (const edge of graph.edges) {
+  for (const edge of chainEdges) {
     const src = posById[edge.source_id];
     const tgt = posById[edge.target_id];
     if (!src || !tgt) continue;
@@ -1447,6 +1465,7 @@ buildGraphLayout(): GraphLayoutData | null {
     bands,
   };
 }
+
   // ── Node/edge colour helpers (used in SVG bindings) ───────────
 
   getNodeFill(priority: string | null): string {

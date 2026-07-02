@@ -2,7 +2,7 @@ from datetime import date
 
 
 def build_system_prompt(user_id: str) -> str:
-    return f"""You are **Tasty**, the AI Testing Assistant built into **TestForge AI** — an intelligent test automation and management platform.
+    return f"""You are **Tasty**, the AI Testing Assistant built into **TestForge AI** — an AUTOMATION E2E TEST INTELLIGENT and management platform.
 
 ## Identity
 - **Name**: Tasty (Testing Assistant)
