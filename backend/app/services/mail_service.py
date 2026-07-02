@@ -28,9 +28,9 @@ async def send_account_setup_email(email: str, username: str, setup_token: str):
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #1a1a2e; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="color: #4a9eff; margin: 0; font-size: 28px;">TestForge AI AI AI</h1>
+            <h1 style="color: #4a9eff; margin: 0; font-size: 28px;">TestForge AI</h1>
             <p style="color: #aaa; margin: 8px 0 0 0; font-size: 13px;">
-                Intelligent Test Automation
+                AUTOMATION E2E TEST INTELLIGENT
             </p>
         </div>
 
@@ -38,7 +38,7 @@ async def send_account_setup_email(email: str, username: str, setup_token: str):
                     border: 1px solid #e0e0e0;">
             <h2 style="color: #333; margin-top: 0;">Welcome, {username}! 👋</h2>
             <p style="color: #555; line-height: 1.6;">
-                Your TestForge AI AI AI account has been created by an administrator.
+                Your TestForge AI account has been created by an administrator.
                 Click the button below to set up your password and activate your account.
             </p>
 
@@ -58,14 +58,14 @@ async def send_account_setup_email(email: str, username: str, setup_token: str):
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
             <p style="color: #aaa; font-size: 12px; text-align: center; margin: 0;">
-                © 2026 TestForge AI AI AI — Intelligent Test Automation
+                © 2026 TestForge AI — AUTOMATION E2E TEST INTELLIGENT
             </p>
         </div>
     </div>
     """
 
     message = MessageSchema(
-        subject="Set up your TestForge AI AI AI account",
+        subject="Set up your TestForge AI account",
         recipients=[email],
         body=html,
         subtype=MessageType.html,
@@ -80,9 +80,9 @@ async def send_reset_email(email: str, username: str, reset_token: str):
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #1a1a2e; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="color: #4a9eff; margin: 0; font-size: 28px;">TestForge AI AI AI</h1>
+            <h1 style="color: #4a9eff; margin: 0; font-size: 28px;">TestForge AI</h1>
             <p style="color: #aaa; margin: 8px 0 0 0; font-size: 13px;">
-                Intelligent Test Automation
+                AUTOMATION E2E TEST INTELLIGENT
             </p>
         </div>
 
@@ -91,7 +91,7 @@ async def send_reset_email(email: str, username: str, reset_token: str):
             <h2 style="color: #333; margin-top: 0;">Password reset request</h2>
             <p style="color: #555; line-height: 1.6;">
                 Hi <strong>{username}</strong>, we received a request to reset
-                your TestForge AI AI AI password. Click the button below to choose a new one.
+                your TestForge AI password. Click the button below to choose a new one.
             </p>
 
             <div style="text-align: center; margin: 32px 0;">
@@ -110,14 +110,14 @@ async def send_reset_email(email: str, username: str, reset_token: str):
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
             <p style="color: #aaa; font-size: 12px; text-align: center; margin: 0;">
-                © 2026 TestForge AI AI AI — Intelligent Test Automation
+                © 2026 TestForge AI — AUTOMATION E2E TEST INTELLIGENT
             </p>
         </div>
     </div>
     """
 
     message = MessageSchema(
-        subject="Reset your TestForge AI AI AI password",
+        subject="Reset your TestForge AI password",
         recipients=[email],
         body=html,
         subtype=MessageType.html,
@@ -130,9 +130,9 @@ async def send_password_changed_email(email: str, username: str):
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #1a1a2e; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="color: #4a9eff; margin: 0; font-size: 28px;">TestForge AI AI AI</h1>
+            <h1 style="color: #4a9eff; margin: 0; font-size: 28px;">TestForge AI</h1>
             <p style="color: #aaa; margin: 8px 0 0 0; font-size: 13px;">
-                Intelligent Test Automation
+                AUTOMATION E2E TEST INTELLIGENT
             </p>
         </div>
 
@@ -142,7 +142,7 @@ async def send_password_changed_email(email: str, username: str):
 
             <p style="color: #555; line-height: 1.6;">
                 Hi <strong>{username}</strong>, this is a confirmation that your
-                TestForge AI AI AI password was changed successfully.
+                TestForge AI password was changed successfully.
             </p>
 
             <p style="color: #555; line-height: 1.6;">
@@ -156,20 +156,20 @@ async def send_password_changed_email(email: str, username: str):
 
             <div style="margin-top: 28px; padding: 16px; background: #f8f9fb; border-left: 4px solid #4a9eff; border-radius: 6px;">
                 <p style="margin: 0; color: #555; font-size: 14px;">
-                    Security notice: for your protection, TestForge AI AI AI never sends your password by email.
+                    Security notice: for your protection, TestForge AI never sends your password by email.
                 </p>
             </div>
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
             <p style="color: #aaa; font-size: 12px; text-align: center; margin: 0;">
-                © 2026 TestForge AI AI AI — Intelligent Test Automation
+                © 2026 TestForge AI — AUTOMATION E2E TEST INTELLIGENT
             </p>
         </div>
     </div>
     """
 
     message = MessageSchema(
-        subject="Your TestForge AI AI AI password has been changed",
+        subject="Your TestForge AI password has been changed",
         recipients=[email],
         body=html,
         subtype=MessageType.html,
@@ -328,7 +328,7 @@ async def send_risk_analysis_email(
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
         <div style="background: #1a1a2e; padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="color: #4a9eff; margin: 0; font-size: 24px;">TestForge AI AI AI</h1>
+            <h1 style="color: #4a9eff; margin: 0; font-size: 24px;">TestForge AI</h1>
             <p style="color: #aaa; margin: 4px 0 0 0; font-size: 13px;">Risk Analysis Report</p>
         </div>
 
@@ -376,7 +376,7 @@ async def send_risk_analysis_email(
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0 16px 0;" />
             <p style="color: #aaa; font-size: 11px; text-align: center; margin: 0;">
-                © 2026 TestForge AI AI AI — Risk Based Testing (ISTQB)
+                © 2026 TestForge AI — Risk Based Testing (ISTQB)
             </p>
         </div>
     </div>
@@ -463,7 +463,7 @@ async def send_risk_alert_email(
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0 12px 0;" />
             <p style="color: #aaa; font-size: 11px; text-align: center; margin: 0;">
-                © 2026 TestForge AI AI AI — Risk Based Testing (ISTQB)
+                © 2026 TestForge AI — Risk Based Testing (ISTQB)
             </p>
         </div>
     </div>

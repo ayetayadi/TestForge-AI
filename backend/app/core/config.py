@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     # =========================
     # REDIS CONFIG
     # =========================
+    # Set REDIS_ENABLED=false to skip Redis entirely and run 100% in-memory
+    # (no Docker needed). Avoids the ~13s startup delay when Redis is absent.
+    REDIS_ENABLED: bool = False
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = ""

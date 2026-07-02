@@ -11,7 +11,7 @@ load_dotenv()
 # ============================================================
 LLM_TEMPERATURE = 0.3
 LLM_MODEL = "openai/gpt-oss-120b"
-LLM_MAX_TOKENS = 2000
+LLM_MAX_TOKENS = 4000
 
 # ============================================================
 # Agent Configuration
@@ -21,7 +21,7 @@ MIN_SCORE_THRESHOLD = 0.8
 
 # ============================================================
 MIN_SIMILARITY_THRESHOLD = 0.70
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2000"))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4000"))
 
 # ============================================================
 # Tool Configuration

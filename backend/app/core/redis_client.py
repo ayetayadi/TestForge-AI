@@ -9,6 +9,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _redis_client = None
+_redis_client_decode = None
 _redis_available = None
 
 
@@ -18,7 +19,12 @@ async def get_redis() -> redis.Redis | None:
     Utiliser dans tous les fichiers qui ont besoin de Redis.
     """
     global _redis_client, _redis_available
-    
+
+    # Redis désactivé explicitement → 100% en mémoire, aucune tentative de connexion
+    if not settings.REDIS_ENABLED:
+        _redis_available = False
+        return None
+
     # Si déjà marqué comme non disponible, ne pas réessayer
     if _redis_available is False:
         return None
@@ -59,7 +65,11 @@ async def reset_redis_connection():
 async def get_redis_with_decode() -> redis.Redis | None:
     """Version avec decode_responses=True pour le texte."""
     global _redis_client_decode, _redis_available
-    
+
+    if not settings.REDIS_ENABLED:
+        _redis_available = False
+        return None
+
     if _redis_available is False:
         return None
     

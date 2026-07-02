@@ -1256,9 +1256,13 @@ class PlaywrightReActAgent:
                 continue
 
             # ── Anti-loop guard: detect the model repeating the same action ─────
+            # Identify the element by ref OR target: frame-scoped refs (e.g. "f3e11")
+            # are not normalized into `ref`, so keying on `ref` alone collapses every
+            # click to the same signature → a click on a DIFFERENT button is wrongly
+            # dropped as a duplicate. Fall back to `target` so distinct elements differ.
             sig = (
                 name,
-                str(args.get("ref", "")),
+                str(args.get("ref", "") or args.get("target", "")),
                 str(args.get("text", args.get("value", ""))),
             )
             if name != "browser_snapshot" and sig == last_sig:
