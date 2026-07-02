@@ -103,7 +103,7 @@ export class TestSuiteDetailComponent implements OnInit, OnDestroy {
   suiteRunBrowser     = signal('chromium');
   suiteRunHeadless    = signal(true);
   suiteRunStopOnFail  = signal(false);
-  suiteRunModel       = signal('llama-3.3-70b-versatile');
+  suiteRunModel       = signal('openai/gpt-oss-120b');
   availableModels     = signal<AvailableModel[]>([]);
   suiteRunModelDescription = computed(() =>
     this.availableModels().find(m => m.id === this.suiteRunModel())?.description ?? ''

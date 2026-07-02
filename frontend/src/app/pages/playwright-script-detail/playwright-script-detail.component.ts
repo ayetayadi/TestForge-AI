@@ -69,7 +69,7 @@ export class PlaywrightScriptDetailComponent implements OnInit, OnDestroy {
   appUrl = signal('');
   browser = signal<'chromium' | 'firefox' | 'webkit'>('chromium');
   headless = signal(true);
-  selectedModel = signal<string>('llama-3.3-70b-versatile');
+  selectedModel = signal<string>('openai/gpt-oss-120b');
 
   // Available models (loaded from API)
   availableModels = signal<AvailableModel[]>([]);

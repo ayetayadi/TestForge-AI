@@ -6,13 +6,14 @@ import { MaterialModule } from 'src/app/material.module';
 import { AdminService, UserRead } from '../../../services/admin.service';
 import { signal, computed } from '@angular/core';
 import { PaginationComponent } from '../../../components/pagination/pagination.component';
+import { ConfirmDialogComponent } from '../../../components/confirm-dialog/confirm-dialog.component';
 import {MatDialog} from "@angular/material/dialog";
 
 
 @Component({
   selector: 'app-create-user',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, MaterialModule, RouterModule, PaginationComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, MaterialModule, RouterModule, PaginationComponent, ConfirmDialogComponent],
   templateUrl: './create-user.component.html',
 })
 
@@ -131,8 +132,19 @@ confirmDialogData = signal<{
   }
 
   deleteUser(id: string): void {
-    if (!confirm('Delete this user? This action cannot be undone.')) return;
+    this.confirmDialogData.set({
+      title: 'Delete User',
+      message: '🗑️ Delete this user?\n\nThis action cannot be undone.',
+      icon: '🗑️',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      onConfirm: () => this._performDelete(id),
+    });
+    this.showConfirmDialog.set(true);
+  }
 
+  private _performDelete(id: string): void {
     this.adminService.deleteUser(id).subscribe({
       next: () => this.loadUsers(),
       error: (err) => {

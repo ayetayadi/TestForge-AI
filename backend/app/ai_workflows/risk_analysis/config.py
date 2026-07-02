@@ -5,13 +5,13 @@ load_dotenv()
 
 # ============================================================
 # LLM
-# Uses Groq llama-3.3-70b-versatile — native structured output,
+# Uses Groq openai/gpt-oss-120b — native structured output,
 # fastest available, no slash so routes to the Groq pool directly.
 # max_tokens is kept small because the output schema is flat ints
 # + two short strings; no verbose reasoning requested.
 # ============================================================
 LLM_TEMPERATURE = 0.1
-LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MODEL = "openai/gpt-oss-120b"
 LLM_MAX_TOKENS = 800
 LLM_TIMEOUT_SECONDS = 60
 

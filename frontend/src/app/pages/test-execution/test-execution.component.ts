@@ -12,6 +12,7 @@ import {
 import { TestSuiteService } from '../../services/test-suite.service';
 import { ToastService } from '../../services/toast.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 import { TestSuiteListItem } from '../../models/test-suite.model';
 import {
   TestExecutionBasic, TestExecutionGlobalStats,
@@ -40,7 +41,7 @@ interface SuiteLogEntry {
   selector: 'app-test-execution',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, DragDropModule, SpinnerComponent,
+    CommonModule, FormsModule, DragDropModule, SpinnerComponent, ConfirmDialogComponent,
   ],
   templateUrl: './test-execution.component.html',
   styleUrls: ['./test-execution.component.scss'],
@@ -70,6 +71,26 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
   // ── Delete ───────────────────────────────────────────────────────────────────
   deletingId = signal<string | null>(null);
 
+  // ── Confirm dialog ───────────────────────────────────────────────────────────
+  showConfirmDialog = signal(false);
+  confirmDialogData = signal<{
+    title: string;
+    message: string;
+    icon: string;
+    confirmText: string;
+    cancelText: string;
+    variant: 'primary' | 'danger' | 'warning' | 'success';
+    onConfirm: () => void;
+  }>({
+    title: '',
+    message: '',
+    icon: '🗑️',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {},
+  });
+
   // ── Relaunch ─────────────────────────────────────────────────────────────────
   relaunchingId = signal<string | null>(null);
 
@@ -81,7 +102,7 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
   runModalBrowser    = signal<'chromium' | 'firefox' | 'webkit'>('chromium');
   runModalHeadless   = signal(true);
   runModalStopOnFail = signal(false);
-  runModalModel      = signal('llama-3.3-70b-versatile');
+  runModalModel      = signal('openai/gpt-oss-120b');
   runModalTcs        = signal<ModalTcRow[]>([]);
   isLoadingModalTcs  = signal(false);
   isSavingOrder      = signal(false);
@@ -153,7 +174,19 @@ export class TestExecutionComponent implements OnInit, OnDestroy {
 
   deleteExecution(ex: TestExecutionBasic, event: Event): void {
     event.stopPropagation();
-    if (!confirm(`Delete execution of "${ex.suite_title || 'this suite'}"? This cannot be undone.`)) return;
+    this.confirmDialogData.set({
+      title: 'Delete Execution',
+      message: `🗑️ Delete execution of "${ex.suite_title || 'this suite'}"?\n\nThis action cannot be undone.`,
+      icon: '🗑️',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      onConfirm: () => this._performDelete(ex),
+    });
+    this.showConfirmDialog.set(true);
+  }
+
+  private _performDelete(ex: TestExecutionBasic): void {
     this.deletingId.set(ex.id);
     this.playwrightService.deleteExecution(ex.id).subscribe({
       next: () => {

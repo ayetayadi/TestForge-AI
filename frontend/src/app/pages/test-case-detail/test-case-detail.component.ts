@@ -9,11 +9,12 @@ import { TestCase, TestStep, Priority, TestCaseStatus } from '../../models/test-
 import { PlaywrightE2EService } from 'src/app/services/playwright-e2e.service';
 import { ScriptListResponse } from 'src/app/models/playwright.models';
 import { TestomatService } from '../../services/testomat.service';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-test-case-detail',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, ConfirmDialogComponent],
   templateUrl: './test-case-detail.component.html',
   styleUrl: './test-case-detail.component.scss'
 })
@@ -35,6 +36,26 @@ export class TestCaseDetailComponent implements OnInit {
   hasScripts = signal<boolean>(false);
   checkingScripts = signal<boolean>(false);
   isPushingToTestomat = signal(false);
+
+  // ── Confirm dialog ───────────────────────────────────────────
+  showConfirmDialog = signal(false);
+  confirmDialogData = signal<{
+    title: string;
+    message: string;
+    icon: string;
+    confirmText: string;
+    cancelText: string;
+    variant: 'primary' | 'danger' | 'warning' | 'success';
+    onConfirm: () => void;
+  }>({
+    title: '',
+    message: '',
+    icon: '🗑️',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+    onConfirm: () => {},
+  });
 
   private testomatService = inject(TestomatService);
 
@@ -186,18 +207,29 @@ private ensureObject(value: any): any {
 }
 
   deleteTestCase(): void {
-    if (confirm('Are you sure you want to delete this test case? This action cannot be undone.')) {
-      this.testCaseService.deleteTestCase(this.testCase!.id).subscribe({
-        next: () => {
-          this.toastService.success('Deleted', 'Test case deleted successfully');
-          this.router.navigate(['/test-cases']);
-        },
-        error: (error) => {
-          console.error('Error deleting test case:', error);
-          this.toastService.error('Error', 'Failed to delete test case');
-        }
-      });
-    }
+    this.confirmDialogData.set({
+      title: 'Delete Test Case',
+      message: '🗑️ Are you sure you want to delete this test case?\n\nThis action cannot be undone.',
+      icon: '🗑️',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      onConfirm: () => this._performDelete(),
+    });
+    this.showConfirmDialog.set(true);
+  }
+
+  private _performDelete(): void {
+    this.testCaseService.deleteTestCase(this.testCase!.id).subscribe({
+      next: () => {
+        this.toastService.success('Deleted', 'Test case deleted successfully');
+        this.router.navigate(['/test-cases']);
+      },
+      error: (error) => {
+        console.error('Error deleting test case:', error);
+        this.toastService.error('Error', 'Failed to delete test case');
+      }
+    });
   }
 
   goBack(): void {

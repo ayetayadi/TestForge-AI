@@ -7,7 +7,7 @@ load_dotenv()
 # LLM
 # ============================================================
 LLM_TEMPERATURE = 0.3          # Un peu de créativité pour la rédaction, pas trop
-LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MODEL = "openai/gpt-oss-120b"
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS_TEST_PLAN", "3000"))
 LLM_TIMEOUT_SECONDS = 90
 

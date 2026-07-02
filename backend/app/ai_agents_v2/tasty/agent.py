@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def create_tasty_agent(user_id: str):
     """
     Build the Tasty ReAct orchestrator for the given user.
-    Uses Groq (llama-3.3-70b-versatile) — same as all other AI workflows in the project.
+    Uses Groq (openai/gpt-oss-120b) — same as all other AI workflows in the project.
     """
     api_key = (
         settings.GROQ_API_KEY_1
@@ -32,7 +32,7 @@ def create_tasty_agent(user_id: str):
         raise RuntimeError("No GROQ_API_KEY configured.")
 
     llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         api_key=api_key,
         temperature=0.3,
         max_tokens=1500,
