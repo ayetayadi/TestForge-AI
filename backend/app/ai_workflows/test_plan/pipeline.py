@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from app.ai_workflows.test_plan.plan_builder import (
     summarize_risks,
     build_plan_record,
+    compute_title,
 )
 from app.ai_workflows.test_plan.prompts import TEST_PLAN_PROMPT
 from app.llm.llm_control import create_llm
@@ -30,7 +31,6 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 class TestPlanDraft(BaseModel):
-    title: str = Field(description="Short professional title including project name and scope")
     description: str = Field(description="2-3 sentences summarizing what this test plan covers")
     objective: str = Field(description="2-4 measurable testing objectives")
     in_scope: str = Field(description="Bullet list of what IS covered")
@@ -151,6 +151,7 @@ class TestPlanPipeline:
                 llm_output=result.model_dump(),
                 risk_summary=risk_summary,
                 project_id=project_id,
+                project_name=project_name,
                 scope_type=scope_type,
                 scope_refs=scope_refs,
                 environment_override=environment,
@@ -176,7 +177,7 @@ class TestPlanPipeline:
             logger.error(f"[TEST PLAN] Fatal error: {exc}", exc_info=True)
             return {
                 "project_id": project_id,
-                "title": f"Test Plan — {project_name}",
+                "title": compute_title(project_name, scope_type, scope_refs),
                 "description": "",
                 "objective": "",
                 "scope_type": scope_type,
@@ -222,8 +223,6 @@ class TestPlanPipeline:
             scope_refs=", ".join(scope_refs) if scope_refs else "not specified",
             environment_hint=environment_hint,
             story_count=len(user_stories),
-            sprint_count=len(scope_refs) if scope_type == "sprint" else 1,
-            epic_count=len(scope_refs) if scope_type == "epic" else 1,   
             stories_summary=stories_summary,
             count_critical=counts.get("critical", 0),
             count_high=counts.get("high", 0),

@@ -7,7 +7,7 @@ load_dotenv()
 # LLM
 # ============================================================
 LLM_TEMPERATURE = 0.3
-LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MODEL = "openai/gpt-oss-120b"
 LLM_MAX_TOKENS = 6000
 LLM_TIMEOUT_SECONDS = 90       # per-story call (initial generation or correction pass)
 BATCH_LLM_MAX_TOKENS = 8000    # batch call covering multiple user stories at once

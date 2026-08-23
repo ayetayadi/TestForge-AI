@@ -285,6 +285,24 @@ def _read_openrouter_retry_after(exc: _openai_lib.RateLimitError) -> float:
     return 3600.0
 
 
+def _is_groq_token_limit(exc: _groq_lib.APIStatusError) -> bool:
+    """
+    Groq returns HTTP 413 (not 429) when a single request's prompt + max_tokens
+    exceeds the account's tokens-per-minute budget. The SDK has no dedicated
+    exception class for this, so it surfaces as a generic APIStatusError and
+    was previously falling through to an immediate raise — never rotating to
+    another key even though a different key has its own separate TPM budget.
+    """
+    if getattr(exc, "status_code", None) == 413:
+        return True
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error") or {}
+        if err.get("code") == "rate_limit_exceeded":
+            return True
+    return False
+
+
 # ──────────────────────────────────────────────────────────────
 # CONTROLLED CHAT GROQ
 # ──────────────────────────────────────────────────────────────
@@ -369,6 +387,24 @@ class ControlledChatGroq(ChatGroq):
                             break
                         retry_wait = wait
 
+                    except _groq_lib.APIStatusError as exc:
+                        if not _is_groq_token_limit(exc):
+                            logger.error(f"[LLM ERROR] {key_preview}: {exc}")
+                            raise
+                        last_exc = exc
+                        wait = 60.0  # TPM budget resets within the minute
+                        if _available_groq_keys(exclude=key_id):
+                            _mark_exhausted(key_id, wait)
+                            logger.info(
+                                f"[LLM KEY] ↪ {key_preview} hit token-limit (413) — "
+                                f"rotating immediately to a free Groq key"
+                            )
+                            break
+                        if attempt == len(_RETRY_DELAYS):
+                            _mark_exhausted(key_id, wait)
+                            break
+                        retry_wait = wait
+
                     except Exception as exc:
                         logger.error(f"[LLM ERROR] {key_preview}: {exc}")
                         raise
@@ -398,6 +434,15 @@ class ControlledChatGroq(ChatGroq):
                     last_exc = exc
                     _, wait = _parse_rate_limit(exc, 0)
                     _mark_exhausted(fb_key, wait)
+                    continue
+
+                except _groq_lib.APIStatusError as exc:
+                    if not _is_groq_token_limit(exc):
+                        logger.error(f"[LLM ERROR] Groq fallback {fb_label}: {exc}")
+                        raise
+                    last_exc = exc
+                    _mark_exhausted(fb_key, 60.0)
+                    logger.info(f"[LLM KEY] ↪ {fb_label} hit token-limit (413) — trying next key")
                     continue
 
                 except Exception as exc:

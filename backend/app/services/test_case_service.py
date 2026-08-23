@@ -184,7 +184,7 @@ async def sync_risk_levels_from_us(
     test_cases = result.scalars().all()
 
     if not test_cases:
-        return {"updated": 0, "message": "No test cases found"}
+        return {"updated": 0, "total": 0, "message": "No test cases found"}
 
     # Gather all unique user_story_ids
     us_ids = list({tc.user_story_id for tc in test_cases})

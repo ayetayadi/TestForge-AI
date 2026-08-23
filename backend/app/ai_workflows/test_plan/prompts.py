@@ -35,15 +35,6 @@ TOP RISKS IDENTIFIED (with mitigation strategies):
 INSTRUCTIONS FOR RISK-BASED TEST PLAN:
 ═══════════════════════════════════════
 
-1. **TITLE** — short, professional (max 100 characters). Include project name and scope.
-   TITLE RULES:
-   • If scope_type is "sprint" and multiple sprints: "Test Plan — {project_name} — {sprint_count} Sprints ({scope_refs})"
-   • If scope_type is "epic" and multiple epics: "Test Plan — {project_name} — {epic_count} Epics ({scope_refs})"
-   • If scope_type is "sprint" and single sprint: "Test Plan — {project_name} — {scope_refs}"
-   • If scope_type is "epic" and single epic: "Test Plan — {project_name} — {scope_refs}"
-   • Otherwise: "Test Plan — {project_name} — {scope_type}"
-   • NEVER use generic titles like "USM - Sprint 1 Testing" (confusing and incorrect)
-
 2. **DESCRIPTION** — 2-3 sentences summarizing:
    - What this test plan covers (scope, features, risk areas)
 

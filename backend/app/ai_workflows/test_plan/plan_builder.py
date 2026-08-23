@@ -92,10 +92,31 @@ def sanitize_list(values: List[str], allowed: set) -> List[str]:
     """Keep only allowed values, lowercase, deduped."""
     return list(dict.fromkeys(v.lower() for v in values if v.lower() in allowed))
 
+
+def compute_title(project_name: str, scope_type: str, scope_refs: List[str]) -> str:
+    """
+    Deterministic title — NOT left to the LLM, which applied the
+    "N Epics (...)" wording inconsistently even for a single epic/sprint.
+    """
+    scope = (scope_type or "manual").lower()
+    refs = scope_refs or []
+
+    if scope == "sprint" and len(refs) > 1:
+        return f"Test Plan — {project_name} — {len(refs)} Sprints ({', '.join(refs)})"
+    if scope == "epic" and len(refs) > 1:
+        return f"Test Plan — {project_name} — {len(refs)} Epics ({', '.join(refs)})"
+    if scope in ("sprint", "epic") and len(refs) == 1:
+        return f"Test Plan — {project_name} — {refs[0]}"
+    if refs:
+        return f"Test Plan — {project_name} — {', '.join(refs)}"
+    return f"Test Plan — {project_name} — {scope}"
+
+
 def build_plan_record(
     llm_output: Dict[str, Any],
     risk_summary: Dict[str, Any],
     project_id: str,
+    project_name: str,
     scope_type: str,
     scope_refs: List[str],
     environment_override: Optional[str] = None,
@@ -181,7 +202,7 @@ def build_plan_record(
     return {
         # Champs existants (base de données)
         "project_id": project_id,
-        "title": llm_output.get("title", "Test Plan"),
+        "title": compute_title(project_name, scope, scope_refs),
         "description": llm_output.get("description", ""),
         "objective": llm_output.get("objective", ""),
         "scope_type": scope,
