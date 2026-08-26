@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
+from app.models.user_story import UserStory
+from app.models.jira_project import JiraProject
 from app.services.jira_sync_service import JiraSyncOrchestrator
+from app.services.jira_session_manager import JiraSessionManager
 from app.services.notification_service import JiraChangeDetector
 
 router = APIRouter(prefix="/sync", tags=["Synchronisation"])
