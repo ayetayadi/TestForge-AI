@@ -127,7 +127,7 @@ priority
 preconditions
   List of strings — system state required BEFORE the test starts.
   Examples:
-    - "User account exists with email test@example.com"
+    - "User account exists with email user@example.com"
     - "User is NOT logged in"
     - "Database contains at least 1 active product"
 
@@ -136,7 +136,7 @@ postconditions
   Examples:
     - "User session is active in the database"
     - "No new record created in the users table"
-    - "Confirmation email sent to test@example.com"
+    - "Confirmation email sent to user@example.com"
 
 gherkin_scenario
   Full Gherkin BDD block covering ALL possible scenarios for this test case.

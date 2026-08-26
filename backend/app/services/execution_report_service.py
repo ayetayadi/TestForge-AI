@@ -479,7 +479,7 @@ async def send_execution_report_email(
                 {status_icon} Execution Report — {status.upper()}
             </h1>
             <p style="color:rgba(255,255,255,0.85);margin:6px 0 0 0;font-size:13px;">
-                TestForge AI · Playwright E2E Testing
+                TestForge AI · AUTOMATION E2E TEST INTELLIGENT
             </p>
         </div>
 

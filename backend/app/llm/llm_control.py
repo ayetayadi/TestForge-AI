@@ -692,6 +692,10 @@ def create_llm_for_model(model_id: str, temperature: float, max_tokens: int):
     - model_id contains '/' → OpenRouter model (Gemini, Claude, OpenRouter-hosted LLaMA)
     - otherwise → Groq model with Groq→OpenRouter fallback chain
     """
+    if model_id in _GROQ_TO_OPENROUTER:
+        # Groq model (even though its name contains '/') → Groq first,
+        # ControlledChatGroq already falls back to OpenRouter once all Groq keys are exhausted.
+        return create_llm(temperature, model_id, max_tokens)
     if "/" in model_id:
         return create_openrouter_llm(model_id, temperature, max_tokens)
     return create_llm(temperature, model_id, max_tokens)
